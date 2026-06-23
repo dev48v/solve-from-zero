@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 10 — QR Code Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 10</div>
+      <h1 class="text-xl font-bold">🔳 QR Code Generator — Any Text Into a Scannable Code</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Type anything. Get a QR you can scan with your phone.</h2>
+      <p class="text-slate-500 text-center mb-6">URLs, wifi, contact cards, plain text — all client-side, nothing uploaded. Scan the result with your camera to test it.</p>
+      <div class="grid md:grid-cols-2 gap-6 items-start">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Content</label>
+          <textarea id="text" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 mb-3">https://dev48v.infy.uk</textarea>
+          <div class="flex flex-wrap gap-2 mb-3" id="presets"></div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Error correction</label>
+              <select id="ecc" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+                <option value="L">L — 7%</option><option value="M" selected>M — 15%</option>
+                <option value="Q">Q — 25%</option><option value="H">H — 30%</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Dark colour</label>
+              <input id="color" type="color" value="#0f172a" class="w-full h-9 border border-slate-300 rounded-lg" />
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 text-center">
+          <canvas id="qr" width="240" height="240" class="mx-auto rounded-lg"></canvas>
+          <div id="err" class="text-xs text-rose-500 mt-2"></div>
+          <a id="dl" class="inline-block mt-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg" download="qr.png">⬇ Download PNG</a>
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 text-center mt-6">↑ Higher error-correction = more redundancy (scannable even if partly damaged/logo'd) but a denser code. Try a wifi string: <code>WIFI:S:MyNet;T:WPA;P:pass123;;</code></p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a QR code works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">QR encoding (Reed-Solomon, masking) is genuinely hard — so use a tiny battle-tested library and focus on the UX. ~20 lines.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Pull in a QR library</h3></div><pre>&lt;script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"&gt;&lt;/script&gt;
+// implementing Reed-Solomon error correction yourself is a rabbit hole —
+// this is the right place to stand on a library's shoulders.</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Render to a canvas</h3></div><pre>QRCode.toCanvas(canvas, text, {
+  width: 240,
+  errorCorrectionLevel: "M",
+  color: { dark: "#0f172a", light: "#ffffff" },
+});</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Regenerate live on every change</h3></div><pre>[input, eccSelect, colorPicker].forEach(el =>
+  el.addEventListener("input", generate));</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Download the canvas as PNG</h3></div><pre>link.href = canvas.toDataURL("image/png");
+link.download = "qr.png";   // pure client-side, no server</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Special payloads = standard strings</h3></div><pre>// a wifi QR is just a formatted string the camera knows:
+`WIFI:S:${ssid};T:WPA;P:${password};;`
+// contact = BEGIN:VCARD…  ·  url = just the https:// link</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 10 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a Markdown → HTML live preview editor.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== QR GENERATOR =====
+const text=document.getElementById("text"), ecc=document.getElementById("ecc"), color=document.getElementById("color"),
+      qr=document.getElementById("qr"), dl=document.getElementById("dl"), errEl=document.getElementById("err");
+function generate(){
+  const val = text.value || " ";
+  if (typeof QRCode === "undefined"){ errEl.textContent="QR library failed to load (check your connection)."; return; }
+  QRCode.toCanvas(qr, val, { width:240, margin:2, errorCorrectionLevel:ecc.value, color:{ dark:color.value, light:"#ffffff" } }, (e)=>{
+    if (e){ errEl.textContent = "Too much data for one QR — shorten it."; return; }
+    errEl.textContent=""; dl.href = qr.toDataURL("image/png");
+  });
+}
+[text,ecc,color].forEach(el=>el.addEventListener("input", generate));
+const PRESETS = [["🔗 URL","https://dev48v.infy.uk"],["📶 WiFi","WIFI:S:MyNetwork;T:WPA;P:password123;;"],["✉️ Email","mailto:hi@dev48v.infy.uk"],["📱 Phone","tel:+910000000000"]];
+const presetsEl=document.getElementById("presets");
+PRESETS.forEach(([label,v])=>{ const b=document.createElement("button"); b.className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1 hover:border-amber-400"; b.textContent=label; b.onclick=()=>{ text.value=v; generate(); }; presetsEl.appendChild(b); });
+generate();
+
+const STEPS = [
+  { title:"1. A QR is a 2-D grid of black/white modules", why:"Where a barcode stores data in one direction (line widths), a QR code stores it in two — a grid of squares called 'modules'. That 2-D layout is why it holds far more (a URL, a wifi password, a vCard) and can be scanned at any angle.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">barcode = 1-D lines · QR = 2-D grid of modules</div>`, code:`// each cell ("module") is one bit: dark = 1, light = 0` },
+  { title:"2. Finder + alignment patterns", why:"The three big squares in the corners are 'finder patterns' — they let a camera locate and orient the code instantly, even rotated or skewed. Smaller alignment squares correct for warping. Your scanner finds these first, then reads the data grid relative to them.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">3 corner squares → camera locks orientation</div>`, code:`// the corner squares aren't data — they're the "where + which way" markers` },
+  { title:"3. Error correction = Reed-Solomon", why:"QR codes survive scratches, glare, even a logo slapped in the middle, because they store redundant data using Reed-Solomon codes. Levels L/M/Q/H recover ~7/15/25/30% damage. Higher correction = more robust but a denser grid — that's the trade-off in the dropdown.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div>L 7% · M 15% · Q 25% · H 30% recoverable</div><div class="text-amber-600">more correction → denser code</div></div>`, code:`errorCorrectionLevel: "H"  // survives a center logo` },
+  { title:"4. Masking keeps it scannable", why:"A grid that's mostly black, or has big blank runs, confuses scanners. QR applies a 'mask' — XORing the data with one of 8 patterns — and picks whichever spreads dark/light most evenly. It's an invisible step that makes the code reliably readable.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">try 8 masks → keep the most balanced black/white spread</div>`, code:`// encoder picks the lowest-penalty mask automatically` },
+  { title:"5. Don't reinvent it — use a library", why:"Encoding (bit packing, Reed-Solomon polynomials over GF(256), mask selection) is genuinely hard and easy to get subtly wrong. For a tool, the smart move is a tiny well-tested library + your effort on UX: live preview, colours, error-correction choice, download. Know how it works; don't hand-roll it.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Grid + finder patterns + Reed-Solomon + masking. Use a lib, nail the UX.</p></div>`, code:`QRCode.toCanvas(canvas, text, { errorCorrectionLevel: "M" });` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

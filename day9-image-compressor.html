@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 9 — Image Compressor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  #drop.drag { border-color:#f59e0b; background:#fffbeb; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 9</div>
+      <h1 class="text-xl font-bold">🗜️ Image Compressor — Shrink Photos, 100% in the Browser</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Drop a photo. Watch it shrink. Nothing uploads.</h2>
+      <p class="text-slate-500 text-center mb-6">No server, no API — the browser's own canvas re-encodes the image at your chosen quality. Your photo never leaves your device.</p>
+      <div id="drop" class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center bg-white transition cursor-pointer">
+        <div class="text-4xl mb-2">📁</div>
+        <div class="font-semibold text-slate-700">Drag &amp; drop an image here</div>
+        <div class="text-sm text-slate-400">or click to choose · JPG / PNG / WebP</div>
+        <input id="file" type="file" accept="image/*" class="hidden" />
+      </div>
+      <div id="result" class="hidden mt-6">
+        <div class="flex items-center gap-3 mb-3 text-sm">
+          <span class="text-slate-500">Quality</span>
+          <input id="q" type="range" min="10" max="95" value="70" class="flex-1 accent-amber-500" />
+          <span id="qval" class="font-bold text-amber-600 w-10">70%</span>
+          <select id="fmt" class="border border-slate-300 rounded-lg px-2 py-1 text-sm">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/webp">WebP</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+            <div class="text-xs font-bold uppercase text-slate-500 mb-2">Original</div>
+            <img id="origImg" class="max-h-48 mx-auto rounded" />
+            <div class="text-sm mt-2 text-slate-600"><span id="origSize" class="font-bold">—</span></div>
+          </div>
+          <div class="bg-white rounded-xl border border-amber-200 p-3 text-center">
+            <div class="text-xs font-bold uppercase text-amber-600 mb-2">Compressed</div>
+            <img id="compImg" class="max-h-48 mx-auto rounded" />
+            <div class="text-sm mt-2 text-slate-600"><span id="compSize" class="font-bold text-amber-600">—</span></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="text-sm">Saved <span id="saved" class="font-bold text-emerald-600">—</span></div>
+          <a id="dl" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg text-sm" download="compressed.jpg">⬇ Download</a>
+        </div>
+      </div>
+      <canvas id="cv" class="hidden"></canvas>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How browser compression works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">FileReader → Image → Canvas → toBlob. ~30 lines, no libraries.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Catch the dropped file</h3></div><pre>drop.addEventListener("drop", e =&gt; {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];   // never uploaded — stays local
+  loadImage(file);
+});</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Read it into an &lt;img&gt;</h3></div><pre>const img = new Image();
+img.src = URL.createObjectURL(file);   // a local blob: URL
+await img.decode();</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Draw it onto a canvas</h3></div><pre>canvas.width = img.width; canvas.height = img.height;
+canvas.getContext("2d").drawImage(img, 0, 0);</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Re-encode at a quality (the compression)</h3></div><pre>canvas.toBlob(blob =&gt; {
+  showSize(blob.size);
+  preview.src = URL.createObjectURL(blob);
+}, "image/jpeg", 0.7);   // 0.7 = 70% quality</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Offer the blob as a download</h3></div><pre>link.href = URL.createObjectURL(blob);
+link.download = "compressed.jpg";   // browser saves it, no server</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 9 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a QR-code generator, in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== IMAGE COMPRESSOR =====
+const drop=document.getElementById("drop"), fileInput=document.getElementById("file"),
+      result=document.getElementById("result"), cv=document.getElementById("cv"),
+      origImg=document.getElementById("origImg"), compImg=document.getElementById("compImg"),
+      origSizeEl=document.getElementById("origSize"), compSizeEl=document.getElementById("compSize"),
+      savedEl=document.getElementById("saved"), qSlider=document.getElementById("q"), qval=document.getElementById("qval"),
+      fmtSel=document.getElementById("fmt"), dl=document.getElementById("dl");
+let origBytes=0, curImg=null;
+const fmtSize = b => b<1024 ? b+" B" : b<1048576 ? (b/1024).toFixed(1)+" KB" : (b/1048576).toFixed(2)+" MB";
+
+function handleFile(file){
+  if (!file || !file.type.startsWith("image/")) return;
+  origBytes = file.size;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    curImg = img;
+    origImg.src = url; origSizeEl.textContent = fmtSize(origBytes);
+    result.classList.remove("hidden");
+    compress();
+  };
+  img.src = url;
+}
+function compress(){
+  if (!curImg) return;
+  cv.width = curImg.naturalWidth; cv.height = curImg.naturalHeight;
+  cv.getContext("2d").drawImage(curImg, 0, 0);
+  const fmt = fmtSel.value, quality = +qSlider.value/100;
+  cv.toBlob(blob => {
+    if (!blob) return;
+    compImg.src = URL.createObjectURL(blob);
+    compSizeEl.textContent = fmtSize(blob.size);
+    const pct = Math.max(0, Math.round((1 - blob.size/origBytes)*100));
+    savedEl.textContent = pct + "% smaller (" + fmtSize(origBytes - blob.size) + ")";
+    dl.href = URL.createObjectURL(blob);
+    dl.download = "compressed." + (fmt==="image/webp" ? "webp" : "jpg");
+  }, fmt, quality);
+}
+drop.onclick = () => fileInput.click();
+fileInput.onchange = e => handleFile(e.target.files[0]);
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("drag");}));
+drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+qSlider.oninput = () => { qval.textContent = qSlider.value+"%"; compress(); };
+fmtSel.onchange = compress;
+
+const STEPS = [
+  { title:"1. The file never leaves your machine", why:"Most 'compress your image' websites upload your photo to a server. This doesn't. The File object you drop is handled entirely by JavaScript in your tab — private by construction. For sensitive images (IDs, screenshots), that's a real feature, not just a nicety.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">drop → stays in the browser tab → 0 bytes uploaded</div>`, code:`const file = e.dataTransfer.files[0];  // local only` },
+  { title:"2. Decode the file into an image", why:"A dropped file is just bytes. To work with the pixels you load it into an Image element via a local blob: URL (URL.createObjectURL). Once it decodes, you have real width/height and drawable pixels — no network, instant.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">file bytes → blob: URL → &lt;img&gt; with pixels</div>`, code:`img.src = URL.createObjectURL(file);
+await img.decode();` },
+  { title:"3. The canvas is the re-encoding engine", why:"You draw the image onto a <canvas>. Now the browser holds the raw pixels, detached from the original file format. The canvas is the workshop: from here you can resize, crop, or — the point today — re-export at a different quality.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">img → drawImage → raw pixels on a canvas</div>`, code:`ctx.drawImage(img, 0, 0);` },
+  { title:"4. Quality is lossy re-encoding", why:"canvas.toBlob(cb, 'image/jpeg', 0.7) re-encodes those pixels as a brand-new JPEG at 70% quality. JPEG/WebP are LOSSY — they throw away detail the eye barely notices, and a small quality drop often halves the file size. That second argument is the entire compression dial.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div>quality 0.9 → big file, crisp</div><div class="text-amber-600">quality 0.6 → tiny file, still fine</div></div>`, code:`canvas.toBlob(cb, "image/jpeg", 0.7);` },
+  { title:"5. Hand the result back as a download", why:"toBlob gives you a Blob — the compressed bytes. Wrap it in another blob: URL, point a download link at it, and the browser saves the file. Whole round trip — read, draw, re-encode, save — happens locally in milliseconds.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">File → canvas → toBlob(quality) → download. No server.</p></div>`, code:`link.href = URL.createObjectURL(blob);
+link.download = "compressed.jpg";` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 1 — Resume ↔ JD Match Score</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .copy-btn:hover { background:#1e293b; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .score-bar { transition: width .6s ease-out; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 1 · 🎓 Unstop</div>
+      <h1 class="text-xl font-bold">📄 Resume ↔ JD Match Score</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOOK — actual working solution -->
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+        <div class="text-xs font-bold uppercase text-amber-800 tracking-widest mb-2">📋 The Problem (Unstop brief)</div>
+        <p class="text-sm text-slate-700">A candidate uploads their resume and a job description. Output: a <b>match score (0–100)</b> + the <b>missing keywords</b> that would lift the score. Used by ATS pre-screeners and by candidates to tailor resumes per role.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-4 mb-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow">
+          <label class="text-xs font-bold uppercase text-slate-500 tracking-wider mb-2 block">📄 Your resume</label>
+          <textarea id="resume" rows="12" class="w-full border border-slate-300 rounded-lg p-3 text-sm font-mono" placeholder="Paste your resume text here..."></textarea>
+          <div class="mt-2 flex gap-2">
+            <button id="loadResume" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded font-semibold">↻ Load sample resume</button>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow">
+          <label class="text-xs font-bold uppercase text-slate-500 tracking-wider mb-2 block">💼 Job description</label>
+          <textarea id="jd" rows="12" class="w-full border border-slate-300 rounded-lg p-3 text-sm font-mono" placeholder="Paste the job description here..."></textarea>
+          <div class="mt-2 flex gap-2">
+            <button id="loadJd" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded font-semibold">↻ Load sample JD</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center mb-5">
+        <button id="score" class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-xl text-lg font-bold shadow-lg">⚡ Score the match</button>
+      </div>
+
+      <div id="result" class="hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-lg">Match score</h3>
+            <div class="text-4xl font-black"><span id="scoreNum">0</span><span class="text-slate-400 text-2xl">%</span></div>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+            <div id="scoreBar" class="score-bar h-3 rounded-full" style="width: 0%; background: linear-gradient(90deg, #eab308, #f59e0b);"></div>
+          </div>
+          <div id="verdict" class="mt-3 text-sm font-semibold"></div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-4">
+          <div class="bg-white rounded-2xl border border-emerald-200 p-5">
+            <div class="text-xs font-bold uppercase text-emerald-700 tracking-wider mb-2">✅ Matched keywords</div>
+            <div id="matched" class="flex flex-wrap gap-1"></div>
+          </div>
+          <div class="bg-white rounded-2xl border border-red-200 p-5">
+            <div class="text-xs font-bold uppercase text-red-700 tracking-wider mb-2">❌ Missing from your resume</div>
+            <div id="missing" class="flex flex-wrap gap-1"></div>
+            <p class="text-xs text-slate-500 mt-3">↑ Add these (where genuinely true) to lift your score.</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold uppercase text-slate-700 tracking-wider mb-2">📊 Stats</div>
+            <div id="stats" class="text-sm space-y-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6">↑ Pure browser. No backend. Same scoring an ATS pre-screener runs. Click <b>UNDERSTAND</b> for the algorithm.</p>
+    </div>
+  </div>
+</section>
+
+<!-- UNDERSTAND -->
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the score works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step. Read the WHY.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div>
+        <div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step on the left →</div></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div>
+        <div id="why" class="text-slate-700">—</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div>
+        <pre id="code"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Estimated time: <b>20 minutes</b>. One HTML file. No build, no npm, no backend.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Create one HTML file</h3></div>
+<pre>mkdir resume-match && cd resume-match
+touch index.html</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Paste the scoring function</h3></div>
+        <p class="text-sm text-slate-600 mb-3">~30 lines of vanilla JavaScript. The math is just tokenize → filter stopwords → set intersection / set union.</p>
+        <div class="relative">
+<pre>const STOP = new Set("a an the of in on for to and or with by from as is are was were be been being have has had do does did will would can could may might must shall should i you he she it we they me him her us them my your his their our this that these those at if not but so".split(" "));
+
+// Tokenize: split on non-letter, lowercase, drop stopwords + 2-letter junk.
+function tokens(text) {
+  return text.toLowerCase()
+    .split(/[^a-z+#]+/)
+    .filter(w =&gt; w.length &gt; 2 &amp;&amp; !STOP.has(w));
+}
+
+// Jaccard similarity on unique tokens: |A ∩ B| / |A ∪ B|
+function jaccard(a, b) {
+  const setA = new Set(a), setB = new Set(b);
+  const inter = [...setA].filter(x =&gt; setB.has(x)).length;
+  const union = new Set([...setA, ...setB]).size;
+  return union ? inter / union : 0;
+}
+
+// Match score = weighted blend of:
+//   - Jaccard similarity (how much vocabulary overlap)
+//   - Coverage = % of JD's keywords found in resume
+function score(resume, jd) {
+  const R = tokens(resume);
+  const J = tokens(jd);
+  const j = jaccard(R, J);
+  const setR = new Set(R);
+  const covered = [...new Set(J)].filter(k =&gt; setR.has(k));
+  const coverage = covered.length / new Set(J).size;
+  // Coverage matters more than vocabulary overlap → 30/70 blend
+  return Math.round((0.3 * j + 0.7 * coverage) * 100);
+}</pre>
+          <button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button>
+        </div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Wire 2 textareas + a button</h3></div>
+        <p class="text-sm text-slate-600">Two <code>&lt;textarea&gt;</code> elements (resume, JD), one <code>&lt;button&gt;</code>, three <code>&lt;div&gt;</code>s for score / matched / missing. Call <code>score()</code> in the button handler.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Open in browser</h3></div>
+        <p class="text-sm text-slate-600">Double-click <code>index.html</code>. Paste a resume + JD, click Score, see the match.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Upgrades</h3></div>
+        <ul class="text-sm text-slate-600 space-y-2 ml-4 list-disc">
+          <li>PDF support: read with <code>pdf.js</code> CDN — drop file, extract text.</li>
+          <li>Skill ontology: map "JS" / "JavaScript" / "ECMAScript" to one bucket before tokenizing.</li>
+          <li>Embedding similarity: load <code>@xenova/transformers</code>, swap Jaccard with cosine on sentence embeddings.</li>
+          <li>Weighted JD: parse "required" vs "nice-to-have" sections, weight required higher.</li>
+        </ul>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+      <h3 class="font-bold text-lg text-amber-900">🎉 Day 1 of SolveFromZero done.</h3>
+      <p class="text-sm text-amber-700 mt-2">Next problems: pothole detector (SIH) · GitHub repo health scorer (Devpost) · NFT plagiarism checker (Devfolio).</p>
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ============ THE ACTUAL SCORING ALGO ============
+const STOP = new Set("a an the of in on for to and or with by from as is are was were be been being have has had do does did will would can could may might must shall should i you he she it we they me him her us them my your his their our this that these those at if not but so".split(" "));
+function tokens(text) {
+  return text.toLowerCase().split(/[^a-z+#]+/).filter(w => w.length > 2 && !STOP.has(w));
+}
+function jaccard(a, b) {
+  const A = new Set(a), B = new Set(b);
+  const inter = [...A].filter(x => B.has(x)).length;
+  const union = new Set([...A, ...B]).size;
+  return union ? inter / union : 0;
+}
+
+const SAMPLE_RESUME = `Devanshu Biswas — Software Engineer
+4 years at InXpress building Spring Boot microservices and React dashboards.
+Owned the migration from monolithic PHP to modular Spring Boot REST APIs (Java 17, MySQL, Liquibase, Docker).
+Built CI/CD on GitLab + Bitbucket pipelines, deployed to AWS ECS Fargate behind ALB.
+Wrote Playwright E2E tests for critical billing flows.
+Refactored payment module to use Stripe webhooks + idempotency keys.
+Comfortable with TypeScript, Next.js, Tailwind, PostgreSQL.
+Built internal AI tools using OpenAI + Gemini APIs for code review automation.`;
+
+const SAMPLE_JD = `Backend Engineer — Java / Spring Boot
+We're hiring a backend engineer to own our payments platform.
+Required: 3+ years Java, deep Spring Boot expertise, REST API design, MySQL or PostgreSQL, CI/CD on AWS (ECS, ECR, ALB), Docker.
+Strong testing discipline — unit + integration tests, ideally Playwright or Selenium for E2E.
+Nice to have: Stripe / payment gateway integration, idempotent design patterns, observability (Prometheus, Grafana), Kafka.
+Bonus: TypeScript / Next.js frontend contribution, exposure to LLM tooling.`;
+
+document.getElementById("loadResume").onclick = () => document.getElementById("resume").value = SAMPLE_RESUME;
+document.getElementById("loadJd").onclick     = () => document.getElementById("jd").value = SAMPLE_JD;
+
+document.getElementById("score").onclick = () => {
+  const r = document.getElementById("resume").value.trim();
+  const j = document.getElementById("jd").value.trim();
+  if (!r || !j) { alert("Paste both a resume and a job description."); return; }
+  const R = tokens(r), J = tokens(j);
+  const setR = new Set(R), setJ = new Set(J);
+  const covered = [...setJ].filter(k => setR.has(k));
+  const coverage = covered.length / setJ.size;
+  const jacc = jaccard(R, J);
+  const score = Math.round((0.3 * jacc + 0.7 * coverage) * 100);
+
+  document.getElementById("scoreNum").textContent = score;
+  document.getElementById("scoreBar").style.width = score + "%";
+
+  const verdict = document.getElementById("verdict");
+  if (score >= 70) verdict.innerHTML = `<span class="text-emerald-700">✅ Strong match. Apply.</span>`;
+  else if (score >= 40) verdict.innerHTML = `<span class="text-amber-700">⚠️ Decent. Add the missing keywords before applying.</span>`;
+  else verdict.innerHTML = `<span class="text-red-700">❌ Weak match. Significant gaps.</span>`;
+
+  const matched = covered.slice(0, 30).map(k =>
+    `<span class="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-1 rounded">${k}</span>`).join("");
+  document.getElementById("matched").innerHTML = matched || "<span class='text-slate-400 text-sm'>none</span>";
+
+  const missing = [...setJ].filter(k => !setR.has(k)).slice(0, 30).map(k =>
+    `<span class="bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded">${k}</span>`).join("");
+  document.getElementById("missing").innerHTML = missing || "<span class='text-emerald-600 text-sm'>none — every JD keyword present</span>";
+
+  document.getElementById("stats").innerHTML = `
+    <div>Resume tokens: <b>${setR.size}</b></div>
+    <div>JD tokens: <b>${setJ.size}</b></div>
+    <div>Overlap: <b>${covered.length}</b></div>
+    <div>Coverage: <b>${(coverage*100).toFixed(0)}%</b></div>
+    <div>Jaccard: <b>${(jacc*100).toFixed(0)}%</b></div>
+  `;
+  document.getElementById("result").classList.remove("hidden");
+};
+
+// ============ UNDERSTAND STEPS ============
+const STEPS = [
+  { title:"1. The problem", why:"Recruiters use ATS (Applicant Tracking System) to filter resumes before a human reads them. Most ATS match keywords — your fancy formatting doesn't matter, your VOCABULARY does. Score quantifies the overlap.", concept:`<div class="bg-amber-50 border border-amber-200 p-4 rounded text-sm space-y-2 w-full">
+    <div><b>📄 Resume</b> — your story (formatted, prose)</div>
+    <div><b>💼 JD</b> — the job's required vocabulary</div>
+    <div class="text-amber-700 font-bold mt-2">Goal: % of JD vocabulary that appears in resume</div>
+  </div>`, code:`// Inputs: two raw text blobs.
+// Output: a single 0–100 match score.` },
+  { title:"2. Tokenize", why:"Break each blob into individual lowercase words. Split on non-letters. Drop short words (≤2 chars) and English stopwords (the, a, in, on, ...). What's left = the SIGNAL.", concept:`<div class="bg-slate-100 p-4 rounded font-mono text-xs space-y-1 w-full">
+    <div>\"Spring Boot, REST APIs, MySQL\"</div>
+    <div class="text-emerald-700">  ↓ split + lowercase + filter stopwords</div>
+    <div>[\"spring\", \"boot\", \"rest\", \"apis\", \"mysql\"]</div>
+  </div>`, code:`function tokens(text) {
+  return text.toLowerCase()
+    .split(/[^a-z+#]+/)
+    .filter(w => w.length > 2 && !STOP.has(w));
+}` },
+  { title:"3. Stopwords list", why:"Words like 'the', 'a', 'is' appear in EVERY document and add no signal. They inflate the Jaccard denominator. Standard NLP move: maintain a list of ~50 high-frequency English words and drop them.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full">
+    <div class="text-red-700 font-bold mb-1">Dropped:</div>
+    <div class="font-mono">a · an · the · of · in · on · for · to · and · or · with · by · from · is · are · was · were · be · have · has · had · do · does · did · will · would · can · could ...</div>
+  </div>`, code:`const STOP = new Set("a an the of in on for to and or with by from ...".split(" "));` },
+  { title:"4. Coverage = key metric", why:"Coverage = (JD tokens present in resume) / (total unique JD tokens). This is the most important number — it tells you what FRACTION of what the job is asking for is actually in your resume. ATSs care about this above all.", concept:`<div class="bg-slate-100 p-4 rounded text-sm font-mono space-y-1 w-full">
+    <div>JD tokens (unique):  <b>40</b></div>
+    <div>Found in resume:     <b>28</b></div>
+    <div class="text-amber-700 font-bold">Coverage = 28 / 40 = 70%</div>
+  </div>`, code:`const setR = new Set(R);
+const covered = [...new Set(J)].filter(k => setR.has(k));
+const coverage = covered.length / new Set(J).size;` },
+  { title:"5. Jaccard similarity", why:"Jaccard = (intersection) / (union) on two sets. Coverage tells us 'how much of JD is in resume' — Jaccard tells us 'how similar are the two vocabularies overall'. A 100-word resume against a 40-word JD with full coverage will have lower Jaccard (because resume has extra words).", concept:`<div class="bg-slate-100 p-4 rounded text-sm font-mono space-y-1 w-full">
+    <div>|R ∩ J|  / |R ∪ J|</div>
+    <div>  28    /   72   = 0.39</div>
+    <div class="text-slate-500 italic text-xs mt-2">Resume has 60 unique tokens, JD has 40, 28 overlap.</div>
+  </div>`, code:`function jaccard(a, b) {
+  const A = new Set(a), B = new Set(b);
+  const inter = [...A].filter(x => B.has(x)).length;
+  const union = new Set([...A, ...B]).size;
+  return union ? inter / union : 0;
+}` },
+  { title:"6. The 70/30 blend", why:"Coverage matters more than overall vocabulary similarity (a longer resume shouldn't be penalized just for being longer). Blend = 0.7 × coverage + 0.3 × jaccard. Tune this weight per use case.", concept:`<div class="bg-amber-50 border border-amber-200 p-4 rounded text-sm font-mono space-y-1 w-full">
+    <div>score = 0.7 × coverage  +  0.3 × jaccard</div>
+    <div class="text-slate-500">     = 0.7 × 0.70    +  0.3 × 0.39</div>
+    <div class="text-amber-700 font-bold">     = 0.49 + 0.117 = 60.7 ≈ 61</div>
+  </div>`, code:`const score = Math.round((0.3 * jaccard + 0.7 * coverage) * 100);` },
+  { title:"7. Surface missing keywords", why:"The score alone isn't actionable. List what's IN the JD but NOT IN the resume. That's the exact list of words to add (where truthful) to lift the score. This is the actionable output candidates actually want.", concept:`<div class="grid grid-cols-2 gap-2 w-full">
+    <div class="bg-emerald-50 border border-emerald-200 p-3 rounded text-xs">
+      <div class="font-bold text-emerald-700">✅ Matched (28)</div>
+      <div class="mt-1 text-slate-600">spring, boot, rest, mysql, docker, ...</div>
+    </div>
+    <div class="bg-red-50 border border-red-200 p-3 rounded text-xs">
+      <div class="font-bold text-red-700">❌ Missing (12)</div>
+      <div class="mt-1 text-slate-600">prometheus, grafana, kafka, idempotent, ...</div>
+    </div>
+  </div>`, code:`const missing = [...new Set(J)].filter(k => !setR.has(k));` },
+  { title:"8. When to upgrade to embeddings", why:"Word-set matching misses synonyms — 'JavaScript' ≠ 'JS' ≠ 'ECMAScript'. For higher quality, swap Jaccard for COSINE similarity on sentence embeddings from Transformers.js. Same shape, fancier math, much better recall on synonyms / paraphrases.", concept:`<div class="grid grid-cols-2 gap-2 w-full">
+    <div class="bg-slate-100 p-3 rounded text-xs">
+      <div class="font-bold">v1 (this demo)</div>
+      <div class="text-slate-500 mt-1">Jaccard on tokens<br>Fast, no model<br>Misses synonyms</div>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 p-3 rounded text-xs">
+      <div class="font-bold text-amber-700">v2 upgrade</div>
+      <div class="text-slate-500 mt-1">Cosine on embeddings<br>Loads 50 MB model<br>Catches synonyms</div>
+    </div>
+  </div>`, code:`// v2 — using @xenova/transformers:
+import { pipeline } from "@xenova/transformers";
+const embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+
+const [eR, eJ] = await Promise.all([embed(resume), embed(jd)]);
+const cosine = dot(eR.data, eJ.data) / (norm(eR.data) * norm(eJ.data));` },
+  { title:"9. Done! What this unlocks", why:"You now have a tool real candidates use. Real Unstop / TopGear / LinkedIn 'resume score' products are this idea, scaled. Same skeleton works for: code-review-vs-style-guide compliance, lecture-notes-vs-syllabus coverage, OKR-vs-team-output alignment.", concept:`<div class="text-center w-full">
+    <div class="text-5xl mb-3">🎉</div>
+    <p class="font-bold text-slate-700">You can ship resume-screening tools.</p>
+    <p class="text-sm text-slate-500 mt-2">Same algorithm scales to any 'how much of A is in B' problem.</p>
+  </div>`, code:`// Same pattern, different domains:
+//   resume ↔ JD       (this demo)
+//   PR ↔ style guide  (lint coverage)
+//   notes ↔ syllabus  (study coverage)
+//   tasks ↔ OKRs      (alignment)` }
+];
+
+const stepsEl = document.getElementById("steps");
+const prev = document.getElementById("prev");
+const next = document.getElementById("next");
+const auto = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  b.innerHTML = `<div class="font-semibold">${s.title}</div>`;
+  b.onclick = () => show(i);
+  stepsEl.appendChild(b);
+});
+function show(i) {
+  cur = i;
+  const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((b, idx) => {
+    b.className = idx === i
+      ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+      : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prev.onclick = () => show(Math.max(0, cur - 1));
+next.onclick = () => show(Math.min(STEPS.length - 1, cur + 1));
+let timer = null;
+auto.onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; auto.textContent = "▶ Auto-play"; return; }
+  auto.textContent = "⏸ Pause";
+  show(0);
+  timer = setInterval(() => {
+    if (cur >= STEPS.length - 1) { clearInterval(timer); timer = null; auto.textContent = "▶ Replay"; return; }
+    show(cur + 1);
+  }, 2500);
+};
+show(0);
+
+function copy(btn) {
+  const pre = btn.parentElement.querySelector("pre");
+  navigator.clipboard.writeText(pre.textContent);
+  const orig = btn.textContent;
+  btn.textContent = "✓ Copied!";
+  setTimeout(() => btn.textContent = orig, 1500);
+}
+</script>
+</body>
+</html>

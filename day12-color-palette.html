@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 12 — Colour-Palette Extractor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .swatch { transition:transform .12s ease; cursor:pointer; }
+  .swatch:hover { transform:translateY(-4px); }
+  .drop { transition:border-color .15s ease, background .15s ease; }
+  .drop.over { border-color:#f59e0b; background:#fffbeb; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 12</div>
+      <h1 class="text-xl font-bold">🎨 Colour-Palette Extractor — Pull the Key Colours From Any Image</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Drop in an image, get its key colours — all in your browser</h2>
+      <p class="text-slate-500 text-center mb-4">Nothing is uploaded. The image is drawn to a canvas, its pixels are read directly, and a median-cut algorithm clusters them into the most representative colours.</p>
+
+      <div class="grid md:grid-cols-2 gap-4 mb-5">
+        <label class="drop flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-6 bg-white cursor-pointer text-center" id="drop">
+          <div class="text-4xl mb-2">🖼️</div>
+          <div class="font-semibold text-slate-700">Choose an image or drag one here</div>
+          <div class="text-xs text-slate-400 mt-1">JPG / PNG / WebP — processed locally, never sent anywhere</div>
+          <input id="file" type="file" accept="image/*" class="hidden" />
+        </label>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-col">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">Or try a bundled sample</div>
+          <div id="samples" class="grid grid-cols-3 gap-2"></div>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4 items-start">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2">Source image</div>
+          <canvas id="view" class="w-full rounded-lg border border-slate-100 bg-slate-50" style="max-height:320px;object-fit:contain;"></canvas>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs uppercase font-bold text-slate-400 tracking-wider">Extracted palette</div>
+            <div class="flex gap-1" id="counts">
+              <button data-n="4" class="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100">4</button>
+              <button data-n="6" class="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white">6</button>
+              <button data-n="8" class="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100">8</button>
+            </div>
+          </div>
+          <div id="palette" class="grid grid-cols-2 gap-2"></div>
+          <p class="text-xs text-slate-400 mt-3" id="status">Pick an image to begin.</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-4">↑ Each pixel's R,G,B is read from the canvas, the pixels are split into colour-boxes by their widest channel (median-cut), and each box's average becomes one swatch. Click a swatch to copy its hex.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How palette extraction works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Draw to a canvas, read the pixels, then median-cut them into N colour boxes and average each box. ~50 lines for a real extractor.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Draw the image to a canvas</h3></div><pre>const img = new Image();
+img.onload = () =&gt; {
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  c.getContext("2d").drawImage(img, 0, 0);
+};
+img.src = URL.createObjectURL(file);   // file from &lt;input type=file&gt;</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Read the raw pixels (RGBA)</h3></div><pre>const { data } = ctx.getImageData(0, 0, c.width, c.height);
+// data = [R,G,B,A, R,G,B,A, ...] one flat array, 4 bytes per pixel</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Collect pixels (skip transparent, sample for speed)</h3></div><pre>const px = [];
+for (let i = 0; i &lt; data.length; i += 4 * STEP) {  // STEP = sample stride
+  if (data[i + 3] &lt; 125) continue;                  // skip near-transparent
+  px.push([data[i], data[i + 1], data[i + 2]]);
+}</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Find the widest colour channel in a box</h3></div><pre>function widestChannel(box) {
+  let rMin=255,rMax=0,gMin=255,gMax=0,bMin=255,bMax=0;
+  for (const [r,g,b] of box) {
+    rMin=Math.min(rMin,r); rMax=Math.max(rMax,r);
+    gMin=Math.min(gMin,g); gMax=Math.max(gMax,g);
+    bMin=Math.min(bMin,b); bMax=Math.max(bMax,b);
+  }
+  const rR=rMax-rMin, gR=gMax-gMin, bR=bMax-bMin;
+  const m = Math.max(rR,gR,bR);
+  return m===rR ? 0 : m===gR ? 1 : 2;   // 0=R 1=G 2=B
+}</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Median-cut: split the biggest box, repeat</h3></div><pre>function medianCut(pixels, n) {
+  let boxes = [pixels];
+  while (boxes.length &lt; n) {
+    // split the box with the largest single pixel count
+    boxes.sort((a,b) =&gt; b.length - a.length);
+    const box = boxes.shift();
+    const ch = widestChannel(box);
+    box.sort((p,q) =&gt; p[ch] - q[ch]);     // sort along widest axis
+    const mid = box.length &gt;&gt; 1;          // median split
+    boxes.push(box.slice(0, mid), box.slice(mid));
+  }
+  return boxes;
+}</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Average each box → one colour</h3></div><pre>const palette = boxes.map(box =&gt; {
+  let r=0,g=0,b=0;
+  for (const p of box) { r+=p[0]; g+=p[1]; b+=p[2]; }
+  const n = box.length;
+  return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+});</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">RGB → HEX and render swatches</h3></div><pre>const hex = ([r,g,b]) =&gt;
+  "#" + [r,g,b].map(v =&gt; v.toString(16).padStart(2,"0")).join("");
+
+palette.forEach(rgb =&gt; {
+  const div = document.createElement("div");
+  div.style.background = hex(rgb);
+  div.textContent = hex(rgb);
+  div.onclick = () =&gt; navigator.clipboard.writeText(hex(rgb));
+  paletteEl.appendChild(div);
+});</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 12 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a tiny CSV → chart visualiser, in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== COLOUR-PALETTE EXTRACTOR =====
+const view    = document.getElementById("view");
+const vctx    = view.getContext("2d", { willReadFrequently:true });
+const paletteEl = document.getElementById("palette");
+const statusEl  = document.getElementById("status");
+const fileInput = document.getElementById("file");
+const drop      = document.getElementById("drop");
+let N = 6;            // number of colours
+let lastImg = null;   // remember last image so changing N re-extracts
+
+// --- RGB -> HEX ---
+const toHex = ([r,g,b]) => "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
+
+// --- widest channel of a box of [r,g,b] pixels ---
+function widestChannel(box){
+  let rMin=255,rMax=0,gMin=255,gMax=0,bMin=255,bMax=0;
+  for (const p of box){
+    if (p[0]<rMin) rMin=p[0]; if (p[0]>rMax) rMax=p[0];
+    if (p[1]<gMin) gMin=p[1]; if (p[1]>gMax) gMax=p[1];
+    if (p[2]<bMin) bMin=p[2]; if (p[2]>bMax) bMax=p[2];
+  }
+  const rR=rMax-rMin, gR=gMax-gMin, bR=bMax-bMin;
+  const m = Math.max(rR,gR,bR);
+  return m===rR ? 0 : m===gR ? 1 : 2;
+}
+
+// --- median-cut: split until we have n boxes ---
+function medianCut(pixels, n){
+  if (pixels.length === 0) return [];
+  let boxes = [pixels];
+  while (boxes.length < n){
+    // split the largest box; stop if nothing left to split
+    boxes.sort((a,b) => b.length - a.length);
+    const box = boxes[0];
+    if (box.length < 2) break;
+    boxes.shift();
+    const ch = widestChannel(box);
+    box.sort((p,q) => p[ch] - q[ch]);
+    const mid = box.length >> 1;
+    boxes.push(box.slice(0, mid), box.slice(mid));
+  }
+  return boxes;
+}
+
+// --- average each box -> one colour, sort by box size (most dominant first) ---
+function averageBoxes(boxes){
+  return boxes.map(box => {
+    let r=0,g=0,b=0;
+    for (const p of box){ r+=p[0]; g+=p[1]; b+=p[2]; }
+    const c = box.length;
+    return { rgb:[Math.round(r/c), Math.round(g/c), Math.round(b/c)], count:c };
+  }).sort((a,b) => b.count - a.count);
+}
+
+// --- read pixels off the canvas and build a palette ---
+function extract(){
+  if (!lastImg) return;
+  const { data, width, height } = vctx.getImageData(0,0,view.width,view.height);
+  // downsample: aim for ~12000 sampled pixels regardless of image size
+  const total = width * height;
+  const stride = Math.max(1, Math.floor(total / 12000));
+  const px = [];
+  for (let i = 0; i < total; i += stride){
+    const o = i * 4;
+    if (data[o+3] < 125) continue;   // skip near-transparent pixels
+    px.push([data[o], data[o+1], data[o+2]]);
+  }
+  if (!px.length){ statusEl.textContent = "Image is fully transparent — no colours to read."; paletteEl.innerHTML=""; return; }
+  const colours = averageBoxes(medianCut(px, N));
+  renderPalette(colours, px.length);
+}
+
+function renderPalette(colours, sampled){
+  paletteEl.innerHTML = "";
+  colours.forEach(({rgb, count}) => {
+    const hex = toHex(rgb);
+    const lum = 0.299*rgb[0] + 0.587*rgb[1] + 0.114*rgb[2];   // pick readable text
+    const txt = lum > 140 ? "#0f172a" : "#ffffff";
+    const cell = document.createElement("div");
+    cell.className = "swatch rounded-lg p-3 flex flex-col justify-between";
+    cell.style.background = hex;
+    cell.style.color = txt;
+    cell.style.minHeight = "64px";
+    cell.title = "Click to copy " + hex;
+    cell.innerHTML = `<span class="text-xs opacity-80">${(100*count/Math.max(1,sampled)).toFixed(0)}%</span><span class="font-mono font-bold text-sm">${hex}</span>`;
+    cell.onclick = () => {
+      navigator.clipboard?.writeText(hex);
+      const prev = cell.querySelector(".font-mono").textContent;
+      cell.querySelector(".font-mono").textContent = "copied!";
+      setTimeout(() => cell.querySelector(".font-mono").textContent = prev, 800);
+    };
+    paletteEl.appendChild(cell);
+  });
+  statusEl.textContent = `${colours.length} colours from ${sampled.toLocaleString()} sampled pixels — click a swatch to copy.`;
+}
+
+// --- load an Image element (sample or file) into the canvas, then extract ---
+function loadImage(img){
+  lastImg = img;
+  const maxW = 600;                       // cap canvas size for speed
+  const scale = Math.min(1, maxW / img.width);
+  view.width  = Math.max(1, Math.round(img.width  * scale));
+  view.height = Math.max(1, Math.round(img.height * scale));
+  vctx.clearRect(0,0,view.width,view.height);
+  vctx.drawImage(img, 0, 0, view.width, view.height);
+  extract();
+}
+
+function loadFromSrc(src){
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => loadImage(img);
+  img.src = src;
+}
+
+// --- file input + drag/drop ---
+function handleFile(file){
+  if (!file || !file.type.startsWith("image/")) return;
+  statusEl.textContent = "Reading pixels…";
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => { loadImage(img); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+fileInput.addEventListener("change", e => handleFile(e.target.files[0]));
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+
+// --- N selector ---
+document.querySelectorAll("#counts button").forEach(b => b.onclick = () => {
+  N = +b.dataset.n;
+  document.querySelectorAll("#counts button").forEach(x => { x.className = "px-3 py-1 rounded-lg text-xs font-bold bg-slate-100"; });
+  b.className = "px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white";
+  extract();
+});
+
+// --- bundled samples: generated procedurally so the tool works with zero network ---
+function makeSample(draw){
+  const c = document.createElement("canvas");
+  c.width = 120; c.height = 90;
+  draw(c.getContext("2d"), c.width, c.height);
+  return c.toDataURL();
+}
+const SAMPLES = [
+  // 1) Sunset gradient + sun
+  makeSample((g,w,h) => {
+    const grad = g.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,"#1e3a8a"); grad.addColorStop(.45,"#9333ea");
+    grad.addColorStop(.7,"#f97316"); grad.addColorStop(1,"#fde047");
+    g.fillStyle = grad; g.fillRect(0,0,w,h);
+    g.fillStyle = "#fff7ed"; g.beginPath(); g.arc(w*0.7,h*0.7,16,0,7); g.fill();
+  }),
+  // 2) Forest blocks
+  makeSample((g,w,h) => {
+    g.fillStyle="#bae6fd"; g.fillRect(0,0,w,h);
+    g.fillStyle="#166534"; g.fillRect(0,h*0.55,w,h*0.45);
+    g.fillStyle="#22c55e"; g.beginPath(); g.moveTo(w*0.3,h*0.2); g.lineTo(w*0.15,h*0.6); g.lineTo(w*0.45,h*0.6); g.fill();
+    g.fillStyle="#a16207"; g.fillRect(w*0.28,h*0.6,w*0.05,h*0.2);
+    g.fillStyle="#facc15"; g.beginPath(); g.arc(w*0.8,h*0.2,12,0,7); g.fill();
+  }),
+  // 3) Geometric swatch grid
+  makeSample((g,w,h) => {
+    const cols=["#ef4444","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ec4899"];
+    const cw=w/3, ch=h/2;
+    cols.forEach((c,i)=>{ g.fillStyle=c; g.fillRect((i%3)*cw,Math.floor(i/3)*ch,cw,ch); });
+  }),
+];
+const samplesEl = document.getElementById("samples");
+SAMPLES.forEach((src,i) => {
+  const im = document.createElement("img");
+  im.src = src; im.className = "rounded-lg border border-slate-200 cursor-pointer hover:ring-2 hover:ring-amber-400 w-full";
+  im.alt = "sample " + (i+1);
+  im.onclick = () => loadFromSrc(src);
+  samplesEl.appendChild(im);
+});
+// auto-load the first sample so the tool is alive on open
+loadFromSrc(SAMPLES[0]);
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. Why pull a palette at all?", why:"A palette is a tiny summary of an image's colours — the handful that define its look. Designers grab them to match a brand, build a theme, or recolour UI to suit a photo. The image might have tens of thousands of distinct colours, but only a few carry the feel. Extracting them turns a picture into something you can actually reuse. That is the whole job: many colours in, a few meaningful colours out.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">50,000+ colours in a photo → 5 or 6 that capture its mood</div>`, code:`// goal: photo → ["#1e3a8a","#f97316","#fde047", ...]` },
+  { title:"2. Getting pixels from an image", why:"The browser can't read an image's colours directly, but a canvas can. You draw the image onto a <canvas> element, and the 2D context then lets you ask for its pixels. Drawing also lets you shrink the image to a manageable size in the same step. Once it's on the canvas, every colour is yours to read. This is the bridge from 'a picture' to 'numbers we can compute on'.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">&lt;img&gt; → drawImage() → &lt;canvas&gt; → readable pixels</div>`, code:`ctx.drawImage(img, 0, 0, w, h);` },
+  { title:"3. The RGBA array layout", why:"getImageData hands you one long flat array, not a grid. Every pixel is four numbers in a row: red, green, blue, then alpha (transparency), each 0–255. So pixel 0 is at index 0–3, pixel 1 at 4–7, and so on. To step pixel-by-pixel you jump four at a time. Understanding this layout is the key to reading colours correctly.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">[R,G,B,A, R,G,B,A, R,G,B,A, …]<br>one pixel = 4 bytes</div>`, code:`const { data } = ctx.getImageData(0,0,w,h);\nconst r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];` },
+  { title:"4. Downsampling for speed", why:"A 4000×3000 photo is twelve million pixels — far more than you need to find a few representative colours. So we sample: read every Nth pixel instead of all of them. A few thousand samples describe the colour distribution just as well and run in milliseconds. Pick a stride based on the total pixel count so any image lands at a similar sample size. This one trick is what keeps the tool instant on huge images.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">12,000,000 pixels → sample ~12,000 → same colours, 1000× faster</div>`, code:`const stride = Math.max(1, Math.floor(total / 12000));\nfor (let i=0; i<total; i+=stride) { /* sample */ }` },
+  { title:"5. The clustering idea", why:"To find the key colours, we group pixels that look alike and let each group vote for one colour. Colours that appear together — all the blues of a sky, all the greens of grass — should collapse into a single swatch. The question is how to do the grouping well: we want groups that are tight in colour but cover the whole image. That grouping is called clustering, and it's the heart of palette extraction.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">thousands of similar pixels → a few clusters → one colour each</div>`, code:`// group similar [r,g,b] points, then average each group` },
+  { title:"6. Median-cut, explained simply", why:"Imagine all your pixels as dots inside a 3D box whose axes are red, green and blue. Median-cut finds the axis the box is widest along, sorts the dots on that axis, and slices the box in half at the middle dot. Now you have two boxes; repeat on whichever box has the most pixels. Stop when you have as many boxes as colours you want. It's simple, fast, and gives evenly-split, representative groups.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">1 box → split widest axis at median → 2 boxes → repeat → N boxes</div>`, code:`const ch = widestChannel(box);   // 0=R 1=G 2=B\nbox.sort((p,q) => p[ch] - q[ch]);\nconst mid = box.length >> 1;     // median split` },
+  { title:"7. Counting & representing dominant colours", why:"Once median-cut gives you N boxes, each box becomes one swatch by averaging the red, green and blue of every pixel inside it. The number of pixels in a box also tells you how dominant that colour is — a big box is a colour that covers a lot of the image. Sorting boxes by size puts the most prominent colours first. That's how the palette ends up ordered from most to least used.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">each box → average its pixels → 1 colour · box size = how dominant</div>`, code:`const avg = [r/n, g/n, b/n].map(Math.round);\nboxes.sort((a,b) => b.length - a.length);  // most dominant first` },
+  { title:"8. Converting RGB → HEX", why:"On screen a colour is three numbers 0–255, but designers copy colours as hex strings like #f97316. To convert, write each channel as a two-digit base-16 number and join them with a leading #. padStart makes sure single-digit values like 9 become '09' so the string is always six characters. Now the swatch shows a value anyone can paste straight into CSS.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">[249,115,22] → "#f97316"</div>`, code:`const toHex = ([r,g,b]) =>\n  "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");` },
+  { title:"9. Handling transparency", why:"PNGs have a fourth channel — alpha — and fully transparent pixels have no real colour to contribute. If you let them in, your palette gets muddied with the canvas background showing through. So we check the alpha byte and skip any pixel that's mostly see-through. Only solid, visible pixels get a vote. It's a one-line guard that keeps logos and icons giving clean results.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">alpha &lt; 125 → skip (invisible pixel, no colour)</div>`, code:`if (data[o + 3] < 125) continue;   // ignore near-transparent pixels` },
+  { title:"10. Performance on big images", why:"Three things keep this fast on any image: cap the canvas size when drawing so you never process more than you need, sample with a stride instead of reading every pixel, and use plain typed-array loops rather than fancy abstractions. Median-cut itself is cheap because each split only sorts the pixels in one box. Together these mean even a giant photo turns into a palette in a blink — and it all runs locally, nothing is uploaded.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Draw → read pixels → sample → median-cut → average → hex.</p></div>`, code:`const scale = Math.min(1, 600 / img.width);   // cap canvas\n// + sampling stride + per-box sort = instant on any size` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 11 — Markdown Editor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  #editor { resize:none; tab-size:2; }
+  .md h1 { font-size:1.6rem; font-weight:800; margin:.6em 0 .3em; }
+  .md h2 { font-size:1.3rem; font-weight:700; margin:.6em 0 .3em; }
+  .md h3 { font-size:1.1rem; font-weight:700; margin:.5em 0 .3em; }
+  .md p { margin:.5em 0; line-height:1.6; }
+  .md ul { list-style:disc; padding-left:1.4em; margin:.5em 0; }
+  .md ol { list-style:decimal; padding-left:1.4em; margin:.5em 0; }
+  .md code { background:#f1f5f9; color:#b45309; border-radius:4px; padding:1px 5px; font-family:ui-monospace,monospace; font-size:.9em; }
+  .md pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; overflow:auto; margin:.6em 0; }
+  .md pre code { background:none; color:inherit; padding:0; }
+  .md blockquote { border-left:3px solid #f59e0b; padding-left:12px; color:#64748b; margin:.6em 0; }
+  .md a { color:#d97706; text-decoration:underline; }
+  .md hr { border:0; border-top:1px solid #e2e8f0; margin:1em 0; }
+  .md table { border-collapse:collapse; margin:.6em 0; }
+  .md th,.md td { border:1px solid #e2e8f0; padding:5px 10px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 11</div>
+      <h1 class="text-xl font-bold">📝 Markdown Editor — Live Preview, in the Browser</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Type Markdown on the left, see HTML on the right — instantly</h2>
+      <p class="text-slate-500 text-center mb-4">A hand-written parser (no library) turns Markdown into HTML as you type. Edit the sample.</p>
+      <div class="grid md:grid-cols-2 gap-4" style="height:62vh;">
+        <textarea id="editor" class="w-full h-full border border-slate-300 rounded-xl p-4 text-sm font-mono outline-none focus:border-amber-500 bg-white"></textarea>
+        <div id="preview" class="md w-full h-full border border-slate-200 rounded-xl p-4 bg-white overflow-auto text-slate-800"></div>
+      </div>
+      <p class="text-xs text-slate-400 text-center mt-3">↑ Headings #, **bold**, *italic*, `code`, lists, &gt; quotes, [links](url), --- rules, and fenced ``` blocks all render live.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a Markdown parser works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Escape HTML, then transform line-by-line + inline regex. ~40 lines for a usable subset.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Escape HTML FIRST (security)</h3></div><pre>md = md.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// so user input can't inject &lt;script&gt; — the #1 rule of any renderer</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Pull out fenced code blocks first</h3></div><pre>md = md.replace(/```([\s\S]*?)```/g, (_, c) => `&lt;pre&gt;&lt;code&gt;${c}&lt;/code&gt;&lt;/pre&gt;`);
+// do these before other rules so their contents aren't re-parsed</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Block elements line-by-line</h3></div><pre>line.replace(/^### (.*)/, "&lt;h3&gt;$1&lt;/h3&gt;")
+    .replace(/^## (.*)/,  "&lt;h2&gt;$1&lt;/h2&gt;")
+    .replace(/^# (.*)/,   "&lt;h1&gt;$1&lt;/h1&gt;")
+    .replace(/^&gt; (.*)/,   "&lt;blockquote&gt;$1&lt;/blockquote&gt;");</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Inline styles with regex</h3></div><pre>.replace(/\*\*(.+?)\*\*/g, "&lt;strong&gt;$1&lt;/strong&gt;")
+.replace(/\*(.+?)\*/g,     "&lt;em&gt;$1&lt;/em&gt;")
+.replace(/`(.+?)`/g,       "&lt;code&gt;$1&lt;/code&gt;")
+.replace(/\[(.+?)\]\((.+?)\)/g, '&lt;a href="$2"&gt;$1&lt;/a&gt;');</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Render live on input</h3></div><pre>editor.addEventListener("input", () =>
+  preview.innerHTML = mdToHtml(editor.value));</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 11 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a colour-palette extractor from any image.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== MARKDOWN PARSER =====
+const editor=document.getElementById("editor"), preview=document.getElementById("preview");
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function inline(s){
+  return s
+    .replace(/`([^`]+?)`/g,"<code>$1</code>")
+    .replace(/\*\*([^*]+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*([^*]+?)\*/g,"<em>$1</em>")
+    .replace(/~~([^~]+?)~~/g,"<del>$1</del>")
+    .replace(/\[([^\]]+?)\]\(([^)]+?)\)/g,'<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+}
+function mdToHtml(src){
+  // fenced code blocks first (protect contents)
+  const blocks=[];
+  src = src.replace(/```([\s\S]*?)```/g, (_,c)=>{ blocks.push(c.replace(/^\n/,"")); return ` ${blocks.length-1} `; });
+  src = esc(src);
+  const lines = src.split("\n");
+  let html="", i=0;
+  while(i<lines.length){
+    let ln=lines[i];
+    const ph = ln.match(/^ (\d+) $/);
+    if (ph){ html+=`<pre><code>${esc(blocks[+ph[1]])}</code></pre>`; i++; continue; }
+    if (/^### /.test(ln)){ html+=`<h3>${inline(ln.slice(4))}</h3>`; i++; continue; }
+    if (/^## /.test(ln)){ html+=`<h2>${inline(ln.slice(3))}</h2>`; i++; continue; }
+    if (/^# /.test(ln)){ html+=`<h1>${inline(ln.slice(2))}</h1>`; i++; continue; }
+    if (/^(---|\*\*\*)\s*$/.test(ln)){ html+="<hr>"; i++; continue; }
+    if (/^&gt; /.test(ln)){ html+=`<blockquote>${inline(ln.slice(5))}</blockquote>`; i++; continue; }
+    if (/^[-*] /.test(ln)){ html+="<ul>"; while(i<lines.length&&/^[-*] /.test(lines[i])){ html+=`<li>${inline(lines[i].slice(2))}</li>`; i++; } html+="</ul>"; continue; }
+    if (/^\d+\. /.test(ln)){ html+="<ol>"; while(i<lines.length&&/^\d+\. /.test(lines[i])){ html+=`<li>${inline(lines[i].replace(/^\d+\.\s/,""))}</li>`; i++; } html+="</ol>"; continue; }
+    if (ln.trim()===""){ i++; continue; }
+    html+=`<p>${inline(ln)}</p>`; i++;
+  }
+  return html;
+}
+const SAMPLE = `# OrderHub Notes
+
+A **live** Markdown editor, *no library*.
+
+## Features
+- Headings, **bold**, *italic*, \`code\`
+- Lists and [links](https://dev48v.infy.uk)
+- > Blockquotes for callouts
+
+### A code block
+\`\`\`
+const md = "# hello";
+preview.innerHTML = render(md);
+\`\`\`
+
+1. Type on the left
+2. See HTML on the right
+3. Ship it
+
+---
+Built from scratch in ~40 lines.`;
+editor.value = SAMPLE;
+editor.addEventListener("input", ()=> preview.innerHTML = mdToHtml(editor.value));
+preview.innerHTML = mdToHtml(editor.value);
+
+const STEPS = [
+  { title:"1. Markdown is plain text with conventions", why:"Markdown's whole appeal: it's readable as-is, and a handful of symbols (#, *, -, >, `) map to HTML elements. A parser is just a series of those transformations. You'll cover 90% of real-world Markdown with a dozen rules.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"># → h1 · **x** → bold · - → list · &gt; → quote</div>`, code:`"# Title" → "<h1>Title</h1>"` },
+  { title:"2. Escape HTML before anything else", why:"The #1 rule of rendering user text: escape &, <, > first, so someone typing <script> can't inject it into your page (XSS). Every transform after this adds safe tags you control. Skip this and your editor is a security hole.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">user text → escape &lt; &gt; & → THEN add your own tags</div>`, code:`md = md.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");` },
+  { title:"3. Protect code blocks first", why:"Fenced code blocks (```) should render literally — you don't want **bold** inside a code sample to turn bold. So extract them first, replace with placeholders, run all other rules, then put the code back at the end. Order of operations matters in a parser.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">extract ``` blocks → parse the rest → re-insert untouched</div>`, code:`src = src.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, stash);` },
+  { title:"4. Block elements, line by line", why:"Headings, list items, blockquotes, and rules are decided per LINE by what it starts with. Walk the lines; a '# ' prefix is an h1, '- ' starts a list, '> ' a quote. Consecutive list lines get grouped into one <ul>. This line loop is the backbone of the parser.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">for each line → match its prefix → emit the block tag</div>`, code:`if (/^# /.test(line)) html += "<h1>" + line.slice(2) + "</h1>";` },
+  { title:"5. Inline styles with regex", why:"Within a line, bold/italic/code/links are inline spans done with global regex replaces: **x** → strong, *x* → em, `x` → code, [t](u) → a. Run these on each block's text. Watch the order (bold before italic) so ** isn't eaten as two *.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">**x** → strong · *x* → em · [t](u) → link</div>`, code:`s.replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>")` },
+  { title:"6. Render live on every keystroke", why:"Wire it to the editor's input event: on each keystroke, re-run the parser and drop the HTML into the preview pane. Markdown is cheap to re-parse, so full re-render every keystroke is fine — that's the instant split-screen feel of every Markdown editor.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Escape → protect code → block rules → inline regex → live render.</p></div>`, code:`editor.oninput = () => preview.innerHTML = mdToHtml(editor.value);` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

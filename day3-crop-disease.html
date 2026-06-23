@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 3 — AI Crop Disease Identifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .copy-btn:hover { background:#1e293b; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .conf-bar { transition: width .6s ease-out; }
+  .leaf-card { transition: transform .15s; }
+  .leaf-card:hover { transform: scale(1.05); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 3 · 🇮🇳 Smart India Hackathon</div>
+      <h1 class="text-xl font-bold">🌾 AI Crop Disease Identifier</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOOK -->
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+        <div class="text-xs font-bold uppercase text-amber-800 tracking-widest mb-2">📋 The Problem (Smart India Hackathon brief)</div>
+        <p class="text-sm text-slate-700">35% of Indian crop losses come from undiagnosed disease. The village ag-extension officer can't visit every farm. Build a phone app where the farmer photographs a sick leaf → AI returns the disease name + a simple Hindi/Marathi remedy.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow mb-4">
+        <h3 class="font-bold mb-3">Tap a leaf to diagnose</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div class="leaf-card cursor-pointer bg-emerald-100 border border-emerald-300 rounded-xl p-4 text-center" data-leaf="healthy">
+            <div class="text-5xl">🌿</div>
+            <div class="text-xs font-bold text-emerald-800 mt-2">Healthy leaf</div>
+          </div>
+          <div class="leaf-card cursor-pointer bg-amber-100 border border-amber-300 rounded-xl p-4 text-center" data-leaf="blight">
+            <div class="text-5xl">🍂</div>
+            <div class="text-xs font-bold text-amber-800 mt-2">Yellow spots</div>
+          </div>
+          <div class="leaf-card cursor-pointer bg-red-100 border border-red-300 rounded-xl p-4 text-center" data-leaf="rust">
+            <div class="text-5xl">🍁</div>
+            <div class="text-xs font-bold text-red-800 mt-2">Brown rust</div>
+          </div>
+          <div class="leaf-card cursor-pointer bg-slate-200 border border-slate-300 rounded-xl p-4 text-center" data-leaf="mildew">
+            <div class="text-5xl">🌫️</div>
+            <div class="text-xs font-bold text-slate-700 mt-2">White powder</div>
+          </div>
+        </div>
+
+        <div id="result" class="hidden bg-slate-900 text-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <div class="text-xs text-slate-400 font-bold uppercase tracking-widest">Diagnosis</div>
+              <div id="diag-name" class="text-xl font-bold text-emerald-300 mt-1">—</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs text-slate-400">Confidence</div>
+              <div id="diag-conf" class="text-2xl font-black text-emerald-300">—</div>
+            </div>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-4">
+            <div id="diag-bar" class="conf-bar h-2 rounded-full bg-emerald-400" style="width: 0%"></div>
+          </div>
+          <div class="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2">📋 Remedy</div>
+          <div id="diag-remedy" class="text-sm">—</div>
+          <div class="text-xs text-slate-500 mt-3">🗣️ <span id="diag-hindi" class="italic">—</span></div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center">↑ Simulated. Real version uses TensorFlow.js + PlantVillage dataset (54k images, 38 classes), runs in browser, no key needed.</p>
+    </div>
+  </div>
+</section>
+
+<!-- UNDERSTAND -->
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the classifier works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div>
+        <div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step on the left →</div></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div>
+        <div id="why" class="text-slate-700">—</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div>
+        <pre id="code"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it for real</h2>
+    <p class="text-slate-500 mb-8">Estimated time: <b>2 hours</b>. Stack: TensorFlow.js + PlantVillage dataset (54k images, 38 classes).</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Get a pre-trained model</h3></div>
+        <p class="text-sm text-slate-600 mb-3">PlantVillage = de-facto public dataset for crop disease (38 disease classes across 14 crops). MobileNetV2 transfer-learned on PlantVillage hits ~95% accuracy and is small enough to run in-browser via TF.js.</p>
+<pre># Convert any PyTorch/Keras model to TF.js layers format:
+pip install tensorflowjs
+tensorflowjs_converter --input_format=keras \
+  plantvillage.h5 \
+  ./model_tfjs/</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Load + predict in-browser</h3></div>
+        <div class="relative">
+<pre>&lt;script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"&gt;&lt;/script&gt;
+&lt;script&gt;
+const model = await tf.loadLayersModel("/model_tfjs/model.json");
+
+// User picked a photo
+fileInput.onchange = async (e) =&gt; {
+  const img = new Image();
+  img.src = URL.createObjectURL(e.target.files[0]);
+  await img.decode();
+
+  // Pre-process: resize to 224×224, normalize 0-1, add batch dim
+  const tensor = tf.browser.fromPixels(img)
+    .resizeBilinear([224, 224])
+    .toFloat().div(255).expandDims();
+
+  // Forward pass
+  const probs = await model.predict(tensor).data();
+
+  // Find top class
+  const top = probs.indexOf(Math.max(...probs));
+  console.log(CLASSES[top], "conf:", probs[top]);
+};
+&lt;/script&gt;</pre>
+          <button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy</button>
+        </div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Remedy lookup table</h3></div>
+<pre>const REMEDIES = {
+  "tomato_late_blight": {
+    name: "टमाटर का देर का झुलसा (Late Blight)",
+    treatment: "Spray 2g/L Mancozeb every 7 days for 3 weeks.",
+    hindi: "मैनकोज़ेब 2 ग्राम/लीटर पानी में मिलाकर हर 7 दिन में छिड़काव करें।"
+  },
+  // ... 38 entries
+};</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Offline-first PWA</h3></div>
+        <p class="text-sm text-slate-600">Rural villages have spotty 2G. Service worker caches model (~14 MB) on first install. App works fully offline after that. <code>workbox-cli</code> handles the cache config in one config file.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Hindi / Marathi voice output</h3></div>
+        <p class="text-sm text-slate-600">Web Speech API <code>speechSynthesis.speak</code> with <code>lang: "hi-IN"</code> reads the remedy aloud — many farmers can't read but can listen. Bonus: pair with phone camera + voice = a complete diagnosis tool.</p>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+      <h3 class="font-bold text-lg text-amber-900">🎉 Day 3 of SolveFromZero done.</h3>
+      <p class="text-sm text-amber-700 mt-2">Tomorrow: GitHub repo health scorer (Devpost).</p>
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// LOOK
+const DIAGNOSES = {
+  healthy: { name: "Healthy leaf", conf: 0.98, color: "emerald", remedy: "No action needed. Maintain regular irrigation + nitrogen schedule.", hindi: "कोई इलाज की ज़रूरत नहीं। नियमित सिंचाई जारी रखें।" },
+  blight:  { name: "Early Blight (Alternaria)", conf: 0.87, color: "amber", remedy: "Spray 2g/L Mancozeb every 7 days for 3 weeks. Remove infected leaves to prevent spread.", hindi: "मैनकोज़ेब 2 ग्राम/लीटर पानी में मिलाकर 7 दिन में छिड़काव करें। संक्रमित पत्ते हटा दें।" },
+  rust:    { name: "Wheat Brown Rust (Puccinia triticina)", conf: 0.93, color: "red", remedy: "Spray Propiconazole 0.1% at first sighting. Plant rust-resistant varieties (HD-3086) next season.", hindi: "तुरंत प्रोपिकोनाज़ोल 0.1% का छिड़काव करें। अगली बार HD-3086 जैसी रोग-प्रतिरोधी किस्म लगाएँ।" },
+  mildew:  { name: "Powdery Mildew", conf: 0.81, color: "slate", remedy: "Increase air circulation. Spray potassium bicarbonate 5g/L or neem oil 3ml/L weekly.", hindi: "पौधों के बीच जगह बढ़ाएँ। पोटैशियम बाइकार्बोनेट 5 ग्राम/लीटर या नीम तेल 3 मिली/लीटर साप्ताहिक छिड़काव।" }
+};
+const colorMap = {
+  emerald: ["text-emerald-300", "bg-emerald-400"],
+  amber:   ["text-amber-300",   "bg-amber-400"],
+  red:     ["text-red-300",     "bg-red-400"],
+  slate:   ["text-slate-300",   "bg-slate-400"]
+};
+document.querySelectorAll("[data-leaf]").forEach(el => {
+  el.onclick = () => {
+    const d = DIAGNOSES[el.dataset.leaf];
+    document.getElementById("result").classList.remove("hidden");
+    const [textCol, barCol] = colorMap[d.color];
+    const nameEl = document.getElementById("diag-name");
+    const confEl = document.getElementById("diag-conf");
+    nameEl.className = "text-xl font-bold mt-1 " + textCol;
+    confEl.className = "text-2xl font-black " + textCol;
+    nameEl.textContent = d.name;
+    confEl.textContent = (d.conf*100).toFixed(0) + "%";
+    const bar = document.getElementById("diag-bar");
+    bar.className = "conf-bar h-2 rounded-full " + barCol;
+    bar.style.width = "0%";
+    setTimeout(() => bar.style.width = (d.conf*100) + "%", 50);
+    document.getElementById("diag-remedy").textContent = d.remedy;
+    document.getElementById("diag-hindi").textContent = d.hindi;
+  };
+});
+
+// UNDERSTAND
+const STEPS = [
+  { title:"1. The constraint — runs offline on Android", why:"Rural India = patchy 2G. Cloud APIs (OpenAI Vision, Gemini Vision) won't work consistently. The model must run ON the phone, fully offline. That rules out 100M+ param vision models. Need something <20 MB.", concept:`<div class="bg-amber-50 border border-amber-200 p-4 rounded text-sm space-y-2 w-full">
+    <div class="font-bold text-amber-800">Constraints:</div>
+    <ul class="text-xs text-slate-700 space-y-1 ml-4 list-disc">
+      <li>Runs on ₹6000 Android phone</li>
+      <li>Works offline (no cloud API)</li>
+      <li>Model size &lt; 20 MB</li>
+      <li>Inference &lt; 2 seconds</li>
+      <li>UI in Hindi / Marathi / Tamil</li>
+    </ul>
+  </div>`, code:`// No cloud APIs.
+// No GPT-4V.
+// Just a small CNN + a remedy lookup table.` },
+  { title:"2. PlantVillage = canonical dataset", why:"54k labeled images across 38 disease classes across 14 crops (tomato, potato, grape, corn, apple, ...). Public, free, used in every academic crop-disease paper. Train ONCE on this, you cover most South Asian crops.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div class="font-mono text-xs space-y-1">
+      <div>📦 PlantVillage Dataset</div>
+      <div class="ml-4">• 54,305 images</div>
+      <div class="ml-4">• 38 classes (disease + healthy)</div>
+      <div class="ml-4">• 14 crops (tomato, potato, ...)</div>
+      <div class="ml-4">• Free, no attribution required</div>
+    </div>
+  </div>`, code:`// Download:
+// https://www.kaggle.com/datasets/abdallahalidev/plantvillage-dataset
+// 54k images, ~1 GB unzipped.` },
+  { title:"3. Transfer learning from MobileNetV2", why:"Don't train a CNN from scratch (would need 100k+ images + days of GPU). Take MobileNetV2 (pre-trained on ImageNet) → freeze first 100 layers → fine-tune last few on PlantVillage. ~30 min on a free Colab T4 GPU. ~95% test accuracy.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div class="font-mono text-xs space-y-1">
+      <div>MobileNetV2 (ImageNet weights)</div>
+      <div class="ml-4">├── Freeze layers 0-99 (general features)</div>
+      <div class="ml-4">├── Replace final layer (38 classes)</div>
+      <div class="ml-4">└── Fine-tune layers 100-153 (specific features)</div>
+      <div class="text-emerald-700 mt-2">≈ 95% accuracy in 30 minutes</div>
+    </div>
+  </div>`, code:`from tensorflow.keras.applications import MobileNetV2
+
+base = MobileNetV2(weights="imagenet", include_top=False)
+for layer in base.layers[:-30]:
+    layer.trainable = False
+
+model = Sequential([
+    base,
+    GlobalAveragePooling2D(),
+    Dense(38, activation="softmax")
+])` },
+  { title:"4. Quantize to fit on phone", why:"MobileNetV2 fp32 = ~14 MB. Quantize to int8 = ~3.5 MB. Same accuracy ±1%. The phone can keep it in RAM, inference under 500 ms.", concept:`<div class="grid grid-cols-3 gap-2 text-xs w-full">
+    <div class="bg-slate-100 p-3 rounded text-center">
+      <div class="font-bold">fp32</div>
+      <div>14 MB · 95.1%</div>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 p-3 rounded text-center">
+      <div class="font-bold text-amber-700">fp16</div>
+      <div>7 MB · 95.0%</div>
+    </div>
+    <div class="bg-emerald-50 border border-emerald-200 p-3 rounded text-center">
+      <div class="font-bold text-emerald-700">int8</div>
+      <div>3.5 MB · 94.2%</div>
+    </div>
+  </div>`, code:`# TensorFlow Lite quantization
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.representative_dataset = rep_data_gen
+tflite_model = converter.convert()
+# 14 MB → 3.5 MB` },
+  { title:"5. Pre-process the photo", why:"Photo from a phone is 4032×3024. The model wants 224×224. Resize → normalize pixels to 0-1 → add batch dimension. Three lines.", concept:`<div class="bg-slate-100 p-4 rounded font-mono text-xs space-y-1 w-full">
+    <div>raw: 4032×3024 JPEG</div>
+    <div>↓ resizeBilinear([224, 224])</div>
+    <div>↓ .toFloat().div(255)  <span class="text-slate-500">// 0-255 → 0-1</span></div>
+    <div>↓ .expandDims()        <span class="text-slate-500">// add batch dim</span></div>
+    <div class="text-emerald-700">→ shape (1, 224, 224, 3)</div>
+  </div>`, code:`const tensor = tf.browser.fromPixels(img)
+  .resizeBilinear([224, 224])
+  .toFloat()
+  .div(255)
+  .expandDims();` },
+  { title:"6. Forward pass + top-K", why:"model.predict() returns softmax probabilities — 38 numbers summing to 1. Pick the argmax = top class. Bonus: return top-3 with confidences so the user sees alternative diagnoses.", concept:`<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full">
+    <div>probs = [0.01, 0.02, ..., <b class="text-emerald-700">0.93</b>, ..., 0.01]</div>
+    <div>top index = argmax(probs) = 23</div>
+    <div class="text-emerald-700 mt-2">CLASSES[23] = "Tomato Late Blight"</div>
+    <div>confidence = 0.93</div>
+  </div>`, code:`const probs = await model.predict(tensor).data();
+const top = probs.indexOf(Math.max(...probs));
+const diagnosis = CLASSES[top];
+const confidence = probs[top];` },
+  { title:"7. Remedy lookup + Hindi voice", why:"AI knows the disease. Lookup table knows the remedy. Use Web Speech API to read it aloud in Hindi — many farmers can't read but can listen. Make the app actually USEFUL, not just smart.", concept:`<div class="bg-slate-100 p-4 rounded text-xs space-y-1 w-full">
+    <div>diagnosis → REMEDIES[id]</div>
+    <div class="ml-4 text-emerald-700">→ name (Hindi)</div>
+    <div class="ml-4 text-emerald-700">→ treatment steps</div>
+    <div class="ml-4 text-emerald-700">→ speechSynthesis.speak()</div>
+  </div>`, code:`const r = REMEDIES[CLASSES[top]];
+
+// Speak aloud in Hindi
+const utter = new SpeechSynthesisUtterance(r.hindi);
+utter.lang = "hi-IN";
+speechSynthesis.speak(utter);
+
+// Display the prescription
+document.querySelector("#remedy").textContent = r.treatment;` },
+  { title:"8. Offline PWA = critical", why:"Service worker caches the 3.5 MB model + UI on first install. After that the app works in airplane mode, on a 2G village tower, at 3am. Farmers don't redownload. This is what makes the app actually deployable.", concept:`<div class="bg-emerald-50 border border-emerald-200 p-4 rounded text-sm w-full">
+    <div class="font-mono text-xs space-y-1">
+      <div>First visit: download 3.5 MB model</div>
+      <div>Service worker caches everything</div>
+      <div class="text-emerald-700 font-bold mt-2">From then on: works offline</div>
+    </div>
+  </div>`, code:`// service-worker.js
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open("crop-v1").then(cache =>
+      cache.addAll([
+        "/", "/index.html", "/app.js",
+        "/model/model.json",
+        "/model/weights.bin"  // 3.5 MB
+      ])
+    )
+  );
+});` },
+  { title:"9. Done!", why:"You ship a real Smart India Hackathon-grade app: PlantVillage + MobileNetV2 + int8 quantize + offline PWA + Hindi voice. Same pipeline (small CNN + lookup table + voice) works for: cattle disease, pest identification, weed detection, soil-color → nutrient deficiency.", concept:`<div class="text-center w-full">
+    <div class="text-5xl mb-3">🎉</div>
+    <p class="font-bold text-slate-700">You ship offline AI for villages.</p>
+    <p class="text-sm text-slate-500 mt-2">Same pipeline, different model = different problem solved.</p>
+  </div>`, code:`// Reuse for:
+//   - Cattle disease (PlantDoc-style cattle dataset)
+//   - Weed identification (DeepWeeds)
+//   - Soil nutrient deficiency
+//   - Insect pest ID
+// Same skeleton, swap the model + remedy table.` }
+];
+const stepsEl = document.getElementById("steps");
+const prev = document.getElementById("prev");
+const next = document.getElementById("next-btn");
+const auto = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  b.innerHTML = `<div class="font-semibold">${s.title}</div>`;
+  b.onclick = () => show(i);
+  stepsEl.appendChild(b);
+});
+function show(i) {
+  cur = i;
+  const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((b, idx) => {
+    b.className = idx === i
+      ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+      : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prev.onclick = () => show(Math.max(0, cur - 1));
+next.onclick = () => show(Math.min(STEPS.length - 1, cur + 1));
+let timer = null;
+auto.onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; auto.textContent = "▶ Auto-play"; return; }
+  auto.textContent = "⏸ Pause";
+  show(0);
+  timer = setInterval(() => {
+    if (cur >= STEPS.length - 1) { clearInterval(timer); timer = null; auto.textContent = "▶ Replay"; return; }
+    show(cur + 1);
+  }, 2500);
+};
+show(0);
+function copy(btn) {
+  const pre = btn.parentElement.querySelector("pre");
+  navigator.clipboard.writeText(pre.textContent);
+  const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500);
+}
+</script>
+</body>
+</html>

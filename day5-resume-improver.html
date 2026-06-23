@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 5 — Resume Bullet Improver</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 5</div>
+      <h1 class="text-xl font-bold">📝 Resume Bullet Improver</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Weak bullet in, strong bullet out</h2>
+      <p class="text-slate-500 text-center mb-5">The problem: most resume bullets are passive and number-free. This rewrites them to the <b>Verb · What · Impact</b> formula recruiters scan for.</p>
+      <textarea id="inp" rows="3" class="w-full p-3 rounded-xl border border-slate-300 outline-none focus:border-amber-500 text-sm" placeholder="Paste a resume bullet...">Responsible for working on the website and helping improve the loading speed.</textarea>
+      <div class="flex flex-wrap gap-2 my-3" id="examples"></div>
+      <button id="go" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl">✨ Improve</button>
+      <div id="out" class="mt-5 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3">
+          <div class="text-xs font-bold uppercase text-slate-400 mb-1">Rewritten</div>
+          <div id="better" class="text-slate-800 font-semibold"></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <div class="text-xs font-bold uppercase text-amber-600 mb-2">What changed</div>
+          <ul id="notes" class="text-sm space-y-1"></ul>
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 text-center mt-6">↑ Rule-based (no AI key). The formula it applies is what a hiring manager scans for in 6 seconds.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the improver works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">No AI needed — just the rules every career coach repeats, in code.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Kill weak openers</h3></div><pre>const WEAK = [/^responsible for/i, /^worked on/i, /^helped( to)?/i, /^tasked with/i];
+// replace with a strong action verb: Built, Led, Shipped, Cut, Drove...</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Demand a number</h3></div><pre>if (!/\d/.test(bullet)) note("Add a metric — by how much? how many? %?");</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Force the Verb · What · Impact shape</h3></div><pre>// good = "Cut homepage load time 40% by lazy-loading images, lifting signups 12%"
+//          ↑verb   ↑what + how                          ↑measurable impact</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 5 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: AI study-notes summarizer.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== rule-based improver =====
+const inp = document.getElementById("inp"), out = document.getElementById("out"), betterEl = document.getElementById("better"), notesEl = document.getElementById("notes");
+const WEAK = [
+  { re:/^\s*responsible for\s+/i, verb:"Owned" },
+  { re:/^\s*worked on\s+/i, verb:"Built" },
+  { re:/^\s*helped( to)?\s+/i, verb:"Drove" },
+  { re:/^\s*tasked with\s+/i, verb:"Led" },
+  { re:/^\s*involved in\s+/i, verb:"Delivered" }
+];
+const VERBS = ["Built","Led","Shipped","Cut","Drove","Launched","Automated","Scaled","Designed"];
+function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+function improve(text){
+  let b = text.trim().replace(/\.$/, ""); const notes = [];
+  let replaced = false;
+  for (const w of WEAK) { if (w.re.test(b)) { b = b.replace(w.re, w.verb + " "); notes.push(`Replaced a weak opener with the strong verb "<b>${w.verb}</b>".`); replaced = true; break; } }
+  // gerund opener ("Working on...") -> verb
+  if (!replaced && /^\s*(working|helping|assisting|managing)\b/i.test(b)) {
+    b = b.replace(/^\s*\w+ing\b/i, VERBS[0]); notes.push('Turned a passive "-ing" opener into an action verb.'); replaced = true;
+  }
+  if (!replaced && !/^[A-Z][a-z]+(ed|t)\b/.test(b)) notes.push('Start with a strong past-tense action verb (Built, Led, Shipped, Cut…).');
+  if (!/\d/.test(b)) { b += " — quantify the impact (e.g. by 30%, 10k users, 2× faster)"; notes.push("No number found → added a prompt to <b>quantify the impact</b>. Recruiters scan for metrics."); }
+  else notes.push("✓ Already has a number — great, metrics get you read.");
+  if (/\b(and helping|and working|and assisting)\b/i.test(b)) notes.push("Split this into two bullets — one achievement each.");
+  b = cap(b);
+  betterEl.innerHTML = b;
+  notesEl.innerHTML = notes.map(n => `<li>• ${n}</li>`).join("");
+  out.classList.remove("hidden");
+}
+document.getElementById("go").onclick = () => improve(inp.value);
+["Responsible for managing the social media accounts.","Worked on the backend API.","Helped the team with testing.","Involved in the redesign of the dashboard."].forEach(ex=>{
+  const b=document.createElement("button"); b.className="text-xs px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-amber-400 hover:text-amber-600"; b.textContent=ex; b.onclick=()=>{ inp.value=ex; improve(ex); }; document.getElementById("examples").appendChild(b);
+});
+
+const STEPS = [
+  { title:"1. The problem recruiters have", why:"A recruiter scans a resume in ~6 seconds. Bullets that start 'Responsible for…' and contain no numbers are invisible — they describe duties, not results. This tool fixes the two failures that sink most bullets: weak verbs and missing metrics.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-1"><div class="text-red-600">"Responsible for working on the website"</div><div class="text-emerald-700">"Cut homepage load time 40%, lifting signups 12%"</div></div>`, code:`// two killers of a resume bullet:
+//  1. weak opener ("Responsible for")
+//  2. zero numbers` },
+  { title:"2. Detect + replace weak openers", why:"A short list of regexes catches the usual offenders ('Responsible for', 'Worked on', 'Helped', 'Tasked with', '-ing' openers) and swaps in a strong action verb. Recruiters are trained to look for verbs first.", concept:`<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full space-y-1"><div>/^responsible for/ → "Owned"</div><div>/^worked on/ → "Built"</div><div>/^helped/ → "Drove"</div></div>`, code:`const WEAK = [
+  { re:/^responsible for /i, verb:"Owned" },
+  { re:/^worked on /i,       verb:"Built" },
+  { re:/^helped /i,          verb:"Drove" }
+];` },
+  { title:"3. Demand a metric", why:"If the bullet contains no digit, the tool flags it and appends a prompt to quantify. 'Improved performance' is forgettable; 'cut latency 40%' is hireable. Numbers are the single biggest upgrade to any bullet.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div class="font-mono">if (!/\\d/.test(bullet)) → "add a %, count, or multiple"</div></div>`, code:`if (!/\\d/.test(bullet))
+  note("Add a metric — by how much? how many? %?");` },
+  { title:"4. The Verb · What · Impact formula", why:"Every great bullet has three parts: a strong VERB, WHAT you did (and how), and a measurable IMPACT. Teach the shape and any bullet becomes rewritable — by a human or a model.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><b>Cut</b> homepage load time 40% <span class="text-slate-500">(verb + what)</span> <b>, lifting signups 12%</b> <span class="text-slate-500">(impact)</span></div>`, code:`// template:
+// {ACTION_VERB} {what you did + how}, {measurable result}` },
+  { title:"5. Rules now, AI later", why:"This version is pure regex — runs offline, no key, fully explainable. Swap the rules for an LLM call ('rewrite to Verb·What·Impact, keep it true') and you get nuance — but the formula it follows is exactly these rules.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-1"><div>v1: regex rules (this page)</div><div class="text-amber-700">v2: LLM with the same formula in the prompt</div></div>`, code:`// AI version:
+llm(\`Rewrite to "Verb · What · Impact",
+     keep it truthful, add a metric placeholder
+     if none exists: \${bullet}\`);` },
+  { title:"6. Done!", why:"A genuinely useful micro-tool from a handful of rules. The pattern — detect anti-patterns, suggest the fix, show what changed — works for cover letters, commit messages, PR descriptions, anywhere writing has a known 'good shape'.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Rules + a known good shape = a real assistant.</p></div>`, code:`// reusable: detect → suggest → diff
+// works for commits, PRs, cover letters too` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const b=document.createElement("button"); b.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; b.innerHTML=`<div class="font-semibold">${s.title}</div>`; b.onclick=()=>show(i); stepsEl.appendChild(b); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((b,idx)=>{ b.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 4 — Repo Health Scorer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .gauge-ring { transition: stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1); }
+  .bar-fill { transition: width .8s cubic-bezier(.2,.8,.2,1); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 4</div>
+      <h1 class="text-xl font-bold">🩺 GitHub Repo Health Scorer</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOOK -->
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Score any public repo's health — live</h2>
+      <p class="text-slate-500 text-center mb-5">The problem: maintainers + judges need a quick read on whether a repo is alive and well-kept. This scores it from the public GitHub API.</p>
+
+      <div class="flex gap-2 max-w-xl mx-auto mb-3">
+        <input id="repo" value="dev48v/pgvector-from-zero" placeholder="owner/repo" class="flex-1 px-4 py-3 rounded-xl border border-slate-300 outline-none focus:border-amber-500" />
+        <button id="go" class="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">Score</button>
+      </div>
+      <div class="flex flex-wrap gap-2 justify-center mb-6" id="examples"></div>
+
+      <div id="result" class="hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 grid md:grid-cols-3 gap-6 items-center">
+          <div class="text-center">
+            <svg width="160" height="160" viewBox="0 0 160 160" class="mx-auto">
+              <circle cx="80" cy="80" r="68" fill="none" stroke="#f1f5f9" stroke-width="14"/>
+              <circle id="ring" cx="80" cy="80" r="68" fill="none" stroke="#f59e0b" stroke-width="14"
+                      stroke-linecap="round" transform="rotate(-90 80 80)"
+                      stroke-dasharray="427" stroke-dashoffset="427" class="gauge-ring"/>
+              <text id="scoreText" x="80" y="76" text-anchor="middle" font-size="40" font-weight="800" fill="#0f172a">–</text>
+              <text x="80" y="100" text-anchor="middle" font-size="12" fill="#94a3b8">/ 100</text>
+            </svg>
+            <div id="grade" class="font-bold text-lg mt-1"></div>
+            <div id="repoName" class="text-xs text-slate-400"></div>
+          </div>
+          <div class="md:col-span-2 space-y-2" id="breakdown"></div>
+        </div>
+      </div>
+      <div id="err" class="hidden text-center text-red-500 text-sm mt-4"></div>
+      <p class="text-xs text-slate-400 text-center mt-6">↑ Live, unauthenticated GitHub API (60 req/hr per IP). The scoring weights are the interesting part — see UNDERSTAND.</p>
+    </div>
+  </div>
+</section>
+
+<!-- UNDERSTAND -->
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the scorer works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="sprev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="snext" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div>
+        <div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step on the left →</div></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div>
+        <div id="why" class="text-slate-700">—</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div>
+        <pre id="code"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">One HTML file, one public API, a transparent scoring function.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Fetch the public repo data</h3></div>
+<pre>const r = await fetch(`https://api.github.com/repos/${owner}/${name}`);
+const data = await r.json();   // stars, pushed_at, license, issues…</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Turn signals into points</h3></div>
+        <p class="text-sm text-slate-600">Recency, docs, license, popularity, issue hygiene. Each is a small scoring function returning 0–N points. Sum to 100.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Show the breakdown, not just the number</h3></div>
+        <p class="text-sm text-slate-600">A bare score is useless. Render each component as a bar so the maintainer knows <em>what</em> to fix (e.g. "add a LICENSE: +15").</p>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+      <h3 class="font-bold text-lg text-amber-900">🎉 Day 4 of SolveFromZero done.</h3>
+      <p class="text-sm text-amber-700 mt-2">Tomorrow: Resume bullet improver.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// =========== REPO HEALTH SCORER ===========
+const repoEl = document.getElementById("repo");
+const resultEl = document.getElementById("result");
+const errEl = document.getElementById("err");
+
+function daysSince(iso){ return (Date.now() - new Date(iso).getTime()) / 86400000; }
+
+function scoreRepo(d){
+  const parts = [];
+  // popularity (log scale so 10 stars still counts, 100k doesn't dominate)
+  const stars = d.stargazers_count || 0;
+  parts.push({ label:"Popularity (stars)", pts: Math.min(20, Math.round(Math.log10(stars + 1) * 7)), max:20, note: stars + "★" });
+  // recency
+  const age = daysSince(d.pushed_at);
+  const rec = age < 30 ? 20 : age < 90 ? 14 : age < 365 ? 7 : 0;
+  parts.push({ label:"Recent activity", pts: rec, max:20, note: age < 30 ? "pushed this month" : age < 365 ? Math.round(age) + "d ago" : "stale (>1y)" });
+  // description
+  parts.push({ label:"Has description", pts: d.description ? 10 : 0, max:10, note: d.description ? "yes" : "missing" });
+  // license
+  parts.push({ label:"Has license", pts: d.license ? 15 : 0, max:15, note: d.license ? d.license.spdx_id : "none" });
+  // issue hygiene (fewer open issues per star = better; lone repos with 0 issues neutral)
+  const ratio = stars > 0 ? (d.open_issues_count || 0) / stars : (d.open_issues_count > 20 ? 1 : 0);
+  const iss = ratio < 0.05 ? 15 : ratio < 0.2 ? 10 : ratio < 0.5 ? 5 : 0;
+  parts.push({ label:"Issue hygiene", pts: iss, max:15, note: (d.open_issues_count||0) + " open" });
+  // discoverability
+  const topics = (d.topics || []).length;
+  parts.push({ label:"Topics + homepage", pts: (topics ? 5 : 0) + (d.homepage ? 5 : 0), max:10, note: topics + " topics" });
+  // README presence (filled in async)
+  parts.push({ label:"Has README", pts: 0, max:10, note:"…", key:"readme" });
+  return parts;
+}
+function grade(total){
+  if (total >= 80) return { g:"Excellent", c:"#16a34a" };
+  if (total >= 60) return { g:"Healthy", c:"#65a30d" };
+  if (total >= 40) return { g:"Needs care", c:"#f59e0b" };
+  return { g:"At risk", c:"#dc2626" };
+}
+function renderBreakdown(parts){
+  document.getElementById("breakdown").innerHTML = parts.map(p=>{
+    const pct = Math.round(p.pts / p.max * 100);
+    const col = p.pts === 0 ? "#ef4444" : p.pts === p.max ? "#16a34a" : "#f59e0b";
+    return `<div>
+      <div class="flex justify-between text-xs mb-1"><span class="font-semibold text-slate-700">${p.label}</span><span class="text-slate-500">${p.note} · ${p.pts}/${p.max}</span></div>
+      <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="bar-fill h-full rounded-full" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  }).join("");
+}
+async function run(){
+  errEl.classList.add("hidden");
+  const slug = repoEl.value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
+  const [owner, name] = slug.split("/");
+  if (!owner || !name) { errEl.textContent = "Enter as owner/repo"; errEl.classList.remove("hidden"); return; }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${name}`, { headers:{ Accept:"application/vnd.github+json" }});
+    if (r.status === 404) throw new Error("Repo not found.");
+    if (r.status === 403) throw new Error("GitHub rate limit hit (60/hr unauthenticated). Try again later.");
+    if (!r.ok) throw new Error("GitHub error " + r.status);
+    const d = await r.json();
+    const parts = scoreRepo(d);
+    let total = parts.reduce((s,p)=>s+p.pts,0);
+    resultEl.classList.remove("hidden");
+    document.getElementById("repoName").textContent = d.full_name;
+    renderBreakdown(parts);
+    // README check (separate endpoint)
+    fetch(`https://api.github.com/repos/${owner}/${name}/readme`).then(rr=>{
+      const has = rr.ok; const p = parts.find(p=>p.key==="readme");
+      p.pts = has ? 10 : 0; p.note = has ? "yes" : "missing";
+      const newTotal = parts.reduce((s,x)=>s+x.pts,0);
+      renderBreakdown(parts); animate(newTotal);
+    }).catch(()=>animate(total));
+    animate(total);
+  } catch(e){
+    resultEl.classList.add("hidden");
+    errEl.textContent = e.message; errEl.classList.remove("hidden");
+  }
+}
+function animate(total){
+  const g = grade(total);
+  document.getElementById("ring").setAttribute("stroke", g.c);
+  document.getElementById("ring").style.strokeDashoffset = 427 - (427 * total / 100);
+  document.getElementById("scoreText").textContent = total;
+  const gd = document.getElementById("grade"); gd.textContent = g.g; gd.style.color = g.c;
+}
+document.getElementById("go").onclick = run;
+repoEl.addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
+["dev48v/pgvector-from-zero","facebook/react","torvalds/linux","sindresorhus/awesome"].forEach(s=>{
+  const b=document.createElement("button");
+  b.className="text-xs px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-amber-400 hover:text-amber-600";
+  b.textContent=s; b.onclick=()=>{ repoEl.value=s; run(); };
+  document.getElementById("examples").appendChild(b);
+});
+
+// UNDERSTAND
+const STEPS = [
+  { title:"1. The problem", why:"Hackathon judges, hiring managers, and open-source maintainers all ask the same question fast: is this repo alive and looked-after? Eyeballing every repo is slow. A score turns minutes of clicking into one number + a fix list.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-1">
+    <div>Manual: open repo → check commits → check license → check README → guess</div>
+    <div class="text-amber-700">Scorer: paste owner/repo → 0-100 + what to fix</div>
+  </div>`, code:`// goal: one transparent number + a breakdown,
+// straight from the public GitHub API.` },
+  { title:"2. The API gives you everything for free", why:"GET /repos/{owner}/{repo} returns stars, forks, open_issues_count, pushed_at, license, description, topics, homepage — no auth needed (60 requests/hour per IP). One call covers most signals.", concept:`<div class="bg-slate-100 p-4 rounded text-xs font-mono space-y-1 w-full">
+    <div>stargazers_count: 41200</div>
+    <div>pushed_at: "2026-06-13T…"</div>
+    <div>license: { spdx_id: "MIT" }</div>
+    <div>open_issues_count: 38</div>
+  </div>`, code:`const r = await fetch(
+  \`https://api.github.com/repos/\${owner}/\${name}\`
+);
+const data = await r.json();` },
+  { title:"3. Recency beats raw popularity", why:"A repo with 50k stars last touched 3 years ago is dead. pushed_at is the strongest signal of 'maintained'. We weight 'active this month' heavily and decay to zero past a year.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-1">
+    <div class="text-green-700">&lt; 30 days → 20 pts</div>
+    <div>&lt; 90 days → 14 pts</div>
+    <div>&lt; 1 year → 7 pts</div>
+    <div class="text-red-600">&gt; 1 year → 0 pts</div>
+  </div>`, code:`const age = (Date.now() - new Date(d.pushed_at)) / 86400000;
+const rec = age < 30 ? 20 : age < 90 ? 14
+          : age < 365 ? 7 : 0;` },
+  { title:"4. Log-scale the stars", why:"Linear star scoring means torvalds/linux drowns out every honest small project. log10(stars+1) compresses the range so 10 stars earns real credit and 100k doesn't run away with the whole score.", concept:`<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full space-y-1">
+    <div>10★    → ~7 pts</div>
+    <div>1,000★ → ~14 pts</div>
+    <div>100k★  → ~20 pts (capped)</div>
+  </div>`, code:`Math.min(20, Math.round(Math.log10(stars + 1) * 7));` },
+  { title:"5. Issue hygiene as a ratio", why:"100 open issues on a 50-star repo is a red flag; 100 on a 50k-star repo is normal life. We score open_issues relative to stars, not the absolute count, so big and small repos are judged fairly.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-1">
+    <div>ratio = open_issues / stars</div>
+    <div class="text-green-700">&lt; 0.05 → 15 pts</div>
+    <div class="text-red-600">&gt; 0.5 → 0 pts</div>
+  </div>`, code:`const ratio = d.open_issues_count / Math.max(stars, 1);
+const iss = ratio < 0.05 ? 15 : ratio < 0.2 ? 10
+          : ratio < 0.5 ? 5 : 0;` },
+  { title:"6. Show the fix list, not just the score", why:"The value isn't the number — it's 'add a LICENSE for +15' and 'no README'. Each component renders as a bar so the maintainer sees exactly which cheap wins lift the score most.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-2">
+    <div>Has license <span class="text-red-600">0/15 — none</span></div>
+    <div>Has README <span class="text-green-700">10/10 — yes</span></div>
+    <div class="text-amber-700">→ "add a LICENSE" is the biggest quick win</div>
+  </div>`, code:`parts.map(p => bar(p.label, p.pts, p.max, p.note));
+// transparency turns a score into an action list` },
+  { title:"7. Done!", why:"A useful tool = public data + a transparent scoring function + a readable breakdown. No ML needed. The same shape scores npm packages, Devpost submissions, or your own portfolio repos before you ship them.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Public data + clear rules = a real tool.</p></div>`, code:`// reusable shape:
+//   fetch signals -> score each -> sum -> explain
+// works for npm, Devpost, portfolios, vendors…` },
+];
+const stepsEl = document.getElementById("steps");
+const prev = document.getElementById("sprev");
+const next = document.getElementById("snext");
+const auto = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  b.innerHTML = `<div class="font-semibold">${s.title}</div>`;
+  b.onclick = () => show(i);
+  stepsEl.appendChild(b);
+});
+function show(i) {
+  cur = i;
+  const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((b, idx) => {
+    b.className = idx === i
+      ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+      : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prev.onclick = () => show(Math.max(0, cur - 1));
+next.onclick = () => show(Math.min(STEPS.length - 1, cur + 1));
+let timer = null;
+auto.onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; auto.textContent = "▶ Auto-play"; return; }
+  auto.textContent = "⏸ Pause";
+  show(0);
+  timer = setInterval(() => {
+    if (cur >= STEPS.length - 1) { clearInterval(timer); timer = null; auto.textContent = "▶ Replay"; return; }
+    show(cur + 1);
+  }, 2800);
+};
+show(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 13 — Diff Checker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .diff-row { display:flex; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+  .diff-gutter { width:30px; flex:0 0 30px; text-align:center; user-select:none; opacity:.7; font-weight:700; }
+  .diff-keep { background:#fff; color:#334155; }
+  .diff-add  { background:#ecfdf5; color:#065f46; }
+  .diff-del  { background:#fef2f2; color:#991b1b; }
+  .wd-add { background:#a7f3d0; border-radius:3px; }
+  .wd-del { background:#fecaca; border-radius:3px; text-decoration:line-through; }
+  textarea { tab-size:2; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 13</div>
+      <h1 class="text-xl font-bold">🔀 Diff Checker — Spot Every Change With LCS</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Compare two texts, see every add and delete — all in your browser</h2>
+      <p class="text-slate-500 text-center mb-4">Nothing is uploaded. Both texts are split into lines, a Longest Common Subsequence is computed, and anything not on that shared backbone is shown as a green addition or a red deletion.</p>
+
+      <div class="grid md:grid-cols-2 gap-4 mb-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col">
+          <div class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2">Original</div>
+          <textarea id="left" rows="10" spellcheck="false" class="w-full border border-slate-200 rounded-lg p-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"></textarea>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col">
+          <div class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2">Changed</div>
+          <textarea id="right" rows="10" spellcheck="false" class="w-full border border-slate-200 rounded-lg p-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"></textarea>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2 text-sm" id="stats">
+          <span class="px-3 py-1 rounded-lg font-bold bg-emerald-100 text-emerald-700" id="stat-add">+0 added</span>
+          <span class="px-3 py-1 rounded-lg font-bold bg-rose-100 text-rose-700" id="stat-del">−0 removed</span>
+          <span class="px-3 py-1 rounded-lg font-bold bg-slate-100 text-slate-500" id="stat-keep">0 unchanged</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-2 text-sm text-slate-600 font-semibold cursor-pointer select-none">
+            <input id="wordlevel" type="checkbox" class="accent-amber-500 w-4 h-4" />
+            Word-level diff on changed lines
+          </label>
+          <button id="swap" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-lg text-xs font-bold">⇄ Swap</button>
+          <button id="reset" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Reset sample</button>
+        </div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-2">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2 px-2 pt-1">Unified diff</div>
+        <div id="diff" class="rounded-lg overflow-hidden border border-slate-100"></div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-4">↑ Both texts are split into lines, a Longest Common Subsequence (the longest run of lines that appears in both, in the same order) is found, and the table is backtracked to label each line keep / add / remove — exactly the idea behind <span class="font-mono">git diff</span>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a diff actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Split both texts into lines, build the LCS dynamic-programming table, backtrack it into keep/add/remove operations, then render them. ~45 lines for a real line diff.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Split both texts into arrays of lines</h3></div><pre>const A = original.split("\n");   // old lines
+const B = changed.split("\n");    // new lines
+// a diff compares A vs B element-by-element, where each
+// "element" is one whole line of text.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Build the LCS length table (dynamic programming)</h3></div><pre>// dp[i][j] = length of the LCS of A[0..i-1] and B[0..j-1]
+const n = A.length, m = B.length;
+const dp = Array.from({length:n+1}, () =&gt; new Array(m+1).fill(0));
+for (let i = 1; i &lt;= n; i++) {
+  for (let j = 1; j &lt;= m; j++) {
+    dp[i][j] = A[i-1] === B[j-1]
+      ? dp[i-1][j-1] + 1                  // lines match → extend LCS
+      : Math.max(dp[i-1][j], dp[i][j-1]); // else best of skipping one
+  }
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Backtrack the table into operations</h3></div><pre>// walk from the bottom-right corner back to (0,0)
+const ops = [];
+let i = n, j = m;
+while (i &gt; 0 &amp;&amp; j &gt; 0) {
+  if (A[i-1] === B[j-1]) {                 // on the LCS → unchanged
+    ops.push({type:"keep", text:A[i-1]}); i--; j--;
+  } else if (dp[i-1][j] &gt;= dp[i][j-1]) {   // came from above → removed
+    ops.push({type:"del",  text:A[i-1]}); i--;
+  } else {                                 // came from left → added
+    ops.push({type:"add",  text:B[j-1]}); j--;
+  }
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Drain the leftovers, then reverse</h3></div><pre>// one side may still have lines once the other ran out
+while (i &gt; 0) { ops.push({type:"del", text:A[--i]}); }
+while (j &gt; 0) { ops.push({type:"add", text:B[--j]}); }
+ops.reverse();   // we built it backwards, so flip to top-down order</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Count the stats</h3></div><pre>const added   = ops.filter(o =&gt; o.type === "add").length;
+const removed = ops.filter(o =&gt; o.type === "del").length;
+const kept    = ops.filter(o =&gt; o.type === "keep").length;
+// identical inputs → added === 0 &amp;&amp; removed === 0</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Render a unified view</h3></div><pre>const sign = { keep:" ", add:"+", del:"-" };
+const out = ops.map(o =&gt; {
+  const cls = o.type === "add" ? "diff-add"
+            : o.type === "del" ? "diff-del" : "diff-keep";
+  return `&lt;div class="diff-row ${cls}"&gt;`
+       + `&lt;span class="diff-gutter"&gt;${sign[o.type]}&lt;/span&gt;`
+       + `&lt;span&gt;${escapeHtml(o.text)}&lt;/span&gt;&lt;/div&gt;`;
+}).join("");
+diffEl.innerHTML = out;</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Live update, debounced</h3></div><pre>let t;
+function schedule() { clearTimeout(t); t = setTimeout(render, 150); }
+left.addEventListener("input", schedule);
+right.addEventListener("input", schedule);
+// debouncing waits 150ms after the last keystroke so we don't
+// recompute the whole table on every single character.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Optional: word-level diff inside a changed line</h3></div><pre>// run the exact same LCS, but on words instead of lines
+function wordDiff(oldLine, newLine) {
+  const a = oldLine.split(/(\s+)/), b = newLine.split(/(\s+)/);
+  const ops = lcsDiff(a, b);   // reuse steps 2–4!
+  return ops;                  // then wrap add/del spans inline
+}
+// LCS doesn't care what the "elements" are — lines, words, or chars.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 13 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a tiny in-browser Markdown previewer.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== DIFF CHECKER (real line-level LCS) =====
+const leftEl  = document.getElementById("left");
+const rightEl = document.getElementById("right");
+const diffEl  = document.getElementById("diff");
+const wordEl  = document.getElementById("wordlevel");
+const statAdd = document.getElementById("stat-add");
+const statDel = document.getElementById("stat-del");
+const statKeep= document.getElementById("stat-keep");
+
+const SAMPLE_LEFT =
+`The quick brown fox jumps.
+A second line stays the same.
+This line will be removed.
+Shared middle line.
+Roses are red.
+Final line stays put.`;
+
+const SAMPLE_RIGHT =
+`The quick brown fox leaps.
+A second line stays the same.
+Shared middle line.
+A brand new line appears here.
+Roses are red.
+Final line stays put.`;
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// --- core LCS diff: works on any array of comparable items (lines OR words) ---
+function lcsDiff(A, B){
+  const n = A.length, m = B.length;
+  // dp[i][j] = length of LCS of A[0..i-1] and B[0..j-1]
+  const dp = Array.from({length:n+1}, () => new Array(m+1).fill(0));
+  for (let i = 1; i <= n; i++){
+    for (let j = 1; j <= m; j++){
+      dp[i][j] = A[i-1] === B[j-1]
+        ? dp[i-1][j-1] + 1
+        : Math.max(dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  // backtrack from bottom-right to build the operation list
+  const ops = [];
+  let i = n, j = m;
+  while (i > 0 && j > 0){
+    if (A[i-1] === B[j-1]){ ops.push({type:"keep", a:A[i-1], b:B[j-1]}); i--; j--; }
+    else if (dp[i-1][j] >= dp[i][j-1]){ ops.push({type:"del", a:A[i-1]}); i--; }
+    else { ops.push({type:"add", b:B[j-1]}); j--; }
+  }
+  while (i > 0){ ops.push({type:"del", a:A[--i]}); }
+  while (j > 0){ ops.push({type:"add", b:B[--j]}); }
+  ops.reverse();
+  return ops;
+}
+
+// --- word-level inline diff between a removed line and the next added line ---
+function wordInline(oldLine, newLine){
+  const a = oldLine.split(/(\s+)/);
+  const b = newLine.split(/(\s+)/);
+  const ops = lcsDiff(a, b);
+  let delHtml = "", addHtml = "";
+  for (const o of ops){
+    if (o.type === "keep"){ delHtml += escapeHtml(o.a); addHtml += escapeHtml(o.b); }
+    else if (o.type === "del"){ delHtml += `<span class="wd-del">${escapeHtml(o.a)}</span>`; }
+    else { addHtml += `<span class="wd-add">${escapeHtml(o.b)}</span>`; }
+  }
+  return { delHtml, addHtml };
+}
+
+function rowHtml(cls, sign, inner){
+  return `<div class="diff-row ${cls}"><span class="diff-gutter">${sign}</span><span>${inner}</span></div>`;
+}
+
+function render(){
+  const A = leftEl.value.split("\n");
+  const B = rightEl.value.split("\n");
+  const ops = lcsDiff(A, B);
+
+  let added = 0, removed = 0, kept = 0, html = "";
+
+  for (let k = 0; k < ops.length; k++){
+    const o = ops[k];
+    if (o.type === "keep"){
+      kept++;
+      html += rowHtml("diff-keep", " ", escapeHtml(o.a));
+    } else if (o.type === "del"){
+      // word-level: if this delete is immediately followed by an add, pair them
+      const next = ops[k+1];
+      if (wordEl.checked && next && next.type === "add"){
+        const { delHtml, addHtml } = wordInline(o.a, next.b);
+        removed++; added++;
+        html += rowHtml("diff-del", "-", delHtml);
+        html += rowHtml("diff-add", "+", addHtml);
+        k++; // consumed the paired add
+      } else {
+        removed++;
+        html += rowHtml("diff-del", "-", escapeHtml(o.a));
+      }
+    } else { // add
+      added++;
+      html += rowHtml("diff-add", "+", escapeHtml(o.b));
+    }
+  }
+
+  diffEl.innerHTML = html || `<div class="diff-row diff-keep"><span class="diff-gutter"> </span><span class="text-slate-300">(both sides empty)</span></div>`;
+  statAdd.textContent  = `+${added} added`;
+  statDel.textContent  = `−${removed} removed`;
+  statKeep.textContent = `${kept} unchanged`;
+}
+
+// --- live update, debounced ---
+let tm = null;
+function schedule(){ clearTimeout(tm); tm = setTimeout(render, 150); }
+leftEl.addEventListener("input", schedule);
+rightEl.addEventListener("input", schedule);
+wordEl.addEventListener("change", render);
+
+document.getElementById("swap").onclick = () => {
+  const tmp = leftEl.value; leftEl.value = rightEl.value; rightEl.value = tmp; render();
+};
+document.getElementById("reset").onclick = () => {
+  leftEl.value = SAMPLE_LEFT; rightEl.value = SAMPLE_RIGHT; render();
+};
+
+// seed the sample so the tool is alive on open
+leftEl.value = SAMPLE_LEFT;
+rightEl.value = SAMPLE_RIGHT;
+render();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. Why diffing matters", why:"A diff answers one everyday question: what changed between two versions of some text? Every code review you read, every git commit, every 'track changes' in a document is a diff under the hood. Without it you'd be left eyeballing two walls of text trying to spot a single edited word. A good diff turns 'these two files are different somehow' into 'this exact line was removed and this one added'. That precision is what makes versioning, collaboration and code review possible at all.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">two versions of text → a precise list of adds &amp; removes</div>`, code:`// goal: (old text, new text) → ["keep","del","add", ...] per line` },
+  { title:"2. The naive approach (and why it's bad)", why:"The obvious idea is to walk both texts line by line: if line 1 matches, move on; if not, mark it changed. That works only when edits happen in place. The moment you insert or delete a line near the top, every line after it shifts by one, so a position-by-position compare reports the entire rest of the file as changed. You'd see a hundred 'changes' for what was really a single inserted line. The naive compare has no notion of alignment, and that is exactly the problem we need to solve.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">insert one line at the top → naive compare flags <b>every</b> line below as changed</div>`, code:`// BAD: compares by position, ignores shifts\nfor (let i=0; i<A.length; i++)\n  if (A[i] !== B[i]) mark(i, "changed");` },
+  { title:"3. What LCS actually is", why:"The Longest Common Subsequence is the longest list of lines that appears in both texts, in the same order, though not necessarily next to each other. Think of it as the shared backbone the two versions still agree on. Once you know that backbone, the answer falls out: any line in the old text but not on the backbone was deleted, and any line in the new text but not on the backbone was added. Finding the largest possible backbone is what makes the diff minimal — it reports the fewest changes that explain the difference.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">old: A B C D · new: A X C D → LCS = <b>A C D</b> → B removed, X added</div>`, code:`// LCS = longest run of lines present in BOTH, in order\n// everything NOT on the LCS is an add or a delete` },
+  { title:"4. The DP table that finds LCS length", why:"We compute LCS with a small grid: dp[i][j] holds the LCS length of the first i old lines against the first j new lines. Each cell looks at just two neighbours. If the current pair of lines is equal, the cell is the diagonal cell plus one — the match extends the backbone. If they differ, it's the larger of the cell above or the cell to the left — we keep the better of skipping a line from one side or the other. Filling the grid top-to-bottom, left-to-right, the bottom-right cell ends up holding the length of the whole LCS.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">match → dp[i-1][j-1] + 1<br>else → max(dp[i-1][j], dp[i][j-1])</div>`, code:`dp[i][j] = A[i-1] === B[j-1]\n  ? dp[i-1][j-1] + 1\n  : Math.max(dp[i-1][j], dp[i][j-1]);` },
+  { title:"5. Backtracking the table into add/remove/keep", why:"The table tells you the LCS length, but a diff needs the actual operations. So we walk backwards from the bottom-right corner. When the two current lines are equal we record 'keep' and step diagonally. Otherwise we follow whichever neighbour the cell's value came from: a step up means an old line that isn't matched, so 'remove'; a step left means a new line, so 'add'. We collect ops in reverse and flip them at the end. This walk turns the numbers in the grid back into a human-readable change list.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">walk from corner: ↖ equal = keep · ↑ = remove · ← = add</div>`, code:`if (A[i-1] === B[j-1]) { keep; i--; j--; }\nelse if (dp[i-1][j] >= dp[i][j-1]) { del; i--; }\nelse { add; j--; }` },
+  { title:"6. Line vs word vs character diffs", why:"LCS does not care what an 'element' is — it just compares items in two arrays. Split the texts on newlines and you get a line diff, the default for code. Split on spaces and you get a word diff, which is nicer for prose because it highlights the exact word that changed inside an otherwise-unchanged sentence. Split into individual characters and you get a character diff, the finest grain of all. The same algorithm powers all three; you only change what you feed it. This tool runs the line diff, then optionally re-runs the very same LCS at word level inside a changed line.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">same LCS, different unit:<br>split("\\n") = lines · split(/\\s/) = words · split("") = chars</div>`, code:`lcsDiff(text.split("\\n"));   // line diff\nlcsDiff(text.split(/(\\s+)/)); // word diff (same function!)` },
+  { title:"7. How git diff uses this", why:"Git shows you diffs every day, and at the core it is solving the same LCS problem — find the shared backbone, then everything else is + or −. In practice git uses the Myers diff algorithm, an optimized cousin that finds the shortest edit script without building the full n×m table, so it stays fast on large files. The mental model is identical to what you've built here: a longest common run of lines, with adds and deletes around it. Understanding LCS is understanding git diff; Myers is just the performance-tuned engine for the same goal.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">your LCS diff ≈ <span class="font-mono">git diff</span> · Myers = the fast, production version</div>`, code:`// git diff output is the same shape we produce:\n//   context lines (keep), -removed lines, +added lines` },
+  { title:"8. Rendering: unified vs side-by-side", why:"There are two classic ways to show a diff. Unified stacks everything in one column: unchanged lines plain, removed lines prefixed with − and tinted red, added lines prefixed with + and tinted green — this is what git prints and what this tool shows. Side-by-side puts old on the left and new on the right, lining up matching lines across the gap, which is easier to scan for big edits. Both are rendered from the exact same op list; only the layout differs. Pick unified for compactness, side-by-side for readability on wide screens.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">one op list → render as <b>unified</b> (one column) or <b>side-by-side</b> (two)</div>`, code:`const sign = { keep:" ", add:"+", del:"-" };\nrow.className = "diff-" + op.type;   // keep / add / del` },
+  { title:"9. Performance on big files", why:"The simple LCS table uses memory and time proportional to n×m — fine for a few hundred lines, but a problem for files with tens of thousands. That is exactly why git doesn't use the plain table: the Myers algorithm runs closer to O((n+m)·d), where d is the number of differences, so when two files are mostly similar it's very fast. Other practical tricks help too: trim identical lines from the top and bottom first, and hash each line to an integer so comparisons are cheap. For everyday text — like the boxes above — the plain table is instant, which is why we use it here.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">plain table: O(n·m) — fine for small text<br>git's Myers: ~O((n+m)·d) — fast when files are similar</div>`, code:`// speedups: strip common prefix/suffix first,\n// hash lines to ints, then run Myers instead of full table` },
+  { title:"10. Edge cases: moved blocks", why:"LCS has a blind spot: it doesn't understand that a block of lines was moved. If you cut ten lines from the top of a file and paste them at the bottom, LCS can only describe that as ten deletions up top and ten additions below — it has no concept of 'this same chunk relocated'. The result is still correct, just noisier than a human would write. Real tools layer move-detection on top of the diff to spot these relocated blocks and label them as moves. It's a good reminder that a diff is a model of change, not a recording of what the editor literally did.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Split → DP table → backtrack → keep/add/remove → render.</p></div>`, code:`// a moved block looks like (delete here) + (add there)\n// move-detection is an extra pass on top of the diff` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>

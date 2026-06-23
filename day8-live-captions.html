@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 8 — Live Captions</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .pulse-dot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  #caption { line-height:1.6; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 8</div>
+      <h1 class="text-xl font-bold">🎤 Live Captions — Real-Time Subtitles in the Browser</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Speak, and watch the words appear</h2>
+      <p class="text-slate-500 text-center mb-6">No upload, no API key, no server — the speech engine is <b>built into Chrome</b>. Press start, allow the mic, and talk. Faint grey text is the live <i>guess</i>; it locks in dark once the engine is sure.</p>
+      <div class="flex flex-wrap items-center justify-center gap-3 mb-4">
+        <button id="toggle" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2">🎤 Start captions</button>
+        <select id="lang" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="es-ES">Spanish</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+        </select>
+        <button id="clear" class="text-slate-500 underline text-sm">clear</button>
+        <span id="status" class="text-sm text-slate-400"></span>
+      </div>
+      <div class="bg-slate-900 text-white rounded-2xl p-6 min-h-[220px] shadow-lg">
+        <div id="caption" class="text-lg"><span class="text-slate-500">Captions will appear here…</span></div>
+      </div>
+      <div class="flex justify-between text-xs text-slate-400 mt-2 px-1">
+        <span>Words: <b id="wc" class="text-amber-600">0</b></span>
+        <span id="warn"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How live captions work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">The whole thing is the browser's SpeechRecognition API and one event handler. ~30 lines.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Grab the built-in engine</h3></div><pre>const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const rec = new SR();
+rec.lang = "en-US";</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Turn on continuous + interim results</h3></div><pre>rec.continuous = true;       // don't stop after one sentence
+rec.interimResults = true;   // emit live guesses, not just finals</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Split interim (grey) from final (locked)</h3></div><pre>rec.onresult = e =&gt; {
+  let interim = "";
+  for (let i = e.resultIndex; i &lt; e.results.length; i++) {
+    const r = e.results[i];
+    if (r.isFinal) finalText += r[0].transcript;
+    else interim += r[0].transcript;
+  }
+  render(finalText, interim);
+};</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Auto-restart when it stops</h3></div><pre>rec.onend = () =&gt; { if (listening) rec.start(); };
+// the engine times out on silence — restart to keep going</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Caption any tab's audio (the real trick)</h3></div><pre>// share a tab WITH audio, then feed that stream's audio out
+const stream = await navigator.mediaDevices.getDisplayMedia({ audio:true });
+// route it to your speakers; the mic-based recogniser hears it,
+// or use an on-device model (Whisper) on the captured track.</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 8 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a drag-and-drop image compressor, 100% in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== LIVE CAPTIONS =====
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const toggle = document.getElementById("toggle"), capEl = document.getElementById("caption"),
+      statusEl = document.getElementById("status"), wcEl = document.getElementById("wc"),
+      langSel = document.getElementById("lang"), warnEl = document.getElementById("warn");
+let rec = null, listening = false, finalText = "";
+
+if (!SR){
+  toggle.disabled = true; toggle.classList.add("opacity-50");
+  warnEl.innerHTML = "⚠️ Your browser has no SpeechRecognition — open this in Chrome or Edge.";
+} else {
+  warnEl.textContent = "Best in Chrome / Edge · needs internet for the speech model";
+}
+
+function render(){
+  const interim = render.interim || "";
+  if (!finalText && !interim){ capEl.innerHTML = `<span class="text-slate-500">Captions will appear here…</span>`; }
+  else { capEl.innerHTML = `<span>${esc(finalText)}</span> <span class="text-slate-500">${esc(interim)}</span>`; }
+  wcEl.textContent = (finalText.trim().match(/\S+/g) || []).length;
+}
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+function build(){
+  rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = langSel.value;
+  rec.onresult = e => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const r = e.results[i];
+      if (r.isFinal) finalText += r[0].transcript + " ";
+      else interim += r[0].transcript;
+    }
+    render.interim = interim; render();
+  };
+  rec.onend = () => { if (listening) { try { rec.start(); } catch(_){} } };
+  rec.onerror = ev => {
+    if (ev.error === "not-allowed"){ stop(); statusEl.textContent = "🚫 mic blocked"; }
+    else if (ev.error === "no-speech"){ statusEl.textContent = "…listening (silence)"; }
+  };
+}
+function start(){
+  if (!SR) return;
+  listening = true; build();
+  try { rec.start(); } catch(_){}
+  toggle.textContent = "⏹ Stop"; toggle.classList.replace("bg-amber-500","bg-rose-500");
+  statusEl.innerHTML = `<span class="pulse-dot text-rose-500">●</span> listening`;
+}
+function stop(){
+  listening = false; if (rec) rec.stop();
+  toggle.textContent = "🎤 Start captions"; toggle.classList.replace("bg-rose-500","bg-amber-500");
+  statusEl.textContent = "stopped";
+}
+toggle.onclick = () => listening ? stop() : start();
+langSel.onchange = () => { if (listening){ stop(); setTimeout(start, 200); } };
+document.getElementById("clear").onclick = () => { finalText = ""; render.interim = ""; render(); };
+render();
+
+const STEPS = [
+  { title:"1. The browser already has a speech engine", why:"You don't need Whisper, an API key, or a server. Chrome and Edge ship the Web Speech API — a full speech-to-text engine behind window.SpeechRecognition. You create one object and you have transcription. (It does send audio to Google's servers in Chrome, so it needs internet; that's the one catch.)", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">new SpeechRecognition() → a transcriber, for free</div>`, code:`const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const rec = new SR();` },
+  { title:"2. 'continuous' + 'interimResults' = live", why:"By default the engine listens for one phrase and stops. Set continuous=true so it keeps going, and interimResults=true so it streams its best guess WHILE you speak instead of only after you pause. Those two flags are the difference between a dictation box and live captions.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div>continuous → never auto-stops</div><div>interimResults → streams guesses</div></div>`, code:`rec.continuous = true;
+rec.interimResults = true;` },
+  { title:"3. Interim vs final results", why:"Each onresult event carries a list of results. The ones flagged isFinal are locked in — the engine is confident. The rest are interim guesses that may still change as more audio arrives. Rendering finals in solid text and interim in grey gives that authentic, flickering live-caption feel.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div><b>the quick brown</b> <span class="text-slate-400">focks → fox</span></div><div class="text-amber-600">grey settles into dark as confidence rises</div></div>`, code:`if (r.isFinal) finalText += r[0].transcript;
+else interim += r[0].transcript;  // render grey` },
+  { title:"4. It stops on silence — so restart it", why:"The engine quietly ends after a stretch of silence, firing an onend event. For continuous captions you simply restart it inside onend (while a 'listening' flag is true). This loop is what keeps captions alive through pauses, ums, and quiet moments.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">onend → still listening? → rec.start() again</div>`, code:`rec.onend = () => { if (listening) rec.start(); };` },
+  { title:"5. From mic to any video/tab audio", why:"This demo captions the microphone. To caption a video call or a YouTube tab, capture that audio with getDisplayMedia({audio:true}) and either route it to your speakers (so the recogniser hears it) or run an on-device model like whisper.cpp on the captured track. Same render loop — different audio source.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Built-in engine + two flags + a restart loop = live captions.</p></div>`, code:`const s = await navigator.mediaDevices.getDisplayMedia({ audio:true });
+// feed s's audio track to the transcriber` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

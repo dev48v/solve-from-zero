@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 2 — Pothole Detector from Dashcam</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .copy-btn:hover { background:#1e293b; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .road-scene { background: linear-gradient(180deg, #1e3a8a 0%, #1e3a8a 35%, #475569 35%, #334155 100%); position: relative; overflow: hidden; }
+  .road-lane { position: absolute; left: 50%; top: 35%; transform: translateX(-50%); width: 4px; height: 65%; background: repeating-linear-gradient(to bottom, #fbbf24 0 30px, transparent 30px 60px); }
+  .pothole { position: absolute; background: radial-gradient(ellipse at center, #0a0a0a 30%, #1e293b 70%, transparent 100%); border-radius: 50%; opacity: 0; animation: appear 1.2s forwards; box-shadow: 0 0 0 2px rgba(244,63,94,.5), 0 0 0 6px rgba(244,63,94,.2); }
+  @keyframes appear { to { opacity: 1; } }
+  .bbox { position: absolute; border: 2px solid #f43f5e; border-radius: 4px; box-shadow: 0 0 12px rgba(244,63,94,.5); opacity: 0; animation: fadeIn .4s forwards; }
+  .bbox-label { position: absolute; top: -22px; left: -2px; background: #f43f5e; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 2 · 🇮🇳 Smart India Hackathon</div>
+      <h1 class="text-xl font-bold">🛣️ Pothole Detector from Dashcam</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- LOOK -->
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+        <div class="text-xs font-bold uppercase text-amber-800 tracking-widest mb-2">📋 The Problem (Smart India Hackathon brief)</div>
+        <p class="text-sm text-slate-700">Indian roads have ~9 million potholes annually. Municipal complaints rely on citizens manually photographing each one. Build a system that takes <b>dashcam video</b>, detects potholes per frame, GPS-tags them, and posts to the civic complaint API automatically.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-4">
+        <!-- "Dashcam" feed -->
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-4 shadow">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold">📹 Dashcam (simulated)</h3>
+            <div class="text-xs"><span id="frame">0</span> / 100 frames · <span id="detected">0</span> detected</div>
+          </div>
+          <div id="scene" class="road-scene rounded-xl" style="aspect-ratio: 16/10;">
+            <div class="road-lane"></div>
+          </div>
+          <div class="mt-3 flex items-center gap-2">
+            <button id="play" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Start drive</button>
+            <button id="pause" class="bg-slate-200 hover:bg-slate-300 px-4 py-2 rounded-lg font-semibold text-sm" disabled>⏸ Pause</button>
+            <div class="ml-auto text-xs text-slate-500">
+              <label class="font-bold">Conf threshold</label>
+              <input id="thresh" type="range" min="0.3" max="0.9" step="0.05" value="0.6" class="align-middle">
+              <span id="threshNum">0.60</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Complaint log -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow flex flex-col">
+          <div class="text-xs font-bold uppercase text-emerald-400 tracking-widest mb-3">📡 Civic complaints filed</div>
+          <div id="complaints" class="space-y-2 text-xs font-mono flex-1 overflow-auto min-h-[300px]">
+            <div class="text-slate-500 italic">Start the drive to begin detection.</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 mt-6 text-center">↑ Simulated detector. Production swaps this for YOLOv8 + Roboflow road-damage dataset, hits a real /complaints endpoint. The flow is identical.</p>
+    </div>
+  </div>
+</section>
+
+<!-- UNDERSTAND -->
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the detector works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step. Read the WHY.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div>
+        <div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step on the left →</div></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div>
+        <div id="why" class="text-slate-700">—</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div>
+        <pre id="code"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it for real</h2>
+    <p class="text-slate-500 mb-8">Estimated time: <b>3 hours</b> for the full real pipeline. Tools: Python + Ultralytics YOLOv8 + a free Roboflow dataset.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Get a pre-trained pothole model</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Roboflow Universe has dozens of free pothole-detection datasets + pre-trained YOLOv8 weights.</p>
+<pre>pip install ultralytics roboflow opencv-python
+# Then on roboflow.com: search "pothole detection",
+# download the YOLOv8 weights (~14 MB).</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Detect in a video file</h3></div>
+        <div class="relative">
+<pre>from ultralytics import YOLO
+import cv2
+
+model = YOLO("pothole-yolov8n.pt")
+
+cap = cv2.VideoCapture("dashcam.mp4")
+while cap.isOpened():
+    ok, frame = cap.read()
+    if not ok: break
+
+    # YOLO runs ~30 FPS on a CPU laptop
+    results = model(frame, conf=0.6)
+    for box in results[0].boxes:
+        x1, y1, x2, y2 = box.xyxy[0]
+        conf = float(box.conf)
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0,0,255), 2)
+        cv2.putText(frame, f"pothole {conf:.2f}", (int(x1), int(y1)-5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+    cv2.imshow("Detect", frame)
+    if cv2.waitKey(1) &amp; 0xFF == 27: break</pre>
+          <button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy</button>
+        </div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Pair frames with GPS</h3></div>
+        <p class="text-sm text-slate-600">Dashcam video usually has a parallel GPX file or embedded GPS metadata. Map each video frame's timestamp to lat/lng. <code>gpxpy</code> for GPX files, <code>exiftool</code> for embedded GoPro telemetry.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Cluster duplicate detections</h3></div>
+        <p class="text-sm text-slate-600">A single pothole shows in 20-50 consecutive frames as you drive over it. Group detections within a 10-meter radius into ONE complaint. Use a simple `groupby(round(lat, 4), round(lng, 4))`.</p>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Post to civic API</h3></div>
+        <div class="relative">
+<pre>import requests
+for cluster in clusters:
+    requests.post("https://api.mcgmcomplaints.gov.in/v1/file", json={
+        "category": "pothole",
+        "lat": cluster.lat, "lng": cluster.lng,
+        "confidence": cluster.maxConf,
+        "frame_url": s3_upload(cluster.bestFrame),
+        "reporter": "dashcam-auto-v1"
+    })</pre>
+          <button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy</button>
+        </div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+      <h3 class="font-bold text-lg text-amber-900">🎉 Day 2 of SolveFromZero done.</h3>
+      <p class="text-sm text-amber-700 mt-2">Tomorrow: AI crop disease identifier (SIH).</p>
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// LOOK — simulated detection
+const scene = document.getElementById("scene");
+const playBtn = document.getElementById("play");
+const pauseBtn = document.getElementById("pause");
+const frameEl = document.getElementById("frame");
+const detectedEl = document.getElementById("detected");
+const complaintsEl = document.getElementById("complaints");
+const threshInput = document.getElementById("thresh");
+const threshNum = document.getElementById("threshNum");
+
+let timer = null, fr = 0, detected = 0;
+const POTHOLES = [
+  { fr: 8,  lat: "19.0760", lng: "72.8777", conf: 0.91, size: 60, x: 38, y: 70 },
+  { fr: 22, lat: "19.0762", lng: "72.8779", conf: 0.55, size: 30, x: 70, y: 50 },
+  { fr: 35, lat: "19.0764", lng: "72.8781", conf: 0.87, size: 80, x: 32, y: 78 },
+  { fr: 52, lat: "19.0766", lng: "72.8783", conf: 0.68, size: 50, x: 60, y: 60 },
+  { fr: 68, lat: "19.0768", lng: "72.8785", conf: 0.93, size: 90, x: 40, y: 80 },
+  { fr: 84, lat: "19.0770", lng: "72.8787", conf: 0.42, size: 25, x: 75, y: 45 }
+];
+
+threshInput.oninput = () => threshNum.textContent = parseFloat(threshInput.value).toFixed(2);
+
+function tick() {
+  fr++;
+  frameEl.textContent = fr;
+  const hit = POTHOLES.find(p => p.fr === fr);
+  if (hit) {
+    const thresh = parseFloat(threshInput.value);
+
+    // Draw the pothole sprite on the road
+    const p = document.createElement("div");
+    p.className = "pothole";
+    p.style.left = hit.x + "%";
+    p.style.top  = hit.y + "%";
+    p.style.width = hit.size + "px";
+    p.style.height = (hit.size*0.45) + "px";
+    scene.appendChild(p);
+    setTimeout(() => p.remove(), 2400);
+
+    if (hit.conf >= thresh) {
+      detected++;
+      detectedEl.textContent = detected;
+
+      // Draw bounding box overlay
+      const box = document.createElement("div");
+      box.className = "bbox";
+      box.style.left = (hit.x - 1) + "%";
+      box.style.top  = (hit.y - 2) + "%";
+      box.style.width = (hit.size + 8) + "px";
+      box.style.height = (hit.size*0.45 + 8) + "px";
+      box.innerHTML = `<span class="bbox-label">pothole · ${(hit.conf*100).toFixed(0)}%</span>`;
+      scene.appendChild(box);
+      setTimeout(() => box.remove(), 2400);
+
+      // File the complaint
+      if (complaintsEl.firstElementChild && complaintsEl.firstElementChild.classList.contains("italic")) {
+        complaintsEl.innerHTML = "";
+      }
+      const c = document.createElement("div");
+      c.className = "bg-slate-800 border border-emerald-700 rounded-lg p-3 fade-in";
+      c.innerHTML = `
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-emerald-300 font-bold">POST /complaints</span>
+          <span class="text-emerald-200 text-[10px]">201 Created</span>
+        </div>
+        <div class="text-slate-400">{</div>
+        <div class="text-slate-400 ml-3">"category": "pothole",</div>
+        <div class="text-slate-400 ml-3">"lat": <span class="text-amber-300">${hit.lat}</span>,</div>
+        <div class="text-slate-400 ml-3">"lng": <span class="text-amber-300">${hit.lng}</span>,</div>
+        <div class="text-slate-400 ml-3">"confidence": <span class="text-emerald-200">${hit.conf.toFixed(2)}</span>,</div>
+        <div class="text-slate-400 ml-3">"frame": <span class="text-slate-300">${hit.fr}</span></div>
+        <div class="text-slate-400">}</div>
+      `;
+      complaintsEl.prepend(c);
+    } else {
+      // Skipped: below threshold
+      if (complaintsEl.firstElementChild && complaintsEl.firstElementChild.classList.contains("italic")) {
+        complaintsEl.innerHTML = "";
+      }
+      const sk = document.createElement("div");
+      sk.className = "text-slate-500 italic text-[11px] fade-in";
+      sk.textContent = `frame ${hit.fr} · confidence ${(hit.conf*100).toFixed(0)}% below threshold — skipped`;
+      complaintsEl.prepend(sk);
+    }
+  }
+  if (fr >= 100) stopDrive();
+}
+
+function startDrive() {
+  if (fr >= 100) { fr = 0; detected = 0; frameEl.textContent = 0; detectedEl.textContent = 0; complaintsEl.innerHTML = `<div class="text-slate-500 italic">Start the drive to begin detection.</div>`; }
+  playBtn.disabled = true;
+  pauseBtn.disabled = false;
+  timer = setInterval(tick, 180);
+}
+function stopDrive() {
+  clearInterval(timer); timer = null;
+  playBtn.disabled = false; pauseBtn.disabled = true;
+}
+playBtn.onclick = startDrive;
+pauseBtn.onclick = stopDrive;
+
+// UNDERSTAND
+const STEPS = [
+  { title:"1. Real pipeline overview", why:"Dashcam video stream → frame-by-frame object detection → confidence filter → GPS pairing → cluster duplicates → POST to civic API. 5 stages. Each one swappable.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div class="space-y-2 text-xs font-mono">
+      <div>1. 📹 Video stream (30 FPS)</div>
+      <div>2. 🎯 YOLO frame detection</div>
+      <div>3. ✅ Confidence threshold</div>
+      <div>4. 📍 GPS lookup by timestamp</div>
+      <div>5. 🔗 Cluster duplicates (10m radius)</div>
+      <div>6. 📤 POST to /complaints API</div>
+    </div>
+  </div>`, code:`# Each stage = ~20 lines of Python.
+# Total: ~150 lines for the whole pipeline.` },
+  { title:"2. YOLO for object detection", why:"YOLO = 'You Only Look Once'. State-of-the-art object detector that runs ~30 FPS on a CPU laptop. The 'n' variant (nano) is 14 MB and fast enough for real-time dashcam. Larger variants (s/m/l/x) are slower but more accurate.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div class="space-y-1 text-xs">
+      <div><b>YOLOv8n</b> — 14 MB, ~30 FPS CPU — for laptop/edge</div>
+      <div><b>YOLOv8s</b> — 28 MB, ~15 FPS CPU</div>
+      <div><b>YOLOv8m</b> — 78 MB, ~5 FPS CPU — production server</div>
+    </div>
+  </div>`, code:`from ultralytics import YOLO
+model = YOLO("yolov8n.pt")  # ~14 MB download once
+results = model(frame, conf=0.6)` },
+  { title:"3. Pre-trained on Roboflow", why:"Roboflow Universe hosts 100,000+ free datasets — including dozens for road damage / potholes. Train your own, or download community pre-trained weights. Saves weeks of data collection + labeling.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div>roboflow.com → search "pothole"</div>
+    <div class="text-emerald-700 mt-2">→ download YOLOv8 weights (already trained)</div>
+    <div class="text-slate-500 italic text-xs mt-2">Or train on your local dataset: ~50 images / 2 hours.</div>
+  </div>`, code:`from roboflow import Roboflow
+rf = Roboflow(api_key=KEY)
+project = rf.workspace().project("pothole-detection")
+model = project.version(1).model
+# Use directly: predictions = model.predict("img.jpg").json()` },
+  { title:"4. Frame loop with OpenCV", why:"OpenCV reads MP4 / RTSP streams / webcam interchangeably. Same code works on a stored video file, live phone stream, or USB webcam. `cap.read()` returns frame-by-frame.", concept:`<div class="bg-slate-100 p-4 rounded font-mono text-xs space-y-1 w-full">
+    <div>cap = cv2.VideoCapture("dashcam.mp4")</div>
+    <div>&nbsp;&nbsp;<span class="text-slate-500"># or VideoCapture(0) for webcam</span></div>
+    <div>&nbsp;&nbsp;<span class="text-slate-500"># or VideoCapture("rtsp://...") for IP cam</span></div>
+    <div>while cap.isOpened():</div>
+    <div class="ml-4">ok, frame = cap.read()</div>
+    <div class="ml-4">if not ok: break</div>
+    <div class="ml-4 text-emerald-700">→ pass frame to YOLO</div>
+  </div>`, code:`cap = cv2.VideoCapture("dashcam.mp4")
+while cap.isOpened():
+    ok, frame = cap.read()
+    if not ok: break
+    results = model(frame, conf=0.6)
+    # ... draw boxes, save detections ...
+cap.release()` },
+  { title:"5. Confidence threshold tuning", why:"Each detection has a confidence score 0-1. Below threshold = ignore. Too low (0.3) = false positives (shadows, manhole covers). Too high (0.9) = miss actual potholes. Sweet spot for road damage = 0.55-0.7.", concept:`<div class="grid grid-cols-3 gap-2 w-full text-xs">
+    <div class="bg-red-50 border border-red-200 p-3 rounded">
+      <div class="font-bold text-red-700">0.3</div>
+      <div class="text-slate-500">100% recall, 60% precision. Reports shadows.</div>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 p-3 rounded">
+      <div class="font-bold text-amber-700">0.6</div>
+      <div class="text-slate-500">Sweet spot. ~90% recall, ~85% precision.</div>
+    </div>
+    <div class="bg-red-50 border border-red-200 p-3 rounded">
+      <div class="font-bold text-red-700">0.9</div>
+      <div class="text-slate-500">High precision but misses smaller potholes.</div>
+    </div>
+  </div>`, code:`results = model(frame, conf=0.6)  # confidence threshold
+
+# Per-detection filter:
+for box in results[0].boxes:
+    if float(box.conf) < THRESH:
+        continue` },
+  { title:"6. GPS pairing", why:"A pothole at (12.97, 77.59) is more useful than 'somewhere in this video'. Most dashcams record GPS — either embedded (GoPro telemetry) or as a parallel GPX file. Match each video timestamp to the closest GPS sample.", concept:`<div class="bg-slate-100 p-4 rounded font-mono text-xs space-y-1 w-full">
+    <div>video timestamp: 00:12.337</div>
+    <div class="text-emerald-700">→ closest GPS sample: 12.971, 77.594</div>
+    <div class="text-slate-500 mt-2 italic">Binary search the GPX track by time.</div>
+  </div>`, code:`import gpxpy
+gpx = gpxpy.parse(open("track.gpx"))
+points = [(p.time, p.latitude, p.longitude)
+          for trk in gpx.tracks
+          for seg in trk.segments
+          for p in seg.points]
+
+def gps_at(frame_time):
+    # Binary search by time, return (lat, lng)
+    return interpolate(points, frame_time)` },
+  { title:"7. Cluster duplicate detections", why:"You drive past one pothole → it's detected in 30 consecutive frames. Without clustering you'd file 30 complaints for one hole. Group detections within 10 meters of each other into ONE complaint, keeping the highest-confidence frame as the reporter.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full">
+    <div class="text-xs font-mono space-y-1">
+      <div>30 raw detections of same pothole</div>
+      <div class="text-emerald-700">→ groupby(round(lat, 4), round(lng, 4))</div>
+      <div class="text-violet-700 font-bold">→ 1 complaint with maxConf frame</div>
+    </div>
+  </div>`, code:`from itertools import groupby
+clusters = []
+for (lat_key, lng_key), grp in groupby(
+        sorted(detections, key=keyFn), key=keyFn):
+    grp_list = list(grp)
+    best = max(grp_list, key=lambda d: d.conf)
+    clusters.append({
+        "lat": best.lat, "lng": best.lng,
+        "conf": best.conf, "frame": best.frame
+    })` },
+  { title:"8. Post to civic complaint API", why:"Most Indian municipal corporations now have JSON APIs (MCGM, BBMP, MCG-Pune all rolled them out 2023+). Post the cluster with lat/lng + confidence + image URL. The municipality dashboard already exists — your job is just the auto-filing pipeline.", concept:`<div class="bg-slate-100 p-4 rounded font-mono text-xs space-y-1 w-full">
+    <div>POST /complaints</div>
+    <div class="ml-4">category: "pothole"</div>
+    <div class="ml-4">lat: 12.971, lng: 77.594</div>
+    <div class="ml-4">confidence: 0.87</div>
+    <div class="ml-4">image_url: s3://...</div>
+    <div class="text-emerald-700 mt-2">→ 201 Created · complaint_id: 88421</div>
+  </div>`, code:`import requests
+requests.post("https://api.mcgm.gov.in/v1/complaints", json={
+  "category": "pothole",
+  "lat": cluster["lat"],
+  "lng": cluster["lng"],
+  "confidence": cluster["conf"],
+  "image_url": s3_upload(cluster["frame"]),
+  "reporter": "dashcam-auto-v1"
+})` },
+  { title:"9. Done! Same pattern for many problems", why:"Frame loop + object detector + confidence filter + GPS pair + cluster + API post = the skeleton for: garbage detection, illegal parking, traffic violations, missing signage, road encroachment. Swap the model, keep the pipeline.", concept:`<div class="text-center w-full">
+    <div class="text-5xl mb-3">🎉</div>
+    <p class="font-bold text-slate-700">You ship the SIH pothole pipeline.</p>
+    <p class="text-sm text-slate-500 mt-2">Same skeleton works for any frame-by-frame civic detection.</p>
+  </div>`, code:`# Reuse for:
+#   - illegal parking (cars in no-parking zones)
+#   - garbage dumps (litter detection model)
+#   - traffic violations (red-light running)
+#   - encroachment (sidewalk obstructions)
+# Just swap the model.` }
+];
+const stepsEl = document.getElementById("steps");
+const prev = document.getElementById("prev");
+const next = document.getElementById("next-btn");
+const auto = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  b.innerHTML = `<div class="font-semibold">${s.title}</div>`;
+  b.onclick = () => show(i);
+  stepsEl.appendChild(b);
+});
+function show(i) {
+  cur = i;
+  const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((b, idx) => {
+    b.className = idx === i
+      ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+      : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prev.onclick = () => show(Math.max(0, cur - 1));
+next.onclick = () => show(Math.min(STEPS.length - 1, cur + 1));
+let stimer = null;
+auto.onclick = () => {
+  if (stimer) { clearInterval(stimer); stimer = null; auto.textContent = "▶ Auto-play"; return; }
+  auto.textContent = "⏸ Pause";
+  show(0);
+  stimer = setInterval(() => {
+    if (cur >= STEPS.length - 1) { clearInterval(stimer); stimer = null; auto.textContent = "▶ Replay"; return; }
+    show(cur + 1);
+  }, 2500);
+};
+show(0);
+
+function copy(btn) {
+  const pre = btn.parentElement.querySelector("pre");
+  navigator.clipboard.writeText(pre.textContent);
+  const orig = btn.textContent;
+  btn.textContent = "✓ Copied!";
+  setTimeout(() => btn.textContent = orig, 1500);
+}
+</script>
+</body>
+</html>

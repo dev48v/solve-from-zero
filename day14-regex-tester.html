@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 14 — Regex Tester</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  textarea { tab-size:2; }
+  /* highlighting overlay technique: a backdrop <pre> sits behind a transparent textarea */
+  .hl-wrap { position:relative; }
+  .hl-backdrop, .hl-input {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.6; padding:12px;
+    white-space:pre-wrap; word-break:break-word;
+    margin:0; border:1px solid #e2e8f0; border-radius:8px;
+    box-sizing:border-box; width:100%; min-height:170px;
+  }
+  .hl-backdrop { position:absolute; inset:0; color:#334155; background:#fff; overflow:auto; pointer-events:none; z-index:1; }
+  .hl-input {
+    position:relative; z-index:2; color:transparent; background:transparent;
+    caret-color:#0f172a; resize:vertical; overflow:auto;
+  }
+  .hl-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  mark.match { background:#fde68a; color:inherit; border-radius:3px; }
+  mark.match.alt { background:#fbcfe8; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 14</div>
+      <h1 class="text-xl font-bold">🔎 Regex Tester — Match Patterns Live</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Write a pattern, watch it match — powered by the real browser engine</h2>
+      <p class="text-slate-500 text-center mb-4">Regex is a mini-language for describing text patterns. Your browser ships with a full engine built in — every pattern below is run through the exact same <span class="font-mono">/pattern/flags</span> that JavaScript uses everywhere.</p>
+
+      <!-- pattern + flags -->
+      <div class="bg-white border border-slate-200 rounded-xl p-3 mb-4">
+        <div class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2">Pattern</div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-slate-400 font-mono text-lg">/</span>
+          <input id="pattern" type="text" spellcheck="false" placeholder="type a regular expression…" class="flex-1 border border-slate-200 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          <span class="text-slate-400 font-mono text-lg">/</span>
+          <span id="flag-readout" class="text-amber-600 font-mono text-lg font-bold w-20">g</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2" id="flags">
+          <span class="text-xs uppercase font-bold text-slate-400 tracking-wider mr-1">Flags</span>
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 font-semibold cursor-pointer select-none bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200"><input type="checkbox" data-flag="g" checked class="accent-amber-500 w-4 h-4" /> g <span class="text-slate-400 font-normal">global</span></label>
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 font-semibold cursor-pointer select-none bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200"><input type="checkbox" data-flag="i" class="accent-amber-500 w-4 h-4" /> i <span class="text-slate-400 font-normal">ignore case</span></label>
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 font-semibold cursor-pointer select-none bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200"><input type="checkbox" data-flag="m" class="accent-amber-500 w-4 h-4" /> m <span class="text-slate-400 font-normal">multiline</span></label>
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 font-semibold cursor-pointer select-none bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200"><input type="checkbox" data-flag="s" class="accent-amber-500 w-4 h-4" /> s <span class="text-slate-400 font-normal">dotall</span></label>
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 font-semibold cursor-pointer select-none bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200"><input type="checkbox" data-flag="u" class="accent-amber-500 w-4 h-4" /> u <span class="text-slate-400 font-normal">unicode</span></label>
+        </div>
+      </div>
+
+      <!-- presets -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-xs uppercase font-bold text-slate-400 tracking-wider mr-1">Presets</span>
+        <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">Email</button>
+        <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">URL</button>
+        <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">Date YYYY-MM-DD</button>
+        <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">Hex color</button>
+        <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">Phone</button>
+        <button id="reset" class="ml-auto bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Reset sample</button>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- test string + highlights -->
+        <div class="bg-white border border-slate-200 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs uppercase font-bold text-slate-400 tracking-wider">Test string</div>
+            <span id="count" class="px-3 py-1 rounded-lg font-bold bg-emerald-100 text-emerald-700 text-sm">0 matches</span>
+          </div>
+          <div class="hl-wrap">
+            <pre id="backdrop" class="hl-backdrop" aria-hidden="true"></pre>
+            <textarea id="test" rows="9" spellcheck="false" class="hl-input"></textarea>
+          </div>
+          <div id="error" class="hidden mt-2 text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg px-3 py-2"></div>
+        </div>
+
+        <!-- match list -->
+        <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">Matches &amp; capture groups</div>
+          <div id="matches" class="space-y-2 overflow-auto text-sm" style="max-height:340px"></div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-4">↑ Every keystroke calls <span class="font-mono">new RegExp(pattern, flags)</span> inside a try/catch, then <span class="font-mono">matchAll()</span> collects every match and its capture groups. Highlights are painted on a backdrop layer behind the textarea — the same engine that powers <span class="font-mono">String.match</span>, <span class="font-mono">.replace</span> and form validation.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How regular expressions actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Read the pattern and flags from the inputs, compile them with <span class="font-mono">new RegExp</span> inside a try/catch, run <span class="font-mono">matchAll</span> over the test text, then paint highlights and list every capture group. ~50 lines for a real live regex tester.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Read the pattern and gather the flags</h3></div><pre>const pattern = patternEl.value;
+// collect the checked flag boxes into one string like "gi"
+const flags = [...document.querySelectorAll("#flags input:checked")]
+  .map(box =&gt; box.dataset.flag)
+  .join("");
+// flags order doesn't matter to the engine; "gi" === "ig"</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Compile it safely with try/catch</h3></div><pre>let re = null, errorMsg = "";
+try {
+  // an invalid pattern (e.g. "(" ) THROWS a SyntaxError here
+  re = new RegExp(pattern, flags);
+} catch (err) {
+  errorMsg = err.message;   // show this to the user, don't crash
+}
+if (!pattern) re = null;     // treat an empty pattern as "nothing to match"</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Collect every match — guard zero-width loops</h3></div><pre>const text = testEl.value;
+const matches = [];
+if (re &amp;&amp; re.global) {
+  let m;
+  re.lastIndex = 0;
+  while ((m = re.exec(text)) !== null) {
+    matches.push(m);
+    // CRITICAL: a zero-width match (e.g. /a*/g) never advances
+    // lastIndex on its own → infinite loop. Nudge it forward.
+    if (m.index === re.lastIndex) re.lastIndex++;
+  }
+} else if (re) {
+  const m = re.exec(text);      // no /g → at most one match
+  if (m) matches.push(m);
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Paint highlights on a backdrop layer</h3></div><pre>// build the test text with &lt;mark&gt; around each match span,
+// walking left-to-right so indexes stay correct
+let html = "", last = 0;
+matches.forEach((m, k) =&gt; {
+  const start = m.index, end = start + m[0].length;
+  html += escapeHtml(text.slice(last, start));
+  const cls = k % 2 ? "match alt" : "match";   // alternate colours
+  html += `&lt;mark class="${cls}"&gt;${escapeHtml(m[0]) || "∅"}&lt;/mark&gt;`;
+  last = end;
+});
+html += escapeHtml(text.slice(last));
+backdropEl.innerHTML = html;   // sits behind a transparent textarea</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">List each match with its capture groups</h3></div><pre>matches.forEach((m, k) =&gt; {
+  // m[0] = full match; m[1], m[2]… = numbered capture groups
+  const groups = m.slice(1).map((g, gi) =&gt;
+    `#${gi+1}: ${g === undefined ? "(no match)" : g}`);
+  // named groups from (?&lt;year&gt;…) live on m.groups
+  if (m.groups) for (const name in m.groups)
+    groups.push(`${name}: ${m.groups[name]}`);
+  console.log(`match ${k+1} at index ${m.index}: "${m[0]}"`, groups);
+});</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Show errors instead of crashing</h3></div><pre>if (errorMsg) {
+  errorEl.textContent = "⚠ Invalid regex: " + errorMsg;
+  errorEl.classList.remove("hidden");
+  countEl.textContent = "—";
+} else {
+  errorEl.classList.add("hidden");
+  countEl.textContent = matches.length + " matches";
+}
+// a friendly message beats a blank screen and a console error</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Wire up presets</h3></div><pre>const PRESETS = {
+  Email: { pattern: "[\\w.+-]+@[\\w-]+\\.[\\w.-]+", flags: "gi" },
+  Date:  { pattern: "(?&lt;year&gt;\\d{4})-(\\d{2})-(\\d{2})", flags: "g" },
+  Hex:   { pattern: "#[0-9a-f]{3,6}\\b", flags: "gi" },
+};
+presetBtn.onclick = () =&gt; {
+  patternEl.value = PRESETS.Date.pattern;
+  setFlags(PRESETS.Date.flags);   // tick the right checkboxes
+  render();                       // re-run immediately
+};</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Run it live on every change</h3></div><pre>patternEl.addEventListener("input", render);
+testEl.addEventListener("input", render);
+document.querySelectorAll("#flags input")
+  .forEach(box =&gt; box.addEventListener("change", render));
+// keep the backdrop scrolled in sync with the textarea
+testEl.addEventListener("scroll", () =&gt; {
+  backdropEl.scrollTop = testEl.scrollTop;
+});
+render();   // first paint on load</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 14 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: a tiny in-browser JSON formatter &amp; validator.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== REGEX TESTER (real browser RegExp engine) =====
+const patternEl  = document.getElementById("pattern");
+const testEl     = document.getElementById("test");
+const backdropEl = document.getElementById("backdrop");
+const matchesEl  = document.getElementById("matches");
+const countEl    = document.getElementById("count");
+const errorEl    = document.getElementById("error");
+const flagReadout= document.getElementById("flag-readout");
+
+const SAMPLE_TEXT =
+`Contact us at hello@dev48v.io or support@inxpress.com.
+Invoices dated 2026-06-23 and 2024-12-01 are overdue.
+Call +1 (555) 123-4567 or 555-987-6543 before Friday.
+Visit https://example.com/pricing and http://docs.dev48v.io.
+Brand colors: #fff, #1a2b3c and #ABCDEF look great.
+The rain in Spain falls mainly on the plain.`;
+
+const PRESETS = {
+  "Email":          { pattern: "[\\w.+-]+@[\\w-]+\\.[\\w.-]+",                 flags: "gi" },
+  "URL":            { pattern: "https?:\\/\\/[\\w.-]+(?:\\/[\\w./?%&=#-]*)?",  flags: "gi" },
+  "Date YYYY-MM-DD":{ pattern: "(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})", flags: "g" },
+  "Hex color":      { pattern: "#(?:[0-9a-f]{6}|[0-9a-f]{3})\\b",             flags: "gi" },
+  "Phone":          { pattern: "\\+?\\d{0,2}[\\s-]?\\(?\\d{3}\\)?[\\s-]?\\d{3}[\\s-]?\\d{4}", flags: "g" }
+};
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// read the checked flag boxes into a single string, in canonical order
+function currentFlags(){
+  const order = ["g","i","m","s","u"];
+  const on = {};
+  document.querySelectorAll("#flags input:checked").forEach(b => on[b.dataset.flag] = true);
+  return order.filter(f => on[f]).join("");
+}
+
+function setFlags(str){
+  document.querySelectorAll("#flags input").forEach(b => {
+    b.checked = str.includes(b.dataset.flag);
+  });
+}
+
+function render(){
+  const pattern = patternEl.value;
+  const flags   = currentFlags();
+  flagReadout.textContent = flags || " ";
+
+  // --- compile safely ---
+  let re = null, errorMsg = "";
+  if (pattern){
+    try { re = new RegExp(pattern, flags); }
+    catch (err){ errorMsg = err.message; }
+  }
+
+  const text = testEl.value;
+
+  // invalid pattern → friendly error, leave text un-highlighted
+  if (errorMsg){
+    errorEl.textContent = "⚠ Invalid regex: " + errorMsg;
+    errorEl.classList.remove("hidden");
+    countEl.textContent = "—";
+    countEl.className = "px-3 py-1 rounded-lg font-bold bg-rose-100 text-rose-700 text-sm";
+    backdropEl.textContent = text;
+    matchesEl.innerHTML = `<div class="text-slate-400 text-sm">Fix the pattern to see matches.</div>`;
+    return;
+  }
+  errorEl.classList.add("hidden");
+
+  // --- collect matches (guarded against zero-width infinite loops) ---
+  const matches = [];
+  if (re){
+    if (re.global){
+      let m; re.lastIndex = 0;
+      while ((m = re.exec(text)) !== null){
+        matches.push(m);
+        if (m.index === re.lastIndex) re.lastIndex++;   // zero-width guard
+        if (matches.length > 50000) break;              // hard safety cap
+      }
+    } else {
+      const m = re.exec(text);
+      if (m) matches.push(m);
+    }
+  }
+
+  // --- paint highlights on the backdrop ---
+  let html = "", last = 0;
+  matches.forEach((m, k) => {
+    const start = m.index, end = start + m[0].length;
+    if (start < last) return;                 // skip any overlap edge case
+    html += escapeHtml(text.slice(last, start));
+    const cls = (k % 2) ? "match alt" : "match";
+    const shown = m[0].length ? escapeHtml(m[0]) : "∅"; // ∅ for zero-width
+    html += `<mark class="${cls}">${shown}</mark>`;
+    last = end;
+  });
+  html += escapeHtml(text.slice(last));
+  backdropEl.innerHTML = html + "\n";   // trailing newline keeps last line visible
+
+  // --- count badge ---
+  const n = matches.length;
+  countEl.textContent = n + (n === 1 ? " match" : " matches");
+  countEl.className = "px-3 py-1 rounded-lg font-bold text-sm " +
+    (n ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500");
+
+  // --- list each match + capture groups ---
+  if (!re){
+    matchesEl.innerHTML = `<div class="text-slate-400 text-sm">Type a pattern above to start matching.</div>`;
+    return;
+  }
+  if (!n){
+    matchesEl.innerHTML = `<div class="text-slate-400 text-sm">No matches in the test string.</div>`;
+    return;
+  }
+  matchesEl.innerHTML = matches.map((m, k) => {
+    const cls = (k % 2) ? "bg-pink-50 border-pink-200" : "bg-amber-50 border-amber-200";
+    let groupRows = "";
+    // numbered capture groups: m[1], m[2], …
+    for (let gi = 1; gi < m.length; gi++){
+      const val = m[gi] === undefined
+        ? `<span class="text-slate-400 italic">(no match)</span>`
+        : `<span class="font-mono text-slate-800">${escapeHtml(m[gi])}</span>`;
+      groupRows += `<div class="text-xs text-slate-500 pl-3">↳ group #${gi}: ${val}</div>`;
+    }
+    // named groups from (?<name>…)
+    if (m.groups){
+      for (const name in m.groups){
+        const gv = m.groups[name];
+        const val = gv === undefined
+          ? `<span class="text-slate-400 italic">(no match)</span>`
+          : `<span class="font-mono text-slate-800">${escapeHtml(gv)}</span>`;
+        groupRows += `<div class="text-xs text-amber-700 pl-3">↳ &lt;${escapeHtml(name)}&gt;: ${val}</div>`;
+      }
+    }
+    const full = m[0].length ? escapeHtml(m[0]) : `<span class="text-slate-400 italic">(empty / zero-width)</span>`;
+    return `<div class="border ${cls} rounded-lg p-2.5">
+      <div class="flex items-center justify-between">
+        <span class="font-mono font-bold text-slate-800 break-all">${full}</span>
+        <span class="text-[11px] text-slate-400 font-semibold ml-2 shrink-0">@ index ${m.index}</span>
+      </div>${groupRows}</div>`;
+  }).join("");
+}
+
+// --- live wiring ---
+patternEl.addEventListener("input", render);
+testEl.addEventListener("input", render);
+document.querySelectorAll("#flags input").forEach(b => b.addEventListener("change", render));
+testEl.addEventListener("scroll", () => { backdropEl.scrollTop = testEl.scrollTop; backdropEl.scrollLeft = testEl.scrollLeft; });
+
+// presets
+document.querySelectorAll(".preset").forEach(btn => {
+  btn.onclick = () => {
+    const p = PRESETS[btn.textContent.trim()];
+    if (!p) return;
+    patternEl.value = p.pattern;
+    setFlags(p.flags);
+    render();
+  };
+});
+
+document.getElementById("reset").onclick = () => {
+  testEl.value = SAMPLE_TEXT;
+  patternEl.value = PRESETS["Email"].pattern;
+  setFlags(PRESETS["Email"].flags);
+  render();
+};
+
+// seed the tool so it's alive on open
+testEl.value = SAMPLE_TEXT;
+patternEl.value = PRESETS["Email"].pattern;
+setFlags(PRESETS["Email"].flags);
+render();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What a regex really is", why:"A regular expression is a tiny language for describing patterns in text. Instead of writing code that loops character by character, you write one compact pattern that says 'text shaped like this'. For example /\\d{4}/ means 'four digits in a row'. The browser ships with a complete regex engine, so /\\d{4}/.test(\"2026\") returns true with no extra libraries. You'll use it for validation, search-and-replace, and pulling structured pieces out of messy text. Once you can read a pattern, a wall of cryptic symbols turns into a clear sentence about shape.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">a pattern describes the <b>shape</b> of text<br><span class="font-mono">/\\d{4}-\\d{2}-\\d{2}/</span> → "a date like 2026-06-23"</div>`, code:`/\\d{4}/.test("2026");   // true — "four digits"\n"abc123".match(/\\d+/); // ["123"] — first run of digits` },
+  { title:"2. Literals vs metacharacters", why:"Most characters in a pattern match themselves: the regex /cat/ finds the literal letters c-a-t. The power comes from metacharacters — symbols with special meaning. A dot . matches any single character, * means 'repeat', and so on. The full special set is . ^ $ * + ? ( ) [ ] { } | \\ — these don't match themselves unless you escape them. So /a.c/ matches 'abc', 'axc' or 'a4c', because the dot is a wildcard, not a literal period. Knowing which characters are special is the first thing that separates reading regex from guessing.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">c a t</span> = literal letters<br><span class="font-mono">. ^ $ * + ? ( ) [ ] { } | \\</span> = special</div>`, code:`/a.c/.test("abc");  // true  — . is any char\n/a.c/.test("a.c");  // true  — but also matches a literal dot\n/a\\.c/.test("axc"); // false — \\. = a LITERAL dot only` },
+  { title:"3. Character classes", why:"Square brackets define a set: match any one character from inside them. /[aeiou]/ matches a single vowel, and a range like /[a-z]/ matches any lowercase letter. Put a caret first to negate: /[^0-9]/ means 'any character that is not a digit'. There are handy shorthands too — \\d is [0-9], \\w is [A-Za-z0-9_], and \\s is any whitespace. Their uppercase versions invert them: \\D is 'not a digit'. Character classes are how you say 'one of these kinds of characters' without listing every option by hand.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">[a-z]</span> one lowercase · <span class="font-mono">[^0-9]</span> not a digit<br><span class="font-mono">\\d</span>=digit · <span class="font-mono">\\w</span>=word char · <span class="font-mono">\\s</span>=space</div>`, code:`/[aeiou]/.test("sky");  // false — no vowels\n/[A-Z]\\d/.test("A7");   // true  — capital then digit\n/\\D/.test("123");        // false — all digits (\\D = NOT a digit)` },
+  { title:"4. Quantifiers: how many", why:"Quantifiers say how many times the thing before them may repeat. A star * means zero or more, a plus + means one or more, and a question mark ? means zero or one (optional). Braces give exact counts: {3} is exactly three, {2,4} is two to four, and {2,} is two or more. So /\\d{4}/ is exactly four digits, and /colou?r/ matches both 'color' and 'colour' because the u is optional. Quantifiers are where short patterns suddenly match a huge variety of inputs, which is both their power and a common source of surprises.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">*</span> 0+ · <span class="font-mono">+</span> 1+ · <span class="font-mono">?</span> 0 or 1<br><span class="font-mono">{3}</span> exactly 3 · <span class="font-mono">{2,4}</span> 2 to 4 · <span class="font-mono">{2,}</span> 2+</div>`, code:`/colou?r/.test("color");  // true — u is optional\n/\\d{4}/.test("2026");      // true — exactly four digits\n/a+/.exec("aaa")[0];        // "aaa" — one or more 'a'` },
+  { title:"5. Anchors and boundaries", why:"Anchors don't match characters — they match positions. The caret ^ means 'start of the string' and the dollar $ means 'end of the string', so /^cat$/ matches only the exact string 'cat' and nothing longer. The word boundary \\b sits between a word character and a non-word character, so /\\bcat\\b/ matches 'cat' as a whole word but not the 'cat' inside 'category'. With the multiline flag, ^ and $ also match the start and end of each line. Anchors are how you stop a pattern from matching in the middle of something you didn't mean.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">^</span> start · <span class="font-mono">$</span> end · <span class="font-mono">\\b</span> word edge<br><span class="font-mono">/\\bcat\\b/</span> matches "cat" but not "category"</div>`, code:`/^cat$/.test("category"); // false — must be EXACTLY "cat"\n/\\bcat\\b/.test("the cat sat"); // true  — whole word\n/\\bcat\\b/.test("category");    // false — boundary fails` },
+  { title:"6. Groups, capturing, and alternation", why:"Round brackets do two jobs. They group part of a pattern so a quantifier applies to the whole chunk — /(ab)+/ matches 'ababab'. And they capture: whatever the group matched is remembered and handed back as a numbered piece. So /(\\d{4})-(\\d{2})/ on '2026-06' gives you '2026' as group 1 and '06' as group 2. The pipe | means 'or', choosing between alternatives: /cat|dog/ matches either word. Combine them — /(cat|dog)s?/ — to match 'cat', 'cats', 'dog' or 'dogs' and capture which animal it was. Capturing is what turns matching into extracting.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">(…)</span> group + capture · <span class="font-mono">|</span> or<br><span class="font-mono">/(\\d{4})-(\\d{2})/</span> → group 1 = year, group 2 = month</div>`, code:`const m = "2026-06".match(/(\\d{4})-(\\d{2})/);\nm[1]; // "2026"  (capture group 1)\nm[2]; // "06"    (capture group 2)\n/cat|dog/.test("hotdog"); // true — alternation` },
+  { title:"7. Named vs non-capturing groups", why:"Numbered groups work, but counting brackets gets fragile fast. Named groups fix that: write (?<year>\\d{4}) and the result shows up on match.groups.year by name, which is far easier to read and reorder. Sometimes you want to group for a quantifier but you don't need to capture the result — that's a non-capturing group, written (?:…). It keeps your captured-group numbers clean and is slightly faster. So /(?:https?):\\/\\/(?<host>[\\w.]+)/ groups the protocol without capturing it, while capturing the host by name. Use names for the parts you care about and (?:…) for the structural-only ones.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">(?&lt;name&gt;…)</span> named capture → <span class="font-mono">m.groups.name</span><br><span class="font-mono">(?:…)</span> group only, do NOT capture</div>`, code:`const m = "2026-06-23".match(/(?<year>\\d{4})-(?<mon>\\d{2})/);\nm.groups.year; // "2026"\nm.groups.mon;  // "06"\n"ab".match(/(?:a)(b)/)[1]; // "b" — (?:a) captured nothing` },
+  { title:"8. Flags change the whole match", why:"Flags are single letters after the closing slash that change how the engine runs. g (global) finds every match instead of stopping at the first — it's what lets matchAll return a list. i (ignore case) makes letters case-insensitive, so /cat/i matches 'CAT'. m (multiline) makes ^ and $ match at every line break, not just the string ends. s (dotall) lets the dot . also match newline characters, which it normally skips. u (unicode) turns on proper handling of characters beyond the basic set, like emoji. Toggle the flag boxes in the LOOK tab and watch the same pattern behave differently.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">g</span> all matches · <span class="font-mono">i</span> ignore case · <span class="font-mono">m</span> multiline<br><span class="font-mono">s</span> dot matches newline · <span class="font-mono">u</span> unicode</div>`, code:`"CAT cat".match(/cat/gi);   // ["CAT","cat"] — g + i\n/^line/m.test("a\\nline");    // true — m makes ^ match each line\n/a.b/s.test("a\\nb");          // true — s lets . cross newlines` },
+  { title:"9. Greedy vs lazy matching", why:"By default quantifiers are greedy: they grab as much text as they possibly can and then give back only if the rest of the pattern fails. On '<a><b>' the pattern /<.+>/ greedily matches the whole '<a><b>' because .+ swallows everything up to the last >. Add a ? after the quantifier to make it lazy: /<.+?>/ takes as little as possible and matches just '<a>'. This single character is one of the most common regex bugs — a greedy .* eating far more than intended. When a match runs longer than you expected, suspect greed and try the lazy version first.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">greedy <span class="font-mono">.+</span> grabs the MOST · lazy <span class="font-mono">.+?</span> grabs the LEAST<br><span class="font-mono">&lt;.+&gt;</span> → "&lt;a&gt;&lt;b&gt;" · <span class="font-mono">&lt;.+?&gt;</span> → "&lt;a&gt;"</div>`, code:`"<a><b>".match(/<.+>/)[0];  // "<a><b>"  (greedy)\n"<a><b>".match(/<.+?>/)[0]; // "<a>"     (lazy, note the ?)` },
+  { title:"10. Common pitfalls: escaping & backtracking", why:"Two traps catch everyone. First, escaping: special characters like . or ( only match themselves when prefixed with a backslash, so a literal dot is \\. and a literal price tag is \\$. Forgetting this is why /3.14/ also matches '3x14'. Second, catastrophic backtracking: nested quantifiers like /(a+)+$/ can make the engine try an explosive number of combinations on certain inputs, freezing the page. Keep patterns simple, avoid quantifiers stacked on quantifiers, and prefer specific character classes over .* where you can. This tester also guards against zero-width matches with /g by nudging lastIndex forward so it never loops forever.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Pattern → compile in try/catch → matchAll → highlight + groups.</p></div>`, code:`/3\\.14/.test("3x14");   // false — \\. is a LITERAL dot\n// AVOID nested quantifiers — catastrophic backtracking:\n//   /(a+)+$/ can hang on "aaaaaaaaaaX"\nif (m.index === re.lastIndex) re.lastIndex++; // zero-width guard` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>

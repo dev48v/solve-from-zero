@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 7 — Webcam Sign Language</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  #wrap { position:relative; width:480px; max-width:100%; aspect-ratio:4/3; background:#020617; border-radius:12px; overflow:hidden; }
+  #vid, #ov { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); }
+  #vid { object-fit:cover; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 7</div>
+      <h1 class="text-xl font-bold">🤟 Sign Language → Text, From Your Webcam</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Show a sign — it reads your hand</h2>
+      <p class="text-slate-500 text-center mb-6">No model upload, no cloud. Hand tracking runs in your browser. Hold a sign steady for a moment to "type" it. Recognises counts <b>0–5</b> plus 👍 and 🖐 hello.</p>
+      <div class="grid md:grid-cols-2 gap-6 items-start">
+        <div>
+          <div id="wrap">
+            <video id="vid" autoplay playsinline muted></video>
+            <canvas id="ov" width="480" height="360"></canvas>
+            <div id="overlay" class="absolute inset-0 flex flex-col items-center justify-center text-center gap-3 bg-slate-900/80">
+              <div class="text-5xl">🤟</div>
+              <button id="startBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2.5 rounded-xl">Start camera</button>
+              <div id="status" class="text-xs text-slate-300 px-6">Loads a ~7&nbsp;MB hand-tracking model the first time. Needs camera permission. Chrome/Edge recommended.</div>
+            </div>
+          </div>
+          <div class="mt-2 text-center text-sm">Detected: <span id="gesture" class="font-bold text-amber-600">—</span></div>
+        </div>
+        <div>
+          <div class="text-xs font-bold uppercase text-amber-600 mb-2">Transcript</div>
+          <div id="text" class="min-h-[120px] bg-white border border-slate-200 rounded-xl p-4 text-2xl tracking-wide text-slate-800">&nbsp;</div>
+          <button id="clear" class="mt-2 text-sm border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">Clear</button>
+          <div class="mt-4 text-xs text-slate-500 space-y-1">
+            <div class="font-bold text-slate-600">Signs it knows:</div>
+            <div>✊ fist → <b>0</b> · ☝ → <b>1</b> · ✌ → <b>2</b> · 🤟3 fingers → <b>3</b> · 4 → <b>4</b></div>
+            <div>🖐 open palm → <b>"hi "</b> · 👍 thumb up → <b>"👍 "</b></div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 text-center mt-6">↑ This is a starting point: a few geometry-based signs. Full ASL needs a trained classifier on top of these same hand landmarks.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How it reads a hand</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">MediaPipe gives you 21 hand points; you turn them into signs with simple geometry. ~60 lines.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Load the hand landmarker</h3></div><pre>import { HandLandmarker, FilesetResolver } from
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
+const files = await FilesetResolver.forVisionTasks(".../wasm");
+const hand = await HandLandmarker.createFromOptions(files, { runningMode:"VIDEO" });</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Detect 21 landmarks each frame</h3></div><pre>const res = hand.detectForVideo(video, performance.now());
+const lm = res.landmarks[0];   // [{x,y,z}, ...21 points]</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">A finger is "up" if its tip is above its knuckle</h3></div><pre>// for index/middle/ring/pinky: tip.y &lt; pip.y  → extended
+const up = [8,12,16,20].map((tip,i) =&gt; lm[tip].y &lt; lm[[6,10,14,18][i]].y);</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Map the finger pattern to a sign</h3></div><pre>const count = up.filter(Boolean).length;        // 0..4 (+thumb)
+// e.g. [✊]→0, [☝]→1, [✌]→2, all up + thumb → "hi"</pre></li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Hold-to-commit (debounce)</h3></div><pre>if (sign === lastSign) stable++; else stable = 0;
+if (stable === 12) type(sign);   // only fire once it's steady</pre></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 7 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Tomorrow: Live captions for any video, in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== SIGN LANGUAGE via MediaPipe Hands =====
+const vid = document.getElementById("vid"), ov = document.getElementById("ov"), octx = ov.getContext("2d");
+const startBtn = document.getElementById("startBtn"), statusEl = document.getElementById("status"), overlay = document.getElementById("overlay");
+const gestureEl = document.getElementById("gesture"), textEl = document.getElementById("text");
+let hand = null, running = false, lastSign = "", stable = 0, committed = "";
+
+document.getElementById("clear").onclick = () => { committed = ""; textEl.textContent = " "; };
+
+startBtn.onclick = async () => {
+  startBtn.disabled = true; statusEl.textContent = "Loading hand-tracking model…";
+  try {
+    const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    const files = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    hand = await vision.HandLandmarker.createFromOptions(files, {
+      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" },
+      runningMode: "VIDEO", numHands: 1
+    });
+    statusEl.textContent = "Requesting camera…";
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+    vid.srcObject = stream;
+    await vid.play();
+    overlay.style.display = "none"; running = true; loop();
+  } catch (e) {
+    overlay.style.display = "flex"; startBtn.disabled = false;
+    statusEl.textContent = "Couldn't start (need camera permission + a Chromium browser). " + (e.message || "");
+  }
+};
+
+function fingersUp(lm){
+  // index/middle/ring/pinky extended if tip is above pip (smaller y)
+  const up = [[8,6],[12,10],[16,14],[20,18]].map(([tip,pip]) => lm[tip].y < lm[pip].y - 0.02);
+  // thumb extended if tip is far (in x) from the index knuckle (mirrored video, so use distance)
+  const thumb = Math.hypot(lm[4].x - lm[5].x, lm[4].y - lm[5].y) > 0.13 && lm[4].y < lm[3].y + 0.05;
+  return { thumb, up, count: up.filter(Boolean).length };
+}
+function classify(lm){
+  const { thumb, up, count } = fingersUp(lm);
+  if (thumb && count === 0) return { sign: "👍", emit: "👍 " };
+  if (thumb && count === 4) return { sign: "🖐 hi", emit: "hi " };
+  if (!thumb && count === 0) return { sign: "0 (✊)", emit: "0" };
+  if (!thumb && count === 1 && up[0]) return { sign: "1 (☝)", emit: "1" };
+  if (!thumb && count === 2 && up[0] && up[1]) return { sign: "2 (✌)", emit: "2" };
+  if (!thumb && count === 3) return { sign: "3", emit: "3" };
+  if (!thumb && count === 4) return { sign: "4", emit: "4" };
+  if (thumb && count >= 4) return { sign: "5", emit: "5" };
+  return { sign: "…", emit: null };
+}
+function draw(lm){
+  octx.clearRect(0,0,ov.width,ov.height);
+  octx.fillStyle = "#f59e0b";
+  for (const p of lm){ octx.beginPath(); octx.arc(p.x*ov.width, p.y*ov.height, 4, 0, Math.PI*2); octx.fill(); }
+  octx.strokeStyle = "rgba(245,158,11,.5)"; octx.lineWidth = 2;
+  for (const [a,b] of [[0,5],[5,8],[0,9],[9,12],[0,13],[13,16],[0,17],[17,20],[0,1],[1,4]]){
+    octx.beginPath(); octx.moveTo(lm[a].x*ov.width, lm[a].y*ov.height); octx.lineTo(lm[b].x*ov.width, lm[b].y*ov.height); octx.stroke();
+  }
+}
+function loop(){
+  if (!running) return;
+  const res = hand.detectForVideo(vid, performance.now());
+  if (res.landmarks && res.landmarks.length){
+    const lm = res.landmarks[0]; draw(lm);
+    const { sign, emit } = classify(lm);
+    gestureEl.textContent = sign;
+    if (sign === lastSign) { stable++; } else { stable = 0; lastSign = sign; }
+    if (stable === 12 && emit){ committed += emit; textEl.textContent = committed; }
+  } else { octx.clearRect(0,0,ov.width,ov.height); gestureEl.textContent = "no hand"; stable = 0; lastSign = ""; }
+  requestAnimationFrame(loop);
+}
+
+const STEPS = [
+  { title:"1. The browser can track a hand", why:"You don't need a server or a camera SDK. Google's MediaPipe ships a tiny hand-tracking model that runs on WebAssembly right in the tab. You hand it a video frame, it hands back the hand's skeleton — all on-device, so the camera feed never leaves the machine.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full">webcam frame → MediaPipe (in-browser) → hand skeleton</div>`, code:`const hand = await HandLandmarker.createFromOptions(files, { runningMode:"VIDEO" });` },
+  { title:"2. 21 landmarks per hand", why:"For every frame, the model returns 21 points — wrist, plus four points per finger (knuckle, two joints, tip) — each as an (x, y, z) coordinate from 0 to 1. That skeleton is all you need; you never look at raw pixels again.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full">wrist + 4 joints × 5 fingers = 21 points (x,y,z)</div>`, code:`const lm = res.landmarks[0];  // 21 points` },
+  { title:"3. A finger is 'up' if its tip beats its knuckle", why:"Geometry does the work. For a roughly upright hand, a finger is extended when its tip is higher on screen (smaller y) than its middle joint. Check that for the four fingers and you instantly know how many are raised.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full">tip.y &lt; knuckle.y → finger is up ☝</div>`, code:`const up = [8,12,16,20].map((tip,i) =>
+  lm[tip].y < lm[[6,10,14,18][i]].y);` },
+  { title:"4. The thumb is the awkward one", why:"The thumb bends sideways, not up, so the tip-above-knuckle trick fails. Instead measure how far the thumb tip sticks out from the hand (distance from the index knuckle). Far out = extended. Handling the thumb separately is the classic gotcha in gesture code.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full">thumb: judged by sideways distance, not height</div>`, code:`const thumb = dist(lm[4], lm[5]) > 0.13;` },
+  { title:"5. Finger pattern → a sign", why:"Now map the pattern of raised fingers to meaning. No fingers = 0, index only = 1, index+middle = 2, all five = an open-palm 'hello', thumb alone = 👍. This is a hand-coded lookup — simple, transparent, and enough for counts and a few gestures.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div>✊→0 ☝→1 ✌→2 🖐→hi 👍→yes</div></div>`, code:`if (!thumb && count === 2) return "2";
+if (thumb && count === 4) return "hi";` },
+  { title:"6. Hold to commit, then scale up", why:"A hand wobbles, so only 'type' a sign once it's been steady for ~12 frames — that debounce stops the transcript filling with noise. For real ASL (dozens of letters, motion, two hands) you'd feed these same 21 landmarks into a small trained classifier instead of hand-written rules — but the pipeline is exactly what you built here.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Landmarks → geometry → sign, fully on-device.</p></div>`, code:`if (sign === lastSign) stable++; else stable = 0;
+if (stable === 12) type(sign);` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+</script>
+</body>
+</html>

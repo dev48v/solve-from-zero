@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 6 — Study-Notes Summarizer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .kw-chip { display:inline-block; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:999px; padding:2px 10px; font-size:11px; margin:2px; font-weight:600; }
+  .sentence-row { border-left:3px solid #fcd34d; padding:6px 10px; margin-bottom:6px; border-radius:0 8px 8px 0; background:#fffbeb; font-size:13px; }
+  .score-bar { height:4px; border-radius:2px; background:linear-gradient(90deg,#f59e0b,#b45309); margin-top:4px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back to SolveFromZero" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 6</div>
+      <h1 class="text-xl font-bold">📚 Study-Notes Summarizer</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== LOOK TAB ===== -->
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Paste your notes → get the gist</h2>
+      <p class="text-slate-500 text-center mb-5">No AI API. No backend. Pure word-frequency scoring in your browser — highlights the sentences that matter most.</p>
+
+      <textarea id="inp" rows="8" class="w-full p-3 rounded-xl border border-slate-300 outline-none focus:border-amber-500 text-sm font-mono" placeholder="Paste your lecture notes, article, or any long text here…"></textarea>
+
+      <div class="flex flex-wrap gap-2 my-3">
+        <button id="load-sample" class="text-xs px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-amber-400 hover:text-amber-600">📄 Load sample notes</button>
+      </div>
+
+      <div class="flex gap-3 items-center mb-4">
+        <div class="flex-1">
+          <label class="text-xs text-slate-500 font-semibold block mb-1">Summary length (sentences)</label>
+          <input type="range" id="topN" min="2" max="8" value="4" class="w-full accent-amber-500" />
+          <div class="flex justify-between text-xs text-slate-400"><span>2</span><span id="topNVal">4</span><span>8</span></div>
+        </div>
+      </div>
+
+      <button id="go" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl">📚 Summarize</button>
+
+      <div id="out" class="mt-6 hidden space-y-4">
+        <!-- Compression ratio -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+          <div class="text-4xl font-black text-amber-500" id="ratio-num">—</div>
+          <div>
+            <div class="text-xs font-bold uppercase text-slate-400">Compression ratio</div>
+            <div class="text-sm text-slate-600" id="ratio-desc">— sentences → —</div>
+          </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="text-xs font-bold uppercase text-amber-600 mb-3">Summary</div>
+          <div id="summary-out" class="text-slate-800 leading-relaxed text-sm space-y-1"></div>
+        </div>
+
+        <!-- Keywords -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="text-xs font-bold uppercase text-amber-600 mb-3">Key concepts</div>
+          <div id="keywords-out" class="flex flex-wrap gap-1"></div>
+        </div>
+
+        <!-- Scored sentences debug view -->
+        <details class="bg-white rounded-2xl border border-slate-200 p-5">
+          <summary class="text-xs font-bold uppercase text-slate-400 cursor-pointer hover:text-amber-600">Show sentence scores (debug view)</summary>
+          <div id="scores-out" class="mt-3 space-y-2"></div>
+        </details>
+      </div>
+      <p class="text-xs text-slate-400 text-center mt-6">↑ 100% browser-side. No data leaves your device. Uses TF-based extractive scoring.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== UNDERSTAND TAB ===== -->
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the summarizer works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== BUILD TAB ===== -->
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">No AI key. No library. Just word counting and a ranked list — surprisingly good results.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
+          <h3 class="font-bold text-lg">Split text into sentences</h3>
+        </div>
+        <pre>// Split on period/exclamation/question — keep the delimiter
+const sentences = text
+  .replace(/([.!?])\s+/g, "$1\n")
+  .split("\n")
+  .map(s => s.trim())
+  .filter(s => s.length > 20);  // drop fragment scraps</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+          <h3 class="font-bold text-lg">Build a word-frequency table (drop stopwords)</h3>
+        </div>
+        <pre>const STOPWORDS = new Set(["the","a","an","is","it","in","on",
+  "at","to","and","or","but","of","for","with","this","that",
+  "are","was","were","be","been","has","have","had","not","by"]);
+
+function wordFreq(sentences) {
+  const freq = {};
+  for (const s of sentences) {
+    for (const w of tokenize(s)) {
+      if (!STOPWORDS.has(w)) freq[w] = (freq[w] || 0) + 1;
+    }
+  }
+  return freq;
+}</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+          <h3 class="font-bold text-lg">Score each sentence by TF</h3>
+        </div>
+        <pre>function scoreSentence(sentence, freq) {
+  const words = tokenize(sentence).filter(w => !STOPWORDS.has(w));
+  if (!words.length) return 0;
+  const sum = words.reduce((acc, w) => acc + (freq[w] || 0), 0);
+  return sum / words.length;  // normalise by sentence length
+}</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">4</div>
+          <h3 class="font-bold text-lg">Pick top N — but keep original order</h3>
+        </div>
+        <pre>function topN(sentences, scores, n) {
+  // rank by score → pick indices of top N
+  const ranked = scores
+    .map((score, i) => ({ i, score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n)
+    .map(x => x.i)
+    .sort((a, b) => a - b);  // restore reading order!
+  return ranked.map(i => sentences[i]);
+}</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">5</div>
+          <h3 class="font-bold text-lg">Extract top keywords</h3>
+        </div>
+        <pre>function topKeywords(freq, k = 10) {
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, k)
+    .map(([word]) => word);
+}</pre>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-bold">6</div>
+          <h3 class="font-bold text-lg">Wire it to a textarea + button</h3>
+        </div>
+        <pre>document.getElementById("go").onclick = () => {
+  const text = document.getElementById("inp").value;
+  const n    = +document.getElementById("topN").value;
+  const sents  = splitSentences(text);
+  const freq   = wordFreq(sents);
+  const scores = sents.map(s => scoreSentence(s, freq));
+  const summary = topN(sents, scores, n);
+  const keywords = topKeywords(freq);
+  renderResults(summary, keywords, sents.length);
+};</pre>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+      <h3 class="font-bold text-lg text-amber-900">🎉 Day 6 of SolveFromZero done.</h3>
+      <p class="text-sm text-amber-700 mt-2">Tomorrow: Webcam ASL/ISL sign-language to text via MediaPipe.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+// ===== TAB LOGIC =====
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== RANGE =====
+const topNEl = document.getElementById("topN");
+const topNVal = document.getElementById("topNVal");
+topNEl.oninput = () => topNVal.textContent = topNEl.value;
+
+// ===== SUMMARIZER ENGINE =====
+const STOPWORDS = new Set([
+  "the","a","an","is","it","in","on","at","to","and","or","but","of","for",
+  "with","this","that","are","was","were","be","been","has","have","had",
+  "not","by","from","as","its","their","they","we","he","she","i","you",
+  "our","all","can","will","would","could","should","more","also","if",
+  "so","do","then","than","about","when","which","who","how","may","some",
+  "any","each","both","into","over","after","before","between","up","down",
+  "such","these","those","there","here","one","two","three","new","used",
+  "use","using","make","makes","made","take","takes","taken","get","gets",
+  "got","just","very","most","many","much","only","even","back","because",
+  "through","while","during","where","what","an","no","yet","other","same"
+]);
+
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+function splitSentences(text) {
+  return text
+    .replace(/([.!?])\s+/g, "$1\n")
+    .split("\n")
+    .map(s => s.trim())
+    .filter(s => s.length > 20 && /[a-zA-Z]/.test(s));
+}
+
+function wordFreq(sentences) {
+  const freq = {};
+  for (const s of sentences) {
+    for (const w of tokenize(s)) {
+      if (!STOPWORDS.has(w) && w.length > 2) freq[w] = (freq[w] || 0) + 1;
+    }
+  }
+  return freq;
+}
+
+function scoreSentence(sentence, freq) {
+  const words = tokenize(sentence).filter(w => !STOPWORDS.has(w) && w.length > 2);
+  if (!words.length) return 0;
+  const sum = words.reduce((acc, w) => acc + (freq[w] || 0), 0);
+  return sum / words.length;
+}
+
+function topKeywords(freq, k) {
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, k)
+    .map(([word]) => word);
+}
+
+function runSummarizer() {
+  const text = document.getElementById("inp").value.trim();
+  if (text.length < 80) { alert("Paste a longer text to summarize (at least a paragraph)."); return; }
+  const n = +document.getElementById("topN").value;
+
+  const sents = splitSentences(text);
+  if (sents.length < 3) { alert("Need at least 3 sentences. Try a longer paste."); return; }
+
+  const freq = wordFreq(sents);
+  const scores = sents.map(s => scoreSentence(s, freq));
+  const maxScore = Math.max(...scores) || 1;
+
+  // pick top N, restore reading order
+  const ranked = scores
+    .map((score, i) => ({ i, score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.min(n, sents.length))
+    .map(x => x.i)
+    .sort((a, b) => a - b);
+
+  const summary = ranked.map(i => sents[i]);
+  const keywords = topKeywords(freq, 12);
+
+  // render compression ratio
+  const ratio = ((1 - summary.length / sents.length) * 100).toFixed(0);
+  document.getElementById("ratio-num").textContent = ratio + "%";
+  document.getElementById("ratio-desc").textContent = `${sents.length} sentences → ${summary.length} (kept the best ${summary.length})`;
+
+  // render summary
+  const summaryEl = document.getElementById("summary-out");
+  summaryEl.innerHTML = summary.map(s => `<div class="sentence-row fade-in">${s}</div>`).join("");
+
+  // render keywords
+  const kwEl = document.getElementById("keywords-out");
+  kwEl.innerHTML = keywords.map(k => `<span class="kw-chip">${k}</span>`).join("");
+
+  // render score debug
+  const scoresEl = document.getElementById("scores-out");
+  const scorePairs = sents.map((s, i) => ({ s, score: scores[i] }))
+    .sort((a, b) => b.score - a.score);
+  scoresEl.innerHTML = scorePairs.map(({ s, score }) => {
+    const pct = ((score / maxScore) * 100).toFixed(0);
+    const isKept = ranked.includes(sents.indexOf(s));
+    return `<div class="bg-slate-50 rounded p-2 text-xs ${isKept ? 'border border-amber-300' : ''}">
+      <div class="flex justify-between mb-1"><span class="font-mono text-amber-700">${score.toFixed(2)}</span>${isKept ? '<span class="text-emerald-600 font-bold text-xs">KEPT</span>' : ''}</div>
+      <div class="score-bar" style="width:${pct}%"></div>
+      <div class="mt-1 text-slate-500 line-clamp-2">${s}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("out").classList.remove("hidden");
+  document.getElementById("out").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("go").onclick = runSummarizer;
+
+// sample notes
+const SAMPLE = `Machine learning is a branch of artificial intelligence focused on building systems that learn from data.
+Instead of being explicitly programmed, these systems improve their performance on tasks through experience.
+Supervised learning is the most common type, where the model is trained on labeled input-output pairs.
+Common supervised learning algorithms include linear regression, decision trees, and neural networks.
+Unsupervised learning deals with finding hidden patterns in data that has no labels.
+Clustering algorithms like k-means group similar data points together without any predefined categories.
+Overfitting occurs when a model learns the training data too well and fails to generalize to new data.
+Regularization techniques such as L1 and L2 penalties reduce overfitting by penalizing large model weights.
+The bias-variance tradeoff is a fundamental concept: high bias means the model is too simple, high variance means it is too complex.
+Cross-validation is used to evaluate a model by splitting data into training and test sets multiple times.
+Feature engineering is the process of selecting and transforming input variables to improve model performance.
+Deep learning uses multi-layer neural networks to learn representations at different levels of abstraction.
+Convolutional neural networks are particularly effective for image recognition tasks.
+Recurrent neural networks are designed to work with sequential data such as text and time series.
+Gradient descent is the optimization algorithm used to minimize the loss function during training.
+The learning rate controls how large each update step is during gradient descent optimization.
+Transfer learning allows models pre-trained on large datasets to be fine-tuned for new specific tasks.
+Evaluation metrics vary by task type — accuracy for classification, RMSE for regression problems.
+Data preprocessing steps like normalization and handling missing values are critical before model training.
+The choice of algorithm depends on the size of the dataset, the type of problem, and available computational resources.`;
+
+document.getElementById("load-sample").onclick = () => {
+  document.getElementById("inp").value = SAMPLE;
+};
+
+// ===== UNDERSTAND STEPS =====
+const STEPS = [
+  {
+    title: "1. Split text into sentences",
+    why: "Summarization works at the sentence level. We split on punctuation (. ! ?) and filter out tiny fragments under 20 characters. Clean input = better scores.",
+    concept: `<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full space-y-2">
+      <div class="text-slate-500">Input: "ML learns from data. Models improve over time. Data is key."</div>
+      <div class="text-amber-700">→ ["ML learns from data.", "Models improve over time.", "Data is key."]</div>
+    </div>`,
+    code: `const sentences = text
+  .replace(/([.!?])\\s+/g, "$1\\n")
+  .split("\\n")
+  .map(s => s.trim())
+  .filter(s => s.length > 20);`
+  },
+  {
+    title: "2. Build a word-frequency table",
+    why: "We count how often each meaningful word appears across ALL sentences. Common words = likely important topics. We drop stopwords (the, is, a…) because they appear everywhere and carry no meaning.",
+    concept: `<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full space-y-1">
+      <div>"learning" → 8</div>
+      <div>"data" → 6</div>
+      <div>"model" → 5</div>
+      <div class="text-slate-400">"the" → dropped (stopword)</div>
+    </div>`,
+    code: `const STOPWORDS = new Set(["the","a","is","in","and","or",...]);
+const freq = {};
+for (const sentence of sentences) {
+  for (const word of tokenize(sentence)) {
+    if (!STOPWORDS.has(word))
+      freq[word] = (freq[word] || 0) + 1;
+  }
+}`
+  },
+  {
+    title: "3. Score each sentence by TF",
+    why: "A sentence's score = average frequency of its non-stopwords. Sentences that use the most-talked-about words are considered the most important. Normalizing by length stops long sentences from dominating unfairly.",
+    concept: `<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-2">
+      <div>"Learning algorithms improve model performance." <span class="text-amber-700 font-bold">score: 4.2</span></div>
+      <div>"Data is important." <span class="text-amber-700 font-bold">score: 2.1</span></div>
+    </div>`,
+    code: `function score(sentence, freq) {
+  const words = tokenize(sentence)
+    .filter(w => !STOPWORDS.has(w));
+  const sum = words.reduce(
+    (acc, w) => acc + (freq[w] || 0), 0
+  );
+  return sum / words.length; // length-normalised
+}`
+  },
+  {
+    title: "4. Pick top N in original order",
+    why: "We sort sentences by score descending, take the top N, then re-sort them by their original position in the text. This gives a coherent summary that reads naturally rather than jumping around.",
+    concept: `<div class="bg-slate-100 p-4 rounded text-xs font-mono w-full space-y-1">
+      <div>rank by score: [sent5, sent2, sent9, sent1] → take 3</div>
+      <div class="text-amber-700">restore order → [sent1, sent2, sent5]</div>
+      <div class="text-slate-500">reads coherently!</div>
+    </div>`,
+    code: `const kept = scores
+  .map((score, i) => ({ i, score }))
+  .sort((a, b) => b.score - a.score)
+  .slice(0, n)
+  .map(x => x.i)
+  .sort((a, b) => a - b);  // ← restore order
+const summary = kept.map(i => sentences[i]);`
+  },
+  {
+    title: "5. Extractive vs abstractive",
+    why: "Extractive summarization (what we built) picks real sentences verbatim — it cannot hallucinate. Abstractive summarization (what GPT does) generates new text. Extractive is auditable, offline, and privacy-safe. Abstractive is more fluent but requires an LLM.",
+    concept: `<div class="bg-slate-100 p-4 rounded text-xs w-full space-y-2">
+      <div><b>Extractive (ours):</b> picks sentence 2 and sentence 7 verbatim.</div>
+      <div><b>Abstractive (LLM):</b> "This text discusses learning algorithms and overfitting."</div>
+      <div class="text-amber-700">Extractive = zero hallucination. Best for study notes.</div>
+    </div>`,
+    code: `// extractive: copy-paste from original
+summary = topSentences.join(" ");
+// abstractive: generate new text (needs LLM)
+// llm(\`Summarize in 3 sentences: \${text}\`);`
+  },
+  {
+    title: "6. Done!",
+    why: "A genuinely useful study tool — no API, no cost, works offline, never reads your private notes. The same TF-scoring pattern powers search engines, document clustering, and keyword extraction at scale.",
+    concept: `<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">Word counting + smart ranking = a real summarizer.</p></div>`,
+    code: `// same pattern scales to:
+// - keyword extraction for search engines
+// - document clustering
+// - auto-tagging articles
+// all without any neural network`
+  }
+];
+
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  b.innerHTML = `<div class="font-semibold">${s.title}</div>`;
+  b.onclick = () => show(i);
+  stepsEl.appendChild(b);
+});
+function show(i) {
+  cur = i; const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((b, idx) => {
+    b.className = idx === i
+      ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+      : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prevB.onclick = () => show(Math.max(0, cur - 1));
+nextB.onclick = () => show(Math.min(STEPS.length - 1, cur + 1));
+let tm = null;
+autoB.onclick = () => {
+  if (tm) { clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; }
+  autoB.textContent = "⏸ Pause"; show(0);
+  tm = setInterval(() => {
+    if (cur >= STEPS.length - 1) { clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; }
+    show(cur + 1);
+  }, 2800);
+};
+show(0);
+</script>
+</body>
+</html>
