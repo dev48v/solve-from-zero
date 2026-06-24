@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 15 — JSON Formatter & Validator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  textarea { tab-size:2; }
+  .json-input {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.6; padding:12px;
+    white-space:pre; word-break:normal;
+    margin:0; border:1px solid #e2e8f0; border-radius:8px;
+    box-sizing:border-box; width:100%; min-height:360px;
+    color:#0f172a; background:#fff; resize:vertical; overflow:auto;
+  }
+  .json-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  /* highlighted output, dark theme */
+  .json-out {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.6; padding:12px; margin:0;
+    white-space:pre; overflow:auto; border-radius:8px;
+    background:#0f172a; color:#e2e8f0; min-height:360px;
+    box-sizing:border-box; width:100%;
+  }
+  .tok-key   { color:#fbbf24; }   /* amber — accent for keys */
+  .tok-str   { color:#86efac; }   /* green strings */
+  .tok-num   { color:#7dd3fc; }   /* sky numbers */
+  .tok-bool  { color:#f0abfc; }   /* fuchsia booleans */
+  .tok-null  { color:#fca5a5; }   /* rose null */
+  .tok-punct { color:#94a3b8; }   /* slate punctuation */
+  .err-line  { color:#fecaca; background:rgba(244,63,94,.18); display:inline-block; width:100%; }
+  .caret     { color:#f43f5e; font-weight:bold; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 15</div>
+      <h1 class="text-xl font-bold">🧾 JSON Formatter & Validator — Pretty, Checked, Instant</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Paste JSON, get it pretty &amp; checked — powered by the real browser parser</h2>
+      <p class="text-slate-500 text-center mb-4">JSON formatting is just <span class="font-mono">JSON.parse(text)</span> then <span class="font-mono">JSON.stringify(obj, null, 2)</span>. Validation is simply whether <span class="font-mono">parse</span> throws. Everything below runs on the exact engine your apps use — no library.</p>
+
+      <!-- toolbar -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <button id="format" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold">✨ Format (pretty)</button>
+        <button id="minify" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold">▪ Minify</button>
+        <button id="copy"   class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-1.5 rounded-lg text-xs font-bold">📋 Copy output</button>
+        <span class="text-xs uppercase font-bold text-slate-400 tracking-wider ml-2 mr-1">Samples</span>
+        <button class="sample bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold" data-sample="user">User profile</button>
+        <button class="sample bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold" data-sample="order">Shipment order</button>
+        <button class="sample bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold" data-sample="broken">Broken (try it!)</button>
+        <button id="reset" class="ml-auto bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Reset sample</button>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- input -->
+        <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col">
+          <div class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2">Input — paste / type JSON</div>
+          <textarea id="input" spellcheck="false" class="json-input"></textarea>
+        </div>
+
+        <!-- output -->
+        <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs uppercase font-bold text-amber-600 tracking-wider">Output — pretty &amp; highlighted</div>
+            <span id="badge" class="px-3 py-1 rounded-lg font-bold text-sm bg-slate-100 text-slate-500">—</span>
+          </div>
+          <pre id="output" class="json-out"></pre>
+          <div id="error" class="hidden mt-2 text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg px-3 py-2"></div>
+          <div id="stats" class="mt-2 flex flex-wrap gap-2 text-xs"></div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-4">↑ Every keystroke (debounced) runs <span class="font-mono">JSON.parse(input)</span> inside a try/catch. Valid → <span class="font-mono">JSON.stringify(obj, null, 2)</span> then a tokenizer wraps keys/strings/numbers/booleans/null in coloured <span class="font-mono">&lt;span&gt;</span>s. Invalid → the parser's own message, mapped to a line &amp; column with the offending snippet pointed at.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How JSON formatting &amp; validation actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Parse the text in a try/catch, pretty-print with <span class="font-mono">JSON.stringify(obj, null, 2)</span>, tokenize the result into coloured spans, offer a minify, and turn the parser's error into a line/column you can point at. ~60 lines for a real JSON formatter &amp; validator.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Parse the input safely with try/catch</h3></div><pre>const text = inputEl.value;
+let value = null, errorMsg = "";
+try {
+  // JSON.parse turns the TEXT into a real JS value (object/array/…).
+  // Any syntax problem THROWS a SyntaxError here — we catch it.
+  value = JSON.parse(text);
+} catch (err) {
+  errorMsg = err.message;   // e.g. "Unexpected token } in JSON at position 42"
+}
+// whether parse threw IS the validation result — nothing else needed</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Pretty-print with the third argument</h3></div><pre>// JSON.stringify(value, replacer, indent)
+// pass null for replacer, 2 for indent → 2-space pretty output
+const pretty = JSON.stringify(value, null, 2);
+/*
+{
+  "name": "Ada",
+  "active": true
+}
+*/
+// the indent can be a number OR a string, e.g. "\t" for tabs</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Minify — stringify with no spaces</h3></div><pre>// omit the indent argument (or pass 0) → everything on one line
+const minified = JSON.stringify(value);
+// {"name":"Ada","active":true}
+
+// format and minify are the SAME function, different 3rd argument:
+//   pretty  = JSON.stringify(value, null, 2)
+//   minify  = JSON.stringify(value)</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Syntax-highlight: tokenize, then wrap in spans</h3></div><pre>function highlight(json) {
+  // 1) escape HTML so the JSON can't inject markup
+  json = json.replace(/&amp;/g,"&amp;amp;").replace(/&lt;/g,"&amp;lt;").replace(/&gt;/g,"&amp;gt;");
+  // 2) one regex finds strings (incl. keys), numbers, booleans, null
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    (match) =&gt; {
+      let cls = "tok-num";
+      if (/^"/.test(match)) cls = /:$/.test(match) ? "tok-key" : "tok-str";
+      else if (/true|false/.test(match)) cls = "tok-bool";
+      else if (/null/.test(match)) cls = "tok-null";
+      return `&lt;span class="${cls}"&gt;${match}&lt;/span&gt;`;
+    });
+}
+outputEl.innerHTML = highlight(pretty);</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Turn the error into a line &amp; column</h3></div><pre>// V8's message ends with "...at position N"; Firefox gives "line L column C"
+function locate(text, msg) {
+  const pos = msg.match(/position (\d+)/);
+  if (pos) {
+    const idx = +pos[1];
+    const before = text.slice(0, idx);
+    const line = before.split("\n").length;            // 1-based line
+    const col  = idx - before.lastIndexOf("\n");        // 1-based column
+    return { line, col, idx };
+  }
+  const lc = msg.match(/line (\d+) column (\d+)/);
+  if (lc) return { line:+lc[1], col:+lc[2] };
+  return null;
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Point at the offending snippet</h3></div><pre>// show the bad line and a caret ^ under the exact column
+function pointAt(text, loc) {
+  const lines = text.split("\n");
+  const bad = lines[loc.line - 1] || "";
+  const caret = " ".repeat(Math.max(0, loc.col - 1)) + "^";
+  return `line ${loc.line}, column ${loc.col}\n` +
+         bad + "\n" + caret;
+}
+// → exactly where to fix it, instead of a vague "invalid JSON"</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Copy the output to the clipboard</h3></div><pre>copyBtn.onclick = () =&gt; {
+  // copy the pretty (or minified) text, NOT the highlighted HTML
+  navigator.clipboard?.writeText(lastOutput);
+  copyBtn.textContent = "✓ Copied!";
+  setTimeout(() =&gt; copyBtn.textContent = "📋 Copy output", 1000);
+};
+// always keep the plain string around — spans are for display only</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Run it live (debounced) on every change</h3></div><pre>let timer = null;
+inputEl.addEventListener("input", () =&gt; {
+  clearTimeout(timer);              // wait for typing to settle…
+  timer = setTimeout(render, 200);  // …then format once (debounce)
+});
+formatBtn.onclick = () =&gt; render(2);   // pretty
+minifyBtn.onclick = () =&gt; render(0);   // one line
+render(2);   // first paint on load
+
+// NEVER eval() JSON — JSON.parse is safe; eval runs arbitrary code.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 15 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Two built-ins did the heavy lifting: <span class="font-mono">JSON.parse</span> to validate, <span class="font-mono">JSON.stringify</span> to pretty-print.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== JSON FORMATTER & VALIDATOR (real browser JSON.parse / JSON.stringify) =====
+const inputEl  = document.getElementById("input");
+const outputEl = document.getElementById("output");
+const badgeEl  = document.getElementById("badge");
+const errorEl  = document.getElementById("error");
+const statsEl  = document.getElementById("stats");
+const copyBtn  = document.getElementById("copy");
+
+const SAMPLES = {
+  user:
+`{
+  "name": "Ada Lovelace",
+  "active": true,
+  "age": 36,
+  "balance": 1042.5,
+  "nickname": null,
+  "roles": ["admin", "engineer"],
+  "address": { "city": "London", "zip": "EC1A" },
+  "logins": [ { "ip": "10.0.0.1", "ok": true }, { "ip": "10.0.0.2", "ok": false } ]
+}`,
+  order:
+`{
+  "orderId": "ORD-90817",
+  "currency": "GBP",
+  "total": 248.99,
+  "paid": false,
+  "shipment": {
+    "carrier": "DHL",
+    "tracking": "1Z-XYZ-001",
+    "weightKg": 4.25,
+    "fragile": true,
+    "items": [
+      { "sku": "BOX-S", "qty": 2, "price": 12.5 },
+      { "sku": "WRAP",  "qty": 1, "price": 3.99, "note": null }
+    ]
+  },
+  "tags": ["express", "insured"]
+}`,
+  // intentionally broken: trailing comma + single quotes + unquoted key
+  broken:
+`{
+  'name': "Bad JSON",
+  active: true,
+  "items": [1, 2, 3,],
+}`
+};
+
+let lastOutput = "";   // plain text behind the highlighted view (for Copy)
+let lastIndent = 2;    // remembers pretty(2) vs minify(0)
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// tokenize valid JSON text → coloured spans (keys/strings/numbers/bool/null)
+function highlight(json){
+  json = escapeHtml(json);
+  return json.replace(
+    /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    (match) => {
+      let cls = "tok-num";
+      if (/^"/.test(match)){
+        cls = /:\s*$/.test(match) ? "tok-key" : "tok-str";
+      } else if (/^(true|false)$/.test(match)){
+        cls = "tok-bool";
+      } else if (match === "null"){
+        cls = "tok-null";
+      }
+      return `<span class="${cls}">${match}</span>`;
+    }
+  )
+  // colour the structural punctuation lightly
+  .replace(/([{}\[\],])/g, '<span class="tok-punct">$1</span>');
+}
+
+// measure max nesting depth of a parsed value
+function depthOf(v){
+  if (Array.isArray(v)){
+    let d = 0;
+    for (const x of v) d = Math.max(d, depthOf(x));
+    return d + 1;
+  }
+  if (v && typeof v === "object"){
+    let d = 0;
+    for (const k in v) d = Math.max(d, depthOf(v[k]));
+    return d + 1;
+  }
+  return 0;
+}
+
+// count keys across the whole tree
+function countKeys(v){
+  let n = 0;
+  if (Array.isArray(v)){
+    for (const x of v) n += countKeys(x);
+  } else if (v && typeof v === "object"){
+    for (const k in v){ n++; n += countKeys(v[k]); }
+  }
+  return n;
+}
+
+function humanBytes(str){
+  const b = new Blob([str]).size;
+  if (b < 1024) return b + " B";
+  return (b / 1024).toFixed(1) + " KB";
+}
+
+// map a parser message to a {line,col,idx} location
+function locate(text, msg){
+  const pos = msg.match(/position (\d+)/);
+  if (pos){
+    const idx = Math.min(+pos[1], text.length);
+    const before = text.slice(0, idx);
+    const line = before.split("\n").length;
+    const lastNl = before.lastIndexOf("\n");
+    const col = idx - lastNl;            // 1-based column
+    return { line, col, idx };
+  }
+  const lc = msg.match(/line (\d+) column (\d+)/);
+  if (lc) return { line:+lc[1], col:+lc[2], idx:null };
+  return null;
+}
+
+// build a "line N, column C" + the bad line + a caret pointer
+function pointAt(text, loc){
+  const lines = text.split("\n");
+  const bad = lines[loc.line - 1] || "";
+  // clamp caret to within the line (+1 so it can point just past the end)
+  const col = Math.max(1, Math.min(loc.col, bad.length + 1));
+  const caret = " ".repeat(col - 1) + "^";
+  return { bad, caret, col };
+}
+
+function render(indent){
+  if (indent === undefined) indent = lastIndent;
+  lastIndent = indent;
+  const text = inputEl.value;
+
+  // empty input → neutral
+  if (!text.trim()){
+    badgeEl.textContent = "—";
+    badgeEl.className = "px-3 py-1 rounded-lg font-bold text-sm bg-slate-100 text-slate-500";
+    outputEl.innerHTML = '<span class="tok-punct">Paste or type JSON on the left…</span>';
+    errorEl.classList.add("hidden");
+    statsEl.innerHTML = "";
+    lastOutput = "";
+    return;
+  }
+
+  // --- parse = validate ---
+  let value, errorMsg = "";
+  try { value = JSON.parse(text); }
+  catch (err){ errorMsg = err.message; }
+
+  if (errorMsg){
+    // invalid → red badge, clear stats, point at the location
+    badgeEl.textContent = "✗ invalid JSON";
+    badgeEl.className = "px-3 py-1 rounded-lg font-bold text-sm bg-rose-100 text-rose-700";
+    statsEl.innerHTML = "";
+    lastOutput = "";
+
+    const loc = locate(text, errorMsg);
+    let detail = escapeHtml(errorMsg);
+    if (loc){
+      const p = pointAt(text, loc);
+      const lineLabel = `line ${loc.line}, column ${loc.col}`;
+      // render the offending line with a caret beneath it, inside the dark output
+      outputEl.innerHTML =
+        `<span class="tok-punct"># ${escapeHtml(lineLabel)}</span>\n` +
+        `<span class="err-line">${escapeHtml(p.bad) || " "}</span>\n` +
+        `<span class="caret">${" ".repeat(p.col - 1)}^</span>`;
+      detail += ` &nbsp;<span class="text-rose-500">(${escapeHtml(lineLabel)})</span>`;
+    } else {
+      outputEl.innerHTML = `<span class="err-line">${escapeHtml(text.split("\n")[0] || " ")}</span>`;
+    }
+    errorEl.innerHTML = "✗ " + detail;
+    errorEl.classList.remove("hidden");
+    return;
+  }
+
+  // --- valid → pretty (or minified) + highlight ---
+  errorEl.classList.add("hidden");
+  const out = (indent === 0) ? JSON.stringify(value) : JSON.stringify(value, null, indent);
+  lastOutput = out;
+  outputEl.innerHTML = highlight(out);
+
+  badgeEl.textContent = "✓ valid JSON";
+  badgeEl.className = "px-3 py-1 rounded-lg font-bold text-sm bg-emerald-100 text-emerald-700";
+
+  // --- stats ---
+  const keys  = countKeys(value);
+  const depth = depthOf(value);
+  const type  = Array.isArray(value) ? "array"
+              : value === null ? "null"
+              : typeof value === "object" ? "object" : typeof value;
+  const chip = (label) => `<span class="bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg font-semibold">${label}</span>`;
+  statsEl.innerHTML =
+    chip("type: " + type) +
+    chip(keys + (keys === 1 ? " key" : " keys")) +
+    chip("depth: " + depth) +
+    chip("size: " + humanBytes(out));
+}
+
+// --- live wiring (debounced) ---
+let timer = null;
+inputEl.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => render(), 200);
+});
+
+document.getElementById("format").onclick = () => render(2);
+document.getElementById("minify").onclick = () => render(0);
+
+copyBtn.onclick = () => {
+  navigator.clipboard?.writeText(lastOutput || inputEl.value);
+  const prev = copyBtn.textContent;
+  copyBtn.textContent = "✓ Copied!";
+  setTimeout(() => copyBtn.textContent = prev, 1000);
+};
+
+// sample loaders
+document.querySelectorAll(".sample").forEach(btn => {
+  btn.onclick = () => {
+    inputEl.value = SAMPLES[btn.dataset.sample] || "";
+    render(2);
+  };
+});
+
+document.getElementById("reset").onclick = () => {
+  inputEl.value = SAMPLES.user;
+  render(2);
+};
+
+// seed the tool so it's alive on open
+inputEl.value = SAMPLES.user;
+render(2);
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What JSON is", why:"JSON stands for JavaScript Object Notation, and it is the most common way programs send structured data to each other. It is just plain text shaped like a JavaScript object or array, so a server can write it and a browser, phone, or another server can read it. Because it is text, it travels easily over the network and saves cleanly to a file. When you call an API and get back data, that data is almost always JSON. The whole point is a shared, human-readable format that every language can parse.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">JSON = plain <b>text</b> that carries structured data<br><span class="font-mono">{"name":"Ada","age":36}</span> → travels over the network &amp; back</div>`, code:`// JSON is TEXT — note the quotes around the whole thing\nconst text = '{"name":"Ada","age":36}';\ntypeof text;            // "string"\nconst obj = JSON.parse(text);\nobj.name;               // "Ada" — now it's a real value` },
+  { title:"2. The six JSON types", why:"JSON can only hold six kinds of value, and that small set is exactly why it is so portable. There are objects (key/value pairs in curly braces), arrays (ordered lists in square brackets), strings (text in double quotes), numbers (integer or decimal, no quotes), the booleans true and false, and null for 'no value'. Objects and arrays can nest inside each other to any depth, which is how you describe complex things like an order with a list of items. There is no date type, no function, and no undefined — dates are usually sent as strings. Knowing the six types tells you everything JSON can and cannot carry.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">{…}</span> object · <span class="font-mono">[…]</span> array · <span class="font-mono">"…"</span> string<br><span class="font-mono">42</span> number · <span class="font-mono">true/false</span> bool · <span class="font-mono">null</span></div>`, code:`{\n  "object":  { "nested": true },\n  "array":   [1, 2, 3],\n  "string":  "double quotes only",\n  "number":  1042.5,\n  "boolean": false,\n  "nothing": null\n}` },
+  { title:"3. The strict syntax rules", why:"JSON looks like JavaScript but its rules are stricter, and breaking them is the number one cause of errors. Keys and string values must use double quotes — single quotes are not allowed. You cannot leave a trailing comma after the last item in an object or array. Comments are not permitted at all. Numbers cannot have leading zeros or a trailing dot. These rules exist so that every parser in every language agrees on exactly what is valid, with no ambiguity. The strictness is a feature: it means JSON written by one system always reads the same way in another.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">double quotes only · NO trailing comma · NO comments<br><span class="font-mono">{"ok": true}</span> ✓ &nbsp;&nbsp; <span class="font-mono">{'ok': true,}</span> ✗</div>`, code:`// VALID\n{ "ok": true }\n\n// INVALID — every line below breaks a rule\n{ 'ok': true }      // single quotes\n{ "ok": true, }     // trailing comma\n{ ok: true }        // unquoted key\n{ "n": 0123 }       // leading zero` },
+  { title:"4. JSON.parse — text into a value", why:"JSON.parse is the function that reads a JSON string and gives you back a real JavaScript value you can use — an object, array, number, and so on. Before parsing you have inert text; after parsing you have something you can index into with dot or bracket notation. The browser ships this built in, so you never write your own parser. It walks the text once, checks every rule, and builds the matching value in memory. This is the single step that turns 'a string that looks like data' into 'data you can actually work with'.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="font-mono">"{...}"</span> &nbsp;→&nbsp; <span class="font-mono">JSON.parse</span> &nbsp;→&nbsp; real object<br>text you can't use → value you can read &amp; loop over</div>`, code:`const obj = JSON.parse('{"items":[1,2,3]}');\nobj.items;        // [1, 2, 3] — a real array\nobj.items[0];     // 1\nobj.items.length; // 3 — methods work now` },
+  { title:"5. What makes parse throw", why:"Validation in JSON is wonderfully simple: there is nothing extra to check — if JSON.parse succeeds, the text is valid, and if it throws, it is not. The error it throws is a SyntaxError whose message usually tells you what went wrong and where, such as 'Unexpected token } in JSON at position 42'. That is why the safe pattern is to wrap the call in a try/catch: the try holds the parse, and the catch holds your friendly handling. You never let the exception bubble up and crash the page; you turn it into a message. So 'is this valid JSON?' is answered entirely by whether one function call threw.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">parse succeeds → <b>valid</b> · parse throws → <b>invalid</b><br><span class="font-mono">try { JSON.parse(t) } catch (e) { e.message }</span></div>`, code:`function isValid(text){\n  try { JSON.parse(text); return true; }\n  catch (e){ return false; } // e.message tells you WHY\n}\nisValid('{"a":1}');  // true\nisValid("{a:1}");    // false — unquoted key throws` },
+  { title:"6. JSON.stringify — pretty-printing", why:"JSON.stringify does the reverse of parse: it turns a value back into JSON text. Its third argument controls indentation, and this is the entire secret to pretty-printing. Passing 2 tells it to indent nested levels by two spaces and put each entry on its own line, turning a cramped blob into a readable, aligned document. The second argument (a replacer) is usually just null. So the whole formatter is two calls: parse the text to a value, then stringify it back with an indent. That round trip also normalises spacing, so messy input comes out tidy.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">format = <span class="font-mono">JSON.parse(text)</span> then<br><span class="font-mono">JSON.stringify(value, null, 2)</span> ← the 2 = indent</div>`, code:`const v = JSON.parse('{"name":"Ada","ok":true}');\nJSON.stringify(v, null, 2);\n/*\n{\n  "name": "Ada",\n  "ok": true\n}\n*/` },
+  { title:"7. Minify — stringify with no spaces", why:"Minifying is just pretty-printing's opposite, and it uses the very same function. Call JSON.stringify without the indent argument (or with 0) and it puts everything on a single line with no extra spaces. This is what you want when sending data over the network or storing it, because smaller text is faster to transfer and cheaper to keep. The data is identical — only the whitespace differs — so a parser reads the minified and the pretty versions as exactly the same value. Format for humans, minify for machines.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">pretty = <span class="font-mono">stringify(v, null, 2)</span><br>minify = <span class="font-mono">stringify(v)</span> → <span class="font-mono">{"name":"Ada","ok":true}</span></div>`, code:`const v = { name:"Ada", ok:true };\nJSON.stringify(v);          // {"name":"Ada","ok":true}\nJSON.stringify(v, null, 2); // multi-line, indented\n// same data, different whitespace only` },
+  { title:"8. Syntax highlighting: tokenize then wrap", why:"Colour does not come from the parser — you add it after pretty-printing. The trick is to scan the JSON text with one regular expression that recognises each kind of token: strings (and keys, which are strings followed by a colon), numbers, the words true and false, and null. For every token you find, you wrap it in a small span tagged with a CSS class, then let the stylesheet paint each class a different colour. Crucially you must escape the HTML first, so that any < or & inside the data is shown as text and cannot inject markup. The result is the familiar coloured JSON you see in editors.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">escape HTML → match tokens with one regex → wrap in spans<br><span class="font-mono">"key"</span>=amber · <span class="font-mono">"str"</span>=green · <span class="font-mono">42</span>=sky · <span class="font-mono">true</span>=violet</div>`, code:`json.replace(/"(?:[^"\\\\]|\\\\.)*"(\\s*:)?|true|false|null|-?\\d+(?:\\.\\d+)?/g,\n  m => {\n    let cls = "num";\n    if (/^"/.test(m)) cls = /:$/.test(m) ? "key" : "str";\n    else if (/true|false/.test(m)) cls = "bool";\n    else if (m === "null") cls = "null";\n    return \`<span class="\${cls}">\${m}</span>\`;\n  });` },
+  { title:"9. Reading parser errors: position to line/col", why:"A raw message like 'Unexpected token } at position 42' is not very friendly, but the position number is gold. To turn that single offset into a human line and column, you slice the text up to that index and count the newlines: the number of newlines plus one is the line, and the distance from the last newline is the column. Then you can print the exact offending line and draw a caret underneath the bad column, so the user sees precisely where to fix it. Different browsers word the message differently — some give line and column directly — so you check for both forms. Good error reporting is what separates a toy from a tool.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center">"position 42" → slice → count newlines → line &amp; column<br><span class="font-mono">"items": [1, 2, 3,]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;^</span></div>`, code:`const idx = +msg.match(/position (\\d+)/)[1];\nconst before = text.slice(0, idx);\nconst line = before.split("\\n").length;       // 1-based\nconst col  = idx - before.lastIndexOf("\\n");   // 1-based\n// draw a caret: " ".repeat(col-1) + "^"` },
+  { title:"10. Common mistakes & staying safe", why:"Most invalid JSON comes from a handful of habits carried over from writing JavaScript by hand: using single quotes instead of double, leaving a trailing comma after the last item, forgetting to quote a key, or pasting in // comments. Each of these throws, and the line-and-column pointer makes them quick to spot and fix. One safety rule matters above all: never use eval to read JSON. eval will run whatever is in the string as code, so hostile input could do real damage, whereas JSON.parse only ever produces data and can never execute anything. Always reach for JSON.parse — it is both the correct tool and the safe one.", concept:`<div class="text-center w-full"><div class="text-5xl mb-2">🎉</div><p class="font-bold text-slate-700">parse (try/catch) → stringify(v,null,2) → tokenize &amp; colour. Never eval.</p></div>`, code:`// the usual culprits — all throw:\n{ 'a': 1 }     // single quotes\n{ "a": 1, }    // trailing comma\n{ a: 1 }       // unquoted key\n{ "a": 1 } //x // comment\n\nJSON.parse(text);  // ✓ safe — only ever makes DATA\neval("(" + text + ")"); // ✗ NEVER — runs arbitrary code` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>

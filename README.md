@@ -4,7 +4,7 @@
 
 🌐 **Live (all days):** https://dev48v.infy.uk/solvefromzero.php
 
-Every lesson is a single, self-contained HTML file with three tabs — 👁 **LOOK** (an interactive demo), 🧠 **UNDERSTAND** (the concept, step by step), 🔨 **BUILD** (do it yourself). No build tools, no install — open any file in a browser.
+Every lesson is a single, self-contained HTML file with three tabs — 👁 **LOOK** (interactive demo), 🧠 **UNDERSTAND** (the concept, step by step), 🔨 **BUILD** (do it yourself). No build tools, no install — open any file in a browser.
 
 ## Days
 - [SolveFromZero · Day 1 — Resume ↔ JD Match Score](https://dev48v.infy.uk/solve/day1-resume-jd-match.html) — `day1-resume-jd-match.html`
@@ -21,6 +21,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 12 — Colour-Palette Extractor](https://dev48v.infy.uk/solve/day12-color-palette.html) — `day12-color-palette.html`
 - [SolveFromZero · Day 13 — Diff Checker](https://dev48v.infy.uk/solve/day13-diff-checker.html) — `day13-diff-checker.html`
 - [SolveFromZero · Day 14 — Regex Tester](https://dev48v.infy.uk/solve/day14-regex-tester.html) — `day14-regex-tester.html`
+- [SolveFromZero · Day 15 — JSON Formatter & Validator](https://dev48v.infy.uk/solve/day15-json-formatter.html) — `day15-json-formatter.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
