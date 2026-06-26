@@ -23,6 +23,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 14 — Regex Tester](https://dev48v.infy.uk/solve/day14-regex-tester.html) — `day14-regex-tester.html`
 - [SolveFromZero · Day 15 — JSON Formatter & Validator](https://dev48v.infy.uk/solve/day15-json-formatter.html) — `day15-json-formatter.html`
 - [SolveFromZero · Day 16 — Password Strength Meter](https://dev48v.infy.uk/solve/day16-password-strength.html) — `day16-password-strength.html`
+- [SolveFromZero · Day 17 — CSV ⇄ JSON Converter](https://dev48v.infy.uk/solve/day17-csv-to-json.html) — `day17-csv-to-json.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

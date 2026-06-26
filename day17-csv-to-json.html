@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 17 — CSV ⇄ JSON Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .io-area {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.55; padding:14px;
+    margin:0; border:1px solid #e2e8f0; border-radius:10px;
+    box-sizing:border-box; width:100%; resize:vertical;
+    color:#0f172a; background:#fff;
+  }
+  .io-area:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  .chip-amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  /* output JSON pane */
+  .json-out { background:#0f172a; color:#e2e8f0; padding:14px; border-radius:10px; font-size:12.5px; line-height:1.55; overflow:auto; max-height:340px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre; }
+  .tok-key  { color:#fbbf24; }
+  .tok-str  { color:#86efac; }
+  .tok-num  { color:#7dd3fc; }
+  .tok-bool { color:#f0abfc; }
+  /* result table */
+  .rt { border-collapse:collapse; width:100%; font-size:12.5px; }
+  .rt th { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:6px 9px; text-align:left; font-weight:700; white-space:nowrap; }
+  .rt td { border:1px solid #e2e8f0; padding:6px 9px; color:#0f172a; vertical-align:top; }
+  .rt tr:nth-child(even) td { background:#f8fafc; }
+  .seg-toggle.on { background:#0f172a; color:#fff; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 17</div>
+      <h1 class="text-xl font-bold">🔄 CSV ⇄ JSON — Convert Either Way, Quotes and All</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Paste CSV — get clean JSON. Or go the other way.</h2>
+      <p class="text-slate-500 text-center mb-6">A real, character-by-character parser that respects <b>quoted fields</b> (commas &amp; newlines inside quotes), <b>escaped quotes</b> (<span class="font-mono">""</span>), blank lines and your chosen delimiter. <b>Nothing is uploaded</b> — it all runs in your browser.</p>
+
+      <!-- direction + options bar -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xs uppercase font-bold text-slate-400 tracking-wider">Direction</span>
+          <div class="flex rounded-lg overflow-hidden border border-slate-300">
+            <button id="dir-c2j" class="seg-toggle on px-4 py-1.5 text-sm font-bold">CSV → JSON</button>
+            <button id="dir-j2c" class="seg-toggle px-4 py-1.5 text-sm font-bold bg-slate-100">JSON → CSV</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs uppercase font-bold text-slate-400 tracking-wider">Delimiter</span>
+          <select id="delim" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-mono">
+            <option value=",">, comma</option>
+            <option value=";">; semicolon</option>
+            <option value="\t">⇥ tab</option>
+          </select>
+        </div>
+        <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 cursor-pointer">
+          <input id="hasHeader" type="checkbox" checked class="w-4 h-4 accent-amber-500" />
+          First row is header
+        </label>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- INPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span id="inLabel" class="text-xs uppercase font-bold text-amber-600 tracking-wider">CSV input</span>
+            <span class="text-xs text-slate-400">edit me — converts live</span>
+          </div>
+          <textarea id="input" class="io-area" rows="14" spellcheck="false"></textarea>
+        </div>
+
+        <!-- OUTPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span id="outLabel" class="text-xs uppercase font-bold text-amber-600 tracking-wider">JSON output</span>
+            <div class="flex gap-2">
+              <button id="copyBtn" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold">📋 Copy</button>
+              <button id="dlBtn" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold">⬇ Download</button>
+            </div>
+          </div>
+          <div id="error" class="hidden mb-2 text-sm bg-rose-50 border border-rose-200 text-rose-700 rounded-lg px-3 py-2 font-semibold"></div>
+          <div id="output" class="json-out">—</div>
+        </div>
+      </div>
+
+      <!-- table preview (CSV→JSON only) -->
+      <div id="tableWrap" class="bg-white border border-slate-200 rounded-xl p-4 mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs uppercase font-bold text-amber-600 tracking-wider">Parsed as a table</span>
+          <span id="rowCount" class="text-xs text-slate-400"></span>
+        </div>
+        <div class="overflow-auto" style="max-height:300px;">
+          <div id="tableOut"></div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6">↑ Notice row <span class="font-mono">2</span>: the name <span class="font-mono">"Smith, John"</span> is wrapped in quotes, so its comma is part of the value — not a column break. A naive <span class="font-mono">split(',')</span> would shatter it into two fields. The parser below walks the text one character at a time, flipping an <b>in-quotes</b> flag, which is the only correct way to handle it.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How CSV ⇄ JSON actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Walk the text character-by-character with an <span class="font-mono">inQuotes</span> flag to split into rows and fields safely → turn rows into objects using the header → <span class="font-mono">JSON.stringify</span> → and reverse it: collect keys, quote only the fields that need it. ~60 lines for a correct, library-free converter both ways.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The naive split — and why it breaks</h3></div><pre>// looks fine until a value contains the delimiter:
+const line = '1,"Smith, John",30';
+line.split(",");
+// ➜ ['1', '"Smith', ' John"', '30']   ❌ 4 fields, should be 3
+// the comma INSIDE the quotes was treated as a separator.
+// you cannot fix this with a regex — you must track state.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">A stateful char-by-char parser</h3></div><pre>// walk every character; remember if we're inside quotes.
+function parseCSV(text, delim = ",") {
+  const rows = []; let row = [], field = "", inQuotes = false;
+  for (let i = 0; i &lt; text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' &amp;&amp; next === '"') { field += '"'; i++; }   // "" → "
+      else if (c === '"') inQuotes = false;                  // close quote
+      else field += c;                                       // incl. , and \n
+    } else {
+      if (c === '"') inQuotes = true;                        // open quote
+      else if (c === delim) { row.push(field); field = ""; } // field break
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;                       // ignore CR
+    }
+  }
+  row.push(field); rows.push(row);          // flush the last field/row
+  return rows;
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Clean up: trim &amp; drop blank lines</h3></div><pre>// after parsing, a trailing newline leaves an empty row;
+// and stray blank lines shouldn't become {}.
+function clean(rows) {
+  return rows.filter(r =>
+    !(r.length === 1 &amp;&amp; r[0].trim() === "")   // skip fully-blank rows
+  ).map(r => r.map(cell => cell.trim()));     // trim each cell
+}
+// note: we trim the PARSED cell — never trim before parsing,
+// or you'd corrupt spaces that live inside quoted fields.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Rows → objects using the header</h3></div><pre>// first row names the columns; the rest become objects.
+function rowsToObjects(rows, hasHeader = true) {
+  if (rows.length === 0) return [];
+  const header = hasHeader
+    ? rows[0]
+    : rows[0].map((_, i) => "col" + (i + 1));   // synthesize keys
+  const body = hasHeader ? rows.slice(1) : rows;
+  return body.map(r => {
+    const obj = {};
+    header.forEach((key, i) => obj[key] = coerce(r[i] ?? ""));
+    return obj;
+  });
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Type coercion (everything is a string)</h3></div><pre>// CSV has no types — "30" is text. Optionally coerce.
+function coerce(v) {
+  if (v === "") return "";
+  if (v === "true")  return true;
+  if (v === "false") return false;
+  // only treat as a number if it round-trips exactly
+  // (so "007" or "1,2" stay strings)
+  if (/^-?\d+(\.\d+)?$/.test(v)) {
+    const n = Number(v);
+    if (String(n) === v) return n;
+  }
+  return v;
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">CSV → JSON, end to end</h3></div><pre>function csvToJson(text, { delim = ",", hasHeader = true } = {}) {
+  const rows = clean(parseCSV(text, delim));
+  const objects = rowsToObjects(rows, hasHeader);
+  return JSON.stringify(objects, null, 2);   // pretty-printed
+}
+
+csvToJson('id,name,age\n1,"Smith, John",30');
+// ➜ [ { "id": 1, "name": "Smith, John", "age": 30 } ]</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Reverse: quote a field only if it needs it</h3></div><pre>// a field needs quoting if it contains the delimiter,
+// a quote, or a newline. quotes inside get doubled.
+function escapeField(value, delim) {
+  const s = String(value ?? "");
+  if (s.includes(delim) || s.includes('"') ||
+      s.includes("\n") || s.includes("\r")) {
+    return '"' + s.replace(/"/g, '""') + '"';   // " → ""
+  }
+  return s;
+}
+escapeField('Smith, John', ',');  // ➜ "Smith, John"
+escapeField('say "hi"',     ',');  // ➜ "say ""hi"""</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">JSON → CSV (collect every key)</h3></div><pre>function jsonToCsv(json, delim = ",") {
+  const arr = JSON.parse(json);                 // throws on bad JSON
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  // union of keys across ALL rows (objects may differ)
+  const keys = [...new Set(arr.flatMap(o => Object.keys(o)))];
+  const head = keys.map(k => escapeField(k, delim)).join(delim);
+  const body = arr.map(o =>
+    keys.map(k => escapeField(o[k] ?? "", delim)).join(delim)
+  );
+  return [head, ...body].join("\n");
+}
+// then wire both functions to a textarea's "input" event — done.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 17 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">CSV is deceptively simple. The only correct parser walks <span class="font-mono">char-by-char</span> with an <span class="font-mono">inQuotes</span> flag — never <span class="font-mono">split(',')</span>. Reverse it by quoting only the fields that need it.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== CSV ⇄ JSON CONVERTER (real char-by-char parser, browser-only) =====
+const inputEl   = document.getElementById("input");
+const outputEl  = document.getElementById("output");
+const tableOut  = document.getElementById("tableOut");
+const tableWrap = document.getElementById("tableWrap");
+const errorEl   = document.getElementById("error");
+const rowCountEl= document.getElementById("rowCount");
+const delimSel  = document.getElementById("delim");
+const headerCb  = document.getElementById("hasHeader");
+const inLabel   = document.getElementById("inLabel");
+const outLabel  = document.getElementById("outLabel");
+const dirC2J    = document.getElementById("dir-c2j");
+const dirJ2C    = document.getElementById("dir-j2c");
+const copyBtn   = document.getElementById("copyBtn");
+const dlBtn     = document.getElementById("dlBtn");
+
+let direction = "c2j";   // "c2j" = CSV→JSON, "j2c" = JSON→CSV
+
+const SAMPLE_CSV =
+`id,name,age,city,note
+1,"Smith, John",30,"New York","says ""hello"""
+2,Ada Lovelace,36,London,first programmer
+3,"O'Neil, Pat",,Paris,age missing
+
+4,Grace Hopper,85,"Arlington, VA",compiler pioneer`;
+
+const SAMPLE_JSON =
+`[
+  { "id": 1, "name": "Smith, John", "age": 30, "city": "New York" },
+  { "id": 2, "name": "Ada Lovelace", "age": 36, "city": "London" },
+  { "id": 3, "name": "O'Neil, Pat", "age": null, "city": "Paris" }
+]`;
+
+// resolve the chosen delimiter ("\t" in the <option> value → real tab)
+function delim(){ return delimSel.value === "\\t" ? "\t" : delimSel.value; }
+
+// --- core: stateful character-by-character CSV parser ---
+function parseCSV(text, d){
+  const rows = []; let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i], next = text[i + 1];
+    if (inQuotes){
+      if (c === '"' && next === '"'){ field += '"'; i++; }   // escaped "" → "
+      else if (c === '"') inQuotes = false;                  // closing quote
+      else field += c;                                       // keep , and \n
+    } else {
+      if (c === '"') inQuotes = true;                        // opening quote
+      else if (c === d){ row.push(field); field = ""; }      // field break
+      else if (c === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;                       // ignore CR
+    }
+  }
+  row.push(field); rows.push(row);                           // flush last
+  return rows;
+}
+
+// drop fully-blank rows; trim each parsed cell
+function cleanRows(rows){
+  return rows
+    .filter(r => !(r.length === 1 && r[0].trim() === ""))
+    .map(r => r.map(cell => cell.trim()));
+}
+
+// CSV has no types — optionally coerce numbers / booleans / empty
+function coerce(v){
+  if (v === "") return "";
+  if (v === "true")  return true;
+  if (v === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(v)){
+    const n = Number(v);
+    if (String(n) === v) return n;   // round-trips exactly (keeps "007" a string)
+  }
+  return v;
+}
+
+function rowsToObjects(rows, hasHeader){
+  if (rows.length === 0) return [];
+  const header = hasHeader ? rows[0] : rows[0].map((_, i) => "col" + (i + 1));
+  const body   = hasHeader ? rows.slice(1) : rows;
+  return body.map(r => {
+    const obj = {};
+    header.forEach((key, i) => { obj[key] = coerce(r[i] !== undefined ? r[i] : ""); });
+    return obj;
+  });
+}
+
+// quote a field only if it contains the delimiter, a quote, or a newline
+function escapeField(value, d){
+  const s = (value === null || value === undefined) ? "" : String(value);
+  if (s.includes(d) || s.includes('"') || s.includes("\n") || s.includes("\r")){
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function jsonToCsv(json, d){
+  const arr = JSON.parse(json);
+  if (!Array.isArray(arr)) throw new Error("JSON must be an array of objects.");
+  if (arr.length === 0) return "";
+  const keys = [...new Set(arr.flatMap(o => (o && typeof o === "object") ? Object.keys(o) : []))];
+  if (keys.length === 0) throw new Error("Array contains no object rows.");
+  const headLine = keys.map(k => escapeField(k, d)).join(d);
+  const lines = arr.map(o => keys.map(k => escapeField(o ? o[k] : "", d)).join(d));
+  return [headLine, ...lines].join("\n");
+}
+
+// tiny JSON syntax highlighter for the dark output pane
+function highlight(json){
+  const esc = json.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return esc.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g, (m) => {
+    let cls = "tok-num";
+    if (/^"/.test(m)) cls = /:$/.test(m) ? "tok-key" : "tok-str";
+    else if (/true|false/.test(m)) cls = "tok-bool";
+    else if (/null/.test(m)) cls = "tok-bool";
+    return '<span class="' + cls + '">' + m + '</span>';
+  });
+}
+
+function showError(msg){
+  errorEl.textContent = "⚠ " + msg;
+  errorEl.classList.remove("hidden");
+}
+function clearError(){ errorEl.classList.add("hidden"); errorEl.textContent = ""; }
+
+let lastOutput = "";   // raw text, for copy / download
+
+function renderTable(objects){
+  if (objects.length === 0){ tableOut.innerHTML = '<div class="text-slate-400 text-sm">No data rows.</div>'; rowCountEl.textContent = ""; return; }
+  const keys = [...new Set(objects.flatMap(o => Object.keys(o)))];
+  const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  let html = '<table class="rt"><thead><tr>' + keys.map(k => '<th>' + esc(k) + '</th>').join("") + '</tr></thead><tbody>';
+  for (const o of objects){
+    html += '<tr>' + keys.map(k => {
+      const v = o[k];
+      const cell = (v === "" || v === null || v === undefined) ? '<span class="text-slate-300">—</span>' : esc(v);
+      return '<td>' + cell + '</td>';
+    }).join("") + '</tr>';
+  }
+  html += '</tbody></table>';
+  tableOut.innerHTML = html;
+  rowCountEl.textContent = objects.length + " row" + (objects.length === 1 ? "" : "s") + " · " + keys.length + " column" + (keys.length === 1 ? "" : "s");
+}
+
+function convert(){
+  clearError();
+  const text = inputEl.value;
+
+  if (direction === "c2j"){
+    tableWrap.classList.remove("hidden");
+    if (text.trim() === ""){ outputEl.textContent = "—"; tableOut.innerHTML = ""; rowCountEl.textContent = ""; lastOutput = ""; return; }
+    try {
+      const rows = cleanRows(parseCSV(text, delim()));
+      const objects = rowsToObjects(rows, headerCb.checked);
+      lastOutput = JSON.stringify(objects, null, 2);
+      outputEl.innerHTML = highlight(lastOutput);
+      renderTable(objects);
+    } catch (e){
+      showError("Could not parse CSV: " + e.message);
+      outputEl.textContent = "—"; tableOut.innerHTML = ""; rowCountEl.textContent = "";
+    }
+  } else {
+    tableWrap.classList.add("hidden");
+    if (text.trim() === ""){ outputEl.textContent = "—"; lastOutput = ""; return; }
+    try {
+      lastOutput = jsonToCsv(text, delim());
+      // show CSV output as plain text (escape HTML, no JSON colours)
+      outputEl.textContent = lastOutput;
+    } catch (e){
+      showError("Invalid JSON: " + e.message);
+      outputEl.textContent = "—";
+    }
+  }
+}
+
+// debounce so we recompute shortly after typing stops
+let timer = null;
+function scheduleConvert(){ clearTimeout(timer); timer = setTimeout(convert, 180); }
+inputEl.addEventListener("input", scheduleConvert);
+delimSel.addEventListener("change", convert);
+headerCb.addEventListener("change", convert);
+
+// direction toggle
+function setDirection(dir){
+  direction = dir;
+  if (dir === "c2j"){
+    dirC2J.classList.add("on"); dirC2J.classList.remove("bg-slate-100");
+    dirJ2C.classList.remove("on"); dirJ2C.classList.add("bg-slate-100");
+    inLabel.textContent = "CSV input"; outLabel.textContent = "JSON output";
+    inputEl.value = SAMPLE_CSV;
+  } else {
+    dirJ2C.classList.add("on"); dirJ2C.classList.remove("bg-slate-100");
+    dirC2J.classList.remove("on"); dirC2J.classList.add("bg-slate-100");
+    inLabel.textContent = "JSON input"; outLabel.textContent = "CSV output";
+    inputEl.value = SAMPLE_JSON;
+  }
+  convert();
+}
+dirC2J.onclick = () => setDirection("c2j");
+dirJ2C.onclick = () => setDirection("j2c");
+
+// copy / download
+copyBtn.onclick = () => {
+  if (!lastOutput) return;
+  navigator.clipboard?.writeText(lastOutput);
+  const prev = copyBtn.textContent; copyBtn.textContent = "✓ Copied!";
+  setTimeout(() => copyBtn.textContent = prev, 1000);
+};
+dlBtn.onclick = () => {
+  if (!lastOutput) return;
+  const isJson = direction === "c2j";
+  const blob = new Blob([lastOutput], { type: isJson ? "application/json" : "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = isJson ? "data.json" : "data.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+// seed the tool alive on open
+inputEl.value = SAMPLE_CSV;
+convert();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What CSV actually is", why:"CSV stands for comma-separated values, and at first glance it is the simplest format imaginable: each line is a row, and within a line commas separate the columns. The very first line is usually a header that names each column, and every line below it is one record. Because it is just plain text, any spreadsheet, database, or programming language can read and write it, which is why it has survived for decades as the universal way to move tabular data around. The appeal is that you can open it in Notepad and read it with your own eyes. That readability is exactly what tricks people into thinking parsing it is trivial — and it is, right up until a value contains a comma.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">id,name,age<br>1,Ada,36<br>2,Grace,85<br><span class="text-xs text-slate-500 font-sans">line 1 = header · each line = one row · commas split columns</span></div>`, code:`// the friendly mental model:\n// row 0 names the columns, every other line is a record\n"id,name,age\\n1,Ada,36\\n2,Grace,85"\n//   header:  id | name | age\n//   row 1:    1 | Ada  | 36\n//   row 2:    2 | Grace| 85` },
+  { title:"2. The naive split(',') trap", why:"The obvious way to parse a CSV line is to call split on the comma, and for clean data it works perfectly. The trap springs the moment a value legitimately contains a comma — a full name written as 'Smith, John', a price like '1,000', or an address. To allow this, the CSV standard says you wrap such a value in double quotes, and the comma inside the quotes is then part of the value, not a separator. But split has no idea about quotes; it blindly cuts on every comma, so 'Smith, John' becomes two broken fields and every column after it shifts. No regular expression fully fixes this either, because quotes can be nested and escaped. The only correct approach is to track state as you read.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono text-rose-600">'1,"Smith, John",30'.split(',')<br>➜ ['1', '"Smith', ' John"', '30']<br><span class="text-xs text-slate-500 font-sans">❌ 4 fields — the quoted comma was split too</span></div>`, code:`const line = '1,"Smith, John",30';\nline.split(",");\n// ➜ ['1', '"Smith', ' John"', '30']   ❌ should be 3 fields\n// the comma inside the quotes is DATA, not a separator.\n// split() can't tell the difference — you need a real parser.` },
+  { title:"3. A stateful char-by-char parser", why:"The correct parser reads the text one character at a time and keeps a single boolean flag: are we currently inside a quoted field or not. Outside quotes, a comma ends the current field and a newline ends the current row. But the instant we hit an opening quote, we flip the flag on, and while it is on we ignore commas and newlines completely — they are just ordinary characters that belong to the value. When we meet the closing quote, we flip the flag back off and resume normal splitting. This tiny piece of memory is the whole secret: by remembering whether we are inside quotes, the parser knows whether a comma means 'next column' or 'literal comma', which split could never figure out.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center">walk every char · keep one flag: <b>inQuotes?</b><br><span class="text-xs text-slate-500">outside quotes a comma splits · inside quotes it's just text</span></div>`, code:`let inQuotes = false, field = "", row = [];\nfor (const c of line){\n  if (inQuotes){\n    if (c === '"') inQuotes = false;   // close\n    else field += c;                   // keep , and \\n\n  } else {\n    if (c === '"') inQuotes = true;    // open\n    else if (c === ",") { row.push(field); field = ""; }\n    else field += c;\n  }\n}\nrow.push(field);` },
+  { title:"4. Escaped quotes — \"\" means one \"", why:"A new question appears: if double quotes wrap a field, how do you put an actual double quote inside the value? The CSV convention is to write it twice. So a field whose real value is say \"hi\" is stored as \"say \"\"hi\"\"\" — the outer pair are the wrappers, and each doubled pair inside represents a single literal quote. Your parser handles this by peeking at the next character whenever it sees a quote while inside a field: if the next character is also a quote, it appends one quote to the value and skips ahead, staying inside the field; only a lone quote means the field is closing. This look-ahead is a small but essential detail — miss it and any value containing quotation marks will be mangled.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">"say ""hi"""<br><span class="text-xs text-slate-500 font-sans">the doubled "" is ONE literal " inside the value → say "hi"</span></div>`, code:`// inside quotes, peek at the next char:\nif (c === '"' && next === '"'){ field += '"'; i++; }  // "" → "\nelse if (c === '"') inQuotes = false;                 // lone " = close\nelse field += c;\n\n// '"say ""hi"""'  ➜  value:  say "hi"` },
+  { title:"5. The header row becomes object keys", why:"Once the text is safely split into a grid of rows and fields, turning it into JSON is mostly bookkeeping. The first row holds the column names, so you pull it off the top and use those strings as the keys. Then for every remaining row you build an object, pairing each header name with the value in the matching position. The result is an array of objects, which is the shape almost every API and JavaScript program expects. If a file has no header you can synthesize keys like col1, col2 instead. This step is also where length mismatches show up — a row with fewer fields than the header gets empty strings for the missing columns, which is friendlier than crashing.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center">header <span class="font-mono">[id, name, age]</span> + row <span class="font-mono">[1, Ada, 36]</span><br>➜ <span class="font-mono">{ id: 1, name: "Ada", age: 36 }</span></div>`, code:`const header = rows[0];                 // ["id","name","age"]\nconst objects = rows.slice(1).map(r => {\n  const obj = {};\n  header.forEach((key, i) => obj[key] = r[i] ?? "");\n  return obj;\n});\n// ➜ [{ id:"1", name:"Ada", age:"36" }, …]` },
+  { title:"6. Types — everything is a string", why:"CSV is pure text, so it has no concept of numbers, booleans, or null. The age 36 and the word Ada are stored identically, as characters. When you convert to JSON you must decide whether to leave every value as a string or to guess its type, a step called coercion. A useful rule is to convert a value to a number only if it looks exactly like one and round-trips cleanly, so 36 becomes the number 36 but a zip code like 007 stays a string, because turning it into 7 would silently corrupt the data. Likewise true and false can become booleans and an empty cell can become an empty string or null. Coercion is convenient but risky, so good tools make it explicit and conservative.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center">CSV stores <b>only text</b> — <span class="font-mono">"36"</span> not <span class="font-mono">36</span><br><span class="text-xs text-slate-500">coerce carefully: keep "007" a string, don't lose the zero</span></div>`, code:`function coerce(v){\n  if (v === "true")  return true;\n  if (v === "false") return false;\n  if (/^-?\\d+(\\.\\d+)?$/.test(v) && String(Number(v)) === v)\n    return Number(v);     // "36" → 36, but "007" stays "007"\n  return v;               // everything else stays a string\n}` },
+  { title:"7. JSON → CSV: quote only what needs it", why:"Converting back is the mirror image. You take the array of objects, gather the column names from the keys (taking the union across all objects, since some rows may have extra fields), and write that as the header line. Then for each object you emit its values in the same key order, joined by the delimiter. The crucial detail is escaping: a value must be wrapped in quotes only if it contains the delimiter, a double quote, or a newline — and any quotes inside it must be doubled. Values without those characters are written bare, keeping the file clean and readable. Quote everything and the file becomes noisy; quote nothing and it corrupts on the first comma. The rule 'quote only when necessary' is exactly what spreadsheets do.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">Smith, John ➜ "Smith, John"<br>plain ➜ plain<br><span class="text-xs text-slate-500 font-sans">wrap in quotes ONLY if it has a comma, quote, or newline</span></div>`, code:`function escapeField(s, delim){\n  s = String(s ?? "");\n  if (s.includes(delim) || s.includes('"') || s.includes("\\n"))\n    return '"' + s.replace(/"/g, '""') + '"';   // " → ""\n  return s;     // safe as-is\n}\n// header = union of all keys; rows follow the same key order` },
+  { title:"8. Delimiters & locales", why:"The comma in CSV is a convention, not a law, and it causes real trouble in much of the world. In many European locales the comma is the decimal separator — they write 3,14 for pi — so spreadsheets there default to using a semicolon to separate columns instead, producing files that are technically CSV but break a comma-based parser. Tab-separated values, or TSV, are another common variant, popular because tabs almost never appear inside data. A robust tool therefore lets you pick the delimiter rather than assuming a comma. Some files even announce it with a 'sep=;' line at the top. The safe move is to detect or ask for the separator, because guessing wrong turns every row into one giant field.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><span class="font-mono">,</span> comma · <span class="font-mono">;</span> semicolon (EU) · <span class="font-mono">⇥</span> tab (TSV)<br><span class="text-xs text-slate-500">EU uses , for decimals → many files use ; instead</span></div>`, code:`// same parser, just pass the delimiter in:\nparseCSV(text, ";");    // European-style\nparseCSV(text, "\\t");   // tab-separated (TSV)\n\n// some files declare it on line one:  sep=;\n// guess wrong and the whole row becomes a single field` },
+  { title:"9. Newlines inside quoted fields", why:"One of the most surprising legal features of CSV is that a single field can span multiple lines. If a value is quoted, a newline inside those quotes is part of the value — useful for things like a multi-line address or a comment. This breaks the tempting shortcut of splitting the file on line breaks first and parsing each line separately, because a single record might actually occupy three physical lines. The character-by-character parser handles this for free: since it only treats a newline as a row separator when the inQuotes flag is off, a newline encountered inside quotes is simply appended to the field like any other character. This is the strongest argument for parsing the whole text as one stream rather than line by line.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">"123 Main St<br>Apt 4"<br><span class="text-xs text-slate-500 font-sans">a newline inside quotes is part of ONE field, not a new row</span></div>`, code:`// because we only break rows when inQuotes is false:\nif (inQuotes){\n  if (c === '"') inQuotes = false;\n  else field += c;        // \\n inside quotes → kept in the value\n}\n// so NEVER pre-split on "\\n" — parse the whole text as a stream` },
+  { title:"10. Big files — streaming the smart way", why:"Everything so far loads the entire file into memory and into one big array, which is perfect for a few thousand rows but falls over on a multi-gigabyte export that would not even fit in RAM. The professional answer is streaming: read the file in chunks, parse complete rows as they arrive, hand each row to your code, then throw it away before reading the next chunk. The same character-by-character state machine drives this — you just feed it bytes as they come and emit a record every time you finish one, keeping memory flat no matter how large the file. In production you would reach for a battle-tested library such as Papa Parse in the browser or a streaming reader on the server, but they are doing exactly the parser you just built, only chunk by chunk.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-4xl mb-2">🎉</div><p class="font-bold text-slate-700">Parse char-by-char with an inQuotes flag. Quote only what needs it on the way back. Stream for huge files; use Papa Parse in production.</p></div>`, code:`// don't hold a 2GB file in memory — stream it:\n// 1) read the file in chunks\n// 2) run the SAME state machine over each chunk\n// 3) emit a record whenever a row completes, then discard it\n// memory stays flat regardless of file size.\n// production: Papa Parse (browser) or a streaming CSV reader (server)` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>
