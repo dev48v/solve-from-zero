@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 18 — WCAG Contrast Checker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .hex-input {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:14px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px;
+    box-sizing:border-box; width:100%; color:#0f172a; background:#fff; text-transform:uppercase;
+  }
+  .hex-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  .swatch { width:48px; height:40px; padding:0; border:1px solid #cbd5e1; border-radius:10px; cursor:pointer; background:none; }
+  .swatch::-webkit-color-swatch-wrapper { padding:2px; }
+  .swatch::-webkit-color-swatch { border:none; border-radius:7px; }
+  .chip-amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  /* big ratio readout */
+  .ratio-big { font-size:64px; line-height:1; font-weight:800; font-variant-numeric:tabular-nums; }
+  /* pass / fail badges */
+  .badge { border-radius:10px; padding:12px 14px; border:1px solid; text-align:center; }
+  .badge .lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; opacity:.85; }
+  .badge .req { font-size:11px; opacity:.7; }
+  .badge .verdict { font-size:18px; font-weight:800; margin-top:4px; }
+  .pass { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
+  .fail { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 18</div>
+      <h1 class="text-xl font-bold">🌗 Contrast Checker — WCAG-Accessible Colors</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Pick two colors — see if real people can read them.</h2>
+      <p class="text-slate-500 text-center mb-6">This computes the <b>true WCAG contrast ratio</b> from relative luminance — linearize each sRGB channel, weight R/G/B by <span class="font-mono">0.2126 / 0.7152 / 0.0722</span>, then <span class="font-mono">(L1+0.05)/(L2+0.05)</span>. <b>Nothing is uploaded</b> — it all runs in your browser.</p>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- COLOR INPUTS -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-4">Your two colors</div>
+
+          <div class="mb-5">
+            <label class="text-sm font-semibold text-slate-600 block mb-2">Foreground (text)</label>
+            <div class="flex items-center gap-3">
+              <input id="fgPick" type="color" class="swatch" value="#1f2937" />
+              <input id="fgHex" class="hex-input" value="#1F2937" spellcheck="false" maxlength="7" />
+            </div>
+          </div>
+
+          <div class="mb-5">
+            <label class="text-sm font-semibold text-slate-600 block mb-2">Background</label>
+            <div class="flex items-center gap-3">
+              <input id="bgPick" type="color" class="swatch" value="#fef3c7" />
+              <input id="bgHex" class="hex-input" value="#FEF3C7" spellcheck="false" maxlength="7" />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button id="swap" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold">⇅ Swap</button>
+            <button data-fg="#000000" data-bg="#FFFFFF" class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">Black / White</button>
+            <button data-fg="#777777" data-bg="#FFFFFF" class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">#777 / White</button>
+            <button data-fg="#FFFFFF" data-bg="#2563EB" class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">White / Blue</button>
+            <button data-fg="#92400E" data-bg="#FEF3C7" class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">Amber pair</button>
+          </div>
+
+          <div id="hint" class="mt-5 text-sm chip-amber rounded-lg px-3 py-2 font-semibold hidden"></div>
+        </div>
+
+        <!-- RATIO + BADGES -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">Contrast ratio</div>
+          <div class="flex items-end gap-3 mb-1">
+            <div id="ratio" class="ratio-big text-slate-900">21:1</div>
+            <div id="ratioWord" class="text-sm font-bold text-slate-400 pb-2">excellent</div>
+          </div>
+          <div class="text-xs text-slate-400 mb-4">Range is <span class="font-mono">1:1</span> (no contrast) to <span class="font-mono">21:1</span> (black on white).</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div id="b-aa"   class="badge"><div class="lbl">AA · normal</div><div class="req">needs ≥ 4.5</div><div class="verdict">—</div></div>
+            <div id="b-aal"  class="badge"><div class="lbl">AA · large</div><div class="req">needs ≥ 3.0</div><div class="verdict">—</div></div>
+            <div id="b-aaa"  class="badge"><div class="lbl">AAA · normal</div><div class="req">needs ≥ 7.0</div><div class="verdict">—</div></div>
+            <div id="b-aaal" class="badge"><div class="lbl">AAA · large</div><div class="req">needs ≥ 4.5</div><div class="verdict">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE PREVIEW -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mt-4">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">Live preview — your colors, real text</div>
+        <div id="preview" class="rounded-xl p-6 border border-slate-200 transition-colors">
+          <div id="pvLarge" class="font-bold mb-3" style="font-size:24px;">Large heading text (24px bold)</div>
+          <div id="pvNormal" style="font-size:15px; line-height:1.6;">Normal body text at 15px. The quick brown fox jumps over the lazy dog. If you have to squint, lean in, or guess at a letter, the contrast is too low — and many of your readers can't lean in at all.</div>
+          <div id="pvSmall" class="mt-3" style="font-size:12px; opacity:.95;">Fine print / captions at 12px — the hardest case to pass.</div>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6"><b>How the number is built:</b> each color's R, G, B is turned into a fraction 0–1, <i>linearized</i> with the sRGB gamma curve (screens store color non-linearly — we undo that), then combined with the weights <span class="font-mono">0.2126·R + 0.7152·G + 0.0722·B</span> — green counts most because the eye is most sensitive to it. That gives each color a <b>relative luminance</b> L. The ratio is <span class="font-mono">(L<sub>lighter</sub> + 0.05) / (L<sub>darker</sub> + 0.05)</span>; the <span class="font-mono">+0.05</span> models a little ambient screen glare so pure black never divides by zero.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a contrast ratio is computed</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Parse the hex into R, G, B → <span class="font-mono">linearize</span> each channel through the sRGB gamma curve → combine with the luminance weights → take the ratio of the two luminances with the <span class="font-mono">+0.05</span> offset → compare against the WCAG thresholds. ~40 lines for a correct, library-free checker.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Hex → RGB</h3></div><pre>// "#1F2937" → { r: 31, g: 41, b: 55 }
+function hexToRgb(hex){
+  hex = hex.replace("#", "").trim();
+  if (hex.length === 3)                        // shorthand "f80" → "ff8800"
+    hex = hex.split("").map(c =&gt; c + c).join("");
+  const n = parseInt(hex, 16);
+  return { r: (n &gt;&gt; 16) &amp; 255, g: (n &gt;&gt; 8) &amp; 255, b: n &amp; 255 };
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Linearize one channel (undo sRGB gamma)</h3></div><pre>// screens store color on a curve; undo it before any math.
+// input 0–255 → fraction 0–1 → linear light 0–1.
+function linearize(channel){
+  const c = channel / 255;
+  return c &lt;= 0.03928
+    ? c / 12.92                              // tiny dark values: straight line
+    : Math.pow((c + 0.055) / 1.055, 2.4);   // the rest: power curve
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Relative luminance (weight the channels)</h3></div><pre>// combine the three linear channels into one brightness value.
+// green weighs most — the human eye is most sensitive to it.
+function luminance({ r, g, b }){
+  return 0.2126 * linearize(r)
+       + 0.7152 * linearize(g)
+       + 0.0722 * linearize(b);
+}
+// luminance is 0 for black, 1 for white.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The contrast ratio</h3></div><pre>// lighter over darker, each nudged by +0.05 (ambient glare).
+function contrastRatio(hexA, hexB){
+  const L1 = luminance(hexToRgb(hexA));
+  const L2 = luminance(hexToRgb(hexB));
+  const lighter = Math.max(L1, L2);
+  const darker  = Math.min(L1, L2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+contrastRatio("#000000", "#FFFFFF");  // ➜ 21
+contrastRatio("#777777", "#FFFFFF");  // ➜ 4.48</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Check it against the WCAG thresholds</h3></div><pre>// the four conformance levels, each a simple comparison.
+function wcag(ratio){
+  return {
+    AA_normal:  ratio &gt;= 4.5,   // body text
+    AA_large:   ratio &gt;= 3.0,   // ≥18pt, or ≥14pt bold
+    AAA_normal: ratio &gt;= 7.0,   // stricter body text
+    AAA_large:  ratio &gt;= 4.5,
+  };
+}
+wcag(4.48);  // ➜ { AA_normal:false, AA_large:true, ... }</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Keep the picker and the hex field in sync</h3></div><pre>// a native &lt;input type="color"&gt; speaks lowercase hex.
+// mirror typing into it, and mirror it back into the text field.
+fgHex.addEventListener("input", () =&gt; {
+  if (/^#?[0-9a-f]{6}$/i.test(fgHex.value.trim()))
+    fgPick.value = "#" + fgHex.value.replace("#", "");
+  update();
+});
+fgPick.addEventListener("input", () =&gt; {
+  fgHex.value = fgPick.value.toUpperCase();
+  update();
+});</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Suggest a fix — nudge toward AA</h3></div><pre>// if it fails, darken the darker color until it passes 4.5.
+// (one easy strategy; you could lighten the light one instead.)
+function nudgeToAA(fgHex, bgHex){
+  let fg = hexToRgb(fgHex), bg = hexToRgb(bgHex);
+  const darken = luminance(fg) &lt; luminance(bg) ? "fg" : "bg";
+  let target = darken === "fg" ? fg : bg;
+  while (contrastRatio(rgbToHex(fg), rgbToHex(bg)) &lt; 4.5
+         &amp;&amp; (target.r || target.g || target.b)){
+    target.r = Math.max(0, target.r - 8);
+    target.g = Math.max(0, target.g - 8);
+    target.b = Math.max(0, target.b - 8);
+  }
+  return { fg: rgbToHex(fg), bg: rgbToHex(bg) };
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wire it all together</h3></div><pre>function update(){
+  const fg = fgHex.value, bg = bgHex.value;
+  const ratio = contrastRatio(fg, bg);
+  ratioEl.textContent = ratio.toFixed(2).replace(/\.00$/, "") + ":1";
+  const r = wcag(ratio);
+  setBadge(badgeAA,  r.AA_normal);
+  setBadge(badgeAAl, r.AA_large);
+  // ...and paint the live preview
+  preview.style.color = fg;
+  preview.style.background = bg;
+}
+update();   // run once on load — done.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 18 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">Contrast is not a vibe — it's a number. Linearize each channel, weight by <span class="font-mono">0.2126 / 0.7152 / 0.0722</span>, take <span class="font-mono">(L1+0.05)/(L2+0.05)</span>, and hold it to <span class="font-mono">4.5</span> for body text. Never rely on color alone.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== WCAG CONTRAST CHECKER (real luminance math, browser-only) =====
+const fgPick = document.getElementById("fgPick");
+const fgHex  = document.getElementById("fgHex");
+const bgPick = document.getElementById("bgPick");
+const bgHex  = document.getElementById("bgHex");
+const ratioEl   = document.getElementById("ratio");
+const ratioWord = document.getElementById("ratioWord");
+const previewEl = document.getElementById("preview");
+const hintEl    = document.getElementById("hint");
+const swapBtn   = document.getElementById("swap");
+
+// --- hex → { r, g, b } ; supports #abc shorthand ---
+function hexToRgb(hex){
+  hex = hex.replace("#", "").trim();
+  if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+  const n = parseInt(hex, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex({ r, g, b }){
+  const h = (v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0");
+  return "#" + h(r) + h(g) + h(b);
+}
+
+// --- linearize one sRGB channel (undo gamma): 0–255 → linear 0–1 ---
+function linearize(channel){
+  const c = channel / 255;
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+// --- relative luminance: weight R/G/B (eye favours green) ---
+function luminance({ r, g, b }){
+  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+}
+
+// --- the WCAG contrast ratio: (lighter+0.05)/(darker+0.05) ---
+function contrastRatio(hexA, hexB){
+  const L1 = luminance(hexToRgb(hexA));
+  const L2 = luminance(hexToRgb(hexB));
+  const lighter = Math.max(L1, L2), darker = Math.min(L1, L2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function wcag(ratio){
+  return {
+    AA_normal:  ratio >= 4.5,
+    AA_large:   ratio >= 3.0,
+    AAA_normal: ratio >= 7.0,
+    AAA_large:  ratio >= 4.5,
+  };
+}
+
+const isValidHex = (v) => /^#?[0-9a-f]{6}$/i.test(v.trim()) || /^#?[0-9a-f]{3}$/i.test(v.trim());
+function normHex(v){
+  let h = v.replace("#", "").trim();
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  return "#" + h.toLowerCase();
+}
+
+function setBadge(id, ok){
+  const el = document.getElementById(id);
+  el.classList.remove("pass", "fail");
+  el.classList.add(ok ? "pass" : "fail");
+  el.querySelector(".verdict").textContent = ok ? "✓ PASS" : "✗ FAIL";
+}
+
+function word(ratio){
+  if (ratio >= 7)   return "excellent";
+  if (ratio >= 4.5) return "good";
+  if (ratio >= 3)   return "borderline";
+  return "too low";
+}
+
+// suggest a fix: darken the darker colour until it reaches AA (4.5)
+function suggestFix(fg, bg){
+  let fgr = hexToRgb(fg), bgr = hexToRgb(bg);
+  const fgIsDark = luminance(fgr) < luminance(bgr);
+  let target = fgIsDark ? fgr : bgr;
+  let guard = 0;
+  while (contrastRatio(rgbToHex(fgr), rgbToHex(bgr)) < 4.5 &&
+         (target.r > 0 || target.g > 0 || target.b > 0) && guard++ < 64){
+    target.r = Math.max(0, target.r - 8);
+    target.g = Math.max(0, target.g - 8);
+    target.b = Math.max(0, target.b - 8);
+  }
+  const newHex = rgbToHex(target).toUpperCase();
+  const reached = contrastRatio(rgbToHex(fgr), rgbToHex(bgr));
+  if (reached < 4.5) return "Even pure black wouldn't pass against this background — pick a lighter background.";
+  return "Try darkening the " + (fgIsDark ? "text" : "background") + " to " + newHex +
+         " (reaches " + reached.toFixed(2) + ":1, passing AA).";
+}
+
+function update(){
+  const fgRaw = fgHex.value, bgRaw = bgHex.value;
+  if (!isValidHex(fgRaw) || !isValidHex(bgRaw)){
+    ratioEl.textContent = "—:—"; ratioWord.textContent = "enter valid hex";
+    return;
+  }
+  const fg = normHex(fgRaw), bg = normHex(bgRaw);
+
+  const ratio = contrastRatio(fg, bg);
+  ratioEl.textContent = ratio.toFixed(2).replace(/\.00$/, "") + ":1";
+  ratioWord.textContent = word(ratio);
+
+  const r = wcag(ratio);
+  setBadge("b-aa",   r.AA_normal);
+  setBadge("b-aal",  r.AA_large);
+  setBadge("b-aaa",  r.AAA_normal);
+  setBadge("b-aaal", r.AAA_large);
+
+  // live preview
+  previewEl.style.color = fg;
+  previewEl.style.background = bg;
+
+  // suggestion hint
+  if (!r.AA_normal){
+    hintEl.textContent = "💡 " + suggestFix(fg, bg);
+    hintEl.classList.remove("hidden");
+  } else {
+    hintEl.classList.add("hidden");
+  }
+}
+
+// keep colour picker and hex field in sync (both directions)
+fgHex.addEventListener("input", () => { if (isValidHex(fgHex.value)) fgPick.value = normHex(fgHex.value); update(); });
+bgHex.addEventListener("input", () => { if (isValidHex(bgHex.value)) bgPick.value = normHex(bgHex.value); update(); });
+fgPick.addEventListener("input", () => { fgHex.value = fgPick.value.toUpperCase(); update(); });
+bgPick.addEventListener("input", () => { bgHex.value = bgPick.value.toUpperCase(); update(); });
+
+function applyPair(fg, bg){
+  fgHex.value = fg.toUpperCase(); fgPick.value = normHex(fg);
+  bgHex.value = bg.toUpperCase(); bgPick.value = normHex(bg);
+  update();
+}
+
+swapBtn.onclick = () => applyPair(bgHex.value, fgHex.value);
+document.querySelectorAll(".preset").forEach(b => {
+  b.onclick = () => applyPair(b.dataset.fg, b.dataset.bg);
+});
+
+// seed alive on open
+update();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. Why contrast matters", why:"Contrast is the difference in brightness between the text and the surface it sits on, and it is the single biggest factor in whether text is actually readable. Plenty of people have less-than-perfect vision: low-vision users, the roughly one in twelve men with some form of colour blindness, anyone over forty whose eyes are slowly losing sensitivity, and everyone squinting at a phone in bright sunlight. For all of them, pale grey text on a white card simply disappears. Good contrast is not a designer's aesthetic preference; it is the difference between a page that works for everyone and one that quietly excludes a large slice of your audience. That is why accessibility guidelines turn it into a hard, testable number rather than leaving it to taste.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="rounded p-3 mb-2" style="background:#fff;color:#cbd5e1;">low-vision users can't read this</div><div class="rounded p-3" style="background:#fff;color:#1f2937;">but this is comfortable for everyone</div><div class="text-xs text-slate-500 mt-2">same white background — only the text brightness changed</div></div>`, code:`// contrast = brightness difference between text and background.\n// it decides whether people can actually READ your page:\n//   • low-vision and older users\n//   • colour-blind users\n//   • anyone in bright sunlight on a phone\n// guidelines make it a hard number so it can be tested.` },
+  { title:"2. What the ratio is (1:1 to 21:1)", why:"The contrast ratio is a single number that summarises how different two colours are in brightness. It runs from 1:1, where the two colours are identical and the text is completely invisible, up to 21:1, which is the maximum and happens only with pure black against pure white. A ratio like 4.7:1 means the lighter colour is 4.7 times as luminous as the darker one. The beauty of collapsing colour down to one ratio is that it gives designers and automated tools an objective target to hit: instead of arguing about whether grey looks 'readable enough', you measure it and compare against a fixed threshold. Everything else in this tool exists just to compute this one number correctly.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="font-mono text-lg mb-1"><span class="text-rose-500">1:1</span> &nbsp;——&nbsp; <span class="text-amber-600">4.5:1</span> &nbsp;——&nbsp; <span class="text-emerald-600">21:1</span></div><div class="text-xs text-slate-500">invisible &nbsp;·&nbsp; AA threshold &nbsp;·&nbsp; black on white (the max)</div></div>`, code:`// one number describes the whole pairing:\n//   1:1   identical colours → invisible text\n//   4.5:1 the WCAG AA bar for body text\n//   21:1  pure black on pure white → the maximum possible\n//\n// "4.7:1" = the lighter colour is 4.7× as luminous.` },
+  { title:"3. Hex → RGB", why:"Web colours are usually written as a hex string such as #1F2937, which is just three pairs of hexadecimal digits packed together. The first pair is the red channel, the second is green, and the third is blue, each ranging from 00 to FF — that is 0 to 255 in ordinary decimal. To do any maths we first split the string back into those three numbers. Parsing it is a one-liner: read the six digits as a base-16 integer, then use bit-shifts and masks to peel off each eight-bit channel. A robust parser should also expand the three-digit shorthand, where #f80 is just a compact way of writing #ff8800. Once we have r, g, and b as plain numbers, every later step is pure arithmetic.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">#1F2937<br>R=<span class="text-rose-500">1F</span>=31 &nbsp; G=<span class="text-emerald-500">29</span>=41 &nbsp; B=<span class="text-sky-500">37</span>=55<br><span class="text-xs text-slate-500 font-sans">three pairs of hex digits, each a channel from 0–255</span></div>`, code:`function hexToRgb(hex){\n  hex = hex.replace("#", "");\n  if (hex.length === 3)               // "f80" → "ff8800"\n    hex = hex.split("").map(c => c + c).join("");\n  const n = parseInt(hex, 16);\n  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };\n}\n// "#1F2937" → { r:31, g:41, b:55 }` },
+  { title:"4. sRGB is gamma-encoded → linearize", why:"Here is the step almost every naive contrast calculator gets wrong. The RGB values stored in an image or a hex code are not proportional to actual light; they are gamma-encoded, meaning they sit on a curve designed to match how human vision compresses brightness and to make the most of limited storage. A value of 128 is nowhere near half as bright as 255 in real light output. Before we can compare brightness fairly, we have to undo that curve and convert each channel back to linear light. The sRGB formula does exactly this: tiny values are divided by 12.92, and the rest are run through a power function with exponent 2.4. Skipping this and just averaging the raw numbers gives a confidently wrong answer.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center">stored value 128 &nbsp;≠&nbsp; half the light of 255<br><span class="text-xs text-slate-500">screens store colour on a curve — linearize to undo it first</span><br><span class="font-mono text-xs mt-1 inline-block">c≤0.03928 ? c/12.92 : ((c+0.055)/1.055)^2.4</span></div>`, code:`// raw RGB is NOT proportional to light — it's gamma-encoded.\n// undo the curve before any brightness maths:\nfunction linearize(channel){\n  const c = channel / 255;          // 0–255 → 0–1\n  return c <= 0.03928\n    ? c / 12.92                     // near-black: linear segment\n    : Math.pow((c + 0.055) / 1.055, 2.4);\n}\n// skip this and your ratio is simply wrong.` },
+  { title:"5. Relative luminance (the weights)", why:"With each channel converted to linear light, we combine them into a single brightness value called relative luminance, which is 0 for black and 1 for white. The three channels are not added equally: the formula weights red at 0.2126, green at 0.7152, and blue at only 0.0722. Those numbers reflect the physiology of the human eye, which has far more receptors tuned to green light than to red or blue, so green contributes the most to our sense of brightness and blue the least. This is why bright yellow (lots of red and green) feels luminous while a saturated blue feels dark even at full intensity. Getting these weights right is what makes the ratio match how a real person perceives the two colours.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono">L = <span class="text-rose-500">0.2126·R</span> + <span class="text-emerald-600">0.7152·G</span> + <span class="text-sky-500">0.0722·B</span><br><span class="text-xs text-slate-500 font-sans">green dominates — the eye has the most green receptors</span></div>`, code:`function luminance({ r, g, b }){\n  return 0.2126 * linearize(r)   // red\n       + 0.7152 * linearize(g)   // green — weighs the most\n       + 0.0722 * linearize(b);  // blue — weighs the least\n}\n// L = 0 for black, 1 for white.\n// the weights mirror the eye's sensitivity to each colour.` },
+  { title:"6. The ratio formula (+0.05 offset)", why:"Now the ratio itself. Take the luminance of both colours, call the brighter one L1 and the darker one L2, and compute (L1 + 0.05) divided by (L2 + 0.05). The order matters — always put the lighter colour on top so the result is at least 1. The mysterious +0.05 added to each is a small constant that models a little ambient light reflecting off the screen, the faint glow that stops a real display from ever being perfectly black. It also serves a practical purpose: without it, pure black with luminance 0 in the denominator would divide by zero. With the offset, black on white works out to exactly (1.05 / 0.05) = 21, which is where the famous 21:1 maximum comes from.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono text-lg">ratio = (L<sub>light</sub> + 0.05)<br>————————————<br>(L<sub>dark</sub> + 0.05)<br><span class="text-xs text-slate-500 font-sans">white/black → 1.05 / 0.05 = 21 &nbsp; (the maximum)</span></div>`, code:`function contrastRatio(a, b){\n  const L1 = luminance(hexToRgb(a));\n  const L2 = luminance(hexToRgb(b));\n  const hi = Math.max(L1, L2), lo = Math.min(L1, L2);\n  return (hi + 0.05) / (lo + 0.05);\n}\n// the +0.05 models ambient screen glare\n// (and stops a divide-by-zero on pure black).\ncontrastRatio("#000","#fff"); // ➜ 21` },
+  { title:"7. The WCAG thresholds", why:"Once you have the ratio, judging it is easy — you compare against fixed thresholds set by the Web Content Accessibility Guidelines. The everyday target is level AA, which requires at least 4.5:1 for normal body text and a gentler 3:1 for large text, since bigger letters are easier to read even at lower contrast. The stricter level AAA demands 7:1 for normal text and 4.5:1 for large. AA is what most laws and company standards actually require, so 4.5:1 is the number worth memorising. Each level is just a greater-than-or-equal check, which is why a contrast checker can light up four pass/fail badges instantly: the hard work was computing the ratio, and the verdict is a handful of comparisons.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><table class="mx-auto text-sm"><tr><td class="px-3 py-1 text-right text-slate-500">AA normal</td><td class="px-3 py-1 font-mono font-bold">≥ 4.5</td></tr><tr><td class="px-3 py-1 text-right text-slate-500">AA large</td><td class="px-3 py-1 font-mono font-bold">≥ 3.0</td></tr><tr><td class="px-3 py-1 text-right text-slate-500">AAA normal</td><td class="px-3 py-1 font-mono font-bold">≥ 7.0</td></tr><tr><td class="px-3 py-1 text-right text-slate-500">AAA large</td><td class="px-3 py-1 font-mono font-bold">≥ 4.5</td></tr></table><div class="text-xs text-slate-500 mt-1">AA 4.5 is the number to remember</div></div>`, code:`function wcag(ratio){\n  return {\n    AA_normal:  ratio >= 4.5,   // body text — the usual target\n    AA_large:   ratio >= 3.0,   // large text gets a gentler bar\n    AAA_normal: ratio >= 7.0,   // strict\n    AAA_large:  ratio >= 4.5,\n  };\n}\n// each verdict is just a comparison.` },
+  { title:"8. What counts as 'large' text", why:"The guidelines give large text an easier pass because bigger, heavier letters stay legible at lower contrast. But 'large' has a precise definition you cannot eyeball: it means at least 18 point, or at least 14 point if the text is bold. In CSS terms that is roughly 24px for regular weight and about 18.66px for bold, since one point is about 1.333 pixels. This matters because the same grey that fails as body text might comfortably pass as a heading. When you check a real page you therefore have to know which threshold applies to each piece of text — a checker can show both verdicts at once, but you, the designer, decide which one each element actually needs to meet.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div style="font-size:24px;font-weight:700;">≥18pt / 24px → large</div><div style="font-size:24px;font-weight:700;">≥14pt bold → also large</div><div style="font-size:14px;">14px regular → must meet the stricter 4.5</div><div class="text-xs text-slate-500 mt-1">1pt ≈ 1.333px</div></div>`, code:`// "large" is a precise definition, not a vibe:\n//   ≥ 18pt   (≈ 24px) regular weight, OR\n//   ≥ 14pt   (≈ 18.66px) BOLD\n//\n// large text needs only 3:1 (AA) instead of 4.5:1.\n// the same grey can fail as body but pass as a heading.` },
+  { title:"9. Don't rely on colour alone", why:"A high contrast ratio makes text readable, but colour by itself should never be the only way you convey meaning. The classic mistake is a form that turns invalid fields red and valid ones green, which is invisible to red-green colour-blind users even when the contrast against the background is perfect. The fix is to add a second, non-colour signal: an icon, a label, an underline, a shape, or a text message. Think of colour as a helpful reinforcement layered on top of information that is already clear without it. Contrast and 'don't rely on colour alone' are two separate accessibility rules — passing the contrast check is necessary but not sufficient, and a truly accessible interface satisfies both.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="mb-1">❌ <span style="color:#16a34a;">success</span> / <span style="color:#dc2626;">error</span> &nbsp;<span class="text-xs text-slate-500">— colour only</span></div><div>✓ <span style="color:#16a34a;">✔ success</span> / <span style="color:#dc2626;">✘ error</span> &nbsp;<span class="text-xs text-slate-500">— colour + icon</span></div></div>`, code:`// colour must never be the ONLY signal:\n//   ❌ red field = error, green field = ok\n//      (invisible to red-green colour blindness)\n//   ✓ add an icon, label, underline, or message\n//\n// contrast and "don't rely on colour alone" are\n// two SEPARATE rules — you need both.` },
+  { title:"10. Tools & the newer APCA", why:"You rarely compute contrast by hand — browsers ship it in their dev tools, and design apps, linters, and sites like WebAIM's checker all run the exact formula you just built. It is worth knowing that the WCAG 2 ratio has real limits: because it treats luminance fairly crudely, it can be too harsh on some dark-mode pairings and too lenient on certain light ones. That is why a newer algorithm called APCA, the Accessible Perceptual Contrast Algorithm, is being developed for the next generation of guidelines. APCA models human perception more accurately — accounting for text size, weight, and which colour is on top — and returns a perceptual score instead of a simple ratio. For now WCAG 2's 4.5:1 is the standard you ship against, but APCA is the direction the field is heading.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-4xl mb-2">🎉</div><p class="font-bold text-slate-700">Linearize · weight 0.2126/0.7152/0.0722 · (L1+0.05)/(L2+0.05) · hold body text to 4.5. WCAG 2 today; APCA is coming next.</p></div>`, code:`// you rarely hand-roll this in production:\n//   • Chrome/Firefox dev tools show the ratio inline\n//   • WebAIM Contrast Checker, Figma plugins, linters\n//\n// WCAG 2's ratio has limits (rough on dark mode), so\n// APCA (Accessible Perceptual Contrast Algorithm) is\n// the perception-based successor — factors in size,\n// weight, and polarity. Ship WCAG 2 now; watch APCA.` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>
