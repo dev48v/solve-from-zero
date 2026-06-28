@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 19 — Hash Generator (Web Crypto)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .txt-input {
+    font-size:14px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px;
+    box-sizing:border-box; width:100%; color:#0f172a; background:#fff;
+  }
+  .txt-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  select.txt-input { cursor:pointer; }
+  .chip-amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  /* big hash readout */
+  .hash-out {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:14px; line-height:1.7; word-break:break-all; color:#0f172a;
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px;
+  }
+  .hash-avalanche {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12px; line-height:1.7; word-break:break-all;
+  }
+  .hl-diff { background:#fde68a; color:#92400e; border-radius:2px; }
+  .meta-pill { font-size:11px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:999px; padding:3px 10px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 19</div>
+      <h1 class="text-xl font-bold">🔐 Hash Generator — SHA in the Browser (Web Crypto)</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Type anything — get its real cryptographic fingerprint.</h2>
+      <p class="text-slate-500 text-center mb-6">This computes a <b>genuine</b> hash with the browser's built-in <span class="font-mono">crypto.subtle.digest</span> (the Web Crypto API). A hash is a <b>one-way fingerprint</b>: the same input always gives the same hash, any change gives a totally different one, and you can't run it backwards to recover the input. <b>Nothing is uploaded</b> — it all runs in your browser.</p>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- TEXT INPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-4">Your input</div>
+
+          <div class="mb-4">
+            <label class="text-sm font-semibold text-slate-600 block mb-2">Text to hash</label>
+            <textarea id="text" class="txt-input" rows="4" spellcheck="false">abc</textarea>
+          </div>
+
+          <div class="mb-4">
+            <label class="text-sm font-semibold text-slate-600 block mb-2">Algorithm</label>
+            <select id="algo" class="txt-input">
+              <option value="SHA-256" selected>SHA-256 (recommended)</option>
+              <option value="SHA-384">SHA-384</option>
+              <option value="SHA-512">SHA-512</option>
+              <option value="SHA-1">SHA-1 (broken — demo only)</option>
+            </select>
+          </div>
+
+          <div class="mb-2">
+            <label class="text-sm font-semibold text-slate-600 block mb-2">…or hash a file</label>
+            <input id="file" type="file" class="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-amber-100 file:text-amber-800 file:font-bold file:text-xs hover:file:bg-amber-200" />
+            <div id="fileNote" class="text-xs text-slate-400 mt-1">Reads the file as bytes and hashes them — large files take a moment.</div>
+          </div>
+
+          <div id="hint" class="mt-4 text-sm chip-amber rounded-lg px-3 py-2 font-semibold">
+            🛈 MD5 isn't available in Web Crypto — it's cryptographically broken (cheap to forge collisions), so browsers deliberately leave it out.
+          </div>
+        </div>
+
+        <!-- HASH OUTPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs uppercase font-bold text-amber-600 tracking-wider">Hash (hex)</div>
+            <button id="copy" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold">📋 Copy</button>
+          </div>
+          <div id="hash" class="hash-out">…</div>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <span class="meta-pill" id="m-algo">SHA-256</span>
+            <span class="meta-pill" id="m-bits">256 bits</span>
+            <span class="meta-pill" id="m-hex">64 hex chars</span>
+            <span class="meta-pill" id="m-src">from text</span>
+          </div>
+          <div class="text-xs text-slate-400 mt-4">A SHA-256 digest is always exactly 256 bits = 32 bytes = 64 hexadecimal characters, no matter whether you hashed one letter or a gigabyte.</div>
+        </div>
+      </div>
+
+      <!-- AVALANCHE -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 mt-4">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">The avalanche effect — change one character, get a completely different hash</div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-semibold text-slate-500 mb-1">Your input <span id="av-a-label" class="font-mono text-slate-700"></span></div>
+            <div id="av-a" class="hash-avalanche text-slate-700"></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-slate-500 mb-1">One tiny tweak <span id="av-b-label" class="font-mono text-slate-700"></span></div>
+            <div id="av-b" class="hash-avalanche text-slate-700"></div>
+          </div>
+        </div>
+        <div id="av-stat" class="text-xs text-slate-500 mt-3"></div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6"><b>How the fingerprint is built:</b> for text we run it through a <span class="font-mono">TextEncoder</span> to get the raw UTF-8 bytes; for a file we read it as an <span class="font-mono">ArrayBuffer</span> of bytes. Either way we hand those bytes to <span class="font-mono">crypto.subtle.digest(algorithm, bytes)</span>, which returns the digest as an <span class="font-mono">ArrayBuffer</span>. We turn each byte into a two-digit hex pair and join them — that's the string you see. Same bytes in → same hash out, every time, on every machine; flip a single bit and roughly half the output bits flip with it.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a hash function works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Turn the input into bytes (<span class="font-mono">TextEncoder</span> for strings, <span class="font-mono">ArrayBuffer</span> for files) → hand the bytes to <span class="font-mono">crypto.subtle.digest</span> → convert the returned <span class="font-mono">ArrayBuffer</span> to a hex string → let the user pick the algorithm. ~25 lines for a correct, library-free hasher — the cryptography is the browser's, you only do the plumbing.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">String → bytes (TextEncoder)</h3></div><pre>// crypto works on bytes, not strings.
+// TextEncoder gives you the raw UTF-8 bytes of any text.
+const bytes = new TextEncoder().encode("abc");
+// → Uint8Array(3) [ 97, 98, 99 ]   ("a"=97, "b"=98, "c"=99)</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Hash the bytes (crypto.subtle.digest)</h3></div><pre>// the actual hashing. it's async and returns a Promise
+// that resolves to an ArrayBuffer of raw digest bytes.
+const digest = await crypto.subtle.digest("SHA-256", bytes);
+// digest is an ArrayBuffer — 32 bytes for SHA-256.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">ArrayBuffer → hex string</h3></div><pre>// the digest is raw bytes; turn each into 2 hex digits.
+function toHex(buffer){
+  return [...new Uint8Array(buffer)]
+    .map(b =&gt; b.toString(16).padStart(2, "0"))
+    .join("");
+}
+// → "ba7816bf8f01cfea414140de5dae2223..."</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Hash text in one function</h3></div><pre>// put it together: text in, hex hash out.
+async function hashText(text, algo = "SHA-256"){
+  const bytes  = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest(algo, bytes);
+  return toHex(digest);
+}
+await hashText("abc");
+// ➜ "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Switch algorithms</h3></div><pre>// Web Crypto supports the SHA-2 family (+ legacy SHA-1).
+// the length of the output is fixed by the algorithm:
+const ALGOS = {
+  "SHA-1":   160,  // 40 hex chars — BROKEN, don't use for security
+  "SHA-256": 256,  // 64 hex chars — the default everyone reaches for
+  "SHA-384": 384,  // 96 hex chars
+  "SHA-512": 512,  // 128 hex chars
+};
+// note: MD5 is NOT here — it's broken and Web Crypto omits it.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Hash a file (ArrayBuffer)</h3></div><pre>// files are already bytes — read them as an ArrayBuffer
+// and hand that straight to digest(). no TextEncoder needed.
+async function hashFile(file, algo = "SHA-256"){
+  const buffer = await file.arrayBuffer();   // reads the whole file
+  const digest = await crypto.subtle.digest(algo, buffer);
+  return toHex(digest);
+}
+// this is exactly how a "checksum" / download-verify works.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">See the avalanche effect</h3></div><pre>// change ONE character → roughly half the bits flip.
+await hashText("hello");
+// ➜ 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+await hashText("hellp");   // last letter o → p
+// ➜ fdd7585e08c4e2afd71dcabdb4636c89d557a3f42db9e2040c8bbd1708aa4ce7
+// totally different — that's what makes tampering obvious.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wire it to the page</h3></div><pre>async function update(){
+  const algo = algoSelect.value;
+  const hex  = await hashText(textInput.value, algo);
+  hashEl.textContent = hex;
+  bitsEl.textContent = (hex.length * 4) + " bits";   // 4 bits / hex char
+}
+textInput.addEventListener("input", debounce(update, 150));
+algoSelect.addEventListener("change", update);
+update();   // run once on load — done.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 19 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">A hash is a one-way fingerprint. Bytes in via <span class="font-mono">TextEncoder</span> or <span class="font-mono">ArrayBuffer</span>, <span class="font-mono">crypto.subtle.digest</span> does the real math, hex out. Use SHA-256 for integrity — never plain SHA for passwords (use salted bcrypt/argon2), and never MD5/SHA-1 for security.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== HASH GENERATOR (real Web Crypto, browser-only) =====
+const textEl   = document.getElementById("text");
+const algoEl   = document.getElementById("algo");
+const fileEl   = document.getElementById("file");
+const fileNote = document.getElementById("fileNote");
+const hashEl   = document.getElementById("hash");
+const copyBtn  = document.getElementById("copy");
+const mAlgo = document.getElementById("m-algo");
+const mBits = document.getElementById("m-bits");
+const mHex  = document.getElementById("m-hex");
+const mSrc  = document.getElementById("m-src");
+
+// --- raw digest bytes (ArrayBuffer) → lowercase hex string ---
+function toHex(buffer){
+  return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// --- hash a string: UTF-8 bytes → crypto.subtle.digest → hex ---
+async function hashText(text, algo){
+  const bytes  = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest(algo, bytes);
+  return toHex(digest);
+}
+
+// --- hash an ArrayBuffer of file bytes directly ---
+async function hashBuffer(buffer, algo){
+  const digest = await crypto.subtle.digest(algo, buffer);
+  return toHex(digest);
+}
+
+function setMeta(algo, hexLen, src){
+  mAlgo.textContent = algo;
+  mBits.textContent = (hexLen * 4) + " bits";       // 4 bits per hex char
+  mHex.textContent  = hexLen + " hex chars";
+  mSrc.textContent  = src;
+}
+
+// --- avalanche demo: hash the input, and the input with one char tweaked ---
+function tweakOneChar(s){
+  if (s.length === 0) return "x";                    // empty → add a char
+  // flip the last character to the next code point (wraps z→a-ish but always differs)
+  const arr = [...s];
+  const last = arr[arr.length - 1];
+  const code = last.codePointAt(0);
+  arr[arr.length - 1] = String.fromCodePoint(code === 122 ? 97 : code + 1); // 'z'→'a' else +1
+  return arr.join("");
+}
+
+function diffHtml(a, b){
+  // render `a`, highlighting hex chars that differ from `b`
+  let out = "";
+  for (let i = 0; i < a.length; i++){
+    out += (a[i] !== b[i]) ? `<span class="hl-diff">${a[i]}</span>` : a[i];
+  }
+  return out;
+}
+
+const avA = document.getElementById("av-a");
+const avB = document.getElementById("av-b");
+const avAL = document.getElementById("av-a-label");
+const avBL = document.getElementById("av-b-label");
+const avStat = document.getElementById("av-stat");
+
+async function renderAvalanche(text, algo){
+  const a = text;
+  const b = tweakOneChar(text);
+  const [ha, hb] = await Promise.all([hashText(a, algo), hashText(b, algo)]);
+  avAL.textContent = a ? `("${a.length > 20 ? a.slice(0,20)+"…" : a}")` : "(empty)";
+  avBL.textContent = `("${b.length > 20 ? b.slice(0,20)+"…" : b}")`;
+  avA.innerHTML = diffHtml(ha, hb);
+  avB.innerHTML = diffHtml(hb, ha);
+  let diff = 0;
+  for (let i = 0; i < ha.length; i++) if (ha[i] !== hb[i]) diff++;
+  const pct = Math.round((diff / ha.length) * 100);
+  avStat.innerHTML = `Changed one character → <b>${diff} of ${ha.length}</b> hex characters differ (≈${pct}%). The two inputs are almost identical, but the hashes share nothing — that's the avalanche effect.`;
+}
+
+let lastFileBuffer = null;   // remember an uploaded file's bytes for re-hashing on algo change
+let lastFileName = null;
+
+async function update(){
+  const algo = algoEl.value;
+  hashEl.textContent = "computing…";
+  try {
+    let hex, src;
+    if (lastFileBuffer){
+      hex = await hashBuffer(lastFileBuffer, algo);
+      src = "from file";
+    } else {
+      hex = await hashText(textEl.value, algo);
+      src = "from text";
+    }
+    hashEl.textContent = hex;
+    setMeta(algo, hex.length, src);
+    copyBtn.dataset.hash = hex;
+    // avalanche always demos the TEXT field (it's about tiny input changes)
+    await renderAvalanche(textEl.value, algo);
+  } catch (e){
+    hashEl.textContent = "Error: " + e.message;
+  }
+}
+
+// debounce so we don't re-hash on every keystroke
+function debounce(fn, ms){
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+const debouncedUpdate = debounce(update, 150);
+
+textEl.addEventListener("input", () => { lastFileBuffer = null; debouncedUpdate(); });
+algoEl.addEventListener("change", update);
+
+fileEl.addEventListener("change", async () => {
+  const f = fileEl.files[0];
+  if (!f){ lastFileBuffer = null; update(); return; }
+  fileNote.textContent = `Reading "${f.name}" (${f.size.toLocaleString()} bytes)…`;
+  hashEl.textContent = "reading file…";
+  try {
+    lastFileBuffer = await f.arrayBuffer();   // read whole file as bytes
+    lastFileName = f.name;
+    fileNote.textContent = `Hashed "${f.name}" (${f.size.toLocaleString()} bytes). Pick another file, or edit the text box to switch back to text.`;
+    await update();
+  } catch (e){
+    fileNote.textContent = "Could not read file: " + e.message;
+    lastFileBuffer = null;
+  }
+});
+
+copyBtn.onclick = () => {
+  const h = copyBtn.dataset.hash || hashEl.textContent;
+  navigator.clipboard?.writeText(h);
+  const prev = copyBtn.textContent;
+  copyBtn.textContent = "✓ Copied!";
+  setTimeout(() => copyBtn.textContent = prev, 1000);
+};
+
+// seed alive on open
+update();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What a hash function is", why:"A hash function takes any input — three letters, this whole web page, or a ten-gigabyte movie — and squeezes it down to a short, fixed-size string of characters called a digest. SHA-256, for example, always produces exactly 256 bits no matter how big or small the input was. Think of it as a fingerprint: a tiny, fixed-length summary that stands in for the original data. The point is not to compress and get the data back later; the point is to get a compact, reliable identifier you can compare, store, or transmit cheaply. Once you have an input's hash, you can check at any time whether some other data produces the same fingerprint — and if it does, you can be extremely confident it's the same data.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="font-mono text-xs mb-1">"abc" &nbsp;&nbsp;→&nbsp;&nbsp; <span class="text-amber-600">ba7816bf…20015ad</span></div><div class="font-mono text-xs mb-1">a 1 GB movie &nbsp;→&nbsp; <span class="text-amber-600">9f86d081…a1b2c3d</span></div><div class="text-xs text-slate-500 mt-2">any size in → always 256 bits (64 hex chars) out</div></div>`, code:`// a hash maps ANY input to a FIXED-size fingerprint.\n// SHA-256 always outputs 256 bits = 32 bytes = 64 hex chars:\n//\n//   "abc"        → ba7816bf…20015ad   (64 chars)\n//   a 1 GB file  → 9f86d081…a1b2c3d   (still 64 chars)\n//\n// it's a summary / identifier — NOT compression you can undo.` },
+
+  { title:"2. The key properties", why:"A cryptographic hash earns its keep by satisfying a few strict properties at once. It is deterministic: the same input always yields the exact same output, on any machine, forever. It is fast to compute, so hashing big files is cheap. It is one-way, also called preimage-resistant: given only a hash, there is no practical way to work backwards and find an input that produced it. It is collision-resistant: it is infeasible to find two different inputs that hash to the same value. And it has the avalanche property: changing even a single bit of the input changes about half the bits of the output, so similar inputs look completely unrelated. Take any one of these away and the function stops being trustworthy for security.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-left"><div class="grid grid-cols-1 gap-1"><div>✓ <b>deterministic</b> — same in, same out</div><div>✓ <b>fast</b> — cheap even on huge files</div><div>✓ <b>one-way</b> — can't reverse the hash</div><div>✓ <b>collision-resistant</b> — no two inputs match</div><div>✓ <b>avalanche</b> — 1 bit changes ≈ half the output</div></div></div>`, code:`// a good cryptographic hash is ALL of these at once:\n//   deterministic        same input → same hash, always\n//   fast                 cheap to compute, even on big files\n//   one-way (preimage)   can't go hash → input\n//   collision-resistant  can't find two inputs, one hash\n//   avalanche            flip 1 bit in → ≈half the bits out flip\n//\n// remove any one and it's no longer safe for security.` },
+
+  { title:"3. The avalanche effect", why:"The avalanche effect is the property you can watch live in the tool above. Take an input, change the smallest possible thing — flip one letter, add one space, swap a single bit — and the resulting hash is completely, unrecognisably different. Roughly half of all the output bits change, with no pattern that hints at how small the input change was. This is what makes hashes so good at spotting tampering: you cannot make a 'small' edit that produces a 'slightly different' hash, so even a one-byte change to a file or a download jumps out immediately. It also means you can never guess your way from a hash back toward the input by trying nearby values, because nearby inputs aren't anywhere near each other in hash space.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono text-xs"><div><span class="text-slate-700">hash("hello")</span> = 2cf24dba…8b9824</div><div><span class="text-slate-700">hash("hellp")</span> = fdd7585e…8aa4ce7</div><div class="text-xs text-slate-500 font-sans mt-2">one letter changed → totally unrelated output</div></div>`, code:`// flip ONE character → roughly half the output bits flip.\nhash("hello")  // 2cf24dba5fb0a30e26e83b2ac5b9e29e…\nhash("hellp")  // fdd7585e08c4e2afd71dcabdb4636c89…\n//                ↑ last letter o→p — nothing in common.\n//\n// you can't make a "small" edit with a "small" hash change,\n// so any tampering is instantly visible.` },
+
+  { title:"4. The SHA-2 family", why:"SHA-2 is the family of hash functions designed by the NSA and standardised by NIST that powers most of the secure web today. Its members differ mainly in output size: SHA-256 produces 256 bits, SHA-384 produces 384, and SHA-512 produces 512. A bigger digest gives more room and makes brute-force attacks even more astronomically expensive, but SHA-256 is already far beyond any realistic attack and is the default everyone reaches for — it secures TLS certificates, signs software, and underpins blockchains. SHA-512 can actually be faster on 64-bit hardware because it works on larger internal words. All three are considered secure today, so the choice usually comes down to convention, the output length you need, and what the system you're integrating with expects.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><table class="mx-auto text-sm"><tr><td class="px-3 py-1 text-right text-slate-500">SHA-256</td><td class="px-3 py-1 font-mono font-bold">64 hex</td></tr><tr><td class="px-3 py-1 text-right text-slate-500">SHA-384</td><td class="px-3 py-1 font-mono font-bold">96 hex</td></tr><tr><td class="px-3 py-1 text-right text-slate-500">SHA-512</td><td class="px-3 py-1 font-mono font-bold">128 hex</td></tr></table><div class="text-xs text-slate-500 mt-1">all secure today — SHA-256 is the everyday default</div></div>`, code:`// SHA-2 family — same design, different output sizes:\n//   SHA-256  → 256 bits / 64 hex   (the default)\n//   SHA-384  → 384 bits / 96 hex\n//   SHA-512  → 512 bits / 128 hex  (faster on 64-bit CPUs)\n//\n// all three are secure today. SHA-256 secures TLS,\n// code signing, git, blockchains — reach for it first.` },
+
+  { title:"5. SHA-1 and MD5 are broken", why:"Not every hash that exists is safe to use. MD5 (128-bit) and SHA-1 (160-bit) were once everywhere, but researchers have since found practical ways to create collisions — two different inputs that share the same hash — which destroys the guarantee the whole thing rests on. MD5 collisions are trivial to generate on a laptop, and SHA-1 fell in 2017 when researchers produced two different PDFs with the same SHA-1. That means an attacker could swap a trusted file for a malicious one without changing its hash, so neither should ever be used for security: signatures, certificates, integrity checks, or password storage. This is exactly why the Web Crypto API deliberately omits MD5 and warns against SHA-1 — the platform steers you away from broken tools.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-rose-600 font-bold mb-1">⚠ MD5 &nbsp;·&nbsp; SHA-1 &nbsp;= broken</div><div class="text-xs text-slate-500">collisions found in practice — an attacker can forge a<br>different file with the SAME hash. never use for security.</div></div>`, code:`// BROKEN — do not use for anything security-related:\n//   MD5    (128-bit)  collisions trivial on a laptop\n//   SHA-1  (160-bit)  collision demonstrated in 2017\n//\n// an attacker can craft a DIFFERENT file with the SAME hash,\n// defeating signatures & integrity checks.\n//\n// → use SHA-256 or better. Web Crypto omits MD5 on purpose.` },
+
+  { title:"6. The Web Crypto API", why:"You don't have to implement any of this maths yourself — every modern browser ships a fast, audited implementation in the Web Crypto API, reached through crypto.subtle. The single call crypto.subtle.digest(algorithm, data) takes the algorithm name as a string and your data as bytes, and returns a Promise that resolves to an ArrayBuffer holding the raw digest. It's asynchronous because the browser may run the work off the main thread, which keeps your page responsive even on big inputs. Using the native implementation matters: it's written in optimised native code, it's been security-reviewed, and it avoids the subtle bugs that hand-rolled crypto is famous for. Your job is just to feed it bytes and format the result.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center font-mono text-sm">crypto.subtle.digest(<span class="text-amber-600">"SHA-256"</span>, bytes)<br><span class="text-xs text-slate-500 font-sans mt-1 inline-block">→ Promise&lt;ArrayBuffer&gt; of raw digest bytes</span></div>`, code:`// the browser ships the real, audited implementation.\nconst digest = await crypto.subtle.digest("SHA-256", bytes);\n// • async — returns a Promise (work may run off-thread)\n// • resolves to an ArrayBuffer of raw digest bytes\n// • native, optimised, security-reviewed\n//\n// NEVER hand-roll crypto — use the platform's.` },
+
+  { title:"7. Bytes in: TextEncoder & ArrayBuffer", why:"Crypto operates on bytes, not on JavaScript strings or files, so the first job is always to get raw bytes. For text, TextEncoder().encode(str) returns a Uint8Array of the string's UTF-8 bytes — this is important because the same characters must always encode to the same bytes for the hash to be reproducible across systems. For a file chosen with an <input type=file>, you call file.arrayBuffer(), which reads the file's contents into an ArrayBuffer of bytes that you can hand straight to digest. Either path ends with bytes, and bytes are all the hash function cares about — it has no idea whether they came from a tweet or a video. This is also why a file's hash matches the checksum a server publishes: both sides hash the identical bytes.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="mb-1"><b>text</b> → <span class="font-mono text-xs">new TextEncoder().encode(s)</span> → bytes</div><div><b>file</b> → <span class="font-mono text-xs">await file.arrayBuffer()</span> → bytes</div><div class="text-xs text-slate-500 mt-2">both end in bytes — digest() doesn't care where they came from</div></div>`, code:`// digest() wants BYTES. two ways to get them:\n\n// 1) text → UTF-8 bytes\nconst bytes = new TextEncoder().encode("abc");  // Uint8Array\n\n// 2) file → raw bytes\nconst buffer = await file.arrayBuffer();        // ArrayBuffer\n\n// feed either straight to crypto.subtle.digest(algo, …)` },
+
+  { title:"8. Hashing ≠ encryption", why:"This is the single most common confusion, so it's worth being blunt: hashing is not encryption. Encryption is two-way — you scramble data with a key and the holder of the right key can unscramble it back to the original. Hashing is deliberately one-way and uses no key at all; there is no 'unhash' function and no secret that reverses it, because the output is far smaller than the input and the original information is genuinely gone. You hash when you want to verify or identify data without needing to recover it: checking that a download wasn't corrupted, telling whether two files are identical, or proving a password matches without storing the password itself. If you ever need to get the original data back, you want encryption, not hashing — they solve different problems.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="mb-1">🔐 <b>encryption</b> &nbsp;data ⇄ cipher &nbsp;<span class="text-xs text-slate-500">(two-way, needs a key)</span></div><div>🔒 <b>hashing</b> &nbsp;data → digest ✗ &nbsp;<span class="text-xs text-slate-500">(one-way, no key, no undo)</span></div></div>`, code:`// DIFFERENT TOOLS, different jobs:\n//\n//   encryption  data ⇄ ciphertext   two-way, needs a KEY,\n//                                    you can get data back\n//   hashing     data → digest        one-way, NO key,\n//                                    no "unhash", data is gone\n//\n// need the original back later? → encrypt, don't hash.` },
+
+  { title:"9. Passwords need a slow, salted KDF", why:"It is tempting to store passwords as a plain SHA-256 hash, but that is a serious mistake. SHA-256 is built to be fast, and fast is exactly wrong for passwords: an attacker who steals your database can try billions of guesses per second on a GPU, and most passwords fall quickly. Two things fix this. First, a salt — a unique random value mixed into each password before hashing — so identical passwords get different hashes and precomputed 'rainbow table' attacks are useless. Second, a deliberately slow key-derivation function such as bcrypt, scrypt, or argon2, which is tuned to take a meaningful fraction of a second and chew up memory, making mass guessing economically hopeless. Use a purpose-built password KDF; never store a bare SHA hash of a password.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="text-rose-600 mb-1">❌ store SHA-256(password) &nbsp;<span class="text-xs">— too fast, GPU-crackable</span></div><div class="text-emerald-600">✓ bcrypt / scrypt / argon2 + per-user salt &nbsp;<span class="text-xs">— slow on purpose</span></div></div>`, code:`// passwords are a SPECIAL case — plain SHA is wrong here:\n//   ❌ store SHA-256(password)\n//      → SHA is FAST → GPUs try billions/sec → cracked\n//\n//   ✓ use a slow, SALTED KDF:\n//        bcrypt · scrypt · argon2\n//      • salt: unique random per user (kills rainbow tables)\n//      • slow + memory-hard on purpose → mass guessing fails` },
+
+  { title:"10. HMAC, collisions & real uses", why:"A few finishing pieces. When you need to prove a message came from someone holding a shared secret — not just that it's intact — you use HMAC, which combines a hash with a secret key to produce a tamper-proof authentication code; a plain hash alone can't do this because anyone can recompute it. On collisions: in theory every hash has infinitely many inputs mapping to it because the output is finite, but for SHA-256 finding even one collision is so astronomically expensive that it's considered infeasible with all the computing power on Earth. And the everyday payoff is huge: hashes power file integrity checks and download checksums, content-addressed storage like git (which names every commit and file by its hash), de-duplication that spots identical data, and the fingerprints inside digital signatures and blockchains. One small function, an enormous amount of the modern web.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-4xl mb-2">🎉</div><p class="font-bold text-slate-700">Bytes in (TextEncoder / ArrayBuffer) · crypto.subtle.digest does the real math · hex out. SHA-256 for integrity; HMAC to authenticate; salted argon2 for passwords.</p></div>`, code:`// the rest of the toolkit:\n//   HMAC        hash + secret key → proves WHO sent it,\n//               not just that it's intact\n//   collisions  exist in theory (finite output) but are\n//               infeasible to find for SHA-256\n//\n// real uses everywhere:\n//   integrity/checksums · git content-addressing ·\n//   de-duplication · digital signatures · blockchains` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>
