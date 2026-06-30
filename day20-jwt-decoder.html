@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 20 — JWT Decoder (Read Any Token Safely)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .txt-input {
+    font-size:14px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px;
+    box-sizing:border-box; width:100%; color:#0f172a; background:#fff;
+  }
+  .txt-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  select.txt-input { cursor:pointer; }
+  .chip-amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  .meta-pill { font-size:11px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:999px; padding:3px 10px; }
+
+  /* JWT token input — colour the 3 dotted segments like jwt.io */
+  .jwt-input {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.7; padding:14px;
+    border:1px solid #e2e8f0; border-radius:10px; width:100%; box-sizing:border-box;
+    word-break:break-all; background:#fff; resize:vertical;
+  }
+  .jwt-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  /* coloured echo of the token */
+  .jwt-echo {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px; line-height:1.8; word-break:break-all;
+    background:#0f172a; border-radius:10px; padding:14px; color:#64748b;
+  }
+  .seg-header  { color:#fb7185; }   /* red    */
+  .seg-payload { color:#c084fc; }   /* purple */
+  .seg-sig     { color:#22d3ee; }   /* cyan   */
+  .seg-dot     { color:#475569; }
+
+  /* decoded JSON box, syntax highlighted */
+  .json-box {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12.5px; line-height:1.7; white-space:pre-wrap; word-break:break-word;
+    background:#0f172a; border-radius:10px; padding:14px; color:#e2e8f0; overflow:auto;
+  }
+  .jk { color:#7dd3fc; }   /* json key    */
+  .js { color:#86efac; }   /* json string */
+  .jn { color:#fca5a5; }   /* json number */
+  .jb { color:#fcd34d; }   /* json bool/null */
+
+  .claim-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .claim-row:last-child { border-bottom:none; }
+  .claim-k { color:#64748b; font-weight:600; }
+  .claim-v { color:#0f172a; text-align:right; }
+  .badge-ok   { background:#ecfdf5; border:1px solid #a7f3d0; color:#047857; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .badge-bad  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .badge-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .err-box { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:10px; padding:12px 14px; font-size:13px; font-weight:600; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 20</div>
+      <h1 class="text-xl font-bold">🎫 JWT Decoder — Read Any Token (Safely)</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Paste a JWT — read exactly what it says.</h2>
+      <p class="text-slate-500 text-center mb-6">A JWT is just <b>three base64url-encoded parts joined by dots</b> — <span class="seg-header font-semibold">header</span>.<span class="seg-payload font-semibold">payload</span>.<span class="seg-sig font-semibold">signature</span>. The header and payload are readable by <b>anyone</b> (so don't put secrets in them). The signature only proves the token wasn't tampered with <b>if you verify it with the key</b>. This decodes everything <b>in your browser</b> — nothing is uploaded, no library used.</p>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- TOKEN INPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-3">Encoded token</div>
+          <textarea id="jwt" class="jwt-input" rows="6" spellcheck="false"></textarea>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button id="sample"  class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold">↺ Reset sample</button>
+            <button id="expired" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">Try an expired token</button>
+            <button id="clear"   class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold">Clear</button>
+          </div>
+
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mt-5 mb-2">Coloured segments</div>
+          <div id="echo" class="jwt-echo">…</div>
+          <div class="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
+            <span><span class="seg-header font-bold">●</span> header</span>
+            <span><span class="seg-payload font-bold">●</span> payload</span>
+            <span><span class="seg-sig font-bold">●</span> signature</span>
+          </div>
+
+          <div id="hint" class="mt-4 text-sm chip-amber rounded-lg px-3 py-2 font-semibold">
+            🛈 The payload is <b>encoded, not encrypted</b>. Anyone with the token can read every claim inside it — never store passwords or secrets in a JWT.
+          </div>
+        </div>
+
+        <!-- DECODED -->
+        <div class="space-y-4">
+          <!-- error slot -->
+          <div id="error" class="hidden"></div>
+
+          <!-- header -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="text-xs uppercase font-bold tracking-wider mb-2"><span class="seg-header">●</span> Header <span class="text-slate-400 font-normal lowercase tracking-normal">— how it's signed</span></div>
+            <div id="hdrJson" class="json-box">…</div>
+          </div>
+
+          <!-- payload -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="text-xs uppercase font-bold tracking-wider mb-2"><span class="seg-payload">●</span> Payload <span class="text-slate-400 font-normal lowercase tracking-normal">— the claims</span></div>
+            <div id="plJson" class="json-box">…</div>
+          </div>
+
+          <!-- signature -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs uppercase font-bold tracking-wider"><span class="seg-sig">●</span> Signature</div>
+              <span class="badge-warn">not verified</span>
+            </div>
+            <div id="sigRaw" class="json-box" style="color:#22d3ee">…</div>
+            <div class="text-xs text-slate-400 mt-2">This is the raw signature, shown as-is. Verifying it (proving the token is genuine) needs the <b>secret or public key</b> — that happens on the server, not here.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HUMANIZED CLAIMS -->
+      <div class="bg-white border border-slate-200 rounded-xl p-5 mt-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider">What this token says (standard claims, in plain English)</div>
+          <span id="expBadge"></span>
+        </div>
+        <div id="claims" class="grid md:grid-cols-2 gap-x-8"></div>
+        <div class="text-xs text-slate-400 mt-3">Standard claims are short three-letter keys defined by the JWT spec: <span class="font-mono">iss</span> issuer · <span class="font-mono">sub</span> subject · <span class="font-mono">aud</span> audience · <span class="font-mono">exp</span> expires · <span class="font-mono">iat</span> issued-at · <span class="font-mono">nbf</span> not-before. Times are seconds since 1970 (Unix time); we render them as your local date.</div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6"><b>How the decoding works:</b> we split the token on the two dots into three strings, then base64url-decode the first two. base64url is regular base64 with <span class="font-mono">+</span>→<span class="font-mono">-</span> and <span class="font-mono">/</span>→<span class="font-mono">_</span> and the <span class="font-mono">=</span> padding stripped, so we reverse those swaps, re-pad to a multiple of 4, run <span class="font-mono">atob</span>, then UTF-8-decode the bytes and <span class="font-mono">JSON.parse</span>. The signature stays encoded because it's raw bytes, not text — and we never <i>verify</i> it, because that requires the signing key.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a JWT works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Split the token on the dots → base64url-decode the first two parts → <span class="font-mono">JSON.parse</span> them → read the standard claims → turn the Unix timestamps into real dates → check expiry. ~30 lines for a correct, library-free decoder. One thing it deliberately does <b>not</b> do: verify the signature — that needs the signing key and belongs on the server.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Split the token on the dots</h3></div><pre>// a JWT is exactly three base64url strings joined by ".".
+const token = "eyJhbGciOi…";
+const [headerB64, payloadB64, signatureB64] = token.split(".");
+// must be exactly 3 parts — anything else is malformed.
+if (token.split(".").length !== 3) throw new Error("Not a JWT");</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">base64url → bytes → text</h3></div><pre>// base64url ≠ plain base64: + → -, / → _, and no "=" padding.
+// reverse those, re-pad to a multiple of 4, then atob().
+function base64UrlDecode(str){
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";          // restore padding
+  const bytes = atob(str);                    // base64 → binary string
+  // decode the bytes as UTF-8 so emoji / accents survive:
+  return decodeURIComponent(
+    [...bytes].map(c => "%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
+  );
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Parse header &amp; payload as JSON</h3></div><pre>// the decoded strings are JSON — parse them into objects.
+const header  = JSON.parse(base64UrlDecode(headerB64));
+const payload = JSON.parse(base64UrlDecode(payloadB64));
+// header  → { alg: "HS256", typ: "JWT" }
+// payload → { sub: "1234567890", name: "Jane", iat: 1700000000, … }
+// wrap in try/catch — bad base64 or bad JSON should error cleanly.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Read the standard claims</h3></div><pre>// the spec defines short, well-known claim keys:
+const meaning = {
+  iss: "Issuer — who created the token",
+  sub: "Subject — who the token is about (often a user id)",
+  aud: "Audience — who the token is intended for",
+  exp: "Expires at",
+  iat: "Issued at",
+  nbf: "Not valid before",
+};
+// everything else in the payload is a custom claim (name, role, …).</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Unix seconds → real dates</h3></div><pre>// exp / iat / nbf are SECONDS since 1970 (not milliseconds).
+// JavaScript Date wants milliseconds, so multiply by 1000.
+function toDate(unixSeconds){
+  return new Date(unixSeconds * 1000).toLocaleString();
+}
+toDate(payload.iat);  // → "Sat, 14 Nov 2023, 5:13:20 PM"
+toDate(payload.exp);  // → "Sat, 14 Nov 2023, 6:13:20 PM"</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Is it expired? (with clock skew)</h3></div><pre>// compare exp against "now" in seconds.
+const now = Math.floor(Date.now() / 1000);
+const skew = 60;                              // allow 60s clock drift
+const expired = payload.exp && now > payload.exp + skew;
+
+if (expired){
+  const mins = Math.round((now - payload.exp) / 60);
+  console.log(`Expired ${mins} min ago`);
+} else if (payload.exp){
+  const mins = Math.round((payload.exp - now) / 60);
+  console.log(`Expires in ${mins} min`);
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Decoding ≠ verifying (important)</h3></div><pre>// what we did above only DECODES — it reads the claims.
+// it does NOT prove the token is genuine. Anyone can craft
+// a fake token with any payload they like.
+//
+// VERIFYING checks the signature against the signing key:
+//   HS256 → recompute HMAC(header.payload, secret), compare
+//   RS256 → verify the RSA signature with the public key
+//
+// → always verify on the SERVER. never trust a decoded
+//   payload in the browser as proof of anything.</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Decode in one function</h3></div><pre>function decodeJwt(token){
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("A JWT has 3 parts");
+  const [h, p, sig] = parts;
+  return {
+    header:    JSON.parse(base64UrlDecode(h)),
+    payload:   JSON.parse(base64UrlDecode(p)),
+    signature: sig,            // left encoded — it's raw bytes
+    verified:  false,          // decoding never verifies
+  };
+}
+decodeJwt(token);
+// ➜ { header:{alg:"HS256",typ:"JWT"}, payload:{…}, signature:"…", verified:false }</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 20 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">A JWT is three base64url parts joined by dots. Split, base64url-decode the header &amp; payload, <span class="font-mono">JSON.parse</span>, humanize the claims, turn Unix seconds into dates. Decoding reads it; only the server, holding the key, can <b>verify</b> it. Never put secrets in a payload — anyone can read it.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== JWT DECODER (real, browser-only, no library) =====
+
+// A genuine, well-formed sample JWT (HS256). Header {"alg":"HS256","typ":"JWT"}.
+// Payload carries iss/sub/aud + name/role + iat. exp is set dynamically below so
+// the "expires in N min" badge is always live.
+const SAMPLE_HEADER  = { alg: "HS256", typ: "JWT" };
+
+function b64urlEncode(str){
+  // UTF-8 → base64 → base64url (used only to build live sample tokens)
+  const utf8 = unescape(encodeURIComponent(str));
+  return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function buildToken(header, payload){
+  const h = b64urlEncode(JSON.stringify(header));
+  const p = b64urlEncode(JSON.stringify(payload));
+  // a fixed, fake signature string — this decoder never verifies it
+  const sig = "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+  return `${h}.${p}.${sig}`;
+}
+function freshSample(){
+  const now = Math.floor(Date.now() / 1000);
+  return buildToken(SAMPLE_HEADER, {
+    iss: "https://auth.example.com",
+    sub: "1234567890",
+    aud: "my-app-api",
+    name: "Jane Developer",
+    role: "admin",
+    iat: now - 300,        // issued 5 min ago
+    nbf: now - 300,
+    exp: now + 1800        // expires in 30 min
+  });
+}
+function expiredSample(){
+  const now = Math.floor(Date.now() / 1000);
+  return buildToken(SAMPLE_HEADER, {
+    iss: "https://auth.example.com",
+    sub: "9876543210",
+    aud: "my-app-api",
+    name: "Old Session",
+    iat: now - 7200,       // 2h ago
+    exp: now - 3600        // expired 1h ago
+  });
+}
+
+// --- base64url-decode → UTF-8 string ---
+function base64UrlDecode(str){
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";              // restore padding
+  let binary;
+  try { binary = atob(str); }
+  catch (e){ throw new Error("segment is not valid base64url"); }
+  // decode the raw bytes as UTF-8 so accents / emoji survive
+  try {
+    return decodeURIComponent(
+      [...binary].map(c => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+    );
+  } catch (e){
+    return binary;   // fall back to latin1 if it wasn't valid UTF-8
+  }
+}
+
+// --- escape for safe HTML insertion ---
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// --- pretty-print a JSON object with syntax highlighting ---
+function highlightJson(obj){
+  const json = JSON.stringify(obj, null, 2);
+  return esc(json).replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(\.\d+)?([eE][+\-]?\d+)?)/g,
+    (m) => {
+      let cls = "jn";
+      if (/^"/.test(m)){ cls = /:$/.test(m) ? "jk" : "js"; }
+      else if (/true|false/.test(m)){ cls = "jb"; }
+      else if (/null/.test(m)){ cls = "jb"; }
+      return `<span class="${cls}">${m}</span>`;
+    }
+  );
+}
+
+// --- colour the raw token segments (red / purple / cyan) ---
+function renderEcho(token){
+  const parts = token.split(".");
+  if (parts.length < 2){
+    return `<span class="seg-header">${esc(token)}</span>`;
+  }
+  const cls = ["seg-header", "seg-payload", "seg-sig"];
+  return parts.map((p, i) =>
+    `<span class="${cls[i] || 'seg-dot'}">${esc(p)}</span>`
+  ).join('<span class="seg-dot">.</span>');
+}
+
+// --- humanize standard claims ---
+const CLAIM_LABEL = {
+  alg: "Algorithm (alg)",
+  typ: "Type (typ)",
+  iss: "Issuer (iss)",
+  sub: "Subject (sub)",
+  aud: "Audience (aud)",
+  exp: "Expires (exp)",
+  iat: "Issued at (iat)",
+  nbf: "Not before (nbf)"
+};
+function fmtDate(unixSeconds){
+  const d = new Date(unixSeconds * 1000);
+  if (isNaN(d.getTime())) return String(unixSeconds);
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" });
+}
+function relTime(deltaSec){
+  const abs = Math.abs(deltaSec);
+  if (abs < 60)      return Math.round(abs) + " sec";
+  if (abs < 3600)    return Math.round(abs / 60) + " min";
+  if (abs < 86400)   return (abs / 3600).toFixed(1) + " hr";
+  return Math.round(abs / 86400) + " days";
+}
+
+const els = {
+  jwt:     document.getElementById("jwt"),
+  echo:    document.getElementById("echo"),
+  error:   document.getElementById("error"),
+  hdrJson: document.getElementById("hdrJson"),
+  plJson:  document.getElementById("plJson"),
+  sigRaw:  document.getElementById("sigRaw"),
+  claims:  document.getElementById("claims"),
+  expBadge:document.getElementById("expBadge")
+};
+
+function showError(msg){
+  els.error.className = "err-box";
+  els.error.innerHTML = "⚠ " + esc(msg);
+  els.hdrJson.textContent = "—";
+  els.plJson.textContent  = "—";
+  els.sigRaw.textContent  = "—";
+  els.claims.innerHTML    = '<div class="text-sm text-slate-400">Decode a valid token to see its claims.</div>';
+  els.expBadge.innerHTML  = "";
+}
+
+function decode(){
+  const token = els.jwt.value.trim();
+  els.echo.innerHTML = renderEcho(token);
+
+  if (!token){
+    showError("Paste a JWT above — three base64url parts joined by dots.");
+    return;
+  }
+  const parts = token.split(".");
+  if (parts.length !== 3){
+    showError(`A JWT must have exactly 3 parts separated by dots (this one has ${parts.length}).`);
+    return;
+  }
+  let header, payload;
+  try {
+    header = JSON.parse(base64UrlDecode(parts[0]));
+  } catch (e){
+    showError("Could not decode the header — " + e.message + ".");
+    return;
+  }
+  try {
+    payload = JSON.parse(base64UrlDecode(parts[1]));
+  } catch (e){
+    showError("Could not decode the payload — " + e.message + ".");
+    return;
+  }
+
+  // clear error
+  els.error.className = "hidden";
+  els.error.innerHTML = "";
+
+  // header + payload + signature
+  els.hdrJson.innerHTML = highlightJson(header);
+  els.plJson.innerHTML  = highlightJson(payload);
+  els.sigRaw.textContent = parts[2] || "(empty signature)";
+
+  // ---- humanized claims ----
+  const rows = [];
+  const addRow = (key, valueHtml) => {
+    const label = CLAIM_LABEL[key] || key;
+    rows.push(`<div class="claim-row"><span class="claim-k">${esc(label)}</span><span class="claim-v">${valueHtml}</span></div>`);
+  };
+
+  // from header
+  if (header.alg != null) addRow("alg", esc(header.alg));
+  if (header.typ != null) addRow("typ", esc(header.typ));
+
+  // from payload — standard string claims
+  ["iss","sub","aud"].forEach(k => {
+    if (payload[k] != null) addRow(k, esc(Array.isArray(payload[k]) ? payload[k].join(", ") : payload[k]));
+  });
+
+  // time claims with humanized dates
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.iat != null) addRow("iat", esc(fmtDate(payload.iat)));
+  if (payload.nbf != null){
+    const notYet = now < payload.nbf;
+    addRow("nbf", esc(fmtDate(payload.nbf)) + (notYet ? ` <span class="badge-warn">not valid yet</span>` : ""));
+  }
+  if (payload.exp != null){
+    addRow("exp", esc(fmtDate(payload.exp)));
+  }
+
+  // any non-standard claims worth surfacing (name/email/role etc.)
+  const STANDARD = new Set(["iss","sub","aud","exp","iat","nbf","jti"]);
+  Object.keys(payload).forEach(k => {
+    if (!STANDARD.has(k)){
+      const v = payload[k];
+      addRow(k, esc(typeof v === "object" ? JSON.stringify(v) : v));
+    }
+  });
+
+  els.claims.innerHTML = rows.length ? rows.join("") :
+    '<div class="text-sm text-slate-400">No standard claims found in this token.</div>';
+
+  // ---- live expiry badge ----
+  if (payload.exp == null){
+    els.expBadge.innerHTML = `<span class="badge-warn">no expiry (exp) — never expires</span>`;
+  } else {
+    const skew = 60;
+    if (now > payload.exp + skew){
+      els.expBadge.innerHTML = `<span class="badge-bad">expired ✗ — ${relTime(now - payload.exp)} ago</span>`;
+    } else {
+      els.expBadge.innerHTML = `<span class="badge-ok">valid ✓ — expires in ${relTime(payload.exp - now)}</span>`;
+    }
+  }
+}
+
+// buttons
+document.getElementById("sample").onclick  = () => { els.jwt.value = freshSample();  decode(); };
+document.getElementById("expired").onclick = () => { els.jwt.value = expiredSample(); decode(); };
+document.getElementById("clear").onclick   = () => { els.jwt.value = ""; decode(); };
+els.jwt.addEventListener("input", decode);
+
+// seed with a fresh, valid sample on load
+els.jwt.value = freshSample();
+decode();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What a JWT is", why:"A JWT — JSON Web Token, usually said 'jot' — is a compact, self-contained token that carries a small set of facts (called claims) about who someone is and what they're allowed to do. The whole point of 'self-contained' is that everything needed to understand the token travels inside the token itself: a server can read it and trust it without looking anything up in a database. It's used mostly for authentication and authorization: after you log in, a server hands you a signed JWT, and you send it back on every request to prove who you are. It looks like one long string of gibberish, but it's actually structured and completely readable once you know it's just base64url-encoded JSON. The signing is what makes it trustworthy — not secrecy.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="font-mono text-xs break-all"><span class="seg-header">eyJhbGci…</span><span class="text-slate-400">.</span><span class="seg-payload">eyJzdWIi…</span><span class="text-slate-400">.</span><span class="seg-sig">SflKxwRJ…</span></div><div class="text-xs text-slate-500 mt-2">one string = a signed, self-contained set of claims about a user</div></div>`, code:`// JWT = "JSON Web Token" (say "jot").\n// a compact, SIGNED, self-contained token of claims.\n//\n//   login  →  server gives you a JWT\n//   then   →  you send it on every request to prove who you are\n//\n// the server can trust it WITHOUT a database lookup,\n// because it's signed. it's structured data, not random noise.` },
+
+  { title:"2. The three parts", why:"Every JWT has exactly three parts, separated by dots: header, payload, and signature — header.payload.signature. The header is a tiny JSON object that says how the token was signed, for example which algorithm was used. The payload is another JSON object holding the actual claims: who the user is, when the token expires, what roles they have. The signature is a cryptographic seal computed over the first two parts, which lets a server detect any tampering. The header and payload are simply encoded text that anyone can read; only the signature involves a secret. If you ever see a string with two dots splitting it into three chunks of base64-looking characters, that's almost certainly a JWT.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-left"><div class="space-y-1"><div><span class="seg-header font-bold">● header</span> <span class="text-slate-500 text-xs">— how it's signed (alg, typ)</span></div><div><span class="seg-payload font-bold">● payload</span> <span class="text-slate-500 text-xs">— the claims (who, when, roles)</span></div><div><span class="seg-sig font-bold">● signature</span> <span class="text-slate-500 text-xs">— the tamper-proof seal</span></div></div></div>`, code:`// three parts, joined by dots:\n//\n//   header . payload . signature\n//\n//   header     {"alg":"HS256","typ":"JWT"}   how it's signed\n//   payload    {"sub":"123","exp":…}         the claims\n//   signature  cryptographic seal over header.payload\n//\n// split on "." to get the three pieces.` },
+
+  { title:"3. base64url, not plain base64", why:"The header and payload are encoded with base64url, a close cousin of ordinary base64. Regular base64 uses the characters + and / and pads the end with = signs, but those characters have special meaning inside URLs, and JWTs are designed to be safe to drop into a URL or an HTTP header. So base64url swaps + for - and / for _, and it strips the = padding entirely. To decode it yourself you reverse those swaps, add the padding back so the length is a multiple of four, and then run a normal base64 decode. This is the single most common reason a hand-written decoder fails: people feed a base64url string straight into a base64 decoder and get errors, because the - and _ characters and the missing padding trip it up.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs">base64 &nbsp;<span class="text-rose-500">+</span> &nbsp;<span class="text-rose-500">/</span> &nbsp;<span class="text-rose-500">=</span></div><div class="text-slate-400 my-1">↓ url-safe</div><div class="font-mono text-xs">base64url &nbsp;<span class="text-emerald-600">-</span> &nbsp;<span class="text-emerald-600">_</span> &nbsp;(no padding)</div></div>`, code:`// base64url = base64 made URL-safe:\n//   +  →  -\n//   /  →  _\n//   =  →  removed (no padding)\n//\n// to decode, reverse it first:\nstr = str.replace(/-/g, "+").replace(/_/g, "/");\nwhile (str.length % 4) str += "=";   // re-pad to multiple of 4\nconst bytes = atob(str);             // now a normal base64 decode` },
+
+  { title:"4. Encoded, NOT encrypted", why:"This is the most important security fact about JWTs, and the one people get wrong most often: the payload is encoded, not encrypted. Base64url is not a cipher — it's just a way to represent bytes as URL-safe text — so anyone who holds the token can decode the payload and read every claim inside it in plain JSON. There is no secret involved in reading it. That means you must never put anything sensitive in a JWT payload: no passwords, no credit-card numbers, no private personal data, no API secrets. Treat the payload as fully public information that you happen to be carrying around. The signature protects the token from being changed, but it does absolutely nothing to hide what's inside. If you genuinely need to hide the contents, that's a separate, more advanced thing called JWE (encrypted tokens).", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="text-rose-600 font-bold mb-1">👁 anyone can read the payload</div><div class="text-xs text-slate-500">base64url is encoding, not encryption — there's no secret to read it.<br>never put passwords, PII, or secrets in a JWT.</div></div>`, code:`// ⚠ the payload is ENCODED, not ENCRYPTED.\n//\n// base64url is NOT a cipher — anyone with the token can read it:\n//   atob(payloadPart)  →  the full JSON, in the clear\n//\n// so NEVER put in a payload:\n//   ✗ passwords   ✗ card numbers   ✗ PII   ✗ API secrets\n//\n// the signature stops tampering — it does NOT hide anything.` },
+
+  { title:"5. The standard claims", why:"The JWT spec reserves a handful of short, three-letter claim names so that different systems can understand each other. The big ones are: iss, the issuer, identifying who created the token; sub, the subject, which is usually the user the token is about; aud, the audience, naming who the token is meant for; exp, the expiry time; iat, the time the token was issued; and nbf, a 'not before' time before which the token shouldn't be accepted. The three time claims — exp, iat, nbf — are stored as Unix timestamps: the number of seconds since the start of 1970. Beyond these reserved names you can add any custom claims you like, such as a user's name or role, but a verifying server should always check the standard ones, especially exp and aud.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-left text-sm"><div class="grid grid-cols-1 gap-1"><div><span class="font-mono text-amber-700">iss</span> — issuer (who made it)</div><div><span class="font-mono text-amber-700">sub</span> — subject (the user)</div><div><span class="font-mono text-amber-700">aud</span> — audience (who it's for)</div><div><span class="font-mono text-amber-700">exp</span> — expires at &nbsp;<span class="font-mono text-amber-700">iat</span> — issued at &nbsp;<span class="font-mono text-amber-700">nbf</span> — not before</div></div></div>`, code:`// reserved (registered) claim names — same everywhere:\n//   iss   issuer    — who created the token\n//   sub   subject   — who it's about (often a user id)\n//   aud   audience  — who it's meant for\n//   exp   expires   — Unix seconds\n//   iat   issued-at — Unix seconds\n//   nbf   not-before— Unix seconds\n//\n// add your own custom claims too (name, role, …).` },
+
+  { title:"6. The signature & how it's made", why:"The signature is what turns a readable blob of JSON into something a server can trust. It is computed over the exact string header.payload — the two base64url parts joined by a dot — using either a shared secret (HMAC, as in HS256) or a private key (RSA or elliptic-curve, as in RS256 or ES256). With HMAC the same secret both creates and checks the signature; with RSA/EC a private key signs and a matching public key verifies, which is handy when many parties need to verify but only one should be able to sign. Because the signature covers the header and payload, changing even a single character of either makes the signature no longer match. That's the whole security model: you can read the token freely, but you cannot alter it without breaking the seal — unless you have the key.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs mb-1">sign( <span class="seg-header">header</span>.<span class="seg-payload">payload</span> , key )</div><div class="text-xs text-slate-500">HS256 → HMAC with a shared secret<br>RS256 / ES256 → private key signs, public key verifies</div></div>`, code:`// the signature seals header + payload:\n//\n//   signature = SIGN( base64url(header) + "." + base64url(payload), KEY )\n//\n//   HS256  HMAC with a SHARED SECRET (same key signs & checks)\n//   RS256  RSA: PRIVATE key signs, PUBLIC key verifies\n//   ES256  elliptic-curve, same private/public split\n//\n// change ONE character of header/payload → signature breaks.` },
+
+  { title:"7. Decoding ≠ verifying", why:"This decoder, and the one you build on the next tab, only decodes: it splits the token and reads the header and payload. It does not, and cannot, tell you whether the token is genuine — and this distinction matters enormously. Anyone can sit down and hand-craft a token with any payload they want — admin: true, a different user id, whatever — and it will decode perfectly into nice readable JSON. What they cannot do is produce a valid signature without the key. Verifying is the step that recomputes or checks the signature against the signing key and confirms the token really was issued by who it claims and hasn't been altered. So never make a security decision based on a merely decoded payload. Decoding answers 'what does this say?'; verifying answers 'can I trust what it says?'.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="mb-1">📖 <b>decode</b> — split &amp; read the JSON &nbsp;<span class="text-xs text-slate-500">(no key, anyone)</span></div><div>✅ <b>verify</b> — check the signature with the key &nbsp;<span class="text-xs text-slate-500">(proves it's genuine)</span></div></div>`, code:`// DECODING is not VERIFYING:\n//\n//   decode  split on "." + base64url-decode → reads the claims\n//           (no key needed — ANYONE can do this)\n//\n//   verify  check the signature against the signing key\n//           → proves the token is genuine & untampered\n//\n// a forged token DECODES fine but FAILS verification.\n// never trust a decoded payload as proof.` },
+
+  { title:"8. Verification lives on the server", why:"Because verifying needs the signing key, and because you must never ship a secret key to a browser, verification belongs on the server. When a request arrives carrying a JWT, the server takes the header.payload portion, recomputes or checks the signature using the secret (for HMAC) or the matching public key (for RSA/EC), and only if that check passes does it trust the claims inside. A good library does this for you and also validates the standard claims at the same time: that the token hasn't expired (exp), that it's already valid (nbf), that the audience (aud) matches this service, and often that the issuer (iss) is one you recognise. A browser-side decoder like this one is great for inspecting and debugging tokens, but the real gatekeeping always happens server-side with the key in hand.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="mb-1">🌐 <b>browser</b> — decode &amp; display only &nbsp;<span class="text-xs text-slate-500">(no key)</span></div><div>🔒 <b>server</b> — verify signature + check exp/aud/iss &nbsp;<span class="text-xs text-slate-500">(has the key)</span></div></div>`, code:`// verification needs the KEY → it lives on the SERVER.\n//\n// on each request the server:\n//   1. recompute / check the signature with the secret\n//      (HMAC) or matching public key (RSA/EC)\n//   2. check exp (not expired) and nbf (already valid)\n//   3. check aud matches this service, iss is trusted\n//   → only then trust the claims\n//\n// never send a signing secret to the browser.` },
+
+  { title:"9. Expiry & clock skew", why:"JWTs are meant to be short-lived. The exp claim sets a hard deadline after which the token must be rejected, which limits the damage if one is ever stolen — a leaked token is only useful until it expires. iat records when it was issued, and nbf can delay when a token becomes valid. Comparing these to 'now' sounds trivial, but there's a wrinkle: the clocks on the issuing server and the verifying server are never perfectly in sync. A token might look like it expired one second ago, or isn't valid for one more second, purely because two machines disagree about the time. To avoid spurious rejections, verifiers allow a small grace window — commonly 30 to 120 seconds — called clock skew. So 'expired' really means 'now is past exp plus a little tolerance', not 'now is one millisecond past exp'.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs mb-1">now &gt; exp + skew &nbsp;→&nbsp; <span class="text-rose-600">expired</span></div><div class="text-xs text-slate-500">tokens are short-lived; allow ~30–120s skew so clock drift<br>between servers doesn't cause false rejections.</div></div>`, code:`// tokens are SHORT-LIVED — exp limits stolen-token damage.\n//\nconst now  = Math.floor(Date.now() / 1000);  // seconds\nconst skew = 60;                              // clock tolerance\n\nconst expired = payload.exp && now > payload.exp + skew;\nconst tooEarly = payload.nbf && now < payload.nbf - skew;\n\n// the skew window stops two slightly-out-of-sync clocks\n// from rejecting a perfectly good token.` },
+
+  { title:"10. Pitfalls, and JWT vs sessions", why:"A few sharp edges to know. First, the alg:none trap: the spec technically allows a token with no signature, and old or careless libraries could be tricked into accepting one — always pin the algorithm you expect and reject 'none'. Second, algorithm confusion: an attacker takes an RS256 setup and submits an HS256 token signed with the public key as if it were the HMAC secret; a robust library refuses to let the token's own header dictate the algorithm. Third, revocation: because a JWT is self-contained, you can't easily 'log it out' before it expires — so keep lifetimes short and use refresh tokens or a denylist if you need instant revocation. Finally, JWT versus sessions: a classic session stores state on the server and hands the browser an opaque id, which is trivial to revoke but needs a lookup; a JWT pushes the state into a signed token, which scales beautifully across services but is harder to revoke. Neither is 'better' — pick JWTs for stateless, cross-service auth, and sessions when you want easy, instant revocation.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-4xl mb-2">🎉</div><p class="font-bold text-slate-700">Split on dots · base64url-decode header &amp; payload · read the claims · humanize the dates · check expiry. Decoding reads it — only the server with the key can verify it. Keep tokens short-lived and never store secrets inside.</p></div>`, code:`// security pitfalls — know these:\n//   alg:none      reject unsigned tokens; pin your algorithm\n//   alg confusion don't let the token's header pick the alg\n//                 (RS256 ↔ HS256 attack)\n//   no revocation self-contained → can't easily kill early\n//                 → keep lifetimes SHORT; use refresh tokens\n//\n// JWT vs sessions:\n//   session  state on server, opaque id → easy to revoke\n//   JWT      state in token, signed     → scales, stateless\n//   → JWT for cross-service stateless auth; sessions for\n//     instant revocation.` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>
