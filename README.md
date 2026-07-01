@@ -27,6 +27,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 18 — WCAG Contrast Checker](https://dev48v.infy.uk/solve/day18-contrast-checker.html) — `day18-contrast-checker.html`
 - [SolveFromZero · Day 19 — Hash Generator (Web Crypto)](https://dev48v.infy.uk/solve/day19-hash-generator.html) — `day19-hash-generator.html`
 - [SolveFromZero · Day 20 — JWT Decoder (Read Any Token Safely)](https://dev48v.infy.uk/solve/day20-jwt-decoder.html) — `day20-jwt-decoder.html`
+- [SolveFromZero · Day 21 — Cron Expression Explainer](https://dev48v.infy.uk/solve/day21-cron-explainer.html) — `day21-cron-explainer.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SolveFromZero · Day 21 — Cron Expression Explainer (Read Any Schedule)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .txt-input {
+    font-size:14px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px;
+    box-sizing:border-box; width:100%; color:#0f172a; background:#fff;
+  }
+  .txt-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  select.txt-input { cursor:pointer; }
+  .chip-amber { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  .meta-pill { font-size:11px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:999px; padding:3px 10px; }
+
+  /* cron input — colour the 5 fields */
+  .cron-input {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:20px; letter-spacing:1px; line-height:1.7; padding:14px;
+    border:1px solid #e2e8f0; border-radius:10px; width:100%; box-sizing:border-box;
+    text-align:center; background:#fff;
+  }
+  .cron-input:focus { outline:none; box-shadow:0 0 0 2px #fbbf24; }
+  /* coloured echo of the expression */
+  .cron-echo {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:22px; line-height:1.6; text-align:center; letter-spacing:2px;
+    background:#0f172a; border-radius:10px; padding:16px; color:#64748b;
+  }
+  .f-min  { color:#fb7185; }   /* red     */
+  .f-hour { color:#fbbf24; }   /* amber   */
+  .f-dom  { color:#34d399; }   /* green   */
+  .f-mon  { color:#c084fc; }   /* purple  */
+  .f-dow  { color:#22d3ee; }   /* cyan    */
+  .f-dot  { color:#475569; }
+
+  .field-card { border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff; }
+  .field-dot { display:inline-block; width:10px; height:10px; border-radius:999px; vertical-align:middle; }
+
+  .json-box {
+    font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12.5px; line-height:1.7; white-space:pre-wrap; word-break:break-word;
+    background:#0f172a; border-radius:10px; padding:14px; color:#e2e8f0; overflow:auto;
+  }
+
+  .run-row { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .run-row:last-child { border-bottom:none; }
+  .run-k { color:#0f172a; font-weight:600; }
+  .run-v { color:#64748b; text-align:right; }
+  .badge-ok   { background:#ecfdf5; border:1px solid #a7f3d0; color:#047857; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .badge-bad  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .badge-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-weight:700; border-radius:999px; padding:3px 10px; font-size:11px; }
+  .err-box { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:10px; padding:12px 14px; font-size:13px; font-weight:600; }
+  .human-box { background:#0f172a; border-radius:12px; padding:20px; color:#f8fafc; font-size:17px; line-height:1.6; text-align:center; font-weight:600; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 21</div>
+      <h1 class="text-xl font-bold">⏰ Cron Explainer — Read Any Schedule</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-6 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-2xl font-bold mb-1 text-center">Type a cron expression — read exactly when it runs.</h2>
+      <p class="text-slate-500 text-center mb-6">A cron expression is just <b>five numbers separated by spaces</b> — <span class="f-min font-semibold">minute</span> <span class="f-hour font-semibold">hour</span> <span class="f-dom font-semibold">day-of-month</span> <span class="f-mon font-semibold">month</span> <span class="f-dow font-semibold">day-of-week</span>. Each field says "which values match", using numbers, <span class="font-mono">*</span> (any), <span class="font-mono">,</span> (list), <span class="font-mono">-</span> (range) and <span class="font-mono">/</span> (step). This parses it, describes it in plain English, and computes the next real run times <b>in your browser</b> — nothing is uploaded, no library used.</p>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <!-- CRON INPUT -->
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-3">Cron expression (5 fields)</div>
+          <input id="cron" class="cron-input" spellcheck="false" value="30 9 * * 1-5" />
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="0 * * * *">@hourly</button>
+            <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="0 0 * * *">@daily</button>
+            <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="*/15 * * * *">*/15 * * * *</button>
+            <button class="preset bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="0 9 * * 1-5">0 9 * * 1-5</button>
+            <button class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="0 0 1 * *">1st of month</button>
+            <button class="preset bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold" data-cron="*/5 9-17 * * 1-5">office hrs</button>
+          </div>
+
+          <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mt-5 mb-2">Coloured fields</div>
+          <div id="echo" class="cron-echo">…</div>
+          <div class="flex flex-wrap gap-3 mt-3 text-xs text-slate-500 justify-center">
+            <span><span class="field-dot" style="background:#fb7185"></span> minute</span>
+            <span><span class="field-dot" style="background:#fbbf24"></span> hour</span>
+            <span><span class="field-dot" style="background:#34d399"></span> day-of-month</span>
+            <span><span class="field-dot" style="background:#c084fc"></span> month</span>
+            <span><span class="field-dot" style="background:#22d3ee"></span> day-of-week</span>
+          </div>
+
+          <div id="hint" class="mt-4 text-sm chip-amber rounded-lg px-3 py-2 font-semibold">
+            🛈 The fields are always in this order: <b>minute, hour, day-of-month, month, day-of-week</b>. Minutes come first — the most common mistake is putting the hour first.
+          </div>
+        </div>
+
+        <!-- PLAIN ENGLISH + NEXT RUNS -->
+        <div class="space-y-4">
+          <!-- error slot -->
+          <div id="error" class="hidden"></div>
+
+          <!-- plain english -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="text-xs uppercase font-bold tracking-wider mb-3 text-amber-600">In plain English</div>
+            <div id="human" class="human-box">…</div>
+          </div>
+
+          <!-- next runs -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs uppercase font-bold tracking-wider text-amber-600">Next 5 run times <span class="text-slate-400 font-normal lowercase tracking-normal">— from now, your local time</span></div>
+              <span id="nowBadge" class="badge-ok"></span>
+            </div>
+            <div id="runs"></div>
+            <div class="text-xs text-slate-400 mt-3">These are computed by stepping forward minute by minute from now and keeping the first five that match all five fields — the same thing a real cron daemon does every minute.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FIELD BREAKDOWN -->
+      <div class="bg-white border border-slate-200 rounded-xl p-5 mt-4">
+        <div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-3">Field-by-field breakdown</div>
+        <div id="fields" class="grid md:grid-cols-5 gap-3"></div>
+        <div class="text-xs text-slate-400 mt-3">Each field lists the values it matches. <span class="font-mono">*</span> means "every value". A field with a list like <span class="font-mono">1,15</span>, a range like <span class="font-mono">1-5</span>, or a step like <span class="font-mono">*/15</span> expands to the exact set shown.</div>
+      </div>
+
+      <p class="text-xs text-slate-400 text-center mt-6"><b>How the parsing works:</b> we split the expression on spaces into exactly five fields, then expand each field into the concrete set of numbers it allows — <span class="font-mono">*</span> becomes the whole range, <span class="font-mono">a-b</span> becomes every number from a to b, <span class="font-mono">*/n</span> or <span class="font-mono">a-b/n</span> keeps every n-th value, and commas union several of those together. A given minute "matches" when its minute, hour and month all fall in their sets — and its day matches by the special day-of-month <b>OR</b> day-of-week rule. To list the next runs we start at the next whole minute and walk forward, testing each minute until we've collected five hits.</p>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How cron works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Split the expression into five fields → expand each field into the set of numbers it matches → describe it in English → find the next runs by stepping forward one minute at a time and keeping the minutes that match. ~50 lines for a correct, library-free cron parser and scheduler. The one subtlety to get right is the day-of-month <b>OR</b> day-of-week rule.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Split into exactly five fields</h3></div><pre>// a standard cron line is 5 fields separated by whitespace.
+const fields = expr.trim().split(/\s+/);
+if (fields.length !== 5)
+  throw new Error(`Expected 5 fields, got ${fields.length}`);
+
+const [min, hour, dom, mon, dow] = fields;
+// order is fixed: minute hour day-of-month month day-of-week</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Know each field's legal range</h3></div><pre>// every field has a fixed min..max:
+const RANGES = {
+  minute:      [0, 59],
+  hour:        [0, 23],
+  dayOfMonth:  [1, 31],
+  month:       [1, 12],
+  dayOfWeek:   [0, 6],   // 0 = Sunday … 6 = Saturday
+};
+// (7 is sometimes also Sunday; we normalise 7 → 0.)</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Expand one field into a set</h3></div><pre>// turn a field string into the exact numbers it matches.
+function expand(field, lo, hi){
+  const out = new Set();
+  for (const part of field.split(",")){          // lists: a,b,c
+    let [rangePart, stepStr] = part.split("/");   // steps: x/n
+    const step = stepStr ? parseInt(stepStr, 10) : 1;
+    let start = lo, end = hi;
+    if (rangePart !== "*"){
+      const m = rangePart.split("-");             // ranges: a-b
+      start = parseInt(m[0], 10);
+      end   = m[1] !== undefined ? parseInt(m[1], 10) : start;
+    }
+    for (let v = start; v <= end; v += step) out.add(v);
+  }
+  return out;   // e.g. "*/15" over 0..59 → {0,15,30,45}
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Validate as you expand</h3></div><pre>// reject anything outside the legal range, or non-numeric.
+function expandChecked(field, lo, hi, name){
+  const set = expand(field, lo, hi);
+  for (const v of set){
+    if (Number.isNaN(v) || v < lo || v > hi)
+      throw new Error(`${name}: ${v} out of range ${lo}-${hi}`);
+  }
+  if (set.size === 0) throw new Error(`${name}: matches nothing`);
+  return set;
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Does a given minute match?</h3></div><pre>// a Date matches when minute, hour and month are all in-set,
+// AND the day matches by the special OR rule (see step 6).
+function matches(date, sets){
+  if (!sets.minute.has(date.getMinutes())) return false;
+  if (!sets.hour.has(date.getHours()))     return false;
+  if (!sets.month.has(date.getMonth() + 1)) return false; // JS month 0-based!
+  return dayMatches(date, sets);
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">The day-of-month OR day-of-week rule</h3></div><pre>// THE classic cron gotcha. If BOTH day fields are restricted
+// (neither is "*"), the day matches when EITHER one matches —
+// they are OR'd, not AND'd. If one is "*", only the other counts.
+function dayMatches(date, sets){
+  const domStar = sets.domRaw === "*";
+  const dowStar = sets.dowRaw === "*";
+  const domHit = sets.dayOfMonth.has(date.getDate());
+  const dowHit = sets.dayOfWeek.has(date.getDay());   // 0=Sun
+  if (domStar && dowStar) return true;
+  if (domStar) return dowHit;      // only day-of-week set
+  if (dowStar) return domHit;      // only day-of-month set
+  return domHit || dowHit;         // both set → OR them
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Find the next N runs by minute-stepping</h3></div><pre>// start at the NEXT whole minute, then walk forward.
+function nextRuns(sets, count){
+  const out = [];
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + 1);          // start from next minute
+  // safety cap: 4 years of minutes so we never loop forever
+  for (let i = 0; i < 366 * 4 * 24 * 60 && out.length < count; i++){
+    if (matches(d, sets)) out.push(new Date(d));
+    d.setMinutes(d.getMinutes() + 1);        // Date rolls hours/days/years
+  }
+  return out;
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Describe one field in English</h3></div><pre>// turn a field back into words for the human summary.
+function describeField(raw, unit, names){
+  if (raw === "*") return `every ${unit}`;
+  if (/^\*\/\d+$/.test(raw))
+    return `every ${raw.split("/")[1]} ${unit}s`;
+  if (/^\d+-\d+$/.test(raw)){
+    const [a, b] = raw.split("-");
+    return `from ${names ? names[a] : a} through ${names ? names[b] : b}`;
+  }
+  if (raw.includes(","))
+    return raw.split(",").map(v => names ? names[v] : v).join(", ");
+  return names ? names[raw] : raw;   // single value
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Stitch the sentence together</h3></div><pre>// combine time-of-day + day + month into one readable line.
+function describe(min, hour, dom, mon, dow){
+  const time = (min !== "*" && hour !== "*")
+    ? `at ${pad(hour)}:${pad(min)}`
+    : `at minute ${describeField(min,"minute")}, ${describeField(hour,"hour")}`;
+  const days = (dow !== "*")
+    ? `on ${describeField(dow,"day", DAY_NAMES)}`
+    : (dom !== "*" ? `on day-of-month ${describeField(dom,"day")}` : "every day");
+  const months = (mon !== "*")
+    ? `in ${describeField(mon,"month", MONTH_NAMES)}` : "";
+  return [time, days, months].filter(Boolean).join(" ");
+  // "0 9 * * 1-5" → "at 09:00 on Mon through Fri"
+}</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-6"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Wire it together</h3></div><pre>function explainCron(expr){
+  const [min, hour, dom, mon, dow] = expr.trim().split(/\s+/);
+  const sets = {
+    minute:     expandChecked(min,  0, 59, "minute"),
+    hour:       expandChecked(hour, 0, 23, "hour"),
+    dayOfMonth: expandChecked(dom,  1, 31, "day-of-month"),
+    month:      expandChecked(mon,  1, 12, "month"),
+    dayOfWeek:  expandChecked(dow,  0, 6,  "day-of-week"),
+    domRaw: dom, dowRaw: dow,
+  };
+  return {
+    english: describe(min, hour, dom, mon, dow),
+    next:    nextRuns(sets, 5),
+  };
+}
+explainCron("*/15 * * * *");
+// ➜ { english:"every 15 minutes", next:[Date, Date, …] }</pre><button class="copy mt-3 text-xs font-bold text-amber-600 hover:text-amber-800">📋 Copy</button></li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 21 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">A cron expression is five space-separated fields: minute, hour, day-of-month, month, day-of-week. Expand each into a set of numbers, describe them in English, and find the next runs by stepping forward one minute at a time. Remember JS months are 0-based, and the two day fields are OR'd — not AND'd — when both are set.</p></div>
+    <p class="text-center text-sm text-slate-400 mt-6"><b class="text-slate-500">Tomorrow — Day 22:</b> Unix Timestamp Converter — turn seconds-since-1970 into human dates and back, both ways, in any time zone.</p>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== CRON PARSER (real, browser-only, no library) =====
+
+const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTH_NAMES = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY_ALIAS   = { sun:0, mon:1, tue:2, wed:3, thu:4, fri:5, sat:6 };
+const MON_ALIAS   = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+
+// keyed by the exact name string passed to expandField()
+const RANGES = {
+  "minute":       [0, 59],
+  "hour":         [0, 23],
+  "day-of-month": [1, 31],
+  "month":        [1, 12],
+  "day-of-week":  [0, 6],
+};
+
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function pad(n){ return String(n).padStart(2, "0"); }
+
+// resolve a single token: number, or Sun/Mon/Jan/... alias
+function resolveToken(tok, name){
+  const lower = tok.toLowerCase();
+  if (name === "day-of-week" && lower in DAY_ALIAS) return DAY_ALIAS[lower];
+  if (name === "month" && lower in MON_ALIAS)       return MON_ALIAS[lower];
+  const n = Number(tok);
+  if (!Number.isInteger(n)) throw new Error(`${name}: "${tok}" is not a number`);
+  return n;
+}
+
+// expand a single field string into a Set of matching integers.
+function expandField(field, name){
+  const [lo, hi] = RANGES[name];
+  const out = new Set();
+  if (field === "") throw new Error(`${name}: empty field`);
+
+  for (const part of field.split(",")){
+    if (part === "") throw new Error(`${name}: stray comma in "${field}"`);
+    let [rangePart, stepStr] = part.split("/");
+    let step = 1;
+    if (stepStr !== undefined){
+      step = Number(stepStr);
+      if (!Number.isInteger(step) || step <= 0)
+        throw new Error(`${name}: step "/${stepStr}" must be a positive whole number`);
+    }
+    let start, end;
+    if (rangePart === "*"){
+      start = lo; end = hi;
+    } else if (rangePart.includes("-")){
+      const bits = rangePart.split("-");
+      if (bits.length !== 2) throw new Error(`${name}: bad range "${rangePart}"`);
+      start = resolveToken(bits[0], name);
+      end   = resolveToken(bits[1], name);
+    } else {
+      start = resolveToken(rangePart, name);
+      end   = stepStr !== undefined ? hi : start;  // "5/10" means from 5 to max step 10
+    }
+    // normalise day-of-week 7 -> 0 (both mean Sunday)
+    if (name === "day-of-week"){ if (start === 7) start = 0; if (end === 7) end = 0; }
+    if (Number.isNaN(start) || Number.isNaN(end))
+      throw new Error(`${name}: could not read "${part}"`);
+    if (start < lo || start > hi || end < lo || end > hi)
+      throw new Error(`${name}: value out of range ${lo}-${hi} in "${part}"`);
+    if (end < start) throw new Error(`${name}: range "${rangePart}" goes backwards`);
+    for (let v = start; v <= end; v += step) out.add(v);
+  }
+  if (out.size === 0) throw new Error(`${name}: matches nothing`);
+  return out;
+}
+
+// ---- describe one field in English ----
+function describeField(raw, unit, names){
+  if (raw === "*") return `every ${unit}`;
+  // pure step "*/n"
+  let m = raw.match(/^\*\/(\d+)$/);
+  if (m){
+    const n = +m[1];
+    return n === 1 ? `every ${unit}` : `every ${n}${nth(n)} ${unit}`;
+  }
+  // range with step "a-b/n"
+  m = raw.match(/^(\w+)-(\w+)\/(\d+)$/);
+  if (m){
+    const a = names ? names[resolveToken(m[1], unitToName(unit))] : m[1];
+    const b = names ? names[resolveToken(m[2], unitToName(unit))] : m[2];
+    return `every ${m[3]}${nth(+m[3])} ${unit} from ${a} through ${b}`;
+  }
+  // start with step "a/n"
+  m = raw.match(/^(\w+)\/(\d+)$/);
+  if (m){
+    const a = names ? names[resolveToken(m[1], unitToName(unit))] : m[1];
+    return `every ${m[2]}${nth(+m[2])} ${unit} starting at ${a}`;
+  }
+  // range "a-b"
+  m = raw.match(/^(\w+)-(\w+)$/);
+  if (m){
+    const a = names ? names[resolveToken(m[1], unitToName(unit))] : m[1];
+    const b = names ? names[resolveToken(m[2], unitToName(unit))] : m[2];
+    return `from ${a} through ${b}`;
+  }
+  // list "a,b,c"
+  if (raw.includes(",")){
+    const label = raw.split(",").map(v => {
+      const inner = describeField(v, unit, names);
+      return inner;
+    });
+    return label.join(", ");
+  }
+  // single value
+  return names ? names[resolveToken(raw, unitToName(unit))] : raw;
+}
+function unitToName(unit){
+  return unit === "day" ? "day-of-week" : (unit === "month" ? "month" : unit);
+}
+function nth(n){
+  const s = ["th","st","nd","rd"], v = n % 100;
+  return (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// ---- full plain-English sentence ----
+function describeCron(min, hour, dom, mon, dow){
+  // time of day
+  let time;
+  if (min !== "*" && hour !== "*" && /^\d+$/.test(min) && /^\d+$/.test(hour)){
+    time = `At ${pad(+hour)}:${pad(+min)}`;
+  } else if (min === "*" && hour === "*"){
+    time = `Every minute`;
+  } else if (hour === "*"){
+    time = `At ${describeField(min, "minute")}`;
+    time = time.charAt(0).toUpperCase() + time.slice(1) + ` of every hour`;
+  } else {
+    time = `At ${describeField(min, "minute")} past ${describeField(hour, "hour")}`;
+  }
+
+  // day part — respect the OR quirk
+  let day = "";
+  if (dow !== "*" && dom !== "*"){
+    day = `on ${describeField(dom, "day")} of the month, or on ${describeField(dow, "day", DAY_NAMES)} (whichever comes first)`;
+  } else if (dow !== "*"){
+    day = `on ${describeField(dow, "day", DAY_NAMES)}`;
+  } else if (dom !== "*"){
+    day = `on day-of-month ${describeField(dom, "day")}`;
+  } else {
+    day = `every day`;
+  }
+
+  // month part
+  let month = mon === "*" ? "" : `in ${describeField(mon, "month", MONTH_NAMES)}`;
+
+  return [time, day, month].filter(Boolean).join(" ") + ".";
+}
+
+// ---- day-of-month OR day-of-week matching ----
+function dayMatches(date, sets){
+  const domStar = sets.domRaw === "*";
+  const dowStar = sets.dowRaw === "*";
+  const domHit = sets.dayOfMonth.has(date.getDate());
+  const dowHit = sets.dayOfWeek.has(date.getDay());
+  if (domStar && dowStar) return true;
+  if (domStar) return dowHit;
+  if (dowStar) return domHit;
+  return domHit || dowHit;   // both restricted → OR
+}
+
+function matches(date, sets){
+  if (!sets.minute.has(date.getMinutes())) return false;
+  if (!sets.hour.has(date.getHours()))     return false;
+  if (!sets.month.has(date.getMonth() + 1)) return false;
+  return dayMatches(date, sets);
+}
+
+// ---- next N run times, from now, by minute-stepping ----
+function nextRuns(sets, count){
+  const out = [];
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + 1);
+  const cap = 366 * 4 * 24 * 60;   // 4 years of minutes
+  for (let i = 0; i < cap && out.length < count; i++){
+    if (matches(d, sets)) out.push(new Date(d));
+    d.setMinutes(d.getMinutes() + 1);
+  }
+  return out;
+}
+
+// ---- top-level parse ----
+function explainCron(expr){
+  const fields = expr.trim().split(/\s+/);
+  if (expr.trim() === "") throw new Error("Type a cron expression — five fields separated by spaces.");
+  if (fields.length !== 5)
+    throw new Error(`A standard cron has exactly 5 fields (minute hour day-of-month month day-of-week). You have ${fields.length}.`);
+  const [min, hour, dom, mon, dow] = fields;
+  const sets = {
+    minute:     expandField(min,  "minute"),
+    hour:       expandField(hour, "hour"),
+    dayOfMonth: expandField(dom,  "day-of-month"),
+    month:      expandField(mon,  "month"),
+    dayOfWeek:  expandField(dow,  "day-of-week"),
+    domRaw: dom, dowRaw: dow,
+  };
+  return {
+    fields: { min, hour, dom, mon, dow },
+    sets,
+    english: describeCron(min, hour, dom, mon, dow),
+    next: nextRuns(sets, 5),
+  };
+}
+
+// ---- render coloured echo ----
+function renderEcho(expr){
+  const parts = expr.trim().split(/\s+/);
+  const cls = ["f-min","f-hour","f-dom","f-mon","f-dow"];
+  if (parts.length === 1 && parts[0] === "") return "…";
+  return parts.map((p,i)=>`<span class="${cls[i] || 'f-dot'}">${esc(p)}</span>`).join(" ");
+}
+
+// ---- summarise a set compactly ----
+function setSummary(set, max){
+  const arr = [...set].sort((a,b)=>a-b);
+  if (arr.length > 12) return `${arr.length} values (${arr[0]}…${arr[arr.length-1]})`;
+  return arr.join(", ");
+}
+
+const els = {
+  cron:     document.getElementById("cron"),
+  echo:     document.getElementById("echo"),
+  error:    document.getElementById("error"),
+  human:    document.getElementById("human"),
+  runs:     document.getElementById("runs"),
+  fields:   document.getElementById("fields"),
+  nowBadge: document.getElementById("nowBadge"),
+};
+
+const FIELD_META = [
+  { key:"minute",     raw:"min",  label:"Minute",       color:"#fb7185", range:"0-59" },
+  { key:"hour",       raw:"hour", label:"Hour",         color:"#fbbf24", range:"0-23" },
+  { key:"dayOfMonth", raw:"dom",  label:"Day of month", color:"#34d399", range:"1-31" },
+  { key:"month",      raw:"mon",  label:"Month",        color:"#c084fc", range:"1-12" },
+  { key:"dayOfWeek",  raw:"dow",  label:"Day of week",  color:"#22d3ee", range:"0-6 (Sun-Sat)" },
+];
+
+function showError(msg){
+  els.error.className = "err-box";
+  els.error.innerHTML = "⚠ " + esc(msg);
+  els.human.textContent = "—";
+  els.runs.innerHTML = '<div class="text-sm text-slate-400">Fix the expression to see the next run times.</div>';
+  els.fields.innerHTML = '';
+  els.nowBadge.textContent = "";
+}
+
+function run(){
+  const expr = els.cron.value;
+  els.echo.innerHTML = renderEcho(expr);
+
+  let result;
+  try {
+    result = explainCron(expr);
+  } catch (e){
+    showError(e.message);
+    return;
+  }
+
+  // clear error
+  els.error.className = "hidden";
+  els.error.innerHTML = "";
+
+  // plain english
+  els.human.textContent = result.english;
+
+  // next runs
+  const now = new Date();
+  els.nowBadge.textContent = "now " + now.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"});
+  if (result.next.length === 0){
+    els.runs.innerHTML = '<div class="text-sm text-slate-400">No matching run found in the next 4 years — likely an impossible date (e.g. Feb 30).</div>';
+  } else {
+    els.runs.innerHTML = result.next.map((d,i)=>{
+      const diff = d - now;
+      return `<div class="run-row"><span class="run-k">${i+1}. ${esc(d.toLocaleString(undefined,{weekday:"short",year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}))}</span><span class="run-v">${esc(relFuture(diff))}</span></div>`;
+    }).join("");
+  }
+
+  // field breakdown
+  els.fields.innerHTML = FIELD_META.map(f=>{
+    const raw = result.fields[f.raw];
+    const set = result.sets[f.key];
+    let names = null;
+    if (f.key === "dayOfWeek") names = DAY_NAMES;
+    if (f.key === "month")     names = MONTH_NAMES;
+    let human = describeField(raw, f.key==="dayOfWeek"?"day":(f.key==="month"?"month":f.label.toLowerCase().replace("day of month","day")), names);
+    return `<div class="field-card">
+      <div class="flex items-center gap-2 mb-1"><span class="field-dot" style="background:${f.color}"></span><span class="text-xs font-bold text-slate-700">${f.label}</span></div>
+      <div class="font-mono text-lg font-bold" style="color:${f.color}">${esc(raw)}</div>
+      <div class="text-xs text-slate-500 mt-1">${esc(human)}</div>
+      <div class="text-[10px] text-slate-400 mt-2">matches: ${esc(setSummary(set))}</div>
+      <div class="text-[10px] text-slate-300">range ${f.range}</div>
+    </div>`;
+  }).join("");
+}
+
+function relFuture(ms){
+  const s = Math.round(ms/1000);
+  if (s < 60)      return "in " + s + " sec";
+  const m = Math.round(s/60);
+  if (m < 60)      return "in " + m + " min";
+  const h = Math.round(m/60);
+  if (h < 48)      return "in " + h + " hr";
+  const days = Math.round(h/24);
+  if (days < 60)   return "in " + days + " days";
+  const months = Math.round(days/30);
+  return "in ~" + months + " months";
+}
+
+// presets
+document.querySelectorAll(".preset").forEach(b=>{
+  b.onclick = () => { els.cron.value = b.dataset.cron; run(); };
+});
+els.cron.addEventListener("input", run);
+
+// initial render
+run();
+
+// ===== UNDERSTAND STEP ENGINE =====
+const STEPS = [
+  { title:"1. What cron is", why:"Cron is the classic job scheduler that has lived on Unix and Linux systems for decades, and its expression format has since spread almost everywhere — CI pipelines, cloud functions, Kubernetes CronJobs, database jobs, monitoring tools, and more. A running cron daemon wakes up once every minute, looks at a list of scheduled jobs, and runs any whose schedule matches the current minute. The schedule for each job is written as a short string called a cron expression, and that string is the whole subject of this tool. The reason the format is worth learning is that it is genuinely universal: once you can read one cron line you can read them all, whether it's a backup at midnight or a health check every five minutes.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="font-mono text-lg"><span class="f-min">30</span> <span class="f-hour">9</span> <span class="f-dom">*</span> <span class="f-mon">*</span> <span class="f-dow">1-5</span></div><div class="text-xs text-slate-500 mt-2">one line = "run this job at 09:30, Monday through Friday"</div></div>`, code:`// cron = a scheduler that checks jobs EVERY MINUTE.\n//\n//   daemon wakes up  →  is it this job's minute?  →  run it\n//\n// each job's schedule is one short string:\n//   "30 9 * * 1-5"  →  09:30, Mon–Fri\n//\n// the same format is used by Linux cron, GitHub Actions,\n// Kubernetes CronJobs, cloud schedulers, and many more.` },
+
+  { title:"2. The five fields", why:"A standard cron expression is exactly five fields separated by spaces, and the order never changes: minute, then hour, then day-of-month, then month, then day-of-week. It helps to picture them going from the smallest unit of time on the left to the largest, with the odd one — day-of-week — tacked on at the end. Each field answers the question 'which values of this unit does the job run on?'. So the first field controls minutes 0 to 59, the second hours 0 to 23, and so on. The single most common beginner mistake is getting the order wrong, especially swapping minute and hour, so it's worth memorising: minute always comes first.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-left"><div class="space-y-1"><div><span class="f-min font-bold">● minute</span> <span class="text-slate-500 text-xs">0–59</span></div><div><span class="f-hour font-bold">● hour</span> <span class="text-slate-500 text-xs">0–23</span></div><div><span class="f-dom font-bold">● day of month</span> <span class="text-slate-500 text-xs">1–31</span></div><div><span class="f-mon font-bold">● month</span> <span class="text-slate-500 text-xs">1–12</span></div><div><span class="f-dow font-bold">● day of week</span> <span class="text-slate-500 text-xs">0–6, Sun=0</span></div></div></div>`, code:`// five fields, ALWAYS in this order:\n//\n//   ┌──────── minute        0-59\n//   │ ┌────── hour          0-23\n//   │ │ ┌──── day-of-month  1-31\n//   │ │ │ ┌── month         1-12\n//   │ │ │ │ ┌ day-of-week   0-6  (0 = Sunday)\n//   * * * * *\n//\n// minute is FIRST — the #1 beginner mistake is the order.` },
+
+  { title:"3. The wildcard *", why:"The asterisk is the simplest and most important symbol in cron: it means 'every value in this field'. An asterisk in the minute field means every minute, in the hour field every hour, in the day field every day, and so on. When every field is an asterisk — the expression '* * * * *' — the job runs literally every single minute of every day. Most useful schedules leave some fields as asterisks and pin down only the ones that matter: to run something daily at 9am you fix the minute and hour but leave day, month and day-of-week as asterisks, meaning 'on every day, in every month'. Reading a cron line is largely a matter of noticing which fields are asterisks (don't care) and which are pinned to specific values.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="font-mono text-lg"><span class="f-min">*</span> <span class="f-hour">*</span> <span class="f-dom">*</span> <span class="f-mon">*</span> <span class="f-dow">*</span></div><div class="text-xs text-slate-500 mt-2">every field = * → runs every minute, forever</div><div class="font-mono text-lg mt-3"><span class="f-min">0</span> <span class="f-hour">9</span> <span class="f-dom">*</span> <span class="f-mon">*</span> <span class="f-dow">*</span></div><div class="text-xs text-slate-500 mt-1">pin minute+hour, leave the rest * → daily at 09:00</div></div>`, code:`// * = "every value in this field".\n//\n//   * * * * *   every minute of every day\n//   0 9 * * *   09:00 every day (minute & hour pinned,\n//               day/month/dow left as "every")\n//\n// reading cron = spotting which fields are pinned\n// and which are "*" (don't care).` },
+
+  { title:"4. Lists, ranges and steps", why:"Beyond single numbers and the wildcard, each field understands three combining operators, and they can be mixed. A comma makes a list, so '1,15' in the day field means the 1st and the 15th. A hyphen makes an inclusive range, so '1-5' in the day-of-week field means Monday through Friday — every day from 1 to 5. A slash makes a step, taking every n-th value: '*/15' in the minute field means 0, 15, 30 and 45 — every fifteenth minute starting from zero. Steps can also apply to a range, so '0-30/10' means 0, 10, 20, 30. These four building blocks — number, list, range, step — are all you need to express almost any schedule, and this tool expands each field into the exact set of numbers it produces so you can see the result.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-left text-sm"><div class="space-y-1 font-mono text-xs"><div><span class="text-amber-700">5</span> &nbsp;→ just 5</div><div><span class="text-amber-700">1,15</span> &nbsp;→ 1 and 15 &nbsp;<span class="text-slate-400">(list)</span></div><div><span class="text-amber-700">1-5</span> &nbsp;→ 1,2,3,4,5 &nbsp;<span class="text-slate-400">(range)</span></div><div><span class="text-amber-700">*/15</span> &nbsp;→ 0,15,30,45 &nbsp;<span class="text-slate-400">(step)</span></div><div><span class="text-amber-700">0-30/10</span> → 0,10,20,30 &nbsp;<span class="text-slate-400">(range + step)</span></div></div></div>`, code:`// four building blocks per field:\n//\n//   5        a single value\n//   1,15     a LIST      → 1 and 15\n//   1-5      a RANGE     → 1,2,3,4,5  (inclusive)\n//   */15     a STEP      → 0,15,30,45 (every 15th)\n//   0-30/10  range+step  → 0,10,20,30\n//\n// to parse a field: split on "," then handle each\n// piece's "-" range and "/" step, and union them.` },
+
+  { title:"5. Names for months and weekdays", why:"To make expressions more readable, cron lets you write three-letter names in two of the fields. In the month field you can write JAN, FEB, MAR and so on instead of 1 through 12, and in the day-of-week field you can write SUN, MON, TUE and the rest instead of 0 through 6. So 'MON-FRI' in the last field is exactly the same as '1-5', and 'JAN,JUL' is the same as '1,7'. The names are case-insensitive and can be used in ranges and lists just like numbers. A parser handles them by keeping a small lookup table that maps each name to its number before expanding the field. It's purely a convenience — the underlying meaning is identical — but names make a schedule far easier for a human to skim.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs"><span class="f-dow">MON-FRI</span> &nbsp;≡&nbsp; <span class="f-dow">1-5</span></div><div class="font-mono text-xs mt-2"><span class="f-mon">JAN,JUL</span> &nbsp;≡&nbsp; <span class="f-mon">1,7</span></div><div class="text-xs text-slate-500 mt-2">names are case-insensitive and work in ranges &amp; lists</div></div>`, code:`// month + day-of-week accept 3-letter names:\n//\n//   day-of-week  SUN MON TUE WED THU FRI SAT\n//                 0   1   2   3   4   5   6\n//   month        JAN FEB … DEC  →  1 … 12\n//\n//   "MON-FRI"  ≡  "1-5"\n//   "JAN,JUL"  ≡  "1,7"\n//\n// a parser maps each name → number, then expands normally.` },
+
+  { title:"6. Sunday is both 0 and 7", why:"There's a small wrinkle in the day-of-week field worth knowing. The field officially runs 0 to 6 with 0 meaning Sunday, but by long-standing convention many cron implementations also accept 7 as Sunday, so both 0 and 7 point to the same day. This exists for historical compatibility and to match how some people naturally count the week. A robust parser normalises 7 down to 0 so that internally there is only ever one value for Sunday, which keeps the matching logic simple. It's a tiny detail, but if you ever see a 7 in the last field and wonder how a week can have an eighth day, this is why — it's just Sunday wearing a different number.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono">0 = Sunday &nbsp;&nbsp; 7 = Sunday</div><div class="text-xs text-slate-500 mt-2">both mean the same day — normalise 7 → 0 when parsing</div></div>`, code:`// day-of-week quirk: 0 AND 7 both mean Sunday.\n//\n//   0 1 2 3 4 5 6 7\n//   Su Mo Tu We Th Fr Sa Su   ← 7 wraps back to Sunday\n//\n// normalise it away so matching stays simple:\nif (value === 7) value = 0;` },
+
+  { title:"7. The day-of-month OR day-of-week quirk", why:"This is the single most surprising rule in cron and the one that trips up even experienced developers. Normally you'd expect all five fields to be AND'd together — the job runs when every field matches. That is true for minute, hour and month. But the two day fields behave differently: if you restrict BOTH day-of-month and day-of-week (neither is an asterisk), cron matches when EITHER one matches, not both. So '0 0 1 * MON' does not mean 'the 1st of the month, but only if it's a Monday' — it means 'on the 1st of the month, OR on any Monday'. If one of the two day fields is an asterisk, only the other one applies and there's no surprise. This rule exists so you can say things like 'every Friday and also the 1st of each month' in a single line, but it catches people out constantly, so always double-check any expression that pins both day fields.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs"><span class="f-dom">1</span> (day-of-month) &nbsp;<b>OR</b>&nbsp; <span class="f-dow">MON</span> (day-of-week)</div><div class="text-xs text-rose-600 font-bold mt-2">both set → OR, not AND!</div><div class="text-xs text-slate-500 mt-1">"0 0 1 * MON" = the 1st, OR any Monday (not "the 1st only if Monday")</div></div>`, code:`// ⚠ THE big cron gotcha: day-of-month vs day-of-week.\n//\n// minute/hour/month are AND'd (all must match).\n// but if BOTH day fields are restricted → they're OR'd:\n//\n//   both "*"   → every day\n//   one  "*"   → only the OTHER field applies\n//   neither    → match if EITHER matches (OR)\n//\n//   "0 0 1 * MON" = the 1st of the month, OR any Monday\n//   (NOT "the 1st only when it's a Monday")` },
+
+  { title:"8. How 'next run' is computed", why:"You might imagine that finding the next run time requires clever maths — solving for the next matching minute directly. In practice, the simplest correct approach is brute force, and it's exactly what a real cron daemon does conceptually: start at the next whole minute and step forward one minute at a time, testing each minute against all five fields, until you find one that matches. To list the next five runs you just keep going until you've collected five. This is called minute-stepping, and it's reliable because it can't miss an edge case the way clever arithmetic might. The one thing you must add is a safety cap — an upper limit on how many minutes to try — so that an impossible schedule (like the 30th of February) doesn't loop forever; stepping through four years of minutes is more than enough to be sure.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="text-xs text-slate-600">start at next minute → does it match all fields?</div><div class="font-mono text-xs mt-2">10:31 ✗ &nbsp;10:32 ✗ &nbsp;… &nbsp;<span class="text-emerald-600 font-bold">10:45 ✓</span> → keep it</div><div class="text-xs text-slate-500 mt-2">step minute-by-minute, cap at ~4 years so it never hangs</div></div>`, code:`// find next runs by MINUTE-STEPPING (brute force, correct):\nconst d = new Date();\nd.setSeconds(0, 0);\nd.setMinutes(d.getMinutes() + 1);   // start at next minute\n\nconst runs = [];\nconst cap = 366 * 4 * 24 * 60;       // 4 years of minutes\nfor (let i = 0; i < cap && runs.length < 5; i++){\n  if (matches(d, sets)) runs.push(new Date(d));\n  d.setMinutes(d.getMinutes() + 1);  // Date auto-rolls hour/day/year\n}\n// the cap stops impossible schedules (Feb 30) looping forever.` },
+
+  { title:"9. Watch out for 0-based JS months", why:"When you compute run times in JavaScript there's a trap that will silently give you wrong answers: the Date object's getMonth() returns 0 for January and 11 for December, but cron's month field is 1 for January and 12 for December. If you compare them directly, every month is off by one and your schedule matches the wrong month entirely. The fix is trivial once you know it — add one to getMonth() before checking it against the month set — but it's the kind of bug that produces a scheduler that looks fine and quietly fires in the wrong month. The day-of-week and day-of-month values happen to line up (getDay() is 0-6 like cron, getDate() is 1-31 like cron), so month is the only field that needs this adjustment. It's a good reminder to always confirm what range your date library uses before comparing.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center text-sm"><div class="font-mono text-xs">JS getMonth() → 0=Jan … 11=Dec</div><div class="font-mono text-xs mt-1">cron month &nbsp;&nbsp;→ 1=Jan … 12=Dec</div><div class="text-xs text-rose-600 font-bold mt-2">always compare getMonth() + 1</div></div>`, code:`// ⚠ JavaScript months are 0-BASED. cron months are 1-based.\n//\n//   new Date().getMonth()  →  0 (January) … 11 (December)\n//   cron month field       →  1 (January) … 12 (December)\n//\n// so ALWAYS add 1 before comparing:\nif (!sets.month.has(date.getMonth() + 1)) return false;\n\n// getDay() 0-6 and getDate() 1-31 already match cron —\n// month is the only field that needs the +1 fix.` },
+
+  { title:"10. Time zones, seconds, and mistakes", why:"A few last practical points. First, time zones: a cron expression has no time zone of its own — it runs in whatever zone the machine or service is configured for, so '0 9 * * *' fires at 9am server time, which may not be your local 9am. Many cloud schedulers now let you attach a zone, and this tool shows next runs in your browser's local zone so what you see matches your clock. Second, seconds: classic 5-field cron has no seconds field and the finest granularity is one minute; some systems add an optional sixth field for seconds, but that's a non-standard extension. Third, the usual mistakes: getting the field order wrong (minute is first), forgetting the day-of-month/day-of-week OR rule, writing an impossible date, or assuming the schedule runs in your local time when it runs in the server's. Read each field, expand it, and always sanity-check against the next few computed run times — which is exactly what the LOOK tab lets you do.", concept:`<div class="bg-slate-100 p-4 rounded text-sm w-full text-center"><div class="text-4xl mb-2">🎉</div><p class="font-bold text-slate-700">Five fields: minute, hour, day-of-month, month, day-of-week. Expand each with *, lists, ranges and steps. Describe it, then find the next runs by minute-stepping. Mind the 0-based JS month, the OR day rule, and the server's time zone.</p></div>`, code:`// last practical notes:\n//\n//   TIME ZONE  cron has none of its own — it uses the\n//              SERVER's zone. "0 9 * * *" = 9am server time.\n//              (this tool shows YOUR local zone.)\n//   SECONDS    classic cron = 1-minute granularity, no seconds.\n//              a 6th seconds field is a non-standard extension.\n//   MISTAKES   wrong field order · the OR day rule ·\n//              impossible dates (Feb 30) · assuming local time\n//\n// always sanity-check against the next few run times.` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let stm=null; autoB.onclick=()=>{ if(stm){clearInterval(stm);stm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); stm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(stm);stm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },2800); };
+show(0);
+
+// ===== BUILD copy buttons =====
+document.querySelectorAll("#build .copy").forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector("pre").textContent;
+    navigator.clipboard?.writeText(code);
+    const prev = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = prev, 1000);
+  };
+});
+</script>
+</body>
+</html>
