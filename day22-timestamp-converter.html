@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 22 — Unix Timestamp Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 22</div>
+      <h1 class="text-xl font-bold">🕰️ Unix Timestamp Converter — Epoch ⇄ Human Time</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Paste any epoch. It auto-detects seconds vs milliseconds and shows every format.</h2>
+        <p class="text-slate-500 mb-5">A Unix timestamp is just a count of seconds since <strong>1 Jan 1970 UTC</strong> — the "epoch". This tool takes a number and figures out whether it's seconds, milliseconds, or microseconds (by its size), then renders it as UTC, your local time, ISO-8601, RFC-2822, and a relative "… ago". Or go the other way: pick a date and get the epoch back. Everything is live and offline.</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-5">
+        <!-- epoch → human -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-2">Epoch → human</div>
+          <div class="flex gap-2 mb-2">
+            <input id="epochIn" class="field flex-1 mono text-sm" placeholder="e.g. 1751385600 or 1751385600000">
+            <button id="nowBtn" class="mini px-3 py-2 rounded-lg font-semibold text-sm">Now</button>
+          </div>
+          <div id="unitNote" class="text-xs text-amber-700 mb-2 min-h-[16px]"></div>
+          <div class="border border-slate-100 rounded-lg overflow-hidden text-sm">
+            <div class="out-row"><span class="text-slate-500">UTC</span><span id="oUTC" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">Local (<span id="tzName" class="stat"></span>)</span><span id="oLocal" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">ISO-8601</span><span id="oISO" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">RFC-2822</span><span id="oRFC" class="mono text-xs"></span></div>
+            <div class="out-row"><span class="text-slate-500">Relative</span><span id="oRel" class="mono text-amber-600"></span></div>
+          </div>
+          <div class="flex gap-2 mt-3 flex-wrap text-xs">
+            <button data-preset="0" class="mini px-2 py-1 rounded font-semibold">Epoch 0</button>
+            <button data-preset="1000000000" class="mini px-2 py-1 rounded font-semibold">1e9 (2001)</button>
+            <button data-preset="2147483647" class="mini px-2 py-1 rounded font-semibold">2³¹−1 (2038)</button>
+          </div>
+        </div>
+        <!-- human → epoch -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-2">Human → epoch</div>
+          <input id="dateIn" type="datetime-local" step="1" class="field w-full mono text-sm mb-3">
+          <div class="border border-slate-100 rounded-lg overflow-hidden text-sm">
+            <div class="out-row"><span class="text-slate-500">Epoch (seconds)</span><span id="oSec" class="mono text-amber-600"></span></div>
+            <div class="out-row"><span class="text-slate-500">Epoch (milliseconds)</span><span id="oMs" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">Interpreted as</span><span id="oInterp" class="mono text-xs"></span></div>
+          </div>
+          <p class="text-xs text-slate-400 mt-3">The picker is in <em>local</em> time; the epoch it produces is the same absolute instant worldwide. The <strong>2³¹−1</strong> preset is the "Year 2038 problem": the last second a signed 32-bit counter can hold before it overflows.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How timestamps really work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Detect the unit from the number's magnitude, build a Date, then format it every way with the built-in Intl and Date APIs. ~60 lines of vanilla JS.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Detect seconds vs milliseconds</h3></div>
+        <p class="text-sm text-slate-600 mb-3">JavaScript's <code>Date</code> works in <em>milliseconds</em>, but most APIs hand you <em>seconds</em>. Guess the unit from the digit count: a seconds timestamp for "now" is ~10 digits, milliseconds ~13, microseconds ~16. Normalise everything to milliseconds before building a Date.</p>
+        <div class="relative"><pre>function toMillis(n){
+  const digits = String(Math.trunc(Math.abs(n))).length;
+  if (digits &lt;= 11) return { ms: n * 1000,       unit: "seconds" };
+  if (digits &lt;= 14) return { ms: n,              unit: "milliseconds" };
+  return               { ms: Math.round(n/1000), unit: "microseconds" };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Build a Date &amp; format UTC + ISO</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A <code>Date</code> is an absolute instant. <code>toUTCString()</code> gives the RFC-style UTC text, <code>toISOString()</code> the ISO-8601 form (always UTC, ending in Z). These are timezone-independent — the same instant, just written differently.</p>
+        <div class="relative"><pre>const d = new Date(ms);
+const iso = d.toISOString();      // 2025-07-01T12:00:00.000Z
+const utc = d.toUTCString();      // Tue, 01 Jul 2025 12:00:00 GMT
+if (isNaN(d)) return "invalid timestamp";</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Local time &amp; timezone name via Intl</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The same instant shown in the user's zone. <code>Intl.DateTimeFormat</code> formats it and also reports the resolved IANA zone (e.g. <code>Asia/Kolkata</code>). Timezones are purely a display concern — the underlying instant never changes.</p>
+        <div class="relative"><pre>const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // "Asia/Kolkata"
+const local = d.toLocaleString(undefined, {
+  dateStyle: "medium", timeStyle: "long"
+});</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Relative time ("3 days ago")</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>Intl.RelativeTimeFormat</code> turns a difference into human words. Compute the delta from now, pick the biggest sensible unit (years → months → … → seconds), and let Intl phrase it — localised, and correctly past or future.</p>
+        <div class="relative"><pre>function relative(ms){
+  const diff = ms - Date.now();               // +future / −past
+  const rtf = new Intl.RelativeTimeFormat(undefined,{numeric:"auto"});
+  const U = [["year",31536e6],["day",864e5],["hour",36e5],["minute",6e4],["second",1e3]];
+  for (const [unit, size] of U)
+    if (Math.abs(diff) &gt;= size || unit === "second")
+      return rtf.format(Math.round(diff/size), unit);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Reverse: date → epoch</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The other direction: a <code>datetime-local</code> input is parsed as local time; <code>getTime()</code> returns milliseconds, so divide by 1000 (and floor) for seconds. This is the value you'd store in a database or send to an API.</p>
+        <div class="relative"><pre>const d = new Date(inputEl.value);   // parsed in local time
+const ms  = d.getTime();
+const sec = Math.floor(ms / 1000);   // ← what most APIs expect</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 22 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a timestamp converter: magnitude-based unit detection, Date + Intl formatting for UTC / local / ISO / RFC / relative, and the reverse direction — all with zero libraries. The classic bug this prevents is mixing seconds and milliseconds (a ×1000 off-by-a-thousand-years). <strong>👉 Tomorrow — Day 23: Color Format Converter.</strong></p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== CONVERTER =====
+const epochIn = document.getElementById("epochIn");
+const unitNote = document.getElementById("unitNote");
+const tzName = document.getElementById("tzName");
+tzName.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+function toMillis(n){
+  const digits = String(Math.trunc(Math.abs(n))).length;
+  if (digits <= 11) return { ms: n * 1000, unit: "seconds" };
+  if (digits <= 14) return { ms: n, unit: "milliseconds" };
+  return { ms: Math.round(n / 1000), unit: "microseconds" };
+}
+function relative(ms){
+  const diff = ms - Date.now();
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const U = [["year",31536e6],["month",2628e6],["day",864e5],["hour",36e5],["minute",6e4],["second",1e3]];
+  for (const [unit, size] of U)
+    if (Math.abs(diff) >= size || unit === "second")
+      return rtf.format(Math.round(diff / size), unit);
+}
+function renderEpoch(){
+  const raw = epochIn.value.trim();
+  const setAll = v => ["oUTC","oLocal","oISO","oRFC","oRel"].forEach(id => document.getElementById(id).textContent = v);
+  if (raw === ""){ setAll("—"); unitNote.textContent = ""; return; }
+  const n = Number(raw);
+  if (!isFinite(n)){ setAll("invalid"); unitNote.textContent = "Not a number."; return; }
+  const { ms, unit } = toMillis(n);
+  const d = new Date(ms);
+  if (isNaN(d.getTime())){ setAll("out of range"); unitNote.textContent = ""; return; }
+  unitNote.textContent = `Interpreted as ${unit} → ${ms} ms.`;
+  document.getElementById("oUTC").textContent   = d.toUTCString();
+  document.getElementById("oLocal").textContent = d.toLocaleString(undefined, { dateStyle:"medium", timeStyle:"long" });
+  document.getElementById("oISO").textContent   = d.toISOString();
+  document.getElementById("oRFC").textContent   = d.toString();
+  document.getElementById("oRel").textContent   = relative(ms);
+}
+epochIn.addEventListener("input", renderEpoch);
+document.getElementById("nowBtn").onclick = () => { epochIn.value = Math.floor(Date.now()/1000); renderEpoch(); };
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => { epochIn.value = b.dataset.preset; renderEpoch(); });
+
+// reverse
+const dateIn = document.getElementById("dateIn");
+function renderDate(){
+  const v = dateIn.value;
+  const set = (id,x) => document.getElementById(id).textContent = x;
+  if (!v){ set("oSec","—"); set("oMs","—"); set("oInterp","—"); return; }
+  const d = new Date(v);
+  if (isNaN(d.getTime())){ set("oSec","invalid"); set("oMs","invalid"); set("oInterp","—"); return; }
+  set("oSec", Math.floor(d.getTime()/1000));
+  set("oMs", d.getTime());
+  set("oInterp", d.toUTCString() + " (UTC)");
+}
+dateIn.addEventListener("input", renderDate);
+
+// live "now" tick every second, only refreshing relative when input shows current-ish
+function initNow(){
+  const now = new Date();
+  const pad = x => String(x).padStart(2,"0");
+  dateIn.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  epochIn.value = Math.floor(Date.now()/1000);
+  renderEpoch(); renderDate();
+}
+initNow();
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. What the epoch actually is", why:"A Unix timestamp is a single integer: the number of seconds that have elapsed since midnight UTC on 1 January 1970, a moment programmers call 'the epoch'. That's it — no timezone, no formatting, just a count of seconds from one fixed reference point. Because it's one absolute number, it's the ideal way to store and compare moments in time: two events can be ordered by comparing integers, and there's no ambiguity about which timezone was meant.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">epoch = seconds since<br>1970-01-01 00:00:00 UTC<br>just one integer · no timezone<br>e.g. 0 = the epoch itself</div>`, code:`// 0            → 1970-01-01T00:00:00Z
+// 1000000000   → 2001-09-09T01:46:40Z
+// Date.now()/1000 → seconds right now` },
+ { title:"2. Seconds vs milliseconds — the classic bug", why:"The number one timestamp bug: mixing seconds and milliseconds. Unix tools and most APIs use seconds; JavaScript's Date uses milliseconds. Feed a seconds value into a milliseconds API and your date lands in 1970; do the reverse and you're in the year 52,000. You can tell them apart by size — a 'now' timestamp is about 10 digits in seconds and 13 in milliseconds — so a converter should detect the unit and normalise, saving you from a ×1000 disaster.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">seconds&nbsp;&nbsp;&nbsp;≈ 10 digits (1751…)<br>milliseconds ≈ 13 digits (1751…000)<br>wrong unit → off by ~1000× in time<br>detect by digit count, normalise to ms</div>`, code:`const digits = String(Math.trunc(n)).length;
+const ms = digits <= 11 ? n*1000       // seconds
+         : digits <= 14 ? n             // milliseconds
+         : Math.round(n/1000);          // microseconds` },
+ { title:"3. A Date is an instant, not a string", why:"A JavaScript Date object wraps a single millisecond count internally — it represents an absolute instant, not a formatted string and not a timezone. Everything you see (UTC text, local time, ISO) is just a different rendering of that one instant. Understanding this separation is the key to timezones: you never 'convert' the instant between zones, you only choose how to display the same instant. new Date(ms) builds it; NaN means the number was out of the valid range.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">Date = one internal ms count (an instant)<br>UTC / local / ISO = renderings of it<br>the instant itself never changes</div>`, code:`const d = new Date(ms);
+if (isNaN(d.getTime())) return "invalid / out of range";
+d.getTime();   // back to the ms count` },
+ { title:"4. UTC and ISO-8601", why:"UTC (Coordinated Universal Time) is the global reference with no daylight-saving. toISOString() renders the instant in UTC as 2025-07-01T12:00:00.000Z — the Z means 'Zulu', i.e. UTC — and it's the format you should use for storage and APIs because it sorts lexicographically and is unambiguous. toUTCString() gives a human GMT string. Both describe the exact same instant, independent of where the user is.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">ISO-8601: 2025-07-01T12:00:00.000Z<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑ Z = UTC<br>sorts correctly · store THIS</div>`, code:`d.toISOString();  // "2025-07-01T12:00:00.000Z"
+d.toUTCString();  // "Tue, 01 Jul 2025 12:00:00 GMT"` },
+ { title:"5. Local time is a display choice", why:"To show a friendly local time, the browser applies the user's timezone offset — but this is presentation only, layered on top of the same underlying instant. Intl.DateTimeFormat both formats the value and tells you the resolved IANA zone name (like Asia/Kolkata or America/New_York). Because the instant is fixed, two users in different countries see different wall-clock text for the exact same timestamp, which is correct and expected.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">same instant, different wall clocks:<br>Kolkata 17:30 · London 12:00 · NYC 07:00<br>timezone = a display offset only</div>`, code:`const tz = Intl.DateTimeFormat()
+  .resolvedOptions().timeZone;      // "Asia/Kolkata"
+d.toLocaleString(undefined,
+  { dateStyle:"medium", timeStyle:"long" });` },
+ { title:"6. Relative time with Intl", why:"'3 days ago' or 'in 2 hours' is friendlier than a raw date for recent events. Compute the signed difference from now, walk down from the largest unit (year, month, day, hour, minute, second) to find the biggest one that fits, and hand it to Intl.RelativeTimeFormat with numeric:'auto' so it can say 'yesterday' instead of '1 day ago'. It's built into the browser and fully localised — no date library needed.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">diff = ts − now (sign = past/future)<br>pick biggest fitting unit<br>Intl.RelativeTimeFormat → "3 days ago"</div>`, code:`const diff = ms - Date.now();
+const rtf = new Intl.RelativeTimeFormat(undefined,{numeric:"auto"});
+rtf.format(Math.round(diff/864e5), "day");  // "in 3 days" / "3 days ago"` },
+ { title:"7. The other direction & the 2038 problem", why:"To go from a human date back to an epoch, parse the input and read getTime()/1000. Two famous gotchas live here. First, JavaScript months are 0-based (January is 0), a perennial source of off-by-one bugs when building dates by parts. Second, the Year 2038 problem: systems that store the timestamp in a signed 32-bit integer overflow at 2,147,483,647 seconds — 03:14:07 UTC on 19 January 2038 — and wrap to a negative date. The fix everywhere is to use 64-bit timestamps.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">date → getTime()/1000 = epoch seconds<br>⚠ JS months are 0-based<br>⚠ 2³¹−1 = 2038-01-19 → 32-bit overflow<br>fix: 64-bit timestamps</div>`, code:`const sec = Math.floor(new Date(input).getTime()/1000);
+// 2147483647 → 2038-01-19T03:14:07Z  (last 32-bit second)
+new Date(0, 0);   // ⚠ month 0 = January` },
+ { title:"8. Leap seconds & why not to hand-roll dates", why:"Real calendars are messy: daylight-saving jumps, historical timezone changes, and leap seconds (occasionally added to keep UTC aligned with Earth's rotation — Unix time simply ignores them and pretends every day is 86,400 seconds). Trying to reimplement all this by hand is a famous source of bugs. That's why you lean on the platform: Date, Intl, and — for heavy timezone arithmetic — the modern Temporal API or a vetted library. Store UTC, convert only for display, and let the built-ins handle the edge cases.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">DST jumps · timezone history · leap seconds<br>don't hand-roll — use Date / Intl / Temporal<br>store UTC, display local</div>`, code:`// Golden rules:
+//   • store timestamps in UTC (or epoch)
+//   • convert to local ONLY for display
+//   • never parse/format dates by hand
+//   • Temporal API is the modern successor to Date` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+</script>
+</body>
+</html>
