@@ -28,8 +28,8 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 19 — Hash Generator (Web Crypto)](https://dev48v.infy.uk/solve/day19-hash-generator.html) — `day19-hash-generator.html`
 - [SolveFromZero · Day 20 — JWT Decoder (Read Any Token Safely)](https://dev48v.infy.uk/solve/day20-jwt-decoder.html) — `day20-jwt-decoder.html`
 - [SolveFromZero · Day 21 — Cron Expression Explainer](https://dev48v.infy.uk/solve/day21-cron-explainer.html) — `day21-cron-explainer.html`
+- [SolveFromZero · Day 22 — Unix Timestamp Converter](https://dev48v.infy.uk/solve/day22-timestamp-converter.html) — `day22-timestamp-converter.html`
+- [SolveFromZero · Day 23 — Color Format Converter](https://dev48v.infy.uk/solve/day23-color-converter.html) — `day23-color-converter.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
-- Day 22 — Unix Timestamp Converter → `day22-timestamp-converter.html`
-- Day 23 — Color Format Converter (HEX ⇄ RGB ⇄ HSL + contrast) → `day23-color-converter.html`
