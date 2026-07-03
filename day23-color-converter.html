@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 23 — Color Format Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  input[type=color]{ -webkit-appearance:none; appearance:none; border:none; padding:0; background:none; cursor:pointer; }
+  input[type=color]::-webkit-color-swatch-wrapper{ padding:0; }
+  input[type=color]::-webkit-color-swatch{ border:none; border-radius:10px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 23</div>
+      <h1 class="text-xl font-bold">🎨 Color Format Converter — HEX ⇄ RGB ⇄ HSL, live</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Type or pick a colour in any format. The other two update live.</h2>
+        <p class="text-slate-500 mb-5">Every colour on a screen is the same thing — three numbers for red, green and blue light — written three ways. <strong>HEX</strong> packs them into two hex digits each (<code>#rrggbb</code>). <strong>RGB</strong> spells them out (0–255). <strong>HSL</strong> re-describes the same point as hue, saturation and lightness, which is how humans actually think about colour. Edit any field and the maths flows to the others, plus a big swatch, the native picker, and a WCAG readout telling you whether black or white text is legible on top. All offline, no libraries.</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-5">
+        <!-- inputs -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-3">Enter a colour</div>
+
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">HEX</label>
+          <div class="flex gap-2 mb-3 mt-1">
+            <input id="hexIn" class="field flex-1 mono text-sm" placeholder="#3b82f6 or #39f" spellcheck="false">
+            <button class="mini px-3 py-2 rounded-lg font-semibold text-xs" onclick="copyVal(hexIn)">Copy</button>
+          </div>
+
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">RGB</label>
+          <div class="flex gap-2 mb-3 mt-1">
+            <input id="rgbIn" class="field flex-1 mono text-sm" placeholder="rgb(59, 130, 246)" spellcheck="false">
+            <button class="mini px-3 py-2 rounded-lg font-semibold text-xs" onclick="copyVal(rgbIn)">Copy</button>
+          </div>
+
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">HSL</label>
+          <div class="flex gap-2 mb-4 mt-1">
+            <input id="hslIn" class="field flex-1 mono text-sm" placeholder="hsl(217, 91%, 60%)" spellcheck="false">
+            <button class="mini px-3 py-2 rounded-lg font-semibold text-xs" onclick="copyVal(hslIn)">Copy</button>
+          </div>
+
+          <div id="err" class="text-xs text-red-600 mb-3 min-h-[16px]"></div>
+
+          <div class="flex items-center gap-3 mb-2">
+            <label for="picker" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Native picker</label>
+            <input id="picker" type="color" value="#3b82f6" style="width:52px;height:34px;border-radius:10px;">
+          </div>
+
+          <div class="flex gap-2 mt-3 flex-wrap text-xs">
+            <button data-preset="#3b82f6" class="mini px-2 py-1 rounded font-semibold">Blue 500</button>
+            <button data-preset="#f59e0b" class="mini px-2 py-1 rounded font-semibold">Amber 500</button>
+            <button data-preset="#10b981" class="mini px-2 py-1 rounded font-semibold">Emerald</button>
+            <button data-preset="#0f172a" class="mini px-2 py-1 rounded font-semibold">Slate 900</button>
+            <button data-preset="#ffffff" class="mini px-2 py-1 rounded font-semibold">White</button>
+          </div>
+        </div>
+
+        <!-- swatch + readout -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-3">Preview</div>
+          <div id="swatch" class="rounded-xl h-40 flex items-center justify-center font-bold text-2xl mono mb-4 border border-slate-200" style="background:#3b82f6;color:#fff;">
+            <span id="swatchTxt">#3b82f6</span>
+          </div>
+          <div class="border border-slate-100 rounded-lg overflow-hidden text-sm">
+            <div class="out-row"><span class="text-slate-500">HEX</span><span id="oHex" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">RGB</span><span id="oRgb" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">HSL</span><span id="oHsl" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">Relative luminance</span><span id="oLum" class="mono"></span></div>
+            <div class="out-row"><span class="text-slate-500">Best text colour</span><span id="oText" class="mono text-amber-600"></span></div>
+            <div class="out-row"><span class="text-slate-500">Contrast (vs that text)</span><span id="oContrast" class="mono"></span></div>
+          </div>
+          <p class="text-xs text-slate-400 mt-3">The "best text colour" uses the WCAG relative-luminance formula to decide whether black or white gives more contrast on this background — the same maths accessibility checkers use. A ratio of <strong>4.5:1</strong> is the AA threshold for body text.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How colour formats really work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Parse each format into plain R/G/B bytes, convert between RGB and HSL with the standard formulas, and wire the three inputs so editing one updates the rest. Keep HSL at full precision internally so round-trips stay lossless — round only for display. ~90 lines of vanilla JS.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Parse HEX → RGB (with 3-digit shorthand)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A hex colour is three bytes written as pairs of base-16 digits. Strip the <code>#</code>, expand the 3-digit shorthand (<code>#39f</code> → <code>#3399ff</code> by doubling each digit), then read each pair with <code>parseInt(…, 16)</code>. Return <code>null</code> on anything that isn't valid hex so the caller can flag bad input.</p>
+        <div class="relative"><pre>function hexToRgb(hex){
+  hex = hex.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(hex))          // #39f
+    hex = hex.split("").map(c =&gt; c + c).join(""); // → 3399ff
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return {
+    r: parseInt(hex.slice(0,2), 16),
+    g: parseInt(hex.slice(2,4), 16),
+    b: parseInt(hex.slice(4,6), 16)
+  };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">RGB → HEX</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The reverse: turn each 0–255 channel back into a two-digit hex string. <code>toString(16)</code> gives base-16, and <code>padStart(2,"0")</code> keeps single digits (like <code>a</code> → <code>0a</code>) from collapsing the string. Round first, because RGB values coming out of an HSL conversion can be fractional.</p>
+        <div class="relative"><pre>function rgbToHex(r, g, b){
+  const h = x =&gt; Math.round(x).toString(16).padStart(2, "0");
+  return "#" + h(r) + h(g) + h(b);
+}
+rgbToHex(59, 130, 246);   // "#3b82f6"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">RGB → HSL (the interesting one)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Normalise channels to 0–1, take <code>max</code> and <code>min</code>. Lightness is their midpoint. Saturation is the spread <code>(max−min)</code> scaled by how close lightness is to the extremes. Hue is an angle on the colour wheel: figure out which channel is the max, then measure how far the other two lean, landing in one of three 120° sectors × 60°.</p>
+        <div class="relative"><pre>function rgbToHsl(r, g, b){
+  r/=255; g/=255; b/=255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  let h = 0, s = 0, l = (max+min)/2;
+  if (d !== 0){
+    s = l &gt; 0.5 ? d/(2-max-min) : d/(max+min);
+    switch (max){
+      case r: h = (g-b)/d + (g &lt; b ? 6 : 0); break;
+      case g: h = (b-r)/d + 2;               break;
+      case b: h = (r-g)/d + 4;               break;
+    }
+    h *= 60;                       // sector → degrees
+  }
+  return { h, s: s*100, l: l*100 }; // keep FLOATS internally
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">HSL → RGB</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Going back, if saturation is zero it's grey (all channels equal lightness). Otherwise build two anchors <code>p</code> and <code>q</code> from lightness and saturation, then a helper maps a hue-offset into a channel value by walking the same 6 wheel sectors. Feed the helper hue +1/3, hue, and hue −1/3 to get R, G and B.</p>
+        <div class="relative"><pre>function hslToRgb(h, s, l){
+  h/=360; s/=100; l/=100;
+  if (s === 0){ const v = Math.round(l*255); return {r:v,g:v,b:v}; }
+  const hue2rgb = (p, q, t) =&gt; {
+    if (t &lt; 0) t += 1; if (t &gt; 1) t -= 1;
+    if (t &lt; 1/6) return p + (q-p)*6*t;
+    if (t &lt; 1/2) return q;
+    if (t &lt; 2/3) return p + (q-p)*(2/3 - t)*6;
+    return p;
+  };
+  const q = l &lt; 0.5 ? l*(1+s) : l + s - l*s;
+  const p = 2*l - q;
+  return {
+    r: Math.round(hue2rgb(p, q, h + 1/3)*255),
+    g: Math.round(hue2rgb(p, q, h      )*255),
+    b: Math.round(hue2rgb(p, q, h - 1/3)*255)
+  };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Parse loose RGB / HSL text</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Users type <code>rgb(59,130,246)</code>, <code>59 130 246</code>, or with stray spaces. Pull every number out with a regex, take the first three, and clamp to range. The same trick reads HSL. Being forgiving about the exact syntax makes the tool feel alive rather than fussy.</p>
+        <div class="relative"><pre>function nums(str){ return (str.match(/-?\d+\.?\d*/g) || []).map(Number); }
+
+function parseRgb(str){
+  const [r,g,b] = nums(str);
+  if ([r,g,b].some(v =&gt; v === undefined)) return null;
+  const c = v =&gt; Math.min(255, Math.max(0, v));
+  return { r:c(r), g:c(g), b:c(b) };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Contrast: pick black or white text</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Perceived brightness isn't the raw average — you must first linearise each channel (undo the sRGB gamma curve), then weight green heaviest. Compare the background's luminance against black and white with the WCAG ratio and choose whichever wins. That's a real accessibility check in a dozen lines.</p>
+        <div class="relative"><pre>function relLum(r, g, b){
+  const f = c =&gt; { c/=255; return c &lt;= 0.03928 ? c/12.92
+                            : Math.pow((c+0.055)/1.055, 2.4); };
+  return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b);
+}
+function contrast(L1, L2){
+  const a = Math.max(L1,L2), b = Math.min(L1,L2);
+  return (a + 0.05) / (b + 0.05);          // 1 … 21
+}
+const L = relLum(r,g,b);
+const useWhite = contrast(L, 0) &lt; contrast(L, 1); // black lum=0, white lum=1</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Wire the three fields together</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Keep one source of truth: an <code>{r,g,b}</code> object. Whichever field the user edits, parse it to RGB, then re-render <em>all</em> fields, the swatch and the picker from that single value. Guard against feedback loops by not re-writing the field the user is currently typing in.</p>
+        <div class="relative"><pre>function apply(rgb, from){
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  if (from !== "hex") hexIn.value = rgbToHex(rgb.r, rgb.g, rgb.b);
+  if (from !== "rgb") rgbIn.value = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  if (from !== "hsl") hslIn.value =
+    `hsl(${Math.round(hsl.h)}, ${Math.round(hsl.s)}%, ${Math.round(hsl.l)}%)`;
+  picker.value  = rgbToHex(rgb.r, rgb.g, rgb.b);
+  swatch.style.background = rgbToHex(rgb.r, rgb.g, rgb.b);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 23 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a colour converter: hex/RGB/HSL parsing with 3-digit shorthand, the full RGB↔HSL formulas (max/min, hue sectors), a gamma-correct WCAG contrast readout, and three live-linked inputs with a native picker — zero libraries. The subtle lesson: store HSL at full precision internally so round-trips stay lossless, and round only when you show it. <strong>👉 Tomorrow — Day 24: Base64 Encoder / Decoder (or a UUID generator).</strong></p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== CONVERTER =====
+const hexIn = document.getElementById("hexIn");
+const rgbIn = document.getElementById("rgbIn");
+const hslIn = document.getElementById("hslIn");
+const picker = document.getElementById("picker");
+const swatch = document.getElementById("swatch");
+const swatchTxt = document.getElementById("swatchTxt");
+const errEl = document.getElementById("err");
+
+function hexToRgb(hex){
+  hex = hex.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) hex = hex.split("").map(c => c + c).join("");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) };
+}
+function rgbToHex(r,g,b){
+  const h = x => Math.round(x).toString(16).padStart(2,"0");
+  return "#" + h(r) + h(g) + h(b);
+}
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  let h = 0, s = 0, l = (max+min)/2;
+  if (d !== 0){
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    switch (max){
+      case r: h = (g-b)/d + (g < b ? 6 : 0); break;
+      case g: h = (b-r)/d + 2; break;
+      case b: h = (r-g)/d + 4; break;
+    }
+    h *= 60;
+  }
+  return { h, s: s*100, l: l*100 };   // full precision internally
+}
+function hslToRgb(h,s,l){
+  h/=360; s/=100; l/=100;
+  if (s === 0){ const v = Math.round(l*255); return {r:v,g:v,b:v}; }
+  const hue2rgb = (p,q,t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q-p)*6*t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q-p)*(2/3 - t)*6;
+    return p;
+  };
+  const q = l < 0.5 ? l*(1+s) : l + s - l*s;
+  const p = 2*l - q;
+  return {
+    r: Math.round(hue2rgb(p,q,h+1/3)*255),
+    g: Math.round(hue2rgb(p,q,h    )*255),
+    b: Math.round(hue2rgb(p,q,h-1/3)*255)
+  };
+}
+function nums(str){ return (str.match(/-?\d+\.?\d*/g) || []).map(Number); }
+function parseRgb(str){
+  const [r,g,b] = nums(str);
+  if ([r,g,b].some(v => v === undefined || isNaN(v))) return null;
+  const c = v => Math.min(255, Math.max(0, Math.round(v)));
+  return { r:c(r), g:c(g), b:c(b) };
+}
+function parseHsl(str){
+  const [h,s,l] = nums(str);
+  if ([h,s,l].some(v => v === undefined || isNaN(v))) return null;
+  const hh = ((h % 360) + 360) % 360;
+  const cl = v => Math.min(100, Math.max(0, v));
+  return hslToRgb(hh, cl(s), cl(l));
+}
+function relLum(r,g,b){
+  const f = c => { c/=255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); };
+  return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b);
+}
+function contrast(L1,L2){ const a=Math.max(L1,L2), b=Math.min(L1,L2); return (a+0.05)/(b+0.05); }
+
+function apply(rgb, from){
+  errEl.textContent = "";
+  [hexIn,rgbIn,hslIn].forEach(el => el.classList.remove("bad"));
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+  const rgbStr = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  const hslStr = `hsl(${Math.round(hsl.h)}, ${Math.round(hsl.s)}%, ${Math.round(hsl.l)}%)`;
+  if (from !== "hex") hexIn.value = hex;
+  if (from !== "rgb") rgbIn.value = rgbStr;
+  if (from !== "hsl") hslIn.value = hslStr;
+  picker.value = hex;
+
+  // preview + readout
+  const L = relLum(rgb.r, rgb.g, rgb.b);
+  const cWhite = contrast(L, 1), cBlack = contrast(L, 0);
+  const useWhite = cWhite >= cBlack;
+  const textColor = useWhite ? "#ffffff" : "#000000";
+  const ratio = useWhite ? cWhite : cBlack;
+  swatch.style.background = hex;
+  swatch.style.color = textColor;
+  swatchTxt.textContent = hex;
+  document.getElementById("oHex").textContent = hex;
+  document.getElementById("oRgb").textContent = rgbStr;
+  document.getElementById("oHsl").textContent = hslStr;
+  document.getElementById("oLum").textContent = L.toFixed(4);
+  document.getElementById("oText").textContent = useWhite ? "white" : "black";
+  document.getElementById("oContrast").textContent = ratio.toFixed(2) + ":1" + (ratio >= 4.5 ? " ✓ AA" : ratio >= 3 ? " ~ large only" : " ✗");
+}
+function fail(el, msg){
+  el.classList.add("bad");
+  errEl.textContent = msg;
+}
+
+hexIn.addEventListener("input", () => {
+  const rgb = hexToRgb(hexIn.value);
+  if (rgb) apply(rgb, "hex"); else fail(hexIn, "Not a valid hex colour (try #3b82f6 or #39f).");
+});
+rgbIn.addEventListener("input", () => {
+  const rgb = parseRgb(rgbIn.value);
+  if (rgb) apply(rgb, "rgb"); else fail(rgbIn, "Need three numbers, e.g. rgb(59, 130, 246).");
+});
+hslIn.addEventListener("input", () => {
+  const rgb = parseHsl(hslIn.value);
+  if (rgb) apply(rgb, "hsl"); else fail(hslIn, "Need three numbers, e.g. hsl(217, 91%, 60%).");
+});
+picker.addEventListener("input", () => { const rgb = hexToRgb(picker.value); if (rgb) apply(rgb, ""); });
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => { const rgb = hexToRgb(b.dataset.preset); apply(rgb, ""); });
+
+function copyVal(el){ if(!el.value) return; navigator.clipboard.writeText(el.value); }
+
+// init
+apply(hexToRgb("#3b82f6"), "");
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A colour is just three numbers", why:"Every colour your screen shows is made from three tiny lights per pixel — red, green and blue — each set to some intensity. HEX, RGB and HSL are not different colours; they are three ways of writing down the same three intensities. Understanding this collapses a lot of confusion: converting between formats never changes the colour, it only re-encodes it. Once you can move freely between them you can read a designer's HSL, paste a brand's HEX, and debug a CSS RGB value as if they were one thing.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">one colour · three spellings<br>#3b82f6 = rgb(59,130,246) = hsl(217,91%,60%)<br>convert ≠ change · only re-encode</div>`, code:`// same pixel, three notations:
+// #3b82f6
+// rgb(59, 130, 246)
+// hsl(217, 91%, 60%)` },
+ { title:"2. What the hex bytes mean", why:"A hex colour like #3b82f6 is three bytes written in base-16. '3b' is the red channel, '82' the green, 'f6' the blue — each a value from 00 to ff, i.e. 0 to 255. Hex is compact and copy-pasteable, which is why CSS and design tools default to it. Reading it is just splitting the six characters into three pairs and converting each pair from base-16 to a normal number.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">#3b 82 f6<br>&nbsp;&nbsp;R&nbsp;&nbsp;G&nbsp;&nbsp;B<br>3b=59 · 82=130 · f6=246<br>each pair: base-16, 00…ff = 0…255</div>`, code:`parseInt("3b", 16);   // 59
+parseInt("82", 16);   // 130
+parseInt("f6", 16);   // 246` },
+ { title:"3. The additive RGB model", why:"RGB is additive: you start from black (no light) and add red, green and blue light. All three at full blast make white; equal amounts make a grey. This is the opposite of paint, where mixing pigments subtracts light toward black. Screens are additive because they emit light, so the intuition of 'more of every channel = brighter' holds — and it explains why (255,255,0) red+green is yellow, not muddy brown.", concept:`<div class="w-full text-center"><div class="inline-flex gap-1"><span style="width:44px;height:44px;background:#f00;border-radius:6px;display:inline-block"></span><span style="width:44px;height:44px;background:#0f0;border-radius:6px;display:inline-block"></span><span style="width:44px;height:44px;background:#00f;border-radius:6px;display:inline-block"></span><span style="width:44px;height:44px;background:#fff;border:1px solid #ccc;border-radius:6px;display:inline-block"></span></div><div class="text-xs font-mono mt-2 text-slate-500">R + G + B → white · start from black · add light</div></div>`, code:`// additive: black + light
+// (255,0,0)+(0,255,0) = (255,255,0) = yellow
+// (255,255,255) = white   (0,0,0) = black` },
+ { title:"4. Why HSL is more human", why:"RGB is how the hardware works, but it's a poor match for how people think. Nobody says 'give me a bit less blue and a touch more green' — they say 'the same colour but lighter', or 'a more muted version'. HSL re-parameterises the exact same space into Hue (which colour, an angle 0–360° round the wheel), Saturation (how vivid, 0–100%) and Lightness (how bright, 0–100%). That maps directly onto human intent, so tweaking a design in HSL is far more intuitive than nudging three RGB channels.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">H = which colour (0–360° wheel)<br>S = how vivid (0–100%)<br>L = how bright (0–100%)<br>"same hue, lighter" = raise L only</div>`, code:`// hsl(217, 91%, 60%)
+//      │    │     └ lightness
+//      │    └ saturation
+//      └ hue angle (blue-ish)` },
+ { title:"5. RGB → HSL: max, min & the maths", why:"To find HSL you first normalise R,G,B to 0–1 and take their max and min. Lightness is simply the midpoint (max+min)/2. Saturation is the spread (max−min), but scaled differently depending on whether lightness is above or below 0.5, so that pale and dark colours report sensible saturation. When max equals min the colour is a grey, so saturation is 0 and hue is undefined — the classic edge case to handle first.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">max, min of (r,g,b)/255<br>L = (max+min)/2<br>S = (max−min) scaled by L<br>max==min → grey → S=0</div>`, code:`const max=Math.max(r,g,b), min=Math.min(r,g,b);
+const l = (max+min)/2;
+const s = (max===min) ? 0
+        : l>0.5 ? (max-min)/(2-max-min)
+                : (max-min)/(max+min);` },
+ { title:"6. Hue is an angle in six sectors", why:"Hue is where it gets clever. Whichever channel is the maximum tells you which third of the colour wheel you're in — red, green or blue — and the other two channels tell you how far you've leaned toward a neighbour. Each case yields a number 0–6 which you multiply by 60 to get degrees. The red case adds 6 when green is below blue so the angle wraps correctly past 360° back to 0. Getting these six sectors right is the whole trick of the conversion.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">max = R → around 0°/360° (reds)<br>max = G → around 120° (greens)<br>max = B → around 240° (blues)<br>×60 turns sector index into degrees</div>`, code:`switch(max){
+  case r: h = (g-b)/d + (g<b ? 6 : 0); break;
+  case g: h = (b-r)/d + 2;            break;
+  case b: h = (r-g)/d + 4;            break;
+}
+h *= 60;   // → degrees on the wheel` },
+ { title:"7. HSL → RGB: back down the wheel", why:"The reverse builds two anchor values, p and q, from lightness and saturation — these are the low and high ends the channels will swing between. A small helper hue2rgb takes a hue offset and walks the same six 60° sectors to interpolate a single channel. Call it with the hue shifted by +1/3, 0 and −1/3 of the wheel to pull out red, green and blue respectively. If saturation is zero you short-circuit to a grey equal to the lightness.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">q = high anchor, p = low anchor<br>hue2rgb(p,q, hue ± 1/3) per channel<br>R = +1/3 · G = hue · B = −1/3<br>S=0 → grey(L)</div>`, code:`const q = l<0.5 ? l*(1+s) : l+s-l*s;
+const p = 2*l - q;
+r = hue2rgb(p, q, h + 1/3);
+g = hue2rgb(p, q, h      );
+b = hue2rgb(p, q, h - 1/3);` },
+ { title:"8. 3-digit shorthand & rounding traps", why:"CSS lets you write #39f as a shorthand for #3399ff — each digit is simply doubled. Expanding it before parsing is a one-liner but easy to forget. A subtler trap: HSL values are usually shown as whole numbers, but if you store the rounded integers and convert back to RGB you can drift by a digit (a mismatch on round-trip). The fix is to keep hue/sat/light at full floating-point precision internally and round only for display, so #3b82f6 → HSL → RGB returns exactly #3b82f6.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">#39f → #3399ff (double each digit)<br>display HSL rounded: 217, 91%, 60%<br>store HSL as floats: 217.2, 91.2, 59.8<br>round-trip stays lossless</div>`, code:`if (/^[0-9a-f]{3}$/i.test(hex))
+  hex = hex.split("").map(c=>c+c).join("");  // #39f → 3399ff
+// keep floats internally; round(hsl) only when rendering` },
+ { title:"9. Luminance & contrast (gamma matters)", why:"To judge readability you need perceived brightness, not the raw average of R,G,B. Screens encode colour with an sRGB gamma curve, so you must first linearise each channel (that c<=0.03928 ? c/12.92 : … formula) before weighting them — and green counts far more than blue because our eyes are most sensitive to it. The WCAG contrast ratio compares two luminances as (lighter+0.05)/(darker+0.05), ranging 1:1 to 21:1; 4.5:1 is the AA bar for body text. That's why the tool can honestly say 'use black text here'.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">linearise sRGB (undo gamma) first<br>L = .2126R + .7152G + .0722B<br>ratio = (L1+.05)/(L2+.05) · 1…21<br>4.5:1 = AA body text</div>`, code:`const f = c => (c/=255) <= 0.03928
+  ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
+const L = 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b);
+contrast = (Math.max(L,0)+0.05)/(Math.min(L,0)+0.05);` },
+ { title:"10. The alpha channel", why:"HEX, RGB and HSL each have a fourth-value cousin for transparency: 8-digit hex (#rrggbbaa), rgba() and hsla(), where alpha runs 0 (invisible) to 1 (opaque). Alpha isn't part of the colour itself — it says how much of what's behind shows through when the pixel is composited. It doesn't affect the hue/sat/light maths at all, so a converter can treat it as a passthrough. It matters most for overlays and shadows, where the same base colour at different alphas gives you a whole tonal range for free.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">#3b82f6cc · rgba(59,130,246,.8) · hsla(…,.8)<br>alpha 0 = clear → 1 = solid<br>composited over the background<br>separate from H/S/L maths</div>`, code:`// alpha rides alongside, not inside, the colour:
+// #3b82f680  = rgb + 0x80/255 ≈ 0.5 alpha
+// rgba(59,130,246,0.5)
+// hsla(217,91%,60%,0.5)` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+</script>
+</body>
+</html>

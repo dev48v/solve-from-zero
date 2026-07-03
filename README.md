@@ -32,3 +32,4 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
 - Day 22 — Unix Timestamp Converter → `day22-timestamp-converter.html`
+- Day 23 — Color Format Converter (HEX ⇄ RGB ⇄ HSL + contrast) → `day23-color-converter.html`
