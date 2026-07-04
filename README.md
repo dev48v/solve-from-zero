@@ -30,6 +30,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 21 — Cron Expression Explainer](https://dev48v.infy.uk/solve/day21-cron-explainer.html) — `day21-cron-explainer.html`
 - [SolveFromZero · Day 22 — Unix Timestamp Converter](https://dev48v.infy.uk/solve/day22-timestamp-converter.html) — `day22-timestamp-converter.html`
 - [SolveFromZero · Day 23 — Color Format Converter](https://dev48v.infy.uk/solve/day23-color-converter.html) — `day23-color-converter.html`
+- [SolveFromZero · Day 24 — Base64 Encoder / Decoder](https://dev48v.infy.uk/solve/day24-base64.html) — `day24-base64.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

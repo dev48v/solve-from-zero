@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 24 — Base64 Encoder / Decoder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:120px; }
+  .bit-box { display:inline-flex; flex-wrap:wrap; gap:2px; }
+  .cell { font-family:ui-monospace, Menlo, monospace; font-size:11px; padding:3px 5px; border-radius:4px; text-align:center; min-width:14px; }
+  .drop { border:2px dashed #fcd34d; background:#fffbeb; border-radius:12px; }
+  .drop.over { border-color:#f59e0b; background:#fef3c7; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 24</div>
+      <h1 class="text-xl font-bold">🔤 Base64 Encoder / Decoder — text ⇄ Base64, UTF-8 safe</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Type text on the left, Base64 on the right — either side updates the other, live.</h2>
+        <p class="text-slate-500 mb-5">Base64 turns <strong>any bytes</strong> into a string of 64 plain characters (<code>A–Z a–z 0–9 + /</code>) so binary can travel safely through channels that only tolerate text — email bodies, JSON, URLs, data-URIs. It works by regrouping bits: every <strong>3 bytes (24 bits)</strong> become <strong>4 characters of 6 bits</strong> each. This tool does it the <strong>UTF-8-correct</strong> way (naïve <code>btoa</code> throws on <code>é</code> or <code>世</code>), lets you flip to the <strong>URL-safe</strong> alphabet, visualises the bit-regrouping, and will Base64 any file you drop. All offline, no libraries.</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-5">
+        <!-- text side -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-bold">Plain text</div>
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="copyVal(txtIn)">Copy</button>
+          </div>
+          <textarea id="txtIn" class="field mono text-sm" placeholder="Type here… try: héllo 世界 🚀" spellcheck="false"></textarea>
+          <div class="text-xs text-slate-400 mt-1">Every keystroke re-encodes on the right.</div>
+        </div>
+
+        <!-- base64 side -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-bold">Base64</div>
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="copyVal(b64In)">Copy</button>
+          </div>
+          <textarea id="b64In" class="field mono text-sm" placeholder="…or paste Base64 to decode it back to text" spellcheck="false"></textarea>
+          <div id="err" class="text-xs text-red-600 mt-1 min-h-[16px]"></div>
+        </div>
+      </div>
+
+      <!-- options + stats -->
+      <div class="grid md:grid-cols-2 gap-5 mt-5">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-3">Options</div>
+          <label class="flex items-center gap-2 text-sm mb-2 cursor-pointer">
+            <input type="checkbox" id="optUrl"> <span><strong>URL-safe</strong> alphabet (<code>+/</code> → <code>-_</code>)</span>
+          </label>
+          <label class="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+            <input type="checkbox" id="optNoPad"> <span>Strip <code>=</code> padding</span>
+          </label>
+          <div class="border border-slate-100 rounded-lg overflow-hidden text-sm">
+            <div class="out-row"><span class="text-slate-500">Input bytes (UTF-8)</span><span id="oBytes" class="mono">0</span></div>
+            <div class="out-row"><span class="text-slate-500">Base64 length</span><span id="oB64Len" class="mono">0</span></div>
+            <div class="out-row"><span class="text-slate-500">Size overhead</span><span id="oOverhead" class="mono text-amber-600">—</span></div>
+            <div class="out-row"><span class="text-slate-500">Padding chars</span><span id="oPad" class="mono">0</span></div>
+          </div>
+        </div>
+
+        <!-- file to base64 -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-3">File → Base64 data-URI</div>
+          <div id="drop" class="drop p-5 text-center text-sm text-slate-500 cursor-pointer">
+            Drop a small file here, or <span class="text-amber-600 font-semibold underline">click to pick</span>
+            <input id="fileIn" type="file" class="hidden">
+          </div>
+          <div id="fileInfo" class="text-xs text-slate-500 mt-2"></div>
+          <textarea id="fileOut" class="field mono text-xs mt-2 hidden" style="min-height:80px" spellcheck="false" readonly></textarea>
+          <button id="fileCopy" class="mini px-3 py-1 rounded-lg font-semibold text-xs mt-2 hidden" onclick="copyVal(fileOut)">Copy data-URI</button>
+        </div>
+      </div>
+
+      <!-- bit visualiser -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-1">Bit-level view — how 3 bytes become 4 characters</div>
+        <p class="text-xs text-slate-500 mb-3">The 8-bit bytes of your input (amber) are laid end to end, then re-sliced into 6-bit groups (blue). Each 6-bit group indexes one of the 64 alphabet characters. When the last group is short, zero-bits pad it and <code>=</code> marks the gap — <span class="text-amber-600 font-semibold">watch the tail change as you type 1, 2 or 3 characters.</span></p>
+        <div id="vis" class="text-sm text-slate-400">Type in the text box above to see the bits.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How Base64 really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">Encode text to Base64 the correct way: turn the string into UTF-8 bytes first, then regroup those bytes 3-at-a-time into 4 six-bit indices, and finally map each index through the alphabet. Decoding runs the pipeline in reverse. Wire two textareas so editing either re-renders the other, add a URL-safe toggle, and you have a real, UTF-8-safe tool in ~80 lines of vanilla JS.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Text → UTF-8 bytes (do this first!)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Base64 encodes <em>bytes</em>, not characters. A char like <code>世</code> is several bytes in UTF-8, and raw <code>btoa("世")</code> throws because it assumes each char fits in one byte. <code>TextEncoder</code> gives you the correct byte array for any Unicode string, so everything downstream just works.</p>
+        <div class="relative"><pre>function toBytes(str){
+  return new TextEncoder().encode(str);   // Uint8Array of UTF-8 bytes
+}
+toBytes("héllo 世界");
+// [104,233?…] → é and 世 expand to 2–3 bytes each</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The 64-character alphabet</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Standard Base64 indexes 0–63 into <code>A–Z</code>, then <code>a–z</code>, then <code>0–9</code>, then <code>+</code> and <code>/</code>. That's exactly 64 symbols — the largest power-of-two alphabet made only of printable, widely-safe ASCII. Build it once as a string and look up by index.</p>
+        <div class="relative"><pre>const STD = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          + "abcdefghijklmnopqrstuvwxyz"
+          + "0123456789+/";
+STD[0];   // "A"
+STD[63];  // "/"
+STD.length; // 64</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Regroup 3 bytes (24 bits) → 4 indices (6 bits)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Take three bytes at a time. Glue their 24 bits together into one number, then slice off four 6-bit chunks (<code>&gt;&gt;</code> and <code>&amp; 63</code>). Each chunk is 0–63 — a direct index into the alphabet. Three bytes in, four characters out: that's the whole engine.</p>
+        <div class="relative"><pre>// bytes b0,b1,b2 →
+const n = (b0 &lt;&lt; 16) | (b1 &lt;&lt; 8) | b2;   // 24-bit number
+const c0 = (n &gt;&gt; 18) &amp; 63;
+const c1 = (n &gt;&gt; 12) &amp; 63;
+const c2 = (n &gt;&gt;  6) &amp; 63;
+const c3 =  n         &amp; 63;
+// out = STD[c0]+STD[c1]+STD[c2]+STD[c3]</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Handle the leftover 1 or 2 bytes with =</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Input length isn't always a multiple of 3. With 1 leftover byte you still emit 2 chars (12 bits, zero-padded) then <code>==</code>; with 2 leftover bytes you emit 3 chars then <code>=</code>. The <code>=</code> is not data — it tells the decoder how many real bytes the final group carried.</p>
+        <div class="relative"><pre>// 1 leftover byte  → "XY=="   (2 chars + 2 pad)
+// 2 leftover bytes → "XYZ="   (3 chars + 1 pad)
+const pad = "=".repeat((3 - (len % 3)) % 3);
+btoa-style: fill missing bytes with 0, then replace
+the surplus output chars with "=".</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Encode via btoa — but the UTF-8 way</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The browser's <code>btoa</code> is fast but only accepts a "binary string" (one byte per char). Feed it Unicode directly and it throws. The fix: <code>TextEncoder</code> → bytes → build a binary string byte-by-byte → <code>btoa</code>. Decoding mirrors it with <code>atob</code> → bytes → <code>TextDecoder</code>.</p>
+        <div class="relative"><pre>function encode(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+function decode(b64){
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c =&gt; c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">URL-safe variant</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>+</code> and <code>/</code> mean things in URLs (space, path separator), so RFC 4648 defines a URL-safe alphabet swapping them for <code>-</code> and <code>_</code>. Padding <code>=</code> is often stripped too since <code>%3D</code> is ugly. Convert with two replaces after encoding, and reverse them before decoding.</p>
+        <div class="relative"><pre>function toUrlSafe(b64){
+  return b64.replace(/\+/g, "-").replace(/\//g, "_")
+            .replace(/=+$/, "");        // drop padding
+}
+function fromUrlSafe(s){
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";        // restore padding
+  return s;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">File → Base64 data-URI</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>FileReader.readAsDataURL</code> hands you a ready-made <code>data:&lt;mime&gt;;base64,…</code> string — the exact form you can paste into an <code>&lt;img src&gt;</code> or CSS <code>url()</code> to embed an asset with no separate request. Great for tiny icons; wasteful for big files because of the ~33% overhead (next step).</p>
+        <div class="relative"><pre>fileInput.onchange = e =&gt; {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = () =&gt; console.log(reader.result);
+  // reader.result = "data:image/png;base64,iVBORw0KG…"
+  reader.readAsDataURL(file);
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wire the two fields (and know it's not encryption)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Editing text re-encodes into the Base64 box; editing Base64 decodes back into text — guard the flag so you don't re-trigger the field being typed in. Show the ~33% size overhead. And remember: Base64 is <strong>reversible by anyone</strong> — it hides nothing. Never treat it as a password store or a security layer.</p>
+        <div class="relative"><pre>txtIn.oninput = () =&gt; { b64In.value = encode(txtIn.value); render(); };
+b64In.oninput = () =&gt; {
+  try { txtIn.value = decode(fromUrlSafe(b64In.value)); }
+  catch { showError("Not valid Base64"); }
+};
+// overhead ≈ ceil(bytes/3)*4 / bytes  → ~1.33×
+// ⚠ Base64 is encoding, NOT encryption.</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 24 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a UTF-8-safe Base64 tool: TextEncoder/TextDecoder to survive <code>é</code> and <code>世</code>, the 3-byte→4-char / 6-bit regrouping with <code>=</code> padding, a URL-safe toggle, a live bit visualiser and file→data-URI. The subtle lesson: Base64 is a transport <em>encoding</em>, not encryption — it makes bytes text-safe and costs ~33% size, nothing more. <strong>👉 Tomorrow — Day 25: UUID Generator.</strong></p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== BASE64 ENGINE =====
+const txtIn   = document.getElementById("txtIn");
+const b64In   = document.getElementById("b64In");
+const errEl   = document.getElementById("err");
+const optUrl  = document.getElementById("optUrl");
+const optNoPad= document.getElementById("optNoPad");
+
+// UTF-8-correct encode/decode (btoa alone breaks on non-ASCII)
+function encodeStd(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+function decodeStd(b64){
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal:true }).decode(bytes);
+}
+function toUrlSafe(b64){ return b64.replace(/\+/g,"-").replace(/\//g,"_"); }
+function fromUrlSafe(s){
+  s = s.replace(/-/g,"+").replace(/_/g,"/").replace(/\s/g,"");
+  while (s.length % 4) s += "=";
+  return s;
+}
+
+// apply current options to a standard-alphabet base64 string
+function styled(b64){
+  let out = b64;
+  if (optUrl.checked) out = toUrlSafe(out);
+  if (optNoPad.checked) out = out.replace(/=+$/,"");
+  return out;
+}
+
+function render(){
+  const bytes = new TextEncoder().encode(txtIn.value);
+  const b64raw = encodeStd(txtIn.value);           // always standard first
+  const shown  = b64In.value;
+  const padCount = (b64raw.match(/=/g) || []).length;
+  const bLen = shown.length;
+  document.getElementById("oBytes").textContent  = bytes.length;
+  document.getElementById("oB64Len").textContent = bLen;
+  document.getElementById("oPad").textContent    = optNoPad.checked ? 0 : padCount;
+  const overhead = bytes.length ? ((b64raw.length / bytes.length - 1) * 100) : 0;
+  document.getElementById("oOverhead").textContent = bytes.length ? "+" + overhead.toFixed(1) + "%" : "—";
+  drawBits(bytes);
+}
+
+// text side edited → encode
+txtIn.addEventListener("input", () => {
+  errEl.textContent = ""; b64In.classList.remove("bad");
+  b64In.value = styled(encodeStd(txtIn.value));
+  render();
+});
+// base64 side edited → decode
+b64In.addEventListener("input", () => {
+  errEl.textContent = ""; b64In.classList.remove("bad");
+  const raw = b64In.value.trim();
+  if (raw === "") { txtIn.value = ""; render(); return; }
+  try {
+    const std = /[-_]/.test(raw) || optUrl.checked ? fromUrlSafe(raw) : (raw.length % 4 ? fromUrlSafe(raw) : raw);
+    txtIn.value = decodeStd(std);
+    render();
+  } catch (e) {
+    b64In.classList.add("bad");
+    errEl.textContent = "Not valid Base64 (or not valid UTF-8 once decoded).";
+  }
+});
+// options change → re-encode from current text
+[optUrl, optNoPad].forEach(o => o.addEventListener("change", () => {
+  b64In.value = styled(encodeStd(txtIn.value));
+  render();
+}));
+
+function copyVal(el){ if(!el.value) return; navigator.clipboard.writeText(el.value); }
+
+// ===== BIT VISUALISER: 3 bytes (24 bits) → 4 chars (6 bits) =====
+const STD = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function drawBits(bytes){
+  const vis = document.getElementById("vis");
+  if (!bytes.length){ vis.innerHTML = '<span class="text-slate-400">Type in the text box above to see the bits.</span>'; return; }
+  const show = bytes.slice(0, 9);              // first up-to-3 groups
+  let html = "";
+  for (let i = 0; i < show.length; i += 3){
+    const group = [show[i], show[i+1], show[i+2]];
+    const present = group.filter(b => b !== undefined).length;
+    // byte row (amber), 8 bits each
+    let bitStr = "";
+    let byteRow = '<div class="mb-1"><span class="text-xs text-slate-500 mr-2">bytes</span>';
+    for (let k = 0; k < 3; k++){
+      const b = group[k];
+      const bits = b === undefined ? "--------" : b.toString(2).padStart(8, "0");
+      bitStr += b === undefined ? "00000000" : bits;
+      byteRow += `<span class="cell" style="background:${b===undefined?'#f1f5f9':'#fef3c7'};color:${b===undefined?'#94a3b8':'#92400e'}">${bits}</span>`;
+    }
+    byteRow += "</div>";
+    // 6-bit char row (blue)
+    let charRow = '<div><span class="text-xs text-slate-500 mr-2">chars</span>';
+    const nChars = present === 3 ? 4 : present === 2 ? 3 : 2;
+    for (let k = 0; k < 4; k++){
+      const six = bitStr.slice(k*6, k*6+6);
+      if (k < nChars){
+        const idx = parseInt(six, 2);
+        charRow += `<span class="cell" style="background:#dbeafe;color:#1e40af" title="index ${idx}">${six}<br><b>${STD[idx]}</b></span>`;
+      } else {
+        charRow += `<span class="cell" style="background:#f1f5f9;color:#94a3b8">======<br><b>=</b></span>`;
+      }
+    }
+    charRow += "</div>";
+    html += `<div class="mb-3 p-2 rounded-lg border border-slate-100 bit-box" style="flex-direction:column;align-items:flex-start">${byteRow}${charRow}</div>`;
+  }
+  if (bytes.length > 9) html += `<div class="text-xs text-slate-400">…and ${bytes.length - 9} more bytes, same pattern.</div>`;
+  vis.innerHTML = html;
+}
+
+// ===== FILE → BASE64 DATA-URI =====
+const drop = document.getElementById("drop");
+const fileIn = document.getElementById("fileIn");
+const fileInfo = document.getElementById("fileInfo");
+const fileOut = document.getElementById("fileOut");
+const fileCopy = document.getElementById("fileCopy");
+drop.addEventListener("click", () => fileIn.click());
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileIn.addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+function handleFile(file){
+  if (file.size > 512 * 1024){
+    fileInfo.textContent = `"${file.name}" is ${(file.size/1024).toFixed(0)} KB — pick something under 512 KB for a readable data-URI.`;
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    fileInfo.textContent = `${file.name} · ${file.type || "unknown"} · ${(file.size/1024).toFixed(1)} KB → ${reader.result.length.toLocaleString()} chars`;
+    fileOut.value = reader.result;
+    fileOut.classList.remove("hidden");
+    fileCopy.classList.remove("hidden");
+  };
+  reader.readAsDataURL(file);
+}
+
+// init
+txtIn.value = "héllo 世界 🚀";
+b64In.value = styled(encodeStd(txtIn.value));
+render();
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why encode binary as text at all", why:"Huge swathes of the internet were built to carry text, not raw bytes. Email bodies, JSON payloads, URLs, XML and old protocols choke on arbitrary binary — a stray null byte or a byte that looks like a control character can corrupt or truncate the message. Base64 solves this by re-expressing any bytes using only a small set of characters everyone agrees are safe. It doesn't compress or protect the data; it just makes binary survivable in a text-only pipe, which is why you see it everywhere from image data-URIs to JWT tokens to API keys.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">raw bytes 🚫 email · JSON · URLs<br>Base64 ✅ printable ASCII only<br>"make binary survive a text channel"<br>not compression · not encryption</div>`, code:`// a PNG is bytes like: 89 50 4E 47 0D 0A ...
+// you can't safely paste that into JSON.
+// Base64 turns it into: "iVBORw0KGgo..."` },
+ { title:"2. The 64-character alphabet", why:"The name is literal: 64 characters. Standard Base64 uses A–Z (0–25), a–z (26–51), 0–9 (52–61), then + (62) and / (63). Sixty-four is chosen because it's 2^6 — a whole number of bits per character — and every symbol is printable, universally-supported ASCII that survives copy-paste, fonts and encodings. Encoding is just mapping a 6-bit number (0–63) to its character; decoding is the reverse lookup. Everything else in Base64 is about slicing bytes into those 6-bit numbers.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">index 0–25  → A…Z<br>index 26–51 → a…z<br>index 52–61 → 0…9<br>62 → "+"   63 → "/"<br>64 = 2^6 → 6 bits per char</div>`, code:`const STD = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          + "abcdefghijklmnopqrstuvwxyz"
+          + "0123456789+/";
+STD[0];  // "A"   STD[63]; // "/"` },
+ { title:"3. 3 bytes → 4 chars (the 6-bit trick)", why:"A byte is 8 bits; a Base64 char carries 6 bits. The lowest common multiple of 8 and 6 is 24, so Base64 works in blocks of 24 bits = 3 bytes = 4 characters. You concatenate three bytes into one 24-bit number, then chop it into four 6-bit slices, each an index 0–63. This 3→4 ratio is the heart of the format and directly explains the ~33% size growth: every 3 bytes of input become 4 bytes of output.", concept:`<div class="w-full text-center"><div class="text-xs font-mono">3 bytes = 24 bits</div><div class="inline-flex gap-1 my-1"><span class="cell" style="background:#fef3c7;color:#92400e">01001101</span><span class="cell" style="background:#fef3c7;color:#92400e">01100001</span><span class="cell" style="background:#fef3c7;color:#92400e">01101110</span></div><div class="text-xs font-mono">↓ re-slice into 6-bit groups ↓</div><div class="inline-flex gap-1 my-1"><span class="cell" style="background:#dbeafe;color:#1e40af">010011</span><span class="cell" style="background:#dbeafe;color:#1e40af">010110</span><span class="cell" style="background:#dbeafe;color:#1e40af">000101</span><span class="cell" style="background:#dbeafe;color:#1e40af">101110</span></div><div class="text-xs font-mono">= "TWFu" (M a n)</div></div>`, code:`const n = (b0<<16) | (b1<<8) | b2;  // 24 bits
+const c0=(n>>18)&63, c1=(n>>12)&63,
+      c2=(n>>6)&63,  c3=n&63;        // four 6-bit indices
+out += STD[c0]+STD[c1]+STD[c2]+STD[c3];` },
+ { title:"4. Padding with '='", why:"Real data rarely splits neatly into 3-byte groups. If the last group has only 1 byte you have 8 bits, which fills 2 six-bit chars (the second zero-padded), and you append '==' to signal 'two missing bytes'. With 2 leftover bytes you get 3 chars and one '='. The '=' is metadata, not data — it lets the decoder know exactly how many bytes the final group really represented, so it can drop the extra zero bits and reconstruct the original length precisely.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">"M"   (1 byte)  → "TQ=="  (2 chars + ==)<br>"Ma"  (2 bytes) → "TWE="  (3 chars + =)<br>"Man" (3 bytes) → "TWFu"  (no padding)<br>= tells decoder the true byte count</div>`, code:`// output length is always a multiple of 4:
+// pad = "=".repeat((3 - len%3) % 3)
+// atob() reads the "=" to recover the exact bytes` },
+ { title:"5. The btoa UTF-8 pitfall (and the fix)", why:"This trips up almost everyone. The built-in btoa() only accepts a 'binary string' where every character code is 0–255 — one byte per char. Pass it 'é' or '世' and it throws 'InvalidCharacterError' because those characters have code points above 255. The correct approach is to convert the string to UTF-8 bytes first with TextEncoder, build a byte-per-char binary string, then call btoa. On decode you reverse it: atob → bytes → TextDecoder. Skip this and your tool silently mangles every accent and emoji.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">btoa("世")  → ❌ InvalidCharacterError<br><br>TextEncoder.encode("世")  → [228,184,150]<br>→ binary string → btoa  → ✅ "5LiW"<br>atob → bytes → TextDecoder → "世"</div>`, code:`// ✅ correct, UTF-8 safe:
+const bytes = new TextEncoder().encode(str);
+let bin = ""; for (const b of bytes) bin += String.fromCharCode(b);
+const b64 = btoa(bin);
+// decode:
+new TextDecoder().decode(Uint8Array.from(atob(b64), c=>c.charCodeAt(0)));` },
+ { title:"6. The URL-safe alphabet", why:"Standard Base64 uses + and /, but both are special in URLs: + can mean a space in query strings and / is the path separator, so a token pasted into a URL gets corrupted. RFC 4648 defines a URL-safe alphabet that swaps + → - and / → _, leaving the other 62 characters unchanged. The trailing = padding is also frequently stripped because %3D is ugly and the length can be recomputed. This is the variant used by JWTs, and it's a two-character find-and-replace on top of the standard encoding.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">standard : + /   =(padding)<br>URL-safe : - _   (padding dropped)<br>because + = space, / = path sep in URLs<br>used by JWT, API tokens</div>`, code:`const urlSafe = b64.replace(/\\+/g,"-")
+                   .replace(/\\//g,"_")
+                   .replace(/=+$/,"");   // drop padding
+// reverse before decoding, re-add "=" to length%4` },
+ { title:"7. The ~33% size overhead", why:"Base64 always makes data bigger, by design. Every 3 input bytes become 4 output characters, so output is 4/3 of the input — about a 33% increase — before you even count padding and any line breaks. That's the price of squeezing 8-bit bytes into a 6-bit-per-character alphabet: you 'waste' 2 bits of capacity per character. It's why you Base64 a 2 KB icon into CSS happily but never Base64 a 5 MB image into JSON — the bloat and the loss of HTTP caching make it a bad trade at scale.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">3 bytes in → 4 chars out<br>4 / 3 ≈ 1.333 → +33%<br>100 KB file → ~137 KB text<br>fine for tiny assets, bad for big ones</div>`, code:`const overhead = Math.ceil(bytes/3)*4 / bytes; // ≈ 1.333
+// 3 → 4, 6 → 8, 9 → 12 ... always 4/3` },
+ { title:"8. Data URIs: embedding files inline", why:"A data URI packs a whole file into a single string: data:<mediatype>;base64,<the base64>. A browser treats it exactly like a fetched resource, so you can drop it straight into an <img src>, a CSS url(), or a downloadable link with zero extra network requests. FileReader.readAsDataURL builds one for you automatically, MIME type included. It's perfect for tiny inline icons, email images and self-contained HTML — but because of the 33% overhead and lost caching, it only makes sense for small assets.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-left font-mono break-all">data:image/png;base64,iVBORw0KGgoAAA…<br><br>&lt;img src="data:image/png;base64,iVBOR…"&gt;<br>one string = the whole file, no request</div>`, code:`const r = new FileReader();
+r.onload = () => img.src = r.result;
+//   r.result === "data:image/png;base64,iVBORw0KG..."
+r.readAsDataURL(file);` },
+ { title:"9. Base64 is NOT encryption", why:"The single most important thing to internalise: Base64 hides nothing. It's a public, reversible, key-less transform — anyone can paste your string into atob() and read it instantly. It looks scrambled to a human, which lulls people into storing passwords or 'obfuscating' secrets with it, but that's security theatre. Treat Base64 purely as a transport encoding: it makes bytes text-safe, nothing more. If you need confidentiality, encrypt (AES, etc.); if you need integrity, sign/hash. Base64 often wraps those results, but it is never itself the protection.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">"cGFzc3dvcmQ=" → atob → "password"<br>no key · fully reversible · public<br>⚠ encoding, NOT encryption<br>secrets? → encrypt or hash instead</div>`, code:`atob("cGFzc3dvcmQ=");   // "password"  — trivially reversed
+// Base64 ≠ security. Use AES/HMAC for real protection,
+// then Base64 the result only to transport it as text.` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+</script>
+</body>
+</html>
