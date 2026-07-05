@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 25 — UUID Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:120px; }
+  .bit-box { display:inline-flex; flex-wrap:wrap; gap:2px; }
+  .cell { font-family:ui-monospace, Menlo, monospace; font-size:11px; padding:3px 5px; border-radius:4px; text-align:center; min-width:14px; }
+  .uuid-big { font-family:ui-monospace, Menlo, monospace; font-size:clamp(15px,2.4vw,24px); letter-spacing:.5px; word-break:break-all; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-time { background:#fef3c7; color:#92400e; }
+  .seg-ver  { background:#fecaca; color:#991b1b; }
+  .seg-var  { background:#bfdbfe; color:#1e40af; }
+  .seg-rand { background:#e2e8f0; color:#334155; }
+  .row-hover:hover { background:#fffbeb; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 25</div>
+      <h1 class="text-xl font-bold">🆔 UUID Generator — v4 random + v7 time-ordered, live</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Real UUIDs, minted in your browser from real cryptographic randomness.</h2>
+        <p class="text-slate-500 mb-5">A <strong>UUID</strong> is a 128-bit identifier you can generate anywhere — on any laptop, phone or server — with a vanishingly small chance of ever colliding, and <em>without asking a central database for the next number</em>. This tool builds two flavours by hand: <strong>v4</strong> (128 bits of <code>crypto.getRandomValues</code> randomness, with the version + variant bits stamped in) and <strong>v7</strong> (a 48-bit millisecond timestamp on the front, then randomness) so the IDs sort in the order they were made. Generate one or a hundred, reformat them, then paste any UUID into the inspector to see its version, variant, and — for v7 — the exact moment it was created. All offline, no libraries.</p>
+      </div>
+
+      <!-- quick single generators -->
+      <div class="grid md:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-bold">Version 4 <span class="text-xs font-normal text-slate-400">— pure random</span></div>
+            <span class="seg seg-rand text-xs mono">random</span>
+          </div>
+          <div id="v4out" class="uuid-big field good mb-3">—</div>
+          <div class="flex gap-2">
+            <button class="mini px-4 py-2 rounded-lg font-semibold text-sm flex-1" onclick="newV4()">↻ Generate v4</button>
+            <button class="mini px-4 py-2 rounded-lg font-semibold text-sm" onclick="copyText(fmt(state.v4), this)">Copy</button>
+          </div>
+          <div class="text-xs text-slate-400 mt-2">122 random bits · version nibble fixed to <code>4</code>.</div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-bold">Version 7 <span class="text-xs font-normal text-slate-400">— time-ordered</span></div>
+            <span class="seg seg-time text-xs mono">timestamp</span>
+          </div>
+          <div id="v7out" class="uuid-big field good mb-3">—</div>
+          <div class="flex gap-2">
+            <button class="mini px-4 py-2 rounded-lg font-semibold text-sm flex-1" onclick="newV7()">↻ Generate v7</button>
+            <button class="mini px-4 py-2 rounded-lg font-semibold text-sm" onclick="copyText(fmt(state.v7), this)">Copy</button>
+          </div>
+          <div id="v7ts" class="text-xs text-amber-600 mt-2">&nbsp;</div>
+        </div>
+      </div>
+
+      <!-- format options -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-3">Format</div>
+        <div class="flex flex-wrap gap-x-6 gap-y-2">
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="optHyphens" checked> <span>Hyphens <code>8-4-4-4-12</code></span></label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="optUpper"> <span>UPPERCASE</span></label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="optBraces"> <span>Braces <code>{…}</code></span></label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="optUrn"> <span>URN <code>urn:uuid:…</code></span></label>
+        </div>
+        <div class="text-xs text-slate-400 mt-2">All four apply live to every UUID on this page. Canonical is lowercase, hyphenated, no braces.</div>
+      </div>
+
+      <!-- bulk -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="font-bold">Bulk generate</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex gap-1 text-sm">
+              <button class="bulkver mini px-3 py-1 rounded-lg font-semibold text-xs" data-v="4">v4</button>
+              <button class="bulkver bg-slate-100 px-3 py-1 rounded-lg font-semibold text-xs" data-v="7">v7</button>
+            </div>
+            <span class="text-slate-300">·</span>
+            <div class="flex gap-1 text-sm" id="counts">
+              <button class="bg-slate-100 px-3 py-1 rounded-lg font-semibold text-xs" data-n="1">1</button>
+              <button class="bg-slate-100 px-3 py-1 rounded-lg font-semibold text-xs" data-n="5">5</button>
+              <button class="bg-slate-100 px-3 py-1 rounded-lg font-semibold text-xs" data-n="10">10</button>
+              <button class="bg-slate-100 px-3 py-1 rounded-lg font-semibold text-xs" data-n="100">100</button>
+            </div>
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="bulkGen()">Generate</button>
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="copyAll(this)">Copy all</button>
+          </div>
+        </div>
+        <div id="bulkList" class="border border-slate-100 rounded-lg overflow-hidden text-sm max-h-80 overflow-y-auto"></div>
+        <div id="bulkInfo" class="text-xs text-slate-400 mt-2">Pick a version + count, then Generate.</div>
+      </div>
+
+      <!-- inspect -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-1">Decode / inspect a UUID</div>
+        <p class="text-xs text-slate-500 mb-3">Paste any UUID (with or without hyphens, braces, or an <code>urn:uuid:</code> prefix). It's validated by shape, then decoded: version, variant, and — if it's v7 — the millisecond timestamp baked into its first 48 bits is extracted and shown as a real date.</p>
+        <input id="inspectIn" class="field mono text-sm w-full" placeholder="e.g. 018f8c…  or  {550e8400-e29b-41d4-a716-446655440000}" spellcheck="false">
+        <div id="inspectOut" class="mt-3 text-sm"></div>
+      </div>
+
+      <!-- v7 sort demo -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold">Why v7 sorts by time</div>
+          <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="sortDemo()">Run demo</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">This generates 6 v7 UUIDs a few milliseconds apart, then sorts them as <strong>plain strings</strong> (A→Z). Because the timestamp lives at the front, string order equals creation order — the property that makes v7 database-index friendly. The same trick on v4 would scramble them.</p>
+        <div id="sortDemo" class="text-sm text-slate-400">Click “Run demo”.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How UUIDs really work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A UUID is just 16 bytes with a few bits pinned to fixed values, then printed as hex in the <code>8-4-4-4-12</code> shape. The browser hands you a correct v4 for free with <code>crypto.randomUUID()</code> — but hand-rolling it (and v7, which no built-in makes yet) shows you exactly where the version and variant bits go, and how a timestamp prefix turns random IDs into sortable ones. Everything below is vanilla JS, no dependencies.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The one-liner: crypto.randomUUID()</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every modern browser and Node ships a built-in that returns a fully-compliant <strong>version 4</strong> UUID string — correct version and variant bits included. If all you need is a random ID, this is the answer; it uses the same cryptographic RNG you'd reach for anyway. The rest of this build exists to show what it's doing under the hood (and to make v7, which no built-in produces yet).</p>
+        <div class="relative"><pre>crypto.randomUUID();
+// "1e7c9a3f-2b4d-4a1e-9f8c-7d6e5f4a3b2c"
+// v4, cryptographically random, ready to use.
+// (needs a secure context: https or localhost)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">16 random bytes (the raw material)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A UUID is 128 bits = 16 bytes. To hand-roll v4, start by filling 16 bytes with cryptographic randomness via <code>crypto.getRandomValues</code> — never <code>Math.random()</code>, which is predictable and not built for uniqueness at scale. At this point you have a valid-looking blob; the next two steps just stamp two bytes so tools can recognise it as v4.</p>
+        <div class="relative"><pre>const b = new Uint8Array(16);
+crypto.getRandomValues(b);   // fills all 16 bytes
+// b is now 128 random bits</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Stamp the version nibble (byte 6)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The version lives in the high 4 bits of byte 6 — that's the digit right after the second hyphen. Clear those 4 bits with <code>&amp; 0x0f</code>, then set them to <code>4</code> with <code>| 0x40</code>. For v7 you'd use <code>| 0x70</code> instead. This one nibble is how any parser instantly knows which UUID scheme it's looking at.</p>
+        <div class="relative"><pre>b[6] = (b[6] &amp; 0x0f) | 0x40;   // version 4
+// keeps the low 4 random bits,
+// forces the high 4 bits to 0100 = "4"
+// (v7 would be | 0x70)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Stamp the variant bits (byte 8)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The variant lives in the top bits of byte 8 — the digit after the third hyphen. RFC 4122 requires the pattern <code>10xx</code>, so clear the top two bits with <code>&amp; 0x3f</code> and set them with <code>| 0x80</code>. That's why the 17th hex digit of almost every UUID you see is <code>8</code>, <code>9</code>, <code>a</code> or <code>b</code>. Both v4 and v7 use the exact same variant stamp.</p>
+        <div class="relative"><pre>b[8] = (b[8] &amp; 0x3f) | 0x80;   // variant 10xx
+// forces first two bits to "10"
+// → digit becomes 8, 9, a, or b</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">16 bytes → the canonical string</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Print each byte as two lowercase hex digits, concatenate all 32, then drop hyphens into the fixed <code>8-4-4-4-12</code> positions. The hyphens are purely cosmetic — they carry no data — but the layout is standard, so keep it. This same function serialises both v4 and v7; only the bytes going in differ.</p>
+        <div class="relative"><pre>function toStr(b){
+  const h = [...b].map(x =&gt; x.toString(16).padStart(2,"0")).join("");
+  return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)
+       +"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+// "1e7c9a3f-2b4d-4a1e-9f8c-7d6e5f4a3b2c"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">v7: put a 48-bit timestamp on the front</h3></div>
+        <p class="text-sm text-slate-600 mb-3">v7's superpower is that its first 48 bits are the Unix time in milliseconds, big-endian. Take <code>Date.now()</code> and peel off six bytes from the low end, writing them into bytes 0–5. Because JS bitwise ops only handle 32 bits, use <code>% 256</code> and <code>Math.floor</code> instead of shifts so the full 48-bit value survives. Now newer UUIDs always start with larger bytes.</p>
+        <div class="relative"><pre>let ts = Date.now();               // ms since 1970
+const b = new Uint8Array(16);
+crypto.getRandomValues(b);
+for (let i = 5; i &gt;= 0; i--){      // bytes 0..5 = timestamp
+  b[i] = ts % 256;
+  ts = Math.floor(ts / 256);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">v7: randomness + version 7 + variant</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Bytes 6–15 stay random (they came from <code>getRandomValues</code>), giving 74 bits of entropy per millisecond — plenty to avoid collisions even under heavy concurrent inserts. Then stamp version <code>7</code> into byte 6 and the same <code>10xx</code> variant into byte 8, and serialise with the function from step 5. You now have a sortable, collision-resistant ID with no built-in required.</p>
+        <div class="relative"><pre>b[6] = (b[6] &amp; 0x0f) | 0x70;   // version 7
+b[8] = (b[8] &amp; 0x3f) | 0x80;   // variant 10xx
+return toStr(b);
+// "018f8c1e-9a20-7b3c-8d4e-1f2a3b4c5d6e"
+//  ^^^^^^^^^^^^ = the timestamp, sortable</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Validate + read a UUID back</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To inspect one, first check the shape with a regex, then read the version from hex digit 13 and the variant from digit 17. For a v7, the timestamp is the first 12 hex digits parsed as a base-16 number — <code>parseInt</code> handles 48 bits fine since it's well under JS's safe-integer limit. Feed that into <code>new Date()</code> and you've recovered the creation time.</p>
+        <div class="relative"><pre>const re = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const hex = uuid.replace(/-/g,"");
+const version = parseInt(hex[12], 16);   // 4, 7, ...
+if (version === 7){
+  const ms = parseInt(hex.slice(0,12), 16);
+  new Date(ms);   // when it was created
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 25 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real UUID generator: 16 random bytes from <code>crypto.getRandomValues</code>, the version nibble and <code>10xx</code> variant stamped into bytes 6 and 8, and the canonical <code>8-4-4-4-12</code> string. Then you hand-rolled <strong>v7</strong> — a 48-bit millisecond timestamp on the front — so IDs sort by creation time, the trick that keeps database indexes tidy. The lesson: a UUID is just 16 bytes with a few fixed bits, and choosing v7 over v4 for a primary key is a free performance win. <strong>👉 Tomorrow — Day 26: Slug Generator</strong> (turn any title into a clean URL slug — or a Lorem Ipsum generator).</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== UUID ENGINE =====
+// 16 bytes -> canonical 8-4-4-4-12 lowercase hex string
+function bytesToUuid(b){
+  const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+  return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+// version 4: 122 random bits + version + variant
+function uuidV4(){
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40;   // version 4
+  b[8] = (b[8] & 0x3f) | 0x80;   // variant 10xx
+  return bytesToUuid(b);
+}
+// version 7: 48-bit ms timestamp prefix + random + version + variant
+function uuidV7(ts){
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  let t = (ts === undefined) ? Date.now() : ts;
+  for (let i = 5; i >= 0; i--){ b[i] = t % 256; t = Math.floor(t / 256); }  // big-endian, 48 bits
+  b[6] = (b[6] & 0x0f) | 0x70;   // version 7
+  b[8] = (b[8] & 0x3f) | 0x80;   // variant 10xx
+  return bytesToUuid(b);
+}
+// pull the 48-bit ms timestamp out of a v7's first 12 hex digits
+function v7Timestamp(uuid){
+  return parseInt(uuid.replace(/-/g, "").slice(0, 12), 16);
+}
+
+// ===== FORMAT (applies to every UUID shown) =====
+const optHyphens = document.getElementById("optHyphens");
+const optUpper   = document.getElementById("optUpper");
+const optBraces  = document.getElementById("optBraces");
+const optUrn     = document.getElementById("optUrn");
+function fmt(u){
+  if (!u) return "—";
+  let s = u;                                   // canonical lowercase hyphenated
+  if (!optHyphens.checked) s = s.replace(/-/g, "");
+  if (optUpper.checked) s = s.toUpperCase();
+  if (optBraces.checked) s = "{" + s + "}";
+  if (optUrn.checked) s = "urn:uuid:" + s;
+  return s;
+}
+
+const state = { v4: uuidV4(), v7: uuidV7() };
+function paintSingles(){
+  document.getElementById("v4out").textContent = fmt(state.v4);
+  document.getElementById("v7out").textContent = fmt(state.v7);
+  const ms = v7Timestamp(state.v7);
+  document.getElementById("v7ts").textContent = "embedded time → " + new Date(ms).toISOString() + "  (" + ms + " ms)";
+}
+function newV4(){ state.v4 = uuidV4(); paintSingles(); }
+function newV7(){ state.v7 = uuidV7(); paintSingles(); }
+[optHyphens, optUpper, optBraces, optUrn].forEach(o => o.addEventListener("change", () => { paintSingles(); repaintBulk(); }));
+
+// ===== COPY HELPERS =====
+function copyText(text, btn){
+  if (!text || text === "—") return;
+  navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== BULK =====
+let bulkVer = 4, bulkN = 5, bulkData = [];
+document.querySelectorAll(".bulkver").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".bulkver").forEach(x => { x.classList.remove("mini"); x.classList.add("bg-slate-100"); });
+  b.classList.add("mini"); b.classList.remove("bg-slate-100");
+  bulkVer = +b.dataset.v;
+});
+document.querySelectorAll("#counts button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#counts button").forEach(x => { x.classList.remove("mini"); x.classList.add("bg-slate-100"); });
+  b.classList.add("mini"); b.classList.remove("bg-slate-100");
+  bulkN = +b.dataset.n;
+});
+function bulkGen(){
+  bulkData = [];
+  for (let i = 0; i < bulkN; i++) bulkData.push(bulkVer === 7 ? uuidV7() : uuidV4());
+  repaintBulk();
+  document.getElementById("bulkInfo").textContent = bulkN + " × v" + bulkVer + " generated. Each is unique; copy one or all.";
+}
+function repaintBulk(){
+  const list = document.getElementById("bulkList");
+  if (!bulkData.length){ list.innerHTML = ""; return; }
+  list.innerHTML = bulkData.map((u, i) =>
+    `<div class="out-row row-hover">
+       <span class="mono text-slate-700 truncate" title="${fmt(u)}">${fmt(u)}</span>
+       <button class="mini px-2 py-1 rounded font-semibold text-xs ml-2 shrink-0" onclick="copyText('${fmt(u)}', this)">Copy</button>
+     </div>`).join("");
+}
+function copyAll(btn){
+  if (!bulkData.length) return;
+  copyText(bulkData.map(fmt).join("\n"), btn);
+}
+
+// ===== INSPECT =====
+const inspectIn = document.getElementById("inspectIn");
+const inspectOut = document.getElementById("inspectOut");
+function parseUuid(str){
+  let s = str.trim().replace(/^urn:uuid:/i, "").replace(/[{}]/g, "");
+  const canon = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const bare  = /^[0-9a-f]{32}$/i;
+  let hex;
+  if (canon.test(s)) hex = s.replace(/-/g, "");
+  else if (bare.test(s)) hex = s;
+  else return { valid:false };
+  hex = hex.toLowerCase();
+  const version = parseInt(hex[12], 16);
+  const varNib  = parseInt(hex[16], 16);
+  let variant;
+  if ((varNib & 0x8) === 0) variant = "NCS backward-compat (0xx)";
+  else if ((varNib & 0xc) === 0x8) variant = "RFC 4122 / 9562 (10xx)";
+  else if ((varNib & 0xe) === 0xc) variant = "Microsoft GUID (110x)";
+  else variant = "Reserved (111x)";
+  return { valid:true, hex, version, variant };
+}
+function segHtml(hex){
+  // colour the version nibble (13th) and variant nibble (17th); time prefix for v7
+  const ver = parseInt(hex[12], 16);
+  const cells = hex.split("").map((c, i) => {
+    if (i === 12) return `<span class="seg seg-ver" title="version">${c}</span>`;
+    if (i === 16) return `<span class="seg seg-var" title="variant">${c}</span>`;
+    if (ver === 7 && i < 12) return `<span class="seg seg-time" title="48-bit ms timestamp">${c}</span>`;
+    return `<span class="seg seg-rand">${c}</span>`;
+  });
+  // reinsert hyphen gaps 8-4-4-4-12
+  const out = [];
+  cells.forEach((c, i) => { if (i===8||i===12||i===16||i===20) out.push('<span class="text-slate-300">-</span>'); out.push(c); });
+  return `<div class="mono text-base leading-7 break-all">${out.join("")}</div>`;
+}
+inspectIn.addEventListener("input", () => {
+  const v = inspectIn.value.trim();
+  inspectIn.classList.remove("good", "bad");
+  if (!v){ inspectOut.innerHTML = ""; return; }
+  const r = parseUuid(v);
+  if (!r.valid){
+    inspectIn.classList.add("bad");
+    inspectOut.innerHTML = `<div class="text-red-600 text-sm">✗ Not a valid UUID shape. Expected 32 hex digits as <code>8-4-4-4-12</code>.</div>`;
+    return;
+  }
+  inspectIn.classList.add("good");
+  let rows = `<div class="out-row"><span class="text-slate-500">Valid</span><span class="text-green-600 font-semibold">✓ yes</span></div>
+    <div class="out-row"><span class="text-slate-500">Version</span><span class="mono">${r.version} ${r.version===4?"(random)":r.version===7?"(time-ordered)":r.version===1?"(time + MAC)":""}</span></div>
+    <div class="out-row"><span class="text-slate-500">Variant</span><span class="mono">${r.variant}</span></div>`;
+  if (r.version === 7){
+    const ms = parseInt(r.hex.slice(0, 12), 16);
+    rows += `<div class="out-row"><span class="text-slate-500">Embedded timestamp</span><span class="mono text-amber-600">${new Date(ms).toISOString()}</span></div>
+      <div class="out-row"><span class="text-slate-500">Unix ms</span><span class="mono">${ms}</span></div>`;
+  }
+  inspectOut.innerHTML = `<div class="border border-slate-100 rounded-lg overflow-hidden mb-3">${rows}</div>${segHtml(r.hex)}
+    <div class="text-xs text-slate-400 mt-2"><span class="seg seg-ver">■</span> version · <span class="seg seg-var">■</span> variant${r.version===7?' · <span class="seg seg-time">■</span> timestamp':''} · <span class="seg seg-rand">■</span> random</div>`;
+});
+
+// ===== V7 SORT DEMO =====
+function sortDemo(){
+  const box = document.getElementById("sortDemo");
+  const list = [];
+  let base = Date.now();
+  for (let i = 0; i < 6; i++) list.push({ order:i, u:uuidV7(base + i * 7) });   // 7ms apart
+  const shuffled = [...list].sort(() => Math.random() - 0.5);
+  const sorted   = [...list].map(x => x.u).sort();   // plain string sort
+  const rowFor = arr => arr.map(u => {
+    const created = list.find(x => x.u === u).order + 1;
+    return `<div class="out-row"><span class="mono text-slate-700 truncate" title="${u}">${u}</span><span class="text-xs text-amber-600 shrink-0 ml-2">made #${created}</span></div>`;
+  }).join("");
+  box.innerHTML = `
+    <div class="grid md:grid-cols-2 gap-4">
+      <div><div class="text-xs font-bold text-slate-500 mb-1">Shuffled (random order)</div><div class="border border-slate-100 rounded-lg overflow-hidden">${rowFor(shuffled.map(x=>x.u))}</div></div>
+      <div><div class="text-xs font-bold text-slate-500 mb-1">After a plain A→Z string sort</div><div class="border border-green-100 rounded-lg overflow-hidden">${rowFor(sorted)}</div></div>
+    </div>
+    <div class="text-xs text-green-700 mt-2">✓ Sorting the strings restored creation order 1→6 — no timestamp column needed.</div>`;
+}
+
+// init LOOK
+paintSingles();
+document.querySelector('.bulkver[data-v="4"]').classList.add("mini");
+document.querySelector('.bulkver[data-v="4"]').classList.remove("bg-slate-100");
+document.querySelector('#counts button[data-n="5"]').classList.add("mini");
+document.querySelector('#counts button[data-n="5"]').classList.remove("bg-slate-100");
+bulkGen();
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. What a UUID is — 128 bits", why:"A UUID (Universally Unique Identifier) is a 128-bit number, almost always written as 32 hexadecimal digits grouped 8-4-4-4-12. Those 128 bits give roughly 3.4×10^38 possible values — an unfathomably large space. The whole point is that any machine can pick one at random or from a timestamp and trust it won't clash with any other UUID minted anywhere, ever. It is an identifier, not data: it carries no meaning of its own beyond being distinct. Standardised in RFC 4122 (and refreshed by RFC 9562 in 2024), it's the default ID format for distributed systems.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">550e8400-e29b-41d4-a716-446655440000<br>8&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-4&nbsp;&nbsp;-4&nbsp;&nbsp;-4&nbsp;&nbsp;-12&nbsp;hex digits<br>= 128 bits ≈ 3.4×10^38 values</div>`, code:`// 128 bits = 16 bytes = 32 hex digits
+// grouped 8-4-4-4-12 by convention:
+// xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
+//                ^M = version   ^N = variant` },
+ { title:"2. Why not just auto-increment?", why:"The classic database ID is 1, 2, 3… from a central counter, and it works great — until you have more than one writer. Two servers, an offline mobile app, or sharded databases can't all ask one counter for the next number without a round-trip and a lock, which becomes a bottleneck and a single point of failure. UUIDs sidestep this entirely: each node generates its own IDs locally, with zero coordination, and they still don't collide. That also lets a client create an ID before the row ever reaches the server, and hides how many records exist (sequential IDs leak your growth rate to competitors).", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">auto-increment: ask the DB → 1,2,3…<br>needs 1 central counter + a lock 🔒<br><br>UUID: every node mints its own, offline<br>no coordination · no bottleneck ✅</div>`, code:`// auto-increment: needs a round-trip + lock
+// id = await db.nextval();   // single writer
+
+// UUID: generate anywhere, instantly, offline
+const id = crypto.randomUUID();  // no server needed` },
+ { title:"3. Collision probability (the birthday math)", why:"“Random and never collides” sounds like a contradiction, so the math matters. With 122 random bits in a v4, the space is about 5×10^36. Thanks to the birthday paradox, the risk isn't 1-in-that; it rises when you've generated around the square root of the space — but that's still around 2.7×10^18 UUIDs before you'd expect even a 50% chance of a single collision. Put concretely: you'd have to generate a billion UUIDs per second for about 85 years to reach a 50% chance of one duplicate. For every practical system, treating them as unique is safe.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">122 random bits → ~5.3×10^36 values<br>birthday bound ≈ √space ≈ 2.7×10^18<br><br>1 billion UUIDs/sec for ~85 years<br>→ ~50% chance of ONE collision</div>`, code:`// birthday paradox: 50% collision at ~√N draws
+// N = 2^122  →  ~2.7e18 UUIDs
+// generate 1e9/sec  →  ~85 years to 50%
+// verdict: safe to assume unique` },
+ { title:"4. Version 4 — pure randomness", why:"Version 4 is the one most people mean by “UUID”: fill all 16 bytes with cryptographically secure random data, then overwrite two small fields. The high nibble of byte 6 is forced to 0100 so it reads as version 4, and the top two bits of byte 8 are forced to 10 for the RFC variant. That leaves 122 bits genuinely random. It's dead simple, needs no clock and no machine identity, and gives no ordering or information leak — which is exactly why crypto.randomUUID() produces v4.", concept:`<div class="w-full text-center"><div class="text-xs font-mono mb-1">16 random bytes, then stamp 2 fields:</div><div class="inline-flex gap-1 my-1 flex-wrap justify-center"><span class="cell seg-rand">rand…</span><span class="cell seg-ver">4</span><span class="cell seg-rand">rand</span><span class="cell seg-var">10xx</span><span class="cell seg-rand">…rand</span></div><div class="text-xs font-mono mt-1">byte6 hi = 4 · byte8 hi = 10xx · 122 bits random</div></div>`, code:`const b = new Uint8Array(16);
+crypto.getRandomValues(b);
+b[6] = (b[6] & 0x0f) | 0x40;  // version 4
+b[8] = (b[8] & 0x3f) | 0x80;  // variant 10xx` },
+ { title:"5. Version 1 — time + MAC (and its privacy leak)", why:"Version 1 predates v4 and takes the opposite approach: it builds the ID from a 60-bit timestamp plus the machine's network card MAC address and a clock sequence. This guarantees uniqueness across machines without randomness, and the embedded time even makes v1 roughly sortable. The catch is privacy and security: the MAC address identifies the exact device that generated it, and the timestamp reveals when — famously used to help trace the author of the Melissa virus. Because of that leak, v1 fell out of favour, and v7 was designed to keep the time-ordering benefit while dropping the MAC.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">v1 = 60-bit time + clock seq + MAC address<br>unique without randomness, sortable-ish<br><br>⚠ MAC = which device · time = when<br>privacy leak → replaced by v7</div>`, code:`// v1 layout (simplified):
+// [ 60-bit timestamp ][ clock seq ][ 48-bit MAC ]
+// ⚠ the MAC identifies the generating machine
+// v7 keeps the time, drops the MAC → random instead` },
+ { title:"6. Version 7 — time-ordered by design", why:"Version 7 is the modern sweet spot, standardised in RFC 9562 (2024). Its first 48 bits are simply the Unix time in milliseconds, big-endian, and the remaining 74 usable bits are random. Because the timestamp sits at the most-significant end, UUIDs generated later are numerically larger, so they sort chronologically as plain strings or bytes — no separate created_at column required. You still get ~74 bits of entropy per millisecond, more than enough to avoid collisions even with many parallel inserts. It's the best default for new systems that want both uniqueness and order.", concept:`<div class="w-full text-center"><div class="text-xs font-mono mb-1">first 48 bits = Unix ms timestamp:</div><div class="inline-flex gap-1 my-1 flex-wrap justify-center"><span class="cell seg-time">timestamp (48b)</span><span class="cell seg-ver">7</span><span class="cell seg-rand">rand</span><span class="cell seg-var">10xx</span><span class="cell seg-rand">random</span></div><div class="text-xs font-mono mt-1">newer = larger → sorts by creation time</div></div>`, code:`let t = Date.now();
+const b = new Uint8Array(16);
+crypto.getRandomValues(b);
+for (let i = 5; i >= 0; i--){ b[i] = t % 256; t = Math.floor(t/256); }
+b[6] = (b[6] & 0x0f) | 0x70;  // version 7
+b[8] = (b[8] & 0x3f) | 0x80;  // variant 10xx` },
+ { title:"7. Why v7 beats v4 as a primary key", why:"A v4 primary key is random, so consecutive inserts land in random positions of the database's B-tree index. That scatters writes across the whole index, causes constant page splits, and thrashes the cache — measurably slowing high-insert tables. A v7 key, being time-ordered, always appends near the end of the index, just like an auto-increment integer, so pages fill sequentially and stay hot. You keep every distributed-generation benefit of a UUID while regaining the index locality of a serial ID. That's why Postgres, MySQL and ORMs increasingly recommend v7 for new primary keys.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">v4 key → inserts scattered across index 🌀<br>page splits · cache misses · slow writes<br><br>v7 key → inserts append at the end ➡️<br>sequential, cache-friendly = fast</div>`, code:`// v4: random → random B-tree position (bad locality)
+// v7: time-ordered → always near the tail (great locality)
+// same uniqueness, index behaves like a serial int
+// → v7 is the recommended default primary key` },
+ { title:"8. The canonical string format", why:"The standard textual form is 32 lowercase hex digits split by hyphens into 8-4-4-4-12, and that's what parsers and databases expect. The hyphens are cosmetic — they encode no data and sit at fixed offsets — but you should keep them for interoperability. The version is always the first digit of the third group, and the variant is the first digit of the fourth group. RFC 9562 says generators must emit lowercase, while readers should accept uppercase too, so normalise to lowercase when comparing.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">550e8400-e29b-<b>4</b>1d4-<b>a</b>716-446655440000<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑version&nbsp;↑variant(8/9/a/b)<br>lowercase · hyphens are cosmetic</div>`, code:`function toStr(b){
+  const h=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");
+  return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)
+       +"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+// version = digit 13 · variant = digit 17` },
+ { title:"9. URN, braces, and compact encodings", why:"The hyphenated hex string is standard but not the only skin. The URN form prefixes urn:uuid: to make it a formally registered Uniform Resource Name; Microsoft's world often wraps GUIDs in curly braces like {550e8400-…}. Underneath they're the identical 128 bits, so a good parser strips the prefix or braces and compares the raw hex. When 36 characters is too long — think URL slugs or QR codes — the same bytes are re-encoded shorter: Base64url gives 22 characters, and Crockford Base32 or an alphabet like the one behind ULID trades a few characters for readability. Choose the skin per context, but store the canonical form.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-left font-mono break-all">canonical : 550e8400-e29b-41d4-a716-446655440000<br>URN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; : urn:uuid:550e8400-e29b-41d4-…<br>GUID&nbsp;&nbsp;&nbsp;&nbsp; : {550e8400-e29b-41d4-…}<br>Base64url : VQ6EAOKbQdSnFkRmVUQAAA (22 ch)</div>`, code:`str.replace(/^urn:uuid:/i,"")   // drop URN prefix
+   .replace(/[{}]/g,"")          // drop braces
+   .replace(/-/g,"");            // 32 hex digits underneath
+// same 128 bits, different clothing` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+</script>
+</body>
+</html>
