@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 26 — Slug Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:120px; }
+  .slug-big { font-family:ui-monospace, Menlo, monospace; font-size:clamp(15px,2.6vw,26px); letter-spacing:.5px; word-break:break-all; }
+  .stage { display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .stage:last-child { border-bottom:none; }
+  .stage .lbl { min-width:150px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .stage .val { font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .chip.taken { background:#fee2e2; color:#991b1b; }
+  .chip.free  { background:#dcfce7; color:#166534; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-strip { background:#fecaca; color:#991b1b; }
+  .seg-lower { background:#fef3c7; color:#92400e; }
+  .seg-hy    { background:#bfdbfe; color:#1e40af; }
+  .seg-keep  { background:#e2e8f0; color:#334155; }
+  .row-hover:hover { background:#fffbeb; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 26</div>
+      <h1 class="text-xl font-bold">🔗 Slug Generator — any title → a clean, URL-safe slug, live</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Turn any headline into the tidy string you see in a URL.</h2>
+        <p class="text-slate-500 mb-5">A <strong>slug</strong> is the human-readable tail of a web address — the <code>café-déjà-vu</code> part of <code>/blog/cafe-deja-vu</code>. It has to be lowercase, free of spaces and punctuation, and made only of characters that survive a URL untouched. This tool does the real work in your browser: it runs Unicode <strong>NFKD</strong> normalisation to peel accents off letters (so <code>é</code> becomes <code>e</code>), transliterates a few stubborn characters (<code>ß→ss</code>, <code>&amp;→and</code>), lowercases, turns every run of non-alphanumerics into a single separator, and trims the ends. Toggle the separator, keep-case, a max length with a word-boundary cut, and a uniqueness suffix that dodges collisions against a mock list of taken slugs. Paste a whole batch of titles at once, too. All offline, no libraries.</p>
+      </div>
+
+      <!-- live slugifier -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="font-bold mb-2">Type a title</div>
+        <input id="titleIn" class="field text-base w-full" placeholder="e.g.  Café Déjà Vu!  —  10 Things I Learned in 2026" spellcheck="false" value="Café Déjà Vu!">
+        <div class="text-xs text-slate-400 mt-2 mb-3">Slug updates as you type. Try accents, emoji, punctuation, ALL CAPS, or extra   spaces.</div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">slug</span>
+          <span id="collideTag" class="text-xs text-amber-600 font-semibold"></span>
+        </div>
+        <div class="flex gap-2 items-stretch">
+          <div id="slugOut" class="slug-big field good flex-1 flex items-center">—</div>
+          <button class="mini px-4 rounded-lg font-semibold text-sm shrink-0" onclick="copyText(document.getElementById('slugOut').textContent, this)">Copy</button>
+        </div>
+        <div class="text-xs text-slate-400 mt-2"><span id="urlPreview" class="mono"></span></div>
+      </div>
+
+      <!-- options -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-3">Options</div>
+        <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Separator</div>
+            <div class="flex gap-1">
+              <button id="sepDash"  class="sepbtn toggle-on px-4 py-1.5 rounded-lg font-semibold text-sm" data-sep="-">hyphen <code>-</code></button>
+              <button id="sepUnder" class="sepbtn bg-slate-100 px-4 py-1.5 rounded-lg font-semibold text-sm" data-sep="_">underscore <code>_</code></button>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Case</div>
+            <button id="keepCase" class="bg-slate-100 px-4 py-1.5 rounded-lg font-semibold text-sm">lowercase (default)</button>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Max length <span class="text-slate-400 normal-case font-normal">(0 = off)</span></div>
+            <input id="maxLen" type="number" min="0" max="200" value="0" class="field mono text-sm w-28">
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Uniqueness</div>
+            <button id="uniqueTog" class="bg-slate-100 px-4 py-1.5 rounded-lg font-semibold text-sm">append -2 / -3 on collision</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- transform pipeline -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-1">The transform, stage by stage</div>
+        <p class="text-xs text-slate-500 mb-3">Each row is one pass over the string, in order. This is exactly what the <code>slugify()</code> function on the BUILD tab does — watch how the raw title is whittled down to a safe slug.</p>
+        <div id="pipeline" class="border border-slate-100 rounded-lg overflow-hidden"></div>
+      </div>
+
+      <!-- uniqueness / taken list -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold">Uniqueness &amp; collisions</div>
+          <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="claimSlug(this)">Claim current slug →</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Two posts titled “Hello World” would both slugify to <code>hello-world</code> — a collision. With the <strong>Uniqueness</strong> option on, the second one becomes <code>hello-world-2</code>. Below is a mock list of slugs already taken; “Claim” adds the current slug so you can watch the next identical title bump to <code>-2</code>, <code>-3</code>…</p>
+        <div id="takenList" class="mb-1"></div>
+        <div class="text-xs text-slate-400">Red = taken · click a chip to release it.</div>
+      </div>
+
+      <!-- batch -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <div class="font-bold">Batch mode</div>
+          <div class="flex gap-2">
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="loadSample()">Load sample</button>
+            <button class="mini px-3 py-1 rounded-lg font-semibold text-xs" onclick="copyBatch(this)">Copy all slugs</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Paste one title per line. Every line is slugified with the options above; with Uniqueness on, duplicates within the batch are de-collided too (great for importing a list of post titles).</p>
+        <textarea id="batchIn" class="field mono text-sm" placeholder="Café Déjà Vu!&#10;10 Things I Learned in 2026&#10;Hello World&#10;Hello World&#10;東京 Tokyo 🚀"></textarea>
+        <div id="batchOut" class="border border-slate-100 rounded-lg overflow-hidden text-sm max-h-80 overflow-y-auto mt-3"></div>
+        <div id="batchInfo" class="text-xs text-slate-400 mt-2">Paste lines above, or click “Load sample”.</div>
+      </div>
+
+      <!-- emoji / CJK note -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Emoji &amp; non-Latin scripts</div>
+        <p class="text-sm text-amber-800">NFKD can strip accents off Latin letters, but it can't turn <code>東京</code>, <code>Москва</code> or <code>🚀</code> into ASCII — there's no “accent” to remove. This tool <strong>drops</strong> anything it can't map (so <code>東京 Tokyo 🚀</code> → <code>tokyo</code>). Real transliteration of CJK, Cyrillic or Arabic needs a per-script dictionary (libraries like <code>slugify</code> or <code>transliteration</code> ship one). The alternative is to allow Unicode slugs — modern browsers show <code>/статья</code> fine — but then you trade ASCII portability for it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a slugifier really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A slugifier is a short pipeline of string transforms with no dependencies. The order matters: normalise and strip accents <em>before</em> you lowercase and filter, transliterate the handful of characters Unicode won't decompose, then collapse and trim. Below is the whole thing in vanilla JS — the same code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Strip accents with Unicode NFKD</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The single most important trick. <code>String.prototype.normalize("NFKD")</code> splits an accented letter like <code>é</code> into its base letter <code>e</code> plus a separate “combining acute accent” codepoint. Those combining marks all live in the Unicode range <code>U+0300–U+036F</code>, so one regex deletes every accent at once — <code>Café</code> becomes <code>Cafe</code>, <code>Déjà</code> becomes <code>Deja</code>. Do this first, while the letters are still their original case.</p>
+        <div class="relative"><pre>function stripAccents(s){
+  return s.normalize("NFKD")            // é → e + ◌́
+          .replace(/[̀-ͯ]/g, ""); // drop combining marks
+}
+// "Café Déjà Vu!" → "Cafe Deja Vu!"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Transliterate what NFKD can't</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Some characters aren't a base letter plus an accent, so NFKD leaves them intact: the German <code>ß</code>, the ligatures <code>æ</code>/<code>œ</code>, the Scandinavian <code>ø</code>, and symbols like <code>&amp;</code>. Map them explicitly to their ASCII spellings <em>before</em> normalising. Keep this table small and intentional — a full multi-script transliterator is a whole library.</p>
+        <div class="relative"><pre>const MAP = { "ß":"ss", "æ":"ae", "œ":"oe", "ø":"o",
+              "&":"and", "@":"at", "%":"percent", "€":"eur" };
+function translit(s){
+  return s.replace(/[^-]|[&@%]/g,
+                   ch => MAP[ch] ?? ch);
+}
+// "Straße & Œuvre" → "Strasse and OEuvre" (then NFKD/lower)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Lowercase</h3></div>
+        <p class="text-sm text-slate-600 mb-3">URLs are effectively case-insensitive for humans and many servers, and mixing case invites duplicate URLs for the same page (bad for SEO and caching). Lowercase everything so <code>Hello-World</code> and <code>hello-world</code> can never be two different slugs. Offer a keep-case escape hatch, but default to lowercase.</p>
+        <div class="relative"><pre>s = s.toLowerCase();
+// "Cafe Deja Vu!" → "cafe deja vu!"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Every run of non-alphanumerics → one separator</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Now the only characters allowed in the slug are <code>a–z</code> and <code>0–9</code>. Replace every maximal run of anything else — spaces, punctuation, leftover symbols, emoji — with a single separator using <code>[^a-z0-9]+</code>. The <code>+</code> is what collapses <code>"a &amp; b"</code>'s three junk characters into one hyphen instead of three.</p>
+        <div class="relative"><pre>const sep = "-";
+s = s.replace(/[^a-z0-9]+/g, sep);
+// "cafe deja vu!" → "cafe-deja-vu-"
+// (the "+" means runs collapse to a single "-")</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Trim leading &amp; trailing separators</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A title that starts or ends with punctuation — like <code>"Café Déjà Vu!"</code> — leaves a dangling separator (<code>cafe-deja-vu-</code>). Strip separators off both ends so the slug never starts or ends with a hyphen. Escape the separator in the regex in case it's a character with special meaning.</p>
+        <div class="relative"><pre>const e = sep.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+s = s.replace(new RegExp(`^${e}+|${e}+$`, "g"), "");
+// "cafe-deja-vu-" → "cafe-deja-vu"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Optional max length, cut on a word boundary</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Long slugs are ugly and some systems cap URL length, so allow a max. But don't chop a word in half — <code>the-quick-brownish</code> shouldn't truncate to <code>the-quick-brow</code>. Slice to the limit, and only if that slice landed inside a word, back up to the last separator. If it landed exactly on a boundary, keep it.</p>
+        <div class="relative"><pre>if (max &amp;&amp; s.length &gt; max){
+  const full = s;
+  s = s.slice(0, max);
+  if (full[max] !== sep){            // we split a word
+    const cut = s.lastIndexOf(sep);
+    if (cut &gt; 0) s = s.slice(0, cut);
+  }
+  s = s.replace(new RegExp(`${e}+$`), ""); // tidy trailing sep
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Guarantee uniqueness against a taken set</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A slug is often a database key or a route, so it must be unique. Two “Hello World” posts both want <code>hello-world</code>. Check the candidate against the set of slugs already in use; if it's taken, append <code>-2</code>, then <code>-3</code>, until you find a free one. In real code you'd query the DB, but the logic is identical.</p>
+        <div class="relative"><pre>function unique(base, taken){        // taken = Set of used slugs
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+// taken has "hello-world" → returns "hello-world-2"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The whole slugify() — and one rule for later</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Chain the passes in order and you have a complete slugifier. The last, non-code rule matters most: once a slug is published and links point at it, <strong>never silently change it</strong>. Editing the title should not rewrite a live URL — keep the old slug or add a 301 redirect, or you break every inbound link and lose the SEO you earned.</p>
+        <div class="relative"><pre>function slugify(text, { separator="-", keepCase=false, max=0 } = {}){
+  const sep = separator, e = sep.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  let s = translit(String(text));
+  s = s.normalize("NFKD").replace(/[̀-ͯ]/g, "");
+  if (!keepCase) s = s.toLowerCase();
+  s = s.replace(/[^a-zA-Z0-9]+/g, sep)
+       .replace(new RegExp(`^${e}+|${e}+$`,"g"), "");
+  if (max &amp;&amp; s.length &gt; max){
+    const full = s; s = s.slice(0, max);
+    if (full[max] !== sep){ const c = s.lastIndexOf(sep); if (c>0) s = s.slice(0,c); }
+    s = s.replace(new RegExp(`${e}+$`), "");
+  }
+  return s;
+}
+slugify("Café Déjà Vu!"); // "cafe-deja-vu"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 26 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real slug generator: NFKD normalisation to strip accents (<code>é→e</code>), a small transliteration table for the characters Unicode won't decompose (<code>ß→ss</code>, <code>&amp;→and</code>), lowercasing, a single regex to turn every run of non-alphanumerics into one separator, end-trimming, an optional word-boundary max length, and a uniqueness suffix that dodges collisions. The lesson: a slugifier is an ordered pipeline of tiny string transforms — and the golden rule is that a published slug is a promise, so redirect rather than rewrite. <strong>👉 Tomorrow — Day 27: Lorem Ipsum generator</strong> (build placeholder text from a real word bank, by sentence and paragraph).</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ===== SLUG ENGINE =====
+// characters NFKD can't decompose, mapped to ASCII (plus a few handy symbols)
+const TRANSLIT = {
+  "ß":"ss","æ":"ae","Æ":"ae","œ":"oe","Œ":"oe","ø":"o","Ø":"o",
+  "đ":"d","Đ":"d","ð":"d","Ð":"d","þ":"th","Þ":"th","ł":"l","Ł":"l",
+  "ı":"i","€":"eur","£":"gbp","$":"usd","&":"and","@":"at","%":"percent"
+};
+function transliterate(s){
+  return s.replace(/[^-]|[$&@%]/g, ch => (ch in TRANSLIT) ? TRANSLIT[ch] : ch);
+}
+function escRe(x){ return x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+// full slugify, returns the base slug (no uniqueness suffix)
+function slugify(text, opt){
+  opt = opt || {};
+  const sep = (opt.separator == null) ? "-" : opt.separator;
+  const e = escRe(sep);
+  let s = String(text);
+  s = transliterate(s);
+  s = s.normalize("NFKD").replace(/[̀-ͯ]/g, "");
+  if (!opt.keepCase) s = s.toLowerCase();
+  s = s.replace(/[^a-zA-Z0-9]+/g, sep);
+  s = s.replace(new RegExp(e + "{2,}", "g"), sep);
+  s = s.replace(new RegExp("^" + e + "+|" + e + "+$", "g"), "");
+  if (opt.maxLength && s.length > opt.maxLength){
+    const full = s;
+    s = s.slice(0, opt.maxLength);
+    if (full[opt.maxLength] !== sep){
+      const cut = s.lastIndexOf(sep);
+      if (cut > 0) s = s.slice(0, cut);
+    }
+    s = s.replace(new RegExp(e + "+$"), "");
+  }
+  return s;
+}
+// bump a base slug until it's free in `taken`
+function uniqueSlug(base, taken, sep){
+  sep = sep || "-";
+  if (!base || !taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(base + sep + n)) n++;
+  return base + sep + n;
+}
+
+// ===== OPTIONS STATE =====
+const opt = { separator:"-", keepCase:false, maxLength:0, unique:false };
+const titleIn = document.getElementById("titleIn");
+
+document.querySelectorAll(".sepbtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".sepbtn").forEach(x => { x.classList.remove("toggle-on"); x.classList.add("bg-slate-100"); });
+  b.classList.add("toggle-on"); b.classList.remove("bg-slate-100");
+  opt.separator = b.dataset.sep; render();
+});
+const keepBtn = document.getElementById("keepCase");
+keepBtn.onclick = () => {
+  opt.keepCase = !opt.keepCase;
+  keepBtn.classList.toggle("toggle-on", opt.keepCase);
+  keepBtn.classList.toggle("bg-slate-100", !opt.keepCase);
+  keepBtn.textContent = opt.keepCase ? "keep original case" : "lowercase (default)";
+  render();
+};
+const uniqueBtn = document.getElementById("uniqueTog");
+uniqueBtn.onclick = () => {
+  opt.unique = !opt.unique;
+  uniqueBtn.classList.toggle("toggle-on", opt.unique);
+  uniqueBtn.classList.toggle("bg-slate-100", !opt.unique);
+  render();
+};
+document.getElementById("maxLen").addEventListener("input", e => {
+  opt.maxLength = Math.max(0, parseInt(e.target.value || "0", 10));
+  render();
+});
+titleIn.addEventListener("input", render);
+
+// ===== MOCK TAKEN LIST =====
+let taken = new Set(["hello-world", "getting-started", "about-us", "cafe-deja-vu"]);
+function renderTaken(){
+  const box = document.getElementById("takenList");
+  if (!taken.size){ box.innerHTML = '<span class="text-xs text-slate-400">none taken</span>'; return; }
+  box.innerHTML = [...taken].map(s =>
+    `<span class="chip taken" title="click to release" onclick="releaseSlug('${s}')">${s} ✕</span>`).join("");
+}
+function releaseSlug(s){ taken.delete(s); renderTaken(); render(); }
+function claimSlug(btn){
+  const base = slugify(titleIn.value, opt);
+  if (!base) return;
+  const finalSlug = opt.unique ? uniqueSlug(base, taken, opt.separator) : base;
+  taken.add(finalSlug);
+  renderTaken(); render();
+  if (btn){ const o = btn.textContent; btn.textContent = "✓ claimed"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== LIVE RENDER =====
+function render(){
+  const raw = titleIn.value;
+  const base = slugify(raw, opt);
+  const finalSlug = opt.unique ? uniqueSlug(base, taken, opt.separator) : base;
+  const out = document.getElementById("slugOut");
+  out.textContent = finalSlug || "—";
+  out.classList.toggle("good", !!finalSlug);
+  out.classList.toggle("bad", !finalSlug && !!raw.trim());
+
+  const tag = document.getElementById("collideTag");
+  if (opt.unique && base && taken.has(base) && finalSlug !== base)
+    tag.textContent = "collision — “" + base + "” is taken, bumped to “" + finalSlug + "”";
+  else tag.textContent = "";
+
+  document.getElementById("urlPreview").textContent = finalSlug ? "https://dev48v.infy.uk/blog/" + finalSlug : "";
+  renderPipeline(raw);
+}
+
+// stage-by-stage trace mirroring slugify()
+function renderPipeline(raw){
+  const sep = opt.separator, e = escRe(sep);
+  const s0 = String(raw);
+  const s1 = transliterate(s0);
+  const s2 = s1.normalize("NFKD").replace(/[̀-ͯ]/g, "");
+  const s3 = opt.keepCase ? s2 : s2.toLowerCase();
+  const s4 = s3.replace(/[^a-zA-Z0-9]+/g, sep).replace(new RegExp(e + "{2,}", "g"), sep);
+  const s5 = s4.replace(new RegExp("^" + e + "+|" + e + "+$", "g"), "");
+  let s6 = s5, cut = false;
+  if (opt.maxLength && s5.length > opt.maxLength){
+    const full = s5; s6 = s5.slice(0, opt.maxLength);
+    if (full[opt.maxLength] !== sep){ const c = s6.lastIndexOf(sep); if (c > 0) s6 = s6.slice(0, c); }
+    s6 = s6.replace(new RegExp(e + "+$"), ""); cut = true;
+  }
+  const rows = [
+    ["input", s0 || "—", ""],
+    ["transliterate", s1 || "—", "ß→ss, &→and …"],
+    ["NFKD + strip accents", s2 || "—", "é→e"],
+    [opt.keepCase ? "case (kept)" : "lowercase", s3 || "—", ""],
+    ["non-alnum → “" + sep + "”", s4 || "—", "runs collapse"],
+    ["trim ends", s5 || "—", ""]
+  ];
+  if (cut) rows.push(["max length " + opt.maxLength, s6 || "—", "word-boundary cut"]);
+  if (opt.unique){
+    const finalSlug = uniqueSlug(s6, taken, sep);
+    rows.push(["uniqueness", finalSlug || "—", finalSlug !== s6 ? "collision → suffix" : "free"]);
+  }
+  document.getElementById("pipeline").innerHTML = rows.map((r, i) => {
+    const cls = i === rows.length - 1 ? "seg seg-keep font-bold" : "";
+    return `<div class="stage"><span class="lbl">${r[0]}</span><span class="val ${cls}">${escapeHtml(r[1])}</span>${r[2] ? `<span class="text-xs text-slate-300 ml-auto shrink-0">${r[2]}</span>` : ""}</div>`;
+  }).join("");
+}
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+// ===== COPY HELPERS =====
+function copyText(text, btn){
+  if (!text || text === "—") return;
+  navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== BATCH =====
+function runBatch(){
+  const lines = document.getElementById("batchIn").value.split("\n").map(l => l.trim()).filter(Boolean);
+  const seen = opt.unique ? new Set(taken) : null;   // de-collide within batch too
+  const out = lines.map(line => {
+    const base = slugify(line, opt);
+    let slug = base;
+    if (opt.unique){ slug = uniqueSlug(base, seen, opt.separator); if (slug) seen.add(slug); }
+    return { line, slug };
+  });
+  const box = document.getElementById("batchOut");
+  box.innerHTML = out.map(r =>
+    `<div class="out-row row-hover">
+       <span class="text-slate-500 truncate mr-3" title="${escapeHtml(r.line)}">${escapeHtml(r.line)}</span>
+       <span class="flex items-center gap-2 shrink-0">
+         <span class="mono text-slate-800">${escapeHtml(r.slug) || "<span class='text-red-500'>(empty)</span>"}</span>
+         <button class="mini px-2 py-1 rounded font-semibold text-xs" onclick="copyText('${r.slug}', this)">Copy</button>
+       </span>
+     </div>`).join("");
+  window._batchSlugs = out.map(r => r.slug).filter(Boolean);
+  document.getElementById("batchInfo").textContent = out.length + " line(s) slugified" + (opt.unique ? " · duplicates de-collided" : "") + ".";
+}
+document.getElementById("batchIn").addEventListener("input", runBatch);
+function copyBatch(btn){ if (window._batchSlugs && window._batchSlugs.length) copyText(window._batchSlugs.join("\n"), btn); }
+function loadSample(){
+  document.getElementById("batchIn").value =
+    "Café Déjà Vu!\n10 Things I Learned in 2026\nHello World\nHello World\nStraße & Œuvre\n東京 Tokyo 🚀\n  Trailing spaces  ";
+  runBatch();
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. What a slug is — and why", why:"A slug is the readable identifier in a URL — the “cafe-deja-vu” in /blog/cafe-deja-vu. Its job is to be safe, stable, and legible. Safe: it contains only characters that pass through a URL untouched, so no encoding gremlins like %20 or %C3%A9. Legible: a person (and a search engine) can read the topic straight from the address bar, which is friendlier to click and share than /post?id=8123. Stable: it becomes the permanent handle for that resource. Slugs show up as blog paths, product URLs, doc anchors, Kubernetes object names, file names — anywhere you need a compact, safe, human-friendly key derived from a title.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono break-all">/blog/<span class="seg seg-keep">the-css-box-model-explained</span><br><br>readable · shareable · safe in a URL<br>vs. /blog/post?id=8123 🙈</div>`, code:`// a slug is the human-readable tail of a URL
+// title:  "The CSS Box Model, Explained!"
+// slug:   "the-css-box-model-explained"
+// goal: safe + legible + stable` },
+ { title:"2. Lowercase everything", why:"URL paths are treated as case-insensitive by users and by many servers and CDNs, but not all — so Hello-World and hello-world can end up as two different addresses pointing at the same content. That splits your search-engine ranking, doubles your cache entries, and confuses analytics. Forcing lowercase removes the ambiguity: there is exactly one canonical spelling. Give power users a keep-case toggle for niche needs (like case-sensitive identifiers), but always default to lowercase.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">Hello-World&nbsp;&nbsp;≟&nbsp;&nbsp;hello-world<br>→ two URLs, one page = duplicate content 🚫<br><br>lowercase → one canonical slug ✅</div>`, code:`s = s.toLowerCase();
+// one canonical spelling, no accidental duplicates
+// (offer a keep-case escape hatch, but default lower)` },
+ { title:"3. Strip accents with NFKD normalisation", why:"Most of the world's names and titles carry diacritics — café, naïve, Beyoncé, Zürich. You want café to become cafe, not the URL-encoded mess %63%61%66%C3%A9. Unicode normalisation form NFKD decomposes an accented character into its base letter plus a separate combining mark: é becomes e followed by a “combining acute accent” codepoint. Every combining mark sits in the range U+0300–U+036F, so a single regex deletes them all, leaving clean ASCII letters. This is the step that makes a slugifier feel magic — and it's one line.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">café&nbsp;&nbsp;--NFKD--&gt;&nbsp;&nbsp;c a f e + <span class="seg seg-strip">◌́</span><br>drop U+0300–U+036F combining marks<br><br>→ <span class="seg seg-keep">cafe</span>&nbsp;&nbsp;(clean ASCII)</div>`, code:`s = s.normalize("NFKD")           // é → e + ◌́
+     .replace(/[\\u0300-\\u036f]/g, ""); // drop the accents
+// "Déjà" → "Deja"` },
+ { title:"4. Turn everything non-alphanumeric into a separator", why:"After accents are gone, the slug should contain only a–z and 0–9. Everything else — spaces, punctuation, emoji, leftover symbols — has to go, but you don't want words fused together, so you replace runs of junk with a single separator rather than deleting them. The regex [^a-z0-9]+ matches any maximal run of non-alphanumerics; the crucial + means “a & b” collapses to a-b, not a---b. Hyphen is the SEO-standard separator (Google treats it as a word break); underscore is common for filenames and code identifiers.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">"cafe deja vu!"<br>replace <span class="seg seg-hy">[^a-z0-9]+</span> → "-"<br><br>→ cafe<span class="seg seg-hy">-</span>deja<span class="seg seg-hy">-</span>vu<span class="seg seg-hy">-</span></div>`, code:`s = s.replace(/[^a-z0-9]+/g, "-");
+// spaces, "!", emoji → a single "-"
+// the "+" collapses runs: "a  &  b" → "a-b"` },
+ { title:"5. Collapse repeats & trim the ends", why:"The + in the previous regex already collapses internal runs, but titles that begin or end with punctuation leave a stray separator — “Café Déjà Vu!” yields cafe-deja-vu- with a trailing hyphen. A leading or trailing separator looks broken and can even matter to routers, so strip them. Anchor a regex to the start and end (^-+|-+$) and remove them. Now the slug begins and ends with real content, with single separators only in between — the clean shape you want.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><span class="seg seg-strip">-</span>cafe<span class="seg seg-hy">-</span>deja<span class="seg seg-hy">-</span>vu<span class="seg seg-strip">-</span><br>strip ^-+ and -+$<br><br>→ <span class="seg seg-keep">cafe-deja-vu</span></div>`, code:`// escape the separator, then strip it off both ends
+const e = escRe(sep);
+s = s.replace(new RegExp("^" + e + "+|" + e + "+$", "g"), "");
+// "cafe-deja-vu-" -> "cafe-deja-vu"` },
+ { title:"6. Cap the length — on a word boundary", why:"Very long slugs are ugly, hard to share, and some systems limit URL or filename length, so it's common to cap slugs at ~50–80 characters. The naive slice(0, max) can guillotine a word in the middle, leaving the-quick-brownish → the-quick-brow, which reads badly. The fix: after slicing, check whether you landed inside a word (the next character isn't a separator); if so, back up to the last separator. If the slice happened to end exactly on a boundary, keep it as-is. Small detail, big polish.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">the-quick-brownish  (max 14)<br>slice → "the-quick-brow" ✂️ mid-word<br>back up to last "-"<br><br>→ <span class="seg seg-keep">the-quick</span>&nbsp;(clean words)</div>`, code:`if (max && s.length > max){
+  const full = s; s = s.slice(0, max);
+  if (full[max] !== sep){          // split a word
+    const c = s.lastIndexOf(sep);
+    if (c > 0) s = s.slice(0, c);
+  }
+}` },
+ { title:"7. Uniqueness & collisions", why:"Titles aren't unique — two posts can both be called “Hello World”, and both slugify to hello-world. But a slug is usually a primary key or a route, so it must be unique. The standard fix is a numeric suffix: the first keeps hello-world, the next becomes hello-world-2, then -3, and so on. You check each candidate against the set of slugs already in use (a DB lookup in production) and bump until you find a free one. Some systems instead append a short random token or the record's id, which avoids the lookup loop at the cost of a slightly less pretty slug.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">post A "Hello World" → <span class="seg seg-keep">hello-world</span><br>post B "Hello World" → <span class="seg seg-lower">hello-world-2</span><br>post C "Hello World" → <span class="seg seg-lower">hello-world-3</span></div>`, code:`function unique(base, taken){    // taken = Set of used slugs
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(base+"-"+n)) n++;
+  return base+"-"+n;               // hello-world-2, -3 …
+}` },
+ { title:"8. Transliteration and its limits", why:"NFKD only helps with characters that are a base letter plus an accent. Plenty aren't: the German ß, the ligatures æ and œ, the Nordic ø, Turkish ı, and symbols like & or €. For those you keep a small explicit map — ß→ss, &→and, €→eur — applied before normalising. But that's the easy 5%. Real transliteration of whole scripts — Chinese 北京→beijing, Cyrillic Москва→moskva, Arabic, Hindi — needs large per-language dictionaries and is genuinely lossy and ambiguous (which romanisation? pinyin tones?). Libraries like slugify or transliteration bundle these tables; this demo just drops what it can't map, so 東京 Tokyo 🚀 becomes tokyo.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-left font-mono break-all">easy map : ß→ss · æ→ae · &amp;→and · €→eur<br>hard&nbsp;&nbsp;&nbsp;&nbsp; : 北京→beijing · Москва→moskva<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; → needs per-script dictionaries<br>this demo drops the unmappable: 🚀 → ""</div>`, code:`const MAP = { "ß":"ss", "æ":"ae", "œ":"oe", "&":"and", "€":"eur" };
+s = s.replace(/[^\\u0000-\\u007f]|[&]/g, c => MAP[c] ?? c);
+// full CJK/Cyrillic transliteration = a whole library` },
+ { title:"9. A slug is a promise — never break it", why:"The most important rule isn't code. Once a slug is published, links point at it, search engines have indexed it, people have bookmarked it. If someone edits the post title and you silently regenerate the slug, every one of those links 404s and you throw away the ranking you earned. So decouple the slug from the title after first publish: freeze it, or if you must change it, keep the old slug working with a 301 redirect to the new one. Treat the slug as an immutable identifier that merely started life derived from the title — not as something that must always mirror it.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">edit title → regenerate slug 😱<br>old links 404 · ranking lost<br><br>✅ freeze slug, or 301 old → new<br>a published slug is permanent</div>`, code:`// DON'T silently rewrite a live slug on title edit.
+// Freeze it after publish, or redirect:
+// 301  /blog/old-slug  →  /blog/new-slug
+// the slug is an identifier, not a mirror of the title` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+renderTaken();
+render();
+loadSample();
+</script>
+</body>
+</html>
