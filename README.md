@@ -33,6 +33,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 24 — Base64 Encoder / Decoder](https://dev48v.infy.uk/solve/day24-base64.html) — `day24-base64.html`
 - [SolveFromZero · Day 25 — UUID Generator](https://dev48v.infy.uk/solve/day25-uuid.html) — `day25-uuid.html`
 - [SolveFromZero · Day 26 — Slug Generator](https://dev48v.infy.uk/solve/day26-slug.html) — `day26-slug.html`
+- [SolveFromZero · Day 27 — Lorem Ipsum Generator](https://dev48v.infy.uk/solve/day27-lorem.html) — `day27-lorem.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

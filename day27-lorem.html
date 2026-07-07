@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 27 — Lorem Ipsum Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:120px; }
+  .stage { display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .stage:last-child { border-bottom:none; }
+  .stage .lbl { min-width:150px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .stage .val { font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-strip { background:#fecaca; color:#991b1b; }
+  .seg-lower { background:#fef3c7; color:#92400e; }
+  .seg-hy    { background:#bfdbfe; color:#1e40af; }
+  .seg-keep  { background:#fde68a; color:#92400e; }
+  .row-hover:hover { background:#fffbeb; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  #previewOut p { margin:0 0 12px; line-height:1.6; }
+  #previewOut p:last-child { margin-bottom:0; }
+  #previewOut ul { margin:0; padding-left:22px; list-style:disc; }
+  #previewOut li { margin:3px 0; line-height:1.5; }
+  #previewOut b { font-weight:700; }
+  #previewOut i { font-style:italic; }
+  #previewOut.plain { white-space:pre-wrap; font-size:14px; line-height:1.6; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 27</div>
+      <h1 class="text-xl font-bold">📝 Lorem Ipsum Generator — real placeholder text, by word, sentence &amp; paragraph</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Fill any layout with convincing, meaningless text.</h2>
+        <p class="text-slate-500 mb-5"><strong>Lorem ipsum</strong> is placeholder copy — deliberately unreadable Latin-ish text you drop into a design so you can judge <em>shape</em> (line length, paragraph rhythm, where headings land) without being distracted by the actual words. This tool builds it for real in your browser: it draws from a pool of ~120 classic lorem words, assembles random-length sentences with capital letters, commas and periods, groups them into paragraphs, and can start with the famous <code>Lorem ipsum dolor sit amet…</code> opener. Every option is <strong>seeded</strong>, so the text stays stable while you tweak formatting and only changes when you ask for more. Output as plain text, wrapped in <code>&lt;p&gt;</code>, as a <code>&lt;ul&gt;&lt;li&gt;</code> list, or with the odd <code>&lt;b&gt;</code>/<code>&lt;i&gt;</code> mixed in. All offline, no libraries.</p>
+      </div>
+
+      <!-- controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="font-bold mb-3">Options</div>
+        <div class="flex flex-wrap items-start gap-x-8 gap-y-4">
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">How many</div>
+            <input id="countIn" type="number" min="1" max="200" value="3" class="field mono text-sm w-24">
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unit</div>
+            <div class="flex gap-1 flex-wrap">
+              <button class="unitbtn toggle-on px-3 py-1.5 rounded-lg font-semibold text-sm" data-unit="paragraphs">paragraphs</button>
+              <button class="unitbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-unit="sentences">sentences</button>
+              <button class="unitbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-unit="words">words</button>
+              <button class="unitbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-unit="list-items">list items</button>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Opener</div>
+            <button id="classicTog" class="toggle-on px-4 py-1.5 rounded-lg font-semibold text-sm">start with “Lorem ipsum…”</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-start gap-x-8 gap-y-4 mt-4 pt-4 border-t border-slate-100">
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sentences / paragraph</div>
+            <div class="flex items-center gap-2">
+              <input id="sMinIn" type="number" min="1" max="20" value="3" class="field mono text-sm w-16">
+              <span class="text-slate-400 text-sm">to</span>
+              <input id="sMaxIn" type="number" min="1" max="20" value="5" class="field mono text-sm w-16">
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Words / sentence</div>
+            <div class="flex items-center gap-2">
+              <input id="wMinIn" type="number" min="1" max="40" value="6" class="field mono text-sm w-16">
+              <span class="text-slate-400 text-sm">to</span>
+              <input id="wMaxIn" type="number" min="1" max="40" value="12" class="field mono text-sm w-16">
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Seed</div>
+            <div class="flex items-center gap-2">
+              <input id="seedIn" type="number" min="1" value="12345" class="field mono text-sm w-28">
+              <button id="newSeed" class="mini px-3 py-1.5 rounded-lg font-semibold text-sm shrink-0">🎲 New text</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 mt-4 pt-4 border-t border-slate-100">Output format</div>
+          <div class="flex gap-1 flex-wrap">
+            <button class="fmtbtn toggle-on px-3 py-1.5 rounded-lg font-semibold text-sm" data-fmt="plain">plain text</button>
+            <button class="fmtbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-fmt="p">&lt;p&gt; HTML</button>
+            <button class="fmtbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-fmt="ul">&lt;ul&gt;&lt;li&gt; list</button>
+            <button class="fmtbtn bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-sm" data-fmt="rich">with random &lt;b&gt;&lt;i&gt;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- counts -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex flex-wrap gap-6 items-center">
+          <div><div class="text-3xl font-bold stat text-amber-600" id="wcStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold">words</div></div>
+          <div><div class="text-3xl font-bold stat text-slate-700" id="ccStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold">characters</div></div>
+          <div><div class="text-3xl font-bold stat text-slate-700" id="blkStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold" id="blkLabel">paragraphs</div></div>
+          <div class="ml-auto text-xs text-slate-400" id="fmtNote"></div>
+        </div>
+      </div>
+
+      <!-- rendered preview -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-2">Rendered preview</div>
+        <p class="text-xs text-slate-500 mb-3">How the text looks in a page. HTML formats render as real markup here; plain text shows as-is.</p>
+        <div id="previewOut" class="field good text-slate-700"></div>
+      </div>
+
+      <!-- source -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">Source — copy this</div>
+          <button class="mini px-4 py-1.5 rounded-lg font-semibold text-sm" onclick="copyText(document.getElementById('sourceOut').value, this)">Copy</button>
+        </div>
+        <textarea id="sourceOut" class="field mono text-xs" spellcheck="false" readonly></textarea>
+      </div>
+
+      <!-- note -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Why it looks like real prose (and why you must delete it before shipping)</div>
+        <p class="text-sm text-amber-800">The classic passage is scrambled Latin from Cicero’s <em>De Finibus Bonorum et Malorum</em> (45 BC), so it carries the letter frequencies and word lengths of genuine Western text — it reads as prose without being readable. That realism is the point: you judge layout, not wording. But lorem is scaffolding, never a finish. Ship real content as early as you can (fake copy hides the awkward long names, empty states and edge cases real content brings), and never leave lorem in production — screen readers read it aloud, search engines index the gibberish, and it embarrassingly leaks into live pages.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a lorem generator really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A lorem generator is a two-level pipeline with no dependencies: a word pool, a seeded random number generator, and functions that grow words into sentences and sentences into paragraphs — then a separate formatting pass that wraps the plain text in whatever HTML you need. Below is the whole thing in vanilla JS, the same code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Gather a word pool</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Collect ~100–200 words from the classic passage and the wider De Finibus vocabulary. The mix of short (<code>ut</code>, <code>sed</code>) and long (<code>consectetur</code>, <code>perspiciatis</code>) words is what makes generated blocks look like natural prose instead of a monotonous list. You draw from this pool at random.</p>
+        <div class="relative"><pre>const WORDS = ["lorem","ipsum","dolor","sit","amet",
+  "consectetur","adipiscing","elit","sed","do","eiusmod",
+  "tempor","incididunt","labore","dolore","magna","aliqua",
+  "perspiciatis","voluptatem","accusantium","laudantium",
+  /* ~110 more */ ];</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">A seeded PRNG</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>Math.random()</code> can't be seeded, so its output reshuffles on every render — maddening while you tweak options. A tiny seeded generator like <code>mulberry32</code> returns the exact same sequence for a given seed, so the text is stable and reproducible. Change the seed only when you deliberately want new text.</p>
+        <div class="relative"><pre>function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(12345);      // same seed = same text
+const randInt = (r,min,max) =&gt; Math.floor(r()*(max-min+1))+min;
+const pick    = (r,arr)     =&gt; arr[Math.floor(r()*arr.length)];</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Build one sentence</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A sentence is a random-length run of words: pick a length, grab that many words, capitalize the first, end with a period. Those three touches turn a bag of words into something that scans as a sentence. Vary the length so paragraphs don't look mechanical.</p>
+        <div class="relative"><pre>const cap = w =&gt; w[0].toUpperCase() + w.slice(1);
+
+function sentence(rng, wMin, wMax){
+  const n = randInt(rng, wMin, wMax);
+  const words = [];
+  for (let i = 0; i &lt; n; i++) words.push(pick(rng, WORDS));
+  words[0] = cap(words[0]);
+  return words.join(" ") + ".";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Add commas for rhythm</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Real prose has internal pauses. Dropping one or two commas at interior positions in longer sentences gives the text a natural rhythm — and echoes the classic passage, which breaks after <code>amet</code>. Keep commas off the first and last word, and don't overdo it.</p>
+        <div class="relative"><pre>function sentence(rng, wMin, wMax){
+  const n = randInt(rng, wMin, wMax);
+  const words = [];
+  for (let i = 0; i &lt; n; i++) words.push(pick(rng, WORDS));
+  if (n &gt;= 6){                       // one interior comma
+    const pos = randInt(rng, 2, n - 2);
+    words[pos] += ",";               // "...sit amet, consectetur..."
+  }
+  words[0] = cap(words[0]);
+  return words.join(" ") + ".";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Group sentences into paragraphs</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A paragraph is several sentences joined by spaces; a document is several paragraphs. Give the paragraph a sentence-count range so some are short and some long. This <code>words → sentences → paragraphs</code> hierarchy is the whole grammar of the generator.</p>
+        <div class="relative"><pre>function paragraph(rng, sMin, sMax, wMin, wMax){
+  const n = randInt(rng, sMin, sMax);
+  const sents = [];
+  for (let i = 0; i &lt; n; i++) sents.push(sentence(rng, wMin, wMax));
+  return sents.join(" ");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">The classic opener toggle</h3></div>
+        <p class="text-sm text-slate-600 mb-3">People expect lorem to <em>start</em> with the famous line. When the toggle is on, force the first sentence to begin with the canonical 8-word opener (comma after <code>amet</code>), then continue with random words to fill the requested length.</p>
+        <div class="relative"><pre>const OPENER = ["lorem","ipsum","dolor","sit","amet",
+                "consectetur","adipiscing","elit"];
+
+function sentence(rng, wMin, wMax, classic){
+  let words = classic ? OPENER.slice() : [];
+  const n = Math.max(randInt(rng, wMin, wMax), words.length);
+  while (words.length &lt; n) words.push(pick(rng, WORDS));
+  if (classic) words[4] += ",";       // "...sit amet, consectetur..."
+  words[0] = cap(words[0]);
+  return words.join(" ") + ".";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Format: plain, &lt;p&gt;, &lt;ul&gt;&lt;li&gt;, random &lt;b&gt;&lt;i&gt;</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Generate the plain blocks first, then apply formatting as a <em>separate</em> pass. That keeps the invariant simple: N paragraphs always become exactly N <code>&lt;p&gt;</code> tags, and the word count is identical whichever wrapper you pick.</p>
+        <div class="relative"><pre>function format(blocks, fmt, rng){
+  if (fmt === "plain") return blocks.join("\n\n");
+  if (fmt === "p")     return blocks.map(b =&gt; `&lt;p&gt;${b}&lt;/p&gt;`).join("\n");
+  if (fmt === "ul")    return `&lt;ul&gt;\n${blocks.map(b =&gt; `  &lt;li&gt;${b}&lt;/li&gt;`).join("\n")}\n&lt;/ul&gt;`;
+  if (fmt === "rich")                       // sprinkle bold / italic
+    return blocks.map(b =&gt; "&lt;p&gt;" + b.split(" ").map(w =&gt; {
+      const r = rng();
+      return r &lt; 0.06 ? `&lt;b&gt;${w}&lt;/b&gt;` : r &lt; 0.12 ? `&lt;i&gt;${w}&lt;/i&gt;` : w;
+    }).join(" ") + "&lt;/p&gt;").join("\n");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The whole generate() + counts</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Chain the pieces: seed a PRNG, produce blocks for the chosen unit, format, and count. Because words are joined by single spaces and tags carry no spaces, the word count is just a whitespace split of the plain blocks — and it holds no matter how you wrap the output.</p>
+        <div class="relative"><pre>function generate(opts){
+  const rng = mulberry32(opts.seed &gt;&gt;&gt; 0 || 1);
+  let blocks;
+  if (opts.unit === "paragraphs")
+    blocks = Array.from({length: opts.count},
+             (_, i) =&gt; paragraph(rng, opts.sMin, opts.sMax,
+                                 opts.wMin, opts.wMax));
+  else if (opts.unit === "words")
+    blocks = [/* exactly opts.count words, capitalized, one period */];
+  // ...sentences and list-items are the same pipeline, sliced differently
+  const words = blocks.join(" ").trim().split(/\s+/).length;
+  return { text: format(blocks, opts.fmt, rng), words, blocks };
+}
+generate({ unit:"paragraphs", count:3, seed:12345, /* ... */ });</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 27 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real lorem ipsum generator: a ~120-word pool drawn from Cicero's scrambled Latin, a seedable <code>mulberry32</code> PRNG so the text is stable and reproducible, sentences with random lengths, commas and capitals, paragraphs as grouped sentences, the canonical <code>Lorem ipsum dolor sit amet…</code> opener, and a separate formatting pass into plain / <code>&lt;p&gt;</code> / <code>&lt;ul&gt;&lt;li&gt;</code> / random <code>&lt;b&gt;&lt;i&gt;</code>. The lesson: separate <em>generation</em> from <em>formatting</em> so N paragraphs is always N <code>&lt;p&gt;</code> tags and the word count never lies — and remember lorem belongs in the mockup, never the deploy. <strong>👉 Tomorrow — Day 28:</strong> a JWT decoder was penciled in next, but it already shipped as Day 20 — so Day 28 will be a <strong>Case Converter</strong> (camelCase ⇄ snake_case ⇄ kebab-case ⇄ Title Case, live).</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==LOREM-ENGINE-START==  (pure, no DOM — this exact block is also eval'd by the Node test)
+const LOREM_WORDS = ["lorem","ipsum","dolor","sit","amet","consectetur","adipiscing","elit","sed","do","eiusmod","tempor","incididunt","ut","labore","et","dolore","magna","aliqua","enim","ad","minim","veniam","quis","nostrud","exercitation","ullamco","laboris","nisi","aliquip","ex","ea","commodo","consequat","duis","aute","irure","in","reprehenderit","voluptate","velit","esse","cillum","eu","fugiat","nulla","pariatur","excepteur","sint","occaecat","cupidatat","non","proident","sunt","culpa","qui","officia","deserunt","mollit","anim","id","est","laborum","perspiciatis","unde","omnis","iste","natus","error","voluptatem","accusantium","doloremque","laudantium","totam","rem","aperiam","eaque","ipsa","quae","ab","illo","inventore","veritatis","quasi","architecto","beatae","vitae","dicta","explicabo","aspernatur","aut","odit","fugit","consequuntur","magni","dolores","eos","ratione","sequi","nesciunt","neque","porro","quisquam","dolorem","adipisci","numquam","eius","modi","tempora","incidunt","magnam","quaerat","etiam","minus","quod","maxime","placeat","facere","possimus","assumenda","repellendus"];
+const CLASSIC_OPENER = ["lorem","ipsum","dolor","sit","amet","consectetur","adipiscing","elit"];
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
+function randInt(rng, min, max){ if (max < min) max = min; return Math.floor(rng() * (max - min + 1)) + min; }
+function pick(rng, arr){ return arr[Math.floor(rng() * arr.length)]; }
+
+// one sentence: random length, capitalized, terminal period, a comma or two for rhythm
+function buildSentence(rng, wMin, wMax, classic){
+  wMin = Math.max(1, wMin|0); wMax = Math.max(wMin, wMax|0);
+  let words; let n;
+  const commaAfter = new Set();
+  if (classic){
+    words = CLASSIC_OPENER.slice();
+    n = Math.max(randInt(rng, wMin, wMax), words.length);
+    while (words.length < n) words.push(pick(rng, LOREM_WORDS));
+    commaAfter.add(5);                       // comma after "amet" (5th word)
+  } else {
+    n = randInt(rng, wMin, wMax);
+    words = [];
+    for (let i = 0; i < n; i++) words.push(pick(rng, LOREM_WORDS));
+  }
+  if (n >= 6){
+    const numCommas = randInt(rng, 1, Math.min(2, Math.floor(n / 6) + 1));
+    for (let c = 0; c < numCommas; c++){
+      const pos = randInt(rng, 2, n - 2);
+      if (pos >= 1 && pos < words.length) commaAfter.add(pos);
+    }
+  }
+  const parts = words.map((w, i) => commaAfter.has(i + 1) ? w + "," : w);
+  parts[0] = cap(parts[0]);
+  return parts.join(" ") + ".";
+}
+
+function buildParagraph(rng, sMin, sMax, wMin, wMax, classicFirst){
+  sMin = Math.max(1, sMin|0); sMax = Math.max(sMin, sMax|0);
+  const n = randInt(rng, sMin, sMax);
+  const sents = [];
+  for (let i = 0; i < n; i++) sents.push(buildSentence(rng, wMin, wMax, classicFirst && i === 0));
+  return sents.join(" ");
+}
+
+// short capitalized fragment, no trailing period — reads like a list item
+function buildListItem(rng, wMin, wMax){
+  const lo = Math.max(2, Math.min(wMin|0 || 3, 4));
+  const hi = Math.max(lo, Math.min(wMax|0 || 7, 8));
+  const n = randInt(rng, lo, hi);
+  const words = [];
+  for (let i = 0; i < n; i++) words.push(pick(rng, LOREM_WORDS));
+  words[0] = cap(words[0]);
+  return words.join(" ");
+}
+
+// returns an array of plain-text blocks for the chosen unit
+function generateBlocks(opts){
+  const rng = mulberry32((opts.seed >>> 0) || 1);
+  const count = Math.max(1, opts.count | 0);
+  const blocks = [];
+  if (opts.unit === "paragraphs"){
+    for (let i = 0; i < count; i++)
+      blocks.push(buildParagraph(rng, opts.sMin, opts.sMax, opts.wMin, opts.wMax, opts.classic && i === 0));
+  } else if (opts.unit === "sentences"){
+    const sents = [];
+    for (let i = 0; i < count; i++) sents.push(buildSentence(rng, opts.wMin, opts.wMax, opts.classic && i === 0));
+    blocks.push(sents.join(" "));            // N sentences, one paragraph
+  } else if (opts.unit === "words"){
+    const words = opts.classic ? CLASSIC_OPENER.slice() : [];
+    while (words.length < count) words.push(pick(rng, LOREM_WORDS));
+    words.length = count;                    // exactly N words
+    words[0] = cap(words[0]);
+    blocks.push(words.join(" ") + ".");
+  } else {                                    // list-items
+    for (let i = 0; i < count; i++) blocks.push(buildListItem(rng, opts.wMin, opts.wMax));
+  }
+  return blocks;
+}
+
+// semantic word count: plain blocks joined, whitespace-split (tags carry no spaces, so this holds for every format)
+function wordCount(blocks){
+  const s = blocks.join(" ").trim();
+  return s ? s.split(/\s+/).length : 0;
+}
+
+// randomly wrap ~1-in-8 words in <b> or <i>, using a stable per-seed rng
+function decorate(text, rng){
+  return text.split(" ").map(w => {
+    const r = rng();
+    if (r < 0.06) return "<b>" + w + "</b>";
+    if (r < 0.12) return "<i>" + w + "</i>";
+    return w;
+  }).join(" ");
+}
+
+// apply an output format to the plain blocks (a separate pass — never changes the word count)
+function formatOutput(blocks, unit, fmt, seed){
+  if (fmt === "p")  return blocks.map(b => "<p>" + b + "</p>").join("\n");
+  if (fmt === "ul") return "<ul>\n" + blocks.map(b => "  <li>" + b + "</li>").join("\n") + "\n</ul>";
+  if (fmt === "rich"){
+    const rng = mulberry32((((seed >>> 0) || 1) ^ 0x9e3779b9) >>> 0);
+    return blocks.map(b => "<p>" + decorate(b, rng) + "</p>").join("\n");
+  }
+  // plain
+  return unit === "list-items" ? blocks.map(b => "- " + b).join("\n") : blocks.join("\n\n");
+}
+// ==LOREM-ENGINE-END==
+
+// ===== OPTIONS STATE =====
+const state = { unit:"paragraphs", classic:true, fmt:"plain", seed:12345 };
+const countIn = document.getElementById("countIn");
+const sMinIn = document.getElementById("sMinIn"), sMaxIn = document.getElementById("sMaxIn");
+const wMinIn = document.getElementById("wMinIn"), wMaxIn = document.getElementById("wMaxIn");
+const seedIn = document.getElementById("seedIn");
+
+function currentOpts(){
+  return {
+    count: Math.max(1, parseInt(countIn.value || "1", 10)),
+    unit: state.unit,
+    classic: state.classic,
+    sMin: Math.max(1, parseInt(sMinIn.value || "3", 10)),
+    sMax: Math.max(1, parseInt(sMaxIn.value || "5", 10)),
+    wMin: Math.max(1, parseInt(wMinIn.value || "6", 10)),
+    wMax: Math.max(1, parseInt(wMaxIn.value || "12", 10)),
+    fmt: state.fmt,
+    seed: Math.max(1, parseInt(seedIn.value || "1", 10))
+  };
+}
+
+const UNIT_LABEL = { "paragraphs":"paragraphs", "sentences":"sentences", "words":"words", "list-items":"list items" };
+const FMT_NOTE = {
+  "plain":"plain text — paragraphs split by a blank line",
+  "p":"each block wrapped in a single &lt;p&gt; tag",
+  "ul":"one &lt;ul&gt; with an &lt;li&gt; per block",
+  "rich":"&lt;p&gt; blocks with a few random &lt;b&gt;/&lt;i&gt; words"
+};
+
+document.querySelectorAll(".unitbtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".unitbtn").forEach(x => { x.classList.remove("toggle-on"); x.classList.add("bg-slate-100"); });
+  b.classList.add("toggle-on"); b.classList.remove("bg-slate-100");
+  state.unit = b.dataset.unit; render();
+});
+document.querySelectorAll(".fmtbtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".fmtbtn").forEach(x => { x.classList.remove("toggle-on"); x.classList.add("bg-slate-100"); });
+  b.classList.add("toggle-on"); b.classList.remove("bg-slate-100");
+  state.fmt = b.dataset.fmt; render();
+});
+const classicBtn = document.getElementById("classicTog");
+classicBtn.onclick = () => {
+  state.classic = !state.classic;
+  classicBtn.classList.toggle("toggle-on", state.classic);
+  classicBtn.classList.toggle("bg-slate-100", !state.classic);
+  classicBtn.textContent = state.classic ? "start with “Lorem ipsum…”" : "start with random words";
+  render();
+};
+document.getElementById("newSeed").onclick = () => {
+  state.seed = Math.floor(Math.random() * 1e9) + 1;
+  seedIn.value = state.seed;
+  render();
+};
+[countIn, sMinIn, sMaxIn, wMinIn, wMaxIn, seedIn].forEach(el => el.addEventListener("input", () => { state.seed = Math.max(1, parseInt(seedIn.value || "1", 10)); render(); }));
+
+// ===== LIVE RENDER =====
+function render(){
+  const o = currentOpts();
+  const blocks = generateBlocks(o);
+  const out = formatOutput(blocks, o.unit, o.fmt, o.seed);
+
+  document.getElementById("sourceOut").value = out;
+
+  const preview = document.getElementById("previewOut");
+  if (o.fmt === "plain"){
+    preview.className = "field good text-slate-700 plain";
+    preview.textContent = out;
+  } else {
+    preview.className = "field good text-slate-700";
+    preview.innerHTML = out;
+  }
+
+  document.getElementById("wcStat").textContent = wordCount(blocks);
+  document.getElementById("ccStat").textContent = out.length;
+  document.getElementById("blkStat").textContent = blocks.length;
+  document.getElementById("blkLabel").textContent = UNIT_LABEL[o.unit];
+  document.getElementById("fmtNote").innerHTML = FMT_NOTE[o.fmt];
+}
+
+// source box is a textarea; copy reads its value
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why placeholder text exists", why:"When you're designing a page the words aren't ready yet — the copy is still being written, the CMS is empty, the API isn't wired up. But you still need to see how the layout breathes: line length, paragraph rhythm, where headings land, whether a card overflows. Placeholder text fills that gap. It's deliberately meaningless so nobody reads it as real content and gets distracted by the message — you judge shape, spacing and typography without arguing about wording. That's why 'greeking' text has been used in typesetting for centuries, long before the web.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full"><div class="bg-white rounded p-3 shadow-sm"><div class="h-3 bg-amber-300 rounded w-2/3 mb-2"></div><div class="h-2 bg-slate-300 rounded w-full mb-1"></div><div class="h-2 bg-slate-300 rounded w-full mb-1"></div><div class="h-2 bg-slate-300 rounded w-4/5"></div></div><div class="text-center mt-2 text-slate-400">judge the layout, not the copy</div></div>`, code:`// design needs shape before it has words.
+// lorem = meaningless filler, so you evaluate
+// spacing + typography, not the message.
+"Lorem ipsum dolor sit amet, consectetur..."` },
+ { title:"2. The classic passage & its Cicero origin", why:"The famous 'Lorem ipsum dolor sit amet…' isn't random gibberish. It's scrambled Latin from Cicero's 'De Finibus Bonorum et Malorum' (On the Ends of Good and Evil), written in 45 BC. A 1500s printer is thought to have jumbled a passage to make a type specimen sheet, and it stuck. The visible words derive from 'dolorem ipsum quia dolor sit amet…' ('there is no one who loves pain itself'). Because it's Latin-like, it has the letter frequencies and word lengths of real Western European text, so it looks convincingly like prose without being readable — English filler like 'content content content' would distort the visual texture.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono break-words"><div class="mb-2 text-slate-500">Cicero, 45 BC:</div><div class="mb-2">…neque porro quisquam est qui <span class="seg seg-keep">dolorem ipsum</span> quia <span class="seg seg-keep">dolor sit amet</span>…</div><div class="text-slate-500 mb-1">scrambled → type specimen:</div><div class="seg seg-keep">Lorem ipsum dolor sit amet…</div></div>`, code:`// scrambled from Cicero, De Finibus (45 BC).
+// original: "...neque porro quisquam est qui
+//   dolorem ipsum quia dolor sit amet..."
+// Latin letter/length stats -> looks like real prose` },
+ { title:"3. The word pool", why:"A generator doesn't need the exact passage — it needs a bank of lorem-flavoured words to draw from. Collect ~100–200 words from the classic text (lorem, ipsum, dolor, consectetur, adipiscing) and the wider De Finibus vocabulary (perspiciatis, accusantium, voluptatem, laudantium). Mixing short and long words matters: it's the variety of word lengths that makes a block of generated text look like natural prose rather than a monotonous list. You draw words at random from this pool to build each sentence.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center"><span class="chip">lorem</span><span class="chip">ipsum</span><span class="chip">dolor</span><span class="chip">consectetur</span><span class="chip">ut</span><span class="chip">perspiciatis</span><span class="chip">sed</span><span class="chip">voluptatem</span><span class="chip">ea</span><span class="chip">accusantium</span><div class="text-slate-400 mt-2">~120 words · short + long mixed</div></div>`, code:`const WORDS = ["lorem","ipsum","dolor","sit","amet",
+  "consectetur","adipiscing","elit","sed","tempor",
+  "perspiciatis","voluptatem","accusantium", /* ~110 more */ ];
+// short + long lengths = prose-like texture` },
+ { title:"4. Assembling a sentence", why:"A sentence is a random-length run of words from the pool. Pick a length (say 6–12 words), grab that many words at random, capitalize the first letter, and end with a period. Those three touches — a plausible length range, an initial capital, and terminal punctuation — are what turn a bag of words into something that scans as a sentence. Vary the length per sentence so paragraphs don't look mechanically uniform.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">pick 8 words → <span class="seg seg-hy">tempor · ut · dolore · aliqua · enim · ad · minim · veniam</span><br>capitalize + period<br><br>→ <span class="seg seg-keep">Tempor ut dolore aliqua enim ad minim veniam.</span></div>`, code:`const cap = w => w[0].toUpperCase() + w.slice(1);
+function sentence(rng, min, max){
+  const n = randInt(rng, min, max);
+  const w = [];
+  for (let i=0;i<n;i++) w.push(pick(rng, WORDS));
+  w[0] = cap(w[0]);
+  return w.join(" ") + ".";
+}` },
+ { title:"5. Commas & sentence rhythm", why:"Real prose isn't just capital-words-period. Sentences have internal pauses. Dropping a comma or two at interior positions in the longer sentences gives the text a rhythm that reads far more naturally — and it mirrors the classic passage, which famously breaks after 'amet' ('Lorem ipsum dolor sit amet, consectetur…'). Keep commas away from the very first and last word so you never get a leading or dangling comma, and don't over-do them: one or two per long sentence is plenty.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">Lorem ipsum dolor sit amet<span class="seg seg-lower">,</span> consectetur adipiscing elit.<br><br>interior comma → natural pause<br>never at the first or last word</div>`, code:`if (n >= 6){                      // long sentence
+  const pos = randInt(rng, 2, n-2); // interior only
+  words[pos] += ",";                // "...sit amet, consectetur..."
+}` },
+ { title:"6. Paragraphs = sentences, grouped", why:"A paragraph is just several sentences joined by spaces; a document is several paragraphs. Give the paragraph a sentence-count range (say 3–5) so some are short and some longer, exactly like real writing. This two-level structure — words → sentences → paragraphs — is the whole grammar of the generator. Every 'unit' the tool offers (words, sentences, paragraphs, list items) is a different slice of the same pipeline.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="mb-1 text-slate-500">paragraph = 3–5 sentences:</div><div><span class="seg seg-hy">Sentence one.</span> <span class="seg seg-keep">Sentence two.</span> <span class="seg seg-lower">Sentence three.</span></div><div class="mt-2 text-slate-400">words → sentences → paragraphs → document</div></div>`, code:`function paragraph(rng, sMin, sMax){
+  const n = randInt(rng, sMin, sMax);
+  const s = [];
+  for (let i=0;i<n;i++) s.push(sentence(rng, 6, 12));
+  return s.join(" ");
+}` },
+ { title:"7. Seeded randomness for stable output", why:"If every keystroke reshuffled the text, the tool would be maddening — copy a block, tweak one option, and everything you were looking at changes. The fix is a seeded pseudo-random generator: given the same seed, it produces the exact same 'random' sequence every time. So the output is stable as you adjust formatting, and only changes when you deliberately ask for new text (a new seed). It also makes results reproducible and shareable — same seed, same lorem, on any machine. Math.random() can't do this because you can't seed it; a tiny PRNG like mulberry32 can.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">seed 12345 → <span class="seg seg-keep">Lorem ipsum dolor...</span><br>seed 12345 → <span class="seg seg-keep">Lorem ipsum dolor...</span> (identical)<br><br>seed 99999 → <span class="seg seg-hy">Tempor ut dolore...</span> (new text)</div>`, code:`function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+// same seed -> identical text, every time` },
+ { title:"8. Wrapping the output in HTML", why:"Raw sentences are useful, but you usually need them in a shape you can paste straight into a page: each paragraph in a <p>, a bullet list as <ul><li>, or prose sprinkled with the odd <b>/<i> to test how bold and italic runs affect line height and wrapping. The generator keeps the plain blocks and applies formatting as a final, separate step — so N paragraphs become exactly N <p> tags, and the word count stays the same no matter which wrapper you choose. Separating 'generate' from 'format' keeps both simple and keeps the counts honest.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono">3 blocks →<br>plain: block\\n\\nblock\\n\\nblock<br><span class="seg seg-hy">&lt;p&gt;</span>block<span class="seg seg-hy">&lt;/p&gt;</span> × 3<br><span class="seg seg-keep">&lt;ul&gt;&lt;li&gt;</span>block<span class="seg seg-keep">&lt;/li&gt;&lt;/ul&gt;</span><br><br>3 paragraphs → exactly 3 &lt;p&gt; tags</div>`, code:`// generate once, format last
+blocks.map(b => "<p>" + b + "</p>").join("\n");
+// or a list:
+"<ul>" + items.map(i => "<li>"+i+"</li>").join("") + "</ul>";
+// N paragraphs  ->  N <p> tags, same word count` },
+ { title:"9. When NOT to use lorem + accessibility", why:"Lorem is a scaffolding tool, not a finish. Designing entirely with it hides real problems: actual copy is longer or shorter than the filler, has awkward names, empty states, and edge cases the neat lorem blocks never reveal — so a layout that looks perfect in lorem can break the day real content lands. Ship with real (or realistic) content as early as you can. And never leave lorem in production: screen readers will happily read 'Lorem ipsum dolor sit amet' aloud to a blind user, search engines index the gibberish, and users occasionally see it leak onto live pages. Placeholder text belongs in the mockup, not the deploy.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">✅ lorem in the mockup — judge layout fast<br><br>🚫 lorem in production:<br>screen readers read it aloud<br>Google indexes the gibberish<br>real copy breaks the "perfect" layout</div>`, code:`// use real content as early as possible:
+// fake copy hides long names, empty states, edge cases.
+// NEVER ship lorem:
+//   - screen readers announce it
+//   - search engines index it
+//   - it leaks onto live pages` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+render();
+</script>
+</body>
+</html>
