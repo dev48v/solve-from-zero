@@ -34,6 +34,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 25 — UUID Generator](https://dev48v.infy.uk/solve/day25-uuid.html) — `day25-uuid.html`
 - [SolveFromZero · Day 26 — Slug Generator](https://dev48v.infy.uk/solve/day26-slug.html) — `day26-slug.html`
 - [SolveFromZero · Day 27 — Lorem Ipsum Generator](https://dev48v.infy.uk/solve/day27-lorem.html) — `day27-lorem.html`
+- [SolveFromZero · Day 28 — Case Converter](https://dev48v.infy.uk/solve/day28-case-converter.html) — `day28-case-converter.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

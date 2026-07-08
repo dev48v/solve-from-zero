@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 28 — Case Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:120px; }
+  .stage { display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .stage:last-child { border-bottom:none; }
+  .stage .lbl { min-width:150px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .stage .val { font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-strip { background:#fecaca; color:#991b1b; }
+  .seg-lower { background:#fef3c7; color:#92400e; }
+  .seg-hy    { background:#bfdbfe; color:#1e40af; }
+  .seg-keep  { background:#fde68a; color:#92400e; }
+  .row-hover:hover { background:#fffbeb; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  #previewOut p { margin:0 0 12px; line-height:1.6; }
+  #previewOut p:last-child { margin-bottom:0; }
+  #previewOut ul { margin:0; padding-left:22px; list-style:disc; }
+  #previewOut li { margin:3px 0; line-height:1.5; }
+  #previewOut b { font-weight:700; }
+  #previewOut i { font-style:italic; }
+  #previewOut.plain { white-space:pre-wrap; font-size:14px; line-height:1.6; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 28</div>
+      <h1 class="text-xl font-bold">🔤 Case Converter — camelCase ⇄ snake_case ⇄ kebab-case ⇄ … with a smart word-splitter</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Retype nothing. Convert any identifier to every case.</h2>
+        <p class="text-slate-500 mb-5"><strong>Case</strong> is the naming convention a piece of text follows — <code>camelCase</code> for JS variables, <code>snake_case</code> for Python and SQL columns, <code>kebab-case</code> for URLs and CSS, <code>CONSTANT_CASE</code> for env vars, <code>PascalCase</code> for classes, <code>Title Case</code> for headings. Converting between them by hand is error-prone. This tool does it for real in your browser: the heart of it is a <strong>word-splitter</strong> that tokenizes <em>any</em> input — it breaks on spaces, underscores, hyphens, dots and slashes, on <code>camelCase</code> humps, and at letter→digit boundaries, while keeping acronyms whole (<code>HTTPServer</code> → <code>HTTP</code> + <code>Server</code>). Once the words are known, re-joining them into any target case is trivial. Paste one identifier or a whole multi-line list — every line is converted independently. All offline, no libraries.</p>
+      </div>
+
+      <!-- input -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">Input <span class="text-slate-400 font-normal text-sm">— any case, one per line</span></div>
+          <div class="flex gap-1 flex-wrap">
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="HTTPServerError2xx">HTTPServerError2xx</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="my-var_name">my-var_name</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="getUserByID">getUserByID</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="max retry count 3">max retry count 3</button>
+          </div>
+        </div>
+        <textarea id="caseIn" class="field mono text-sm" spellcheck="false">HTTPServerError2xx
+my-var_name
+getUserByID
+first name last name</textarea>
+      </div>
+
+      <!-- detection + tokens -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex flex-wrap gap-6 items-center mb-3">
+          <div><div class="text-3xl font-bold stat text-amber-600" id="wcStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold">words (tokens)</div></div>
+          <div><div class="text-3xl font-bold stat text-slate-700" id="lnStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold">lines</div></div>
+          <div><div class="text-3xl font-bold stat text-slate-700" id="ccStat">0</div><div class="text-xs text-slate-400 uppercase tracking-wider font-bold">characters</div></div>
+          <div class="ml-auto text-right">
+            <div class="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Detected input case (line 1)</div>
+            <div class="mono font-bold text-amber-700" id="detected">—</div>
+          </div>
+        </div>
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Split into words — line 1</div>
+        <div id="tokensOut" class="field good">—</div>
+        <p class="text-xs text-slate-500 mt-2">These tokens are the pivot: every case below is just a different way of re-joining them.</p>
+      </div>
+
+      <!-- outputs -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-2">All cases <span class="text-slate-400 font-normal text-sm">— multi-line converted per line, click Copy on any</span></div>
+        <div id="outRows"></div>
+      </div>
+
+      <!-- note -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Some conversions are lossy — and that surprises people</div>
+        <p class="text-sm text-amber-800"><code>snake_case</code>, <code>kebab-case</code>, <code>camelCase</code> and <code>PascalCase</code> round-trip cleanly: their word boundaries are unambiguous, so <code>user_id → userId → user_id</code> comes back identical. But casing <strong>normalizes acronyms</strong> — <code>HTTPServer</code> becomes <code>Http Server</code> in Title Case, and there is no way to know later that <code>HTTP</code> was capitalized, so you can't recover it. And <code>Title Case</code> or <code>Sentence case</code> that contain real multi-word phrases lose the boundary information the moment they hit a space-free case: <code>"New York"</code> → <code>newYork</code> can never split back into <code>New</code>+<code>York</code> reliably. Rule of thumb: convert freely between the programmer cases, but treat human-readable cases as a one-way exit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a case converter really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A case converter is a two-phase pipeline with no dependencies. <strong>Phase one</strong> is a single robust function that splits any identifier into a clean list of words. <strong>Phase two</strong> is a table of tiny join functions, one per target case. Nail the splitter and every case is a one-liner. Below is the whole thing in vanilla JS — the same code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Split on the obvious delimiters</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The easy half of tokenizing: break the string wherever a run of non-alphanumeric characters appears. That single split covers <code>snake_case</code>, <code>kebab-case</code>, <code>dot.case</code>, <code>path/case</code> and plain spaces at once. Filter out the empty strings a leading or trailing delimiter leaves behind.</p>
+        <div class="relative"><pre>function splitDelims(str){
+  return str.split(/[^A-Za-z0-9]+/).filter(Boolean);
+}
+splitDelims("my-var_name");   // ["my","var","name"]
+splitDelims("a.b/c d");       // ["a","b","c","d"]</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Split camelCase &amp; PascalCase humps</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>fooBar</code> has no delimiter — the boundary is the <em>hump</em>, a lowercase (or digit) immediately followed by an uppercase letter. Don't try to split it directly; instead <strong>inject a space</strong> at every hump, then let the delimiter split from step 1 do the work. One regex, one capture-group swap.</p>
+        <div class="relative"><pre>// insert a space between  aB  ->  a B
+const withSpace = str.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+"getUserName".replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+// -> "get User Name"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Keep acronyms whole</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Step 2 breaks <code>HTTPServer</code> in the wrong place, because <code>P</code>→<code>S</code> isn't a hump (both uppercase). The fix: a run of capitals followed by an uppercase-then-lowercase pair is an acronym butting against a word. Split <em>before</em> that last capital — so <code>HTTPServer</code> becomes <code>HTTP Server</code>, not <code>HTTPS erver</code>.</p>
+        <div class="relative"><pre>// ACRONYM + Word:  HTTPServer -> HTTP Server
+const fixed = str.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+"HTTPServerName".replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+// -> "HTTP ServerName"  (then step 2 finishes the rest)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Handle digit boundaries</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A digit usually starts a new token: <code>version2</code> is <code>version</code> + <code>2</code>. Inject a space at every letter→digit boundary. Note we <em>don't</em> split digit→letter, so tokens like <code>2xx</code>, <code>3d</code> or <code>utf8</code>'s tail stay glued to their leading digit — matching how people actually read them.</p>
+        <div class="relative"><pre>// letter -> digit boundary:  Error2xx -> Error 2xx
+const d = str.replace(/([A-Za-z])([0-9])/g, "$1 $2");
+"Error2xx".replace(/([A-Za-z])([0-9])/g, "$1 $2");
+// -> "Error 2xx"   (digit->letter is left intact)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">The whole splitWords()</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Chain the three inserts in order — acronym boundary is applied via the same lower/upper pass plus the capitals rule — then split on delimiters. The order matters: fix humps and acronyms and digits <em>first</em> (they only add spaces), then the delimiter split collapses everything. This one function is the entire hard part of the tool.</p>
+        <div class="relative"><pre>function splitWords(str){
+  if (str == null) return [];
+  return String(str)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")     // camel hump
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")  // acronym | Word
+    .replace(/([A-Za-z])([0-9])/g, "$1 $2")     // letter | digit
+    .split(/[^A-Za-z0-9]+/)                      // delimiters
+    .filter(Boolean);
+}
+splitWords("HTTPServerError2xx");
+// -> ["HTTP","Server","Error","2xx"]</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Join rules — one per target case</h3></div>
+        <p class="text-sm text-slate-600 mb-3">With a clean word list, each case is a two-decision recipe: <em>how do I transform each word</em> (lower / UPPER / Capitalize) and <em>what separator joins them</em> (nothing / <code>_</code> / <code>-</code> / <code>.</code> / <code>/</code> / space). <code>cap()</code> is the workhorse — first letter up, rest down — which is also what normalizes an acronym like <code>HTTP</code> down to <code>Http</code>.</p>
+        <div class="relative"><pre>const cap = w =&gt; w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+
+const CONVERTERS = {
+  "camelCase":     ws =&gt; ws.map((w,i)=&gt; i ? cap(w) : w.toLowerCase()).join(""),
+  "PascalCase":    ws =&gt; ws.map(cap).join(""),
+  "snake_case":    ws =&gt; ws.map(w =&gt; w.toLowerCase()).join("_"),
+  "kebab-case":    ws =&gt; ws.map(w =&gt; w.toLowerCase()).join("-"),
+  "CONSTANT_CASE": ws =&gt; ws.map(w =&gt; w.toUpperCase()).join("_"),
+  "Title Case":    ws =&gt; ws.map(cap).join(" "),
+  "Sentence case": ws =&gt; ws.map((w,i)=&gt; i ? w.toLowerCase() : cap(w)).join(" "),
+  "dot.case":      ws =&gt; ws.map(w =&gt; w.toLowerCase()).join("."),
+  "path/case":     ws =&gt; ws.map(w =&gt; w.toLowerCase()).join("/"),
+  "Train-Case":    ws =&gt; ws.map(cap).join("-"),
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Detect the input case</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Detection is a bonus, not a requirement — conversion never needs it, because the splitter is case-agnostic. But it's a nice touch. Test for the tell-tale marks in priority order: a separator character wins first, then the shape of the capitals. Whatever you can't classify is honestly reported as <code>mixed / unknown</code>.</p>
+        <div class="relative"><pre>function detectCase(s){
+  s = String(s).trim();
+  if (!s) return "empty";
+  if (/\s/.test(s))    return /^[A-Z][a-z0-9]*(\s[A-Z][a-z0-9]*)*$/.test(s)
+                              ? "Title Case" : "Sentence case / words";
+  if (s.includes("_")) return /[a-z]/.test(s) ? "snake_case" : "CONSTANT_CASE";
+  if (s.includes("-")) return /-[A-Z]/.test(s) ? "Train-Case" : "kebab-case";
+  if (s.includes("/")) return "path/case";
+  if (s.includes(".")) return "dot.case";
+  if (/^[a-z][A-Za-z0-9]*$/.test(s) &amp;&amp; /[A-Z]/.test(s)) return "camelCase";
+  if (/^[A-Z][A-Za-z0-9]*$/.test(s) &amp;&amp; /[a-z]/.test(s)) return "PascalCase";
+  return "mixed / unknown";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wire it up — multi-line convert()</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The public function converts a whole block: split on newlines, run each line through <code>splitWords</code> then the chosen join, and rejoin with newlines. Because each line tokenizes independently, a mixed list — camel, snake and kebab all at once — normalizes perfectly into whatever case you pick.</p>
+        <div class="relative"><pre>function convert(text, caseName){
+  const join = CONVERTERS[caseName];
+  return String(text).split("\n").map(line =&gt; {
+    const ws = splitWords(line);
+    return ws.length ? join(ws) : "";
+  }).join("\n");
+}
+convert("user_id\ngetName\nAPI-key", "CONSTANT_CASE");
+// -> "USER_ID\nGET_NAME\nAPI_KEY"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 28 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real case converter: a robust <code>splitWords()</code> that tokenizes <em>any</em> identifier — delimiters, <code>camelCase</code> humps, acronym boundaries (<code>HTTPServer</code> → <code>HTTP</code>+<code>Server</code>) and letter→digit splits — plus a table of ten tiny join functions for <code>camelCase</code>, <code>PascalCase</code>, <code>snake_case</code>, <code>kebab-case</code>, <code>CONSTANT_CASE</code>, <code>Title Case</code>, <code>Sentence case</code>, <code>dot.case</code>, <code>path/case</code> and <code>Train-Case</code>, a bonus case detector, and per-line handling for whole lists. The lesson: <strong>split to a canonical word list first, join second</strong> — get the tokenizer right and every case is a one-liner, and remember that casing normalizes acronyms so some conversions are a one-way door. <strong>👉 Tomorrow — Day 29:</strong> a <strong>URL Encoder / Decoder</strong> — percent-encoding, <code>encodeURI</code> vs <code>encodeURIComponent</code>, and query-string building, live.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==CASE-ENGINE-START==  (pure, no DOM — this exact block is also eval'd by the Node test)
+// Tokenize ANY input into a canonical list of words.
+// Order matters: inject boundaries first (they only add spaces), then split on delimiters.
+function splitWords(str){
+  if (str == null) return [];
+  return String(str)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")      // camelCase hump:  fooBar  -> foo Bar
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")   // acronym | Word:  HTTPServer -> HTTP Server
+    .replace(/([A-Za-z])([0-9])/g, "$1 $2")      // letter | digit:  Error2xx -> Error 2xx
+    .split(/[^A-Za-z0-9]+/)                       // spaces _ - . / etc.
+    .filter(Boolean);
+}
+
+// first letter up, rest down — also normalizes acronyms (HTTP -> Http)
+function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }
+
+// one join rule per target case: transform each word + choose a separator
+const CASE_CONVERTERS = {
+  "camelCase":     ws => ws.map((w, i) => i ? cap(w) : w.toLowerCase()).join(""),
+  "PascalCase":    ws => ws.map(cap).join(""),
+  "snake_case":    ws => ws.map(w => w.toLowerCase()).join("_"),
+  "kebab-case":    ws => ws.map(w => w.toLowerCase()).join("-"),
+  "CONSTANT_CASE": ws => ws.map(w => w.toUpperCase()).join("_"),
+  "Title Case":    ws => ws.map(cap).join(" "),
+  "Sentence case": ws => ws.map((w, i) => i ? w.toLowerCase() : cap(w)).join(" "),
+  "dot.case":      ws => ws.map(w => w.toLowerCase()).join("."),
+  "path/case":     ws => ws.map(w => w.toLowerCase()).join("/"),
+  "Train-Case":    ws => ws.map(cap).join("-")
+};
+const CASE_NAMES = Object.keys(CASE_CONVERTERS);
+
+// convert a whole block, line by line — each line tokenized independently
+function convert(text, caseName){
+  const join = CASE_CONVERTERS[caseName];
+  if (!join) return "";
+  return String(text).split("\n").map(line => {
+    const ws = splitWords(line);
+    return ws.length ? join(ws) : "";
+  }).join("\n");
+}
+
+// best-effort classification of a single token's input case (conversion never needs this)
+function detectCase(str){
+  const s = String(str).trim();
+  if (!s) return "empty";
+  if (/\s/.test(s)) return /^[A-Z][a-z0-9]*(\s+[A-Z][a-z0-9]*)*$/.test(s) ? "Title Case" : "Sentence case / words";
+  if (s.includes("_")) return /[a-z]/.test(s) ? "snake_case" : "CONSTANT_CASE";
+  if (s.includes("-")) return /-[A-Z]/.test(s) ? "Train-Case" : "kebab-case";
+  if (s.includes("/")) return "path/case";
+  if (s.includes(".")) return "dot.case";
+  if (/^[a-z][A-Za-z0-9]*$/.test(s) && /[A-Z]/.test(s)) return "camelCase";
+  if (/^[A-Z][A-Za-z0-9]*$/.test(s) && /[a-z]/.test(s)) return "PascalCase";
+  if (/^[a-z0-9]+$/.test(s)) return "lowercase (single word)";
+  if (/^[A-Z0-9]+$/.test(s)) return "UPPERCASE (single word)";
+  return "mixed / unknown";
+}
+// ==CASE-ENGINE-END==
+
+// ===== LOOK render =====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+const caseIn = document.getElementById("caseIn");
+
+function renderTokens(text){
+  const firstLine = text.split("\n").find(l => l.trim()) || "";
+  const ws = splitWords(firstLine);
+  const chips = document.getElementById("tokensOut");
+  chips.innerHTML = ws.length
+    ? ws.map(w => `<span class="chip">${escapeHtml(w)}</span>`).join("")
+    : `<span class="text-slate-400 text-sm">no words</span>`;
+  document.getElementById("detected").textContent = detectCase(firstLine) || "—";
+}
+
+function renderOutputs(text){
+  const box = document.getElementById("outRows");
+  box.innerHTML = "";
+  CASE_NAMES.forEach(name => {
+    const val = convert(text, name);
+    const row = document.createElement("div");
+    row.className = "out-row row-hover";
+
+    const label = document.createElement("div");
+    label.className = "text-xs font-bold text-slate-500 uppercase tracking-wider";
+    label.style.minWidth = "128px";
+    label.textContent = name;
+
+    const value = document.createElement("div");
+    value.className = "mono text-sm text-slate-800";
+    value.style.flex = "1";
+    value.style.whiteSpace = "pre-wrap";
+    value.style.wordBreak = "break-all";
+    value.style.padding = "0 12px";
+    value.textContent = val || "—";
+
+    const btn = document.createElement("button");
+    btn.className = "mini px-3 py-1.5 rounded-lg font-semibold text-xs shrink-0";
+    btn.textContent = "Copy";
+    btn.onclick = () => copyText(val, btn);
+
+    row.append(label, value, btn);
+    box.appendChild(row);
+  });
+}
+
+function render(){
+  const text = caseIn.value;
+  renderTokens(text);
+  renderOutputs(text);
+  const lines = text.split("\n");
+  document.getElementById("wcStat").textContent = lines.reduce((n, l) => n + splitWords(l).length, 0);
+  document.getElementById("lnStat").textContent = lines.filter(l => l.trim()).length;
+  document.getElementById("ccStat").textContent = text.length;
+}
+
+caseIn.addEventListener("input", render);
+document.querySelectorAll(".sample").forEach(b => b.onclick = () => {
+  const cur = caseIn.value.trim();
+  caseIn.value = cur ? cur + "\n" + b.dataset.s : b.dataset.s;
+  render();
+});
+
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why case conventions exist", why:"Every language and format has a house style for names. JavaScript and Java use camelCase for variables and PascalCase for classes; Python, Ruby and SQL columns use snake_case; URLs, CSS classes and npm packages use kebab-case; environment variables and constants use CONSTANT_CASE; headings use Title Case. These aren't arbitrary — they're how a reader instantly knows what a token is. The problem: you constantly move a name from one world to another (a database column into a JS variable, a class name into a URL slug), and retyping it by hand is slow and typo-prone. A converter automates the boring, error-prone part.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="mb-1"><span class="seg seg-hy">JS var</span> &nbsp; userProfileId</div><div class="mb-1"><span class="seg seg-lower">SQL col</span> &nbsp; user_profile_id</div><div class="mb-1"><span class="seg seg-keep">CSS / URL</span> &nbsp; user-profile-id</div><div class="mb-1"><span class="seg seg-strip">ENV var</span> &nbsp; USER_PROFILE_ID</div><div class="text-slate-400 mt-2">same name, five worlds</div></div>`, code:`// one name, many conventions:
+camelCase      userProfileId    // JS / Java vars
+snake_case     user_profile_id  // Python, SQL
+kebab-case     user-profile-id  // URLs, CSS
+CONSTANT_CASE  USER_PROFILE_ID  // env vars
+PascalCase     UserProfileId    // class names` },
+ { title:"2. The universal approach: split, then join", why:"The naive way is to write a function for every pair — camelToSnake, snakeToCamel, kebabToPascal... that's N x N functions and a maintenance nightmare. The insight that collapses the whole problem: route everything through a canonical middle representation — a plain list of lowercase-ish words. Split ANY input into words once (that's the only hard part), then join those words into whatever target you want. Now you need one splitter plus one small join rule per case: N+1 functions instead of N x N, and adding a new case is a single line.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><div class="mb-2">userProfileId &nbsp; user_profile_id &nbsp; user-profile-id</div><div class="text-amber-600">↓ splitWords ↓</div><div class="my-2"><span class="chip">user</span><span class="chip">profile</span><span class="chip">id</span></div><div class="text-amber-600">↓ join per case ↓</div><div class="mt-2">any target case</div></div>`, code:`// DON'T: camelToSnake, snakeToKebab, kebabToPascal ... (N x N)
+// DO: everything -> [words] -> everything      (N + 1)
+const words = splitWords(input);   // the only hard part
+const out   = CONVERTERS[target](words);` },
+ { title:"3. The splitter, part 1: delimiters", why:"Half the input cases already put an explicit separator between words: underscores (snake), hyphens (kebab), dots (dot.case), slashes (path/case) and spaces. A single regex split on 'one or more non-alphanumeric characters' handles all of them at once. The .filter(Boolean) at the end drops the empty strings you get from a leading, trailing or doubled delimiter — so '__a--b' cleanly becomes ['a','b'] with no blanks.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">"my-var_name.ext"<br><span class="text-amber-600">split /[^A-Za-z0-9]+/</span><br><span class="chip">my</span><span class="chip">var</span><span class="chip">name</span><span class="chip">ext</span><br><span class="text-slate-400 mt-1 inline-block">covers _ - . / and spaces</span></div>`, code:`str.split(/[^A-Za-z0-9]+/).filter(Boolean);
+// "my-var_name"  -> ["my","var","name"]
+// "a.b/c d"      -> ["a","b","c","d"]
+// "__x--y"       -> ["x","y"]   (filter drops blanks)` },
+ { title:"4. The splitter, part 2: camelCase humps", why:"camelCase and PascalCase carry no delimiter — the word boundary is a case change: a lowercase letter (or a digit) immediately followed by an uppercase letter. That's the 'hump'. The trick is not to split there directly, but to INJECT a space at each hump with a regex replace, then let the delimiter split from part 1 finish the job. Capturing both sides ($1 and $2) and re-emitting them with a space between is the whole move.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono">getUser<span class="seg seg-hy">N</span>ame<br><span class="text-amber-600">/([a-z0-9])([A-Z])/ -> "$1 $2"</span><br>get User Name<br><span class="text-slate-400 mt-1 inline-block">a hump = lower/digit → UPPER</span></div>`, code:`// inject a space at each hump, THEN split on delimiters
+"getUserName".replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+// -> "get User Name"
+"v2Model".replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+// -> "v2 Model"  (digit before upper counts too)` },
+ { title:"5. The splitter, part 3: acronyms & digits", why:"The hump rule alone mangles acronyms: 'HTTPServer' has no lower→upper boundary at the split point, so a lazy rule gives 'HTTPS erver'. The fix is a second regex: a run of capitals followed by an uppercase-then-lowercase pair means an acronym is butting against a word — split before that last capital, giving 'HTTP Server'. Then handle digits: inject a space at every letter→digit boundary so 'version2' becomes 'version 2'. We deliberately leave digit→letter alone, so '2xx' or '3d' keep their leading digit.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><div>HTTPServerError2xx</div><div class="text-amber-600">acronym + hump + digit rules</div><div class="my-1"><span class="chip">HTTP</span><span class="chip">Server</span><span class="chip">Error</span><span class="chip">2xx</span></div><div class="text-slate-400">"2xx" stays whole — digit→letter isn't split</div></div>`, code:`// acronym | Word
+str.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+// "HTTPServer" -> "HTTP Server"
+
+// letter | digit  (but NOT digit | letter)
+str.replace(/([A-Za-z])([0-9])/g, "$1 $2");
+// "Error2xx" -> "Error 2xx"   ("2xx" stays glued)` },
+ { title:"6. Join rules: two decisions per case", why:"Once you hold a clean word list, every target case is just two decisions: how to transform each word (leave lower, force UPPER, or Capitalize it) and what separator to join with (nothing, underscore, hyphen, dot, slash or space). camelCase = lowercase the first word, capitalize the rest, join with nothing. snake_case = lowercase all, join with '_'. CONSTANT_CASE = uppercase all, join with '_'. Title Case = capitalize all, join with spaces. Writing them as a lookup table keeps them honest and makes adding a case trivial.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="grid grid-cols-2 gap-x-2 gap-y-1"><span class="text-slate-500">camelCase</span><span>userId</span><span class="text-slate-500">PascalCase</span><span>UserId</span><span class="text-slate-500">snake_case</span><span>user_id</span><span class="text-slate-500">kebab-case</span><span>user-id</span><span class="text-slate-500">CONSTANT</span><span>USER_ID</span><span class="text-slate-500">Title Case</span><span>User Id</span><span class="text-slate-500">dot.case</span><span>user.id</span><span class="text-slate-500">Train-Case</span><span>User-Id</span></div></div>`, code:`const cap = w => w[0].toUpperCase() + w.slice(1).toLowerCase();
+const CONVERTERS = {
+  camelCase:  ws => ws.map((w,i)=> i?cap(w):w.toLowerCase()).join(""),
+  snake_case: ws => ws.map(w=>w.toLowerCase()).join("_"),
+  CONSTANT:   ws => ws.map(w=>w.toUpperCase()).join("_"),
+  "Title Case": ws => ws.map(cap).join(" "),
+  // ...one line per case
+};` },
+ { title:"7. Detecting the input case", why:"Conversion never needs to know the input case — the splitter is case-agnostic. But telling the user 'this looks like snake_case' is a friendly touch. Detection is a priority-ordered checklist: a separator character is the strongest signal (an underscore means snake or CONSTANT depending on whether there are lowercase letters), then the shape of the capitals distinguishes camelCase from PascalCase. Crucially, be honest: anything that doesn't cleanly match a known pattern should be reported as 'mixed / unknown' rather than guessed.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>has "_" &amp; lowercase → <span class="seg seg-lower">snake_case</span></div><div>has "_" &amp; all caps → <span class="seg seg-strip">CONSTANT_CASE</span></div><div>has "-" → <span class="seg seg-keep">kebab / Train</span></div><div>starts lower + a capital → <span class="seg seg-hy">camelCase</span></div><div>starts upper + a lowercase → <span class="seg seg-hy">PascalCase</span></div></div>`, code:`function detectCase(s){
+  s = s.trim();
+  if (s.includes("_")) return /[a-z]/.test(s) ? "snake_case" : "CONSTANT_CASE";
+  if (s.includes("-")) return /-[A-Z]/.test(s) ? "Train-Case" : "kebab-case";
+  if (/^[a-z][A-Za-z0-9]*$/.test(s) && /[A-Z]/.test(s)) return "camelCase";
+  if (/^[A-Z][A-Za-z0-9]*$/.test(s) && /[a-z]/.test(s)) return "PascalCase";
+  return "mixed / unknown";   // be honest, don't guess
+}` },
+ { title:"8. Edge cases: acronyms, leading digits, unicode", why:"A few inputs bite. Acronyms: our splitter keeps 'HTTP' whole, but cap() will still fold it to 'Http' in Title/Pascal cases — only CONSTANT_CASE preserves the all-caps look. Leading digits: '2fast' splits to ['2fast'] (digit→letter isn't a boundary), which is what you want for '2xx' but debatable for '2ndPlace' — there's no universally-right answer. Unicode: the ASCII-only regexes treat accented letters (é, ñ) as delimiters and drop them, so 'café_bar' loses the é; a fully international splitter needs \\p{Lu}/\\p{Ll} Unicode property escapes. Know these limits so the output never surprises you.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>HTTPServer → Title → <span class="seg seg-lower">Http Server</span> (acronym folded)</div><div>2xx → <span class="seg seg-keep">["2xx"]</span> &nbsp; 2ndPlace → <span class="seg seg-keep">["2nd","Place"]</span></div><div>café_bar → <span class="seg seg-strip">["caf","bar"]</span> (é dropped by ASCII rule)</div></div>`, code:`// acronym look is only preserved by CONSTANT_CASE
+cap("HTTP");            // "Http"  (folded)
+
+// ASCII-only [A-Za-z] drops accented letters:
+splitWords("café_bar"); // ["caf","bar"]   <-- é lost
+// international version needs Unicode props:
+str.replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2");` },
+ { title:"9. Round-tripping: which conversions are lossy", why:"Not every conversion is reversible. The programmer cases — camel, Pascal, snake, kebab, dot, path — all encode word boundaries unambiguously, so they round-trip perfectly: user_id → userId → user_id, forever. The loss happens in two places. First, casing normalizes acronyms: once 'HTTPServer' becomes 'Http Server' you cannot recover that 'HTTP' was uppercase — the information is gone. Second, human cases that contain genuine multi-word phrases lose their boundaries the instant they enter a space-free case: 'New York' → newYork can never be split back into New + York, because the tokenizer sees one hump, not a place name. Convert freely among the code cases; treat Title/Sentence case as a one-way exit.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><div class="text-green-700 mb-2">✅ user_id → userId → user_id (safe)</div><div class="text-red-700">🚫 HTTPServer → Http Server (acronym lost)</div><div class="text-red-700">🚫 "New York" → newYork → New York? no</div></div>`, code:`// safe round-trip (unambiguous boundaries):
+snake( camel( "user_id" ) ) === "user_id";   // true
+
+// lossy: acronym case + real phrase boundaries
+title( split("HTTPServer") );  // "Http Server"  (HTTP gone)
+// "New York" -> "newYork" -> can't recover the split` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+render();
+</script>
+</body>
+</html>
