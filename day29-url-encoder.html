@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 29 — URL Encoder / Decoder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:96px; }
+  .stage { display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .stage:last-child { border-bottom:none; }
+  .stage .lbl { min-width:150px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .stage .val { font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-strip { background:#fecaca; color:#991b1b; }
+  .seg-lower { background:#fef3c7; color:#92400e; }
+  .seg-hy    { background:#bfdbfe; color:#1e40af; }
+  .seg-keep  { background:#fde68a; color:#92400e; }
+  .pct { background:#fde68a; color:#92400e; padding:0 2px; border-radius:3px; }
+  .keep { color:#166534; }
+  .row-hover:hover { background:#fffbeb; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  table.grid { width:100%; border-collapse:collapse; font-size:13px; }
+  table.grid th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; font-weight:700; padding:6px 10px; border-bottom:1px solid #e2e8f0; }
+  table.grid td { padding:6px 10px; border-bottom:1px solid #f1f5f9; font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .qb-k, .qb-v { border:1px solid #fde68a; border-radius:8px; padding:6px 10px; font-family:ui-monospace, Menlo, monospace; font-size:13px; }
+  .qb-k:focus, .qb-v:focus { outline:2px solid #f59e0b; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 29</div>
+      <h1 class="text-xl font-bold">🔗 URL Encoder / Decoder — percent-encoding, <code>encodeURIComponent</code> vs <code>encodeURI</code>, and a query-string builder / parser</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Make any text safe to put in a URL — and read it back.</h2>
+        <p class="text-slate-500 mb-5">A URL can only legally contain a small alphabet of characters. Everything else — spaces, accents, emoji, and the <em>structural</em> characters like <code>&amp;</code>, <code>?</code>, <code>/</code> and <code>=</code> when they appear inside a value — has to be <strong>percent-encoded</strong>: turned into its UTF-8 bytes, each byte written as <code>%</code> followed by two hex digits. That's why a space becomes <code>%20</code> and <code>café</code> becomes <code>caf%C3%A9</code>. This page is a real, offline URL toolkit: encode a value the strict way (<code>encodeURIComponent</code>) or a whole link the gentle way (<code>encodeURI</code>) and see the difference side by side; watch a Unicode character explode into its raw <code>%XX</code> bytes; and build or take apart a query string one key/value pair at a time. All in the browser, no libraries.</p>
+      </div>
+
+      <!-- MAIN ENCODER / DECODER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">Encode / Decode <span class="text-slate-400 font-normal text-sm">— type anything</span></div>
+          <div class="flex gap-1 flex-wrap">
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="hello world & café/menu">hello world &amp; café</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="a b/c?é">a b/c?é</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="price=$1,000 (50% off) 😀">price=$1,000 😀</button>
+            <button class="sample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="https://x.com/search?q=hello world">full URL</button>
+          </div>
+        </div>
+        <textarea id="urlIn" class="field mono text-sm" spellcheck="false">https://api.example.com/search?q=café & bar/menu#top</textarea>
+        <div class="flex gap-2 mt-3 flex-wrap">
+          <button id="encComp" class="mini px-4 py-2 rounded-lg font-semibold text-sm">Encode (component)</button>
+          <button id="encUri"  class="bg-slate-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-800">Encode (full URI)</button>
+          <button id="dec"     class="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-emerald-700">Decode</button>
+          <div class="ml-auto flex gap-5 items-center">
+            <div class="text-right"><div class="text-2xl font-bold stat text-amber-600" id="ccStat">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">input chars</div></div>
+            <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="byStat">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">UTF-8 bytes</div></div>
+            <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="esStat">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">%XX escapes</div></div>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center justify-between">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Output <span id="outMode" class="text-amber-600">— encodeURIComponent</span></div>
+          <button id="copyMain" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+        </div>
+        <div id="urlOut" class="field good mono text-sm mt-1" style="white-space:pre-wrap;word-break:break-all;min-height:44px;">—</div>
+        <div id="urlErr" class="text-xs text-red-600 mt-2 font-semibold"></div>
+      </div>
+
+      <!-- SIDE BY SIDE -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-1">encodeURIComponent <span class="text-slate-400 font-normal text-sm">vs</span> encodeURI — the same input, two rules</div>
+        <p class="text-sm text-slate-500 mb-3"><code>encodeURIComponent</code> escapes <em>everything</em> that isn't unreserved — including the structural characters below — so it is right for a single <strong>value or segment</strong>. <code>encodeURI</code> deliberately <strong>leaves those structural characters intact</strong> so a whole URL still works, so it is right for an <strong>already-built link</strong>.</p>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">encodeURIComponent <span class="text-amber-600">(strict — for a value)</span></div>
+            <div id="cmpComp" class="field mono text-sm" style="white-space:pre-wrap;word-break:break-all;min-height:44px;">—</div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">encodeURI <span class="text-emerald-600">(gentle — for a whole URL)</span></div>
+            <div id="cmpUri" class="field mono text-sm" style="white-space:pre-wrap;word-break:break-all;min-height:44px;">—</div>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">Characters <code>encodeURIComponent</code> escapes that <code>encodeURI</code> keeps (the URL's structural delimiters):
+          <span class="chip">; </span><span class="chip">,</span><span class="chip">/</span><span class="chip">?</span><span class="chip">:</span><span class="chip">@</span><span class="chip">&amp;</span><span class="chip">=</span><span class="chip">+</span><span class="chip">$</span><span class="chip">#</span>
+        </p>
+      </div>
+
+      <!-- UTF-8 BYTE BREAKDOWN -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">Under the hood: characters → UTF-8 bytes → <code>%XX</code></div>
+          <div class="flex gap-1 flex-wrap">
+            <button class="bsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="café 😀">café 😀</button>
+            <button class="bsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="€ ¥ 日本">€ ¥ 日本</button>
+            <button class="bsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="A-b_c.d~e">A-b_c.d~e</button>
+          </div>
+        </div>
+        <input id="byteIn" class="field mono text-sm w-full" spellcheck="false" value="café 😀" />
+        <p class="text-xs text-slate-500 mt-2 mb-3">Unreserved characters (<code>A–Z a–z 0–9 - _ . ~</code>) pass through untouched. Everything else is encoded byte-by-byte: ASCII is one byte, <code>é</code> is two, most CJK is three, an emoji is four — one <code>%XX</code> per byte.</p>
+        <div class="overflow-x-auto">
+          <table class="grid"><thead><tr><th>char</th><th>code point</th><th>UTF-8 bytes</th><th>result</th></tr></thead><tbody id="byteRows"></tbody></table>
+        </div>
+      </div>
+
+      <!-- QUERY BUILDER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">Query-string builder <span class="text-slate-400 font-normal text-sm">— each key &amp; value encoded separately</span></div>
+          <button id="qbAdd" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">+ Add pair</button>
+        </div>
+        <div id="qbRows" class="space-y-2"></div>
+        <div class="mt-3 flex items-center justify-between">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Built query string</div>
+          <button id="qbCopy" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+        </div>
+        <div id="qbOut" class="field good mono text-sm mt-1" style="white-space:pre-wrap;word-break:break-all;min-height:44px;">—</div>
+      </div>
+
+      <!-- QUERY PARSER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-2">Query-string parser <span class="text-slate-400 font-normal text-sm">— paste a URL, get decoded params</span></div>
+        <input id="qpIn" class="field mono text-sm w-full" spellcheck="false" value="https://shop.example.com/items?q=hello%20world&tag=caf%C3%A9&price=%241%2C000&note=a+b#reviews" />
+        <div id="qpMeta" class="text-xs text-slate-500 mt-2"></div>
+        <div class="overflow-x-auto mt-3">
+          <table class="grid"><thead><tr><th>key</th><th>raw value</th><th>decoded value</th></tr></thead><tbody id="qpRows"></tbody></table>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">Note the <code>note=a+b</code> pair: in a query string a <code>+</code> is the form-encoded space, so the parser decodes it to <code>a b</code>. In a path, a <code>+</code> is a literal plus — same byte, different meaning depending on where it sits.</p>
+      </div>
+
+      <!-- NOTE -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">The two mistakes everybody makes</div>
+        <p class="text-sm text-amber-800"><strong>1. Encoding the whole URL with <code>encodeURIComponent</code>.</strong> It escapes the <code>://</code>, <code>?</code> and <code>&amp;</code> too, so <code>https%3A%2F%2F…</code> is no longer a link. Encode the <em>values</em>, then assemble. <strong>2. Double-encoding.</strong> Run an already-encoded string through the encoder again and <code>%20</code> becomes <code>%2520</code> (the <code>%</code> itself gets escaped to <code>%25</code>). Decode-then-re-encode, and decode <em>exactly once</em> on the way in. And always wrap <code>decodeURIComponent</code> in a <code>try/catch</code> — a stray <code>%</code> or <code>%zz</code> throws a <code>URIError</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How URL encoding really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A URL toolkit is three small pieces: a <strong>percent-encoder</strong> (character → UTF-8 bytes → <code>%XX</code>), a <strong>decoder</strong> that reverses it safely, and a pair of <strong>query helpers</strong> that build and parse <code>?a=1&amp;b=2</code>. The browser already ships <code>encodeURIComponent</code> / <code>encodeURI</code> / <code>decodeURIComponent</code> — use those in production — but rolling the encoder by hand once is the fastest way to <em>see</em> what percent-encoding is. Below is the whole thing in vanilla JS — the same code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The unreserved set + a byte→%XX helper</h3></div>
+        <p class="text-sm text-slate-600 mb-3">RFC 3986 says only these characters may appear literally with no special meaning: letters, digits, and <code>-</code> <code>_</code> <code>.</code> <code>~</code>. Everything else must be percent-encoded. Start with the two primitives: a test for "is this unreserved?" and a function that turns one byte into <code>%</code> plus two uppercase hex digits.</p>
+        <div class="relative"><pre>const isUnreserved = ch => /[A-Za-z0-9\-_.~]/.test(ch);
+
+// one byte -> "%" + two UPPERCASE hex digits, zero-padded
+const pctByte = b => "%" + b.toString(16).toUpperCase().padStart(2, "0");
+
+pctByte(32);   // "%20"  (space)
+pctByte(233);  // "%E9"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Encode a character to its UTF-8 bytes</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Percent-encoding is defined over <em>bytes</em>, and the web's byte encoding is UTF-8. A code point below <code>0x80</code> is one byte; below <code>0x800</code> is two; below <code>0x10000</code> is three; above that (emoji, rare scripts) is four. This tiny encoder is what makes <code>é</code> two <code>%XX</code> and 😀 four.</p>
+        <div class="relative"><pre>function utf8Bytes(str){
+  const out = [];
+  for (const ch of str){            // for..of walks by code point
+    let c = ch.codePointAt(0);
+    if (c &lt; 0x80)       out.push(c);
+    else if (c &lt; 0x800) out.push(0xC0 | c&gt;&gt;6,  0x80 | c&amp;63);
+    else if (c &lt; 0x10000)out.push(0xE0 | c&gt;&gt;12, 0x80 | c&gt;&gt;6&amp;63, 0x80 | c&amp;63);
+    else                out.push(0xF0 | c&gt;&gt;18, 0x80 | c&gt;&gt;12&amp;63, 0x80 | c&gt;&gt;6&amp;63, 0x80 | c&amp;63);
+  }
+  return out;
+}
+utf8Bytes("é");   // [195, 169]  -> %C3%A9
+utf8Bytes("😀");  // [240,159,152,128] -> %F0%9F%98%80</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">The hand-rolled percent-encoder</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Walk the string one code point at a time. If a character is unreserved (or in an explicit <code>safe</code> allow-list of characters you want to keep literal), pass it through. Otherwise, expand it to UTF-8 bytes and emit a <code>%XX</code> for each. The <code>safe</code> parameter is the single knob that separates the two standard encoders.</p>
+        <div class="relative"><pre>function percentEncode(str, safe = ""){
+  let out = "";
+  for (const ch of String(str)){
+    if (ch.charCodeAt(0) &lt; 128 &amp;&amp; (isUnreserved(ch) || safe.includes(ch)))
+      out += ch;                              // keep it literal
+    else
+      for (const b of utf8Bytes(ch)) out += pctByte(b);  // %XX per byte
+  }
+  return out;
+}
+percentEncode("a b/c");        // "a%20b%2Fc"
+percentEncode("a b/c", "/");   // "a%20b/c"   (slash whitelisted)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The two real encoders differ only by <code>safe</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">In practice you call the built-ins — but seeing them as one function with two safe-lists demystifies them. <code>encodeURIComponent</code> keeps <em>nothing</em> structural, so it is right for a single value. <code>encodeURI</code> keeps the URL's delimiters so an assembled link survives. Rule of thumb: <strong>component for the parts, URI for the whole.</strong></p>
+        <div class="relative"><pre>// conceptually:
+const encodeURIComponent = s =&gt; percentEncode(s, "!*'()");         // + unreserved
+const encodeURI          = s =&gt; percentEncode(s, "!*'();,/?:@&amp;=+$#-_.~");
+
+encodeURIComponent("a b/c?d=1"); // "a%20b%2Fc%3Fd%3D1"   (all escaped)
+encodeURI        ("a b/c?d=1");  // "a%20b/c?d=1"         (/, ?, = kept)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Decode — and survive malformed input</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Decoding reverses the map: find every <code>%XX</code>, read the byte, reassemble the UTF-8. <code>decodeURIComponent</code> does this — but it <strong>throws a <code>URIError</code></strong> on a broken escape (<code>%</code>, <code>%zz</code>, a lone <code>%E0</code>). User input <em>will</em> be broken, so always guard it and report the failure instead of crashing.</p>
+        <div class="relative"><pre>function safeDecode(s){
+  try { return { ok: true,  value: decodeURIComponent(s) }; }
+  catch (e) { return { ok: false, error: e.message }; }   // URIError
+}
+safeDecode("caf%C3%A9");  // { ok:true, value:"café" }
+safeDecode("bad%");       // { ok:false, error:"URI malformed" }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Build a query string safely</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The golden rule: encode each key and each value <em>separately</em>, then join with the structural characters yourself. Never encode the finished string — that would escape the very <code>=</code> and <code>&amp;</code> that give it structure. Skip empty keys so you never emit a stray <code>=value</code>.</p>
+        <div class="relative"><pre>function buildQuery(pairs){          // pairs: [ [key, value], ... ]
+  return pairs
+    .filter(([k]) =&gt; k !== "")
+    .map(([k, v]) =&gt; encodeURIComponent(k) + "=" + encodeURIComponent(v))
+    .join("&amp;");
+}
+buildQuery([["q","hello world"], ["tag","café"]]);
+// "q=hello%20world&amp;tag=caf%C3%A9"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Parse a query string back</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Reverse it: drop everything up to and including <code>?</code>, cut off any <code>#</code> fragment, split on <code>&amp;</code>, and split each pair on the <em>first</em> <code>=</code> (values can legally contain an encoded one). Decode both halves — and in a query string, turn <code>+</code> into a space first, the form-encoding convention.</p>
+        <div class="relative"><pre>const dec = s =&gt; { try { return decodeURIComponent(s.replace(/\+/g, " ")); }
+                   catch { return s; } };
+
+function parseQuery(url){
+  let qs = String(url).split("#")[0];          // drop fragment
+  const q = qs.indexOf("?"); if (q !== -1) qs = qs.slice(q + 1);
+  if (!qs) return [];
+  return qs.split("&").filter(Boolean).map(pair =&gt; {
+    const i = pair.indexOf("=");
+    return i === -1 ? [dec(pair), ""]
+                    : [dec(pair.slice(0, i)), dec(pair.slice(i + 1))];
+  });
+}
+parseQuery("?q=hello%20world&tag=caf%C3%A9");
+// [["q","hello world"], ["tag","café"]]</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The whole toolkit + the traps to avoid</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Round-tripping proves the pieces fit: <code>parseQuery(buildQuery(x))</code> gives <code>x</code> back. Two traps to burn in: <strong>double-encoding</strong> (<code>encode(encode(x))</code> turns <code>%20</code> into <code>%2520</code> — decode first), and <strong>trusting input</strong> (an unencoded value can smuggle an extra <code>&amp;key=</code> into your URL, or a <code>\r\n</code> into a redirect). Encode on the way out, decode once on the way in, validate redirect targets.</p>
+        <div class="relative"><pre>// round-trip:
+const pairs = [["a","1"], ["b","hello world"]];
+parseQuery("?" + buildQuery(pairs));   // [["a","1"],["b","hello world"]] ✓
+
+// double-encoding trap:
+encodeURIComponent("hello%20world");   // "hello%2520world"  ✗ (already encoded)
+
+// injection trap — encode the value, not the whole thing:
+"?next=" + encodeURIComponent(userInput);  // safe
+"?next=" + userInput;                       // open-redirect / param injection</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 29 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real URL toolkit: a hand-rolled <code>percentEncode()</code> that maps any character to its UTF-8 bytes and writes each as <code>%XX</code>, the insight that <code>encodeURIComponent</code> and <code>encodeURI</code> are the <em>same</em> function with different safe-lists (component for values, URI for whole links), a <code>safeDecode()</code> that survives malformed <code>%</code> escapes, and a <code>buildQuery</code>/<code>parseQuery</code> pair that round-trips — including the <code>+</code>-vs-<code>%20</code> space quirk. The lesson: <strong>encode the parts, never the whole; decode exactly once; and never trust raw input in a URL.</strong> <strong>👉 Tomorrow — Day 30:</strong> a <strong>JSON → YAML Converter</strong> — turn any JSON tree into clean, indented YAML in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==URL-ENGINE-START==  (pure, no DOM — this exact block is also eval'd by the Node test)
+// RFC 3986 unreserved characters — the only bytes that never need encoding.
+const isUnreserved = ch => /[A-Za-z0-9\-_.~]/.test(ch);
+
+// one byte -> "%" + two UPPERCASE hex digits
+const pctByte = b => "%" + b.toString(16).toUpperCase().padStart(2, "0");
+
+// encode a JS string to its UTF-8 byte sequence (1..4 bytes per code point)
+function utf8Bytes(str){
+  const out = [];
+  for (const ch of String(str)){
+    const c = ch.codePointAt(0);
+    if (c < 0x80)        out.push(c);
+    else if (c < 0x800)  out.push(0xC0 | (c >> 6),  0x80 | (c & 0x3F));
+    else if (c < 0x10000)out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
+    else                 out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 0x3F), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
+  }
+  return out;
+}
+
+// hand-rolled percent-encoder (teaching view). `safe` = extra ASCII chars to keep literal.
+function percentEncode(str, safe = ""){
+  let out = "";
+  for (const ch of String(str)){
+    if (ch.charCodeAt(0) < 128 && (isUnreserved(ch) || safe.indexOf(ch) !== -1)) out += ch;
+    else for (const b of utf8Bytes(ch)) out += pctByte(b);
+  }
+  return out;
+}
+
+// decode-with-a-net: never let a malformed %escape throw uncaught
+function safeDecode(s){
+  try { return { ok: true, value: decodeURIComponent(String(s)) }; }
+  catch (e) { return { ok: false, error: e.message || "URI malformed" }; }
+}
+
+// in a query string, "+" is a space; decode it that way, then percent-decode
+function decComponent(s){
+  try { return decodeURIComponent(String(s).replace(/\+/g, " ")); }
+  catch (e) { return String(s); }
+}
+
+// build "a=1&b=hello%20world" from [ [key,value], ... ] — each half encoded separately
+function buildQuery(pairs){
+  return pairs
+    .filter(p => p[0] !== "" && p[0] != null)
+    .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v == null ? "" : v))
+    .join("&");
+}
+
+// parse any URL or query string into decoded [key, value] pairs
+function parseQuery(url){
+  let qs = String(url).split("#")[0];            // drop fragment
+  const q = qs.indexOf("?"); if (q !== -1) qs = qs.slice(q + 1);
+  if (!qs) return [];
+  return qs.split("&").filter(Boolean).map(pair => {
+    const i = pair.indexOf("=");
+    return i === -1 ? [decComponent(pair), ""]
+                    : [decComponent(pair.slice(0, i)), decComponent(pair.slice(i + 1))];
+  });
+}
+// ==URL-ENGINE-END==
+
+// ===== LOOK render =====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+const urlIn = document.getElementById("urlIn");
+const urlOut = document.getElementById("urlOut");
+const urlErr = document.getElementById("urlErr");
+const outMode = document.getElementById("outMode");
+let mainOut = "";
+
+function countEscapes(s){ const m = String(s).match(/%[0-9A-Fa-f]{2}/g); return m ? m.length : 0; }
+
+function setStats(){
+  const text = urlIn.value;
+  document.getElementById("ccStat").textContent = [...text].length;
+  document.getElementById("byStat").textContent = utf8Bytes(text).length;
+  document.getElementById("esStat").textContent = countEscapes(mainOut);
+}
+
+function runMain(mode){
+  const text = urlIn.value;
+  urlErr.textContent = "";
+  try {
+    if (mode === "component"){ mainOut = encodeURIComponent(text); outMode.textContent = "— encodeURIComponent"; }
+    else if (mode === "uri"){  mainOut = encodeURI(text);          outMode.textContent = "— encodeURI"; }
+    else {                     mainOut = decodeURIComponent(text); outMode.textContent = "— decodeURIComponent"; }
+    urlOut.classList.remove("bad"); urlOut.classList.add("good");
+    urlOut.textContent = mainOut || "—";
+  } catch (e){
+    mainOut = "";
+    urlOut.classList.remove("good"); urlOut.classList.add("bad");
+    urlOut.textContent = "";
+    urlErr.textContent = "⚠ " + (e.name || "URIError") + ": " + (e.message || "malformed") + " — check for a stray % or an incomplete %XX escape.";
+  }
+  setStats();
+}
+
+function renderCompare(){
+  const text = urlIn.value;
+  document.getElementById("cmpComp").textContent = encodeURIComponent(text) || "—";
+  try { document.getElementById("cmpUri").textContent = encodeURI(text) || "—"; }
+  catch (e){ document.getElementById("cmpUri").textContent = "(invalid for encodeURI)"; }
+}
+
+document.getElementById("encComp").onclick = () => runMain("component");
+document.getElementById("encUri").onclick  = () => runMain("uri");
+document.getElementById("dec").onclick      = () => runMain("decode");
+document.getElementById("copyMain").onclick = e => copyText(mainOut, e.target);
+
+urlIn.addEventListener("input", () => { renderCompare(); runMain(document.activeElement === urlIn ? currentMode() : "component"); });
+function currentMode(){ const t = outMode.textContent; return t.includes("decode") ? "decode" : t.includes("URIComponent") ? "component" : "uri"; }
+
+document.querySelectorAll(".sample").forEach(b => b.onclick = () => {
+  urlIn.value = b.dataset.s; renderCompare(); runMain("component");
+});
+
+// ===== UTF-8 byte breakdown =====
+const byteIn = document.getElementById("byteIn");
+function renderBytes(){
+  const str = byteIn.value;
+  const tb = document.getElementById("byteRows");
+  tb.innerHTML = "";
+  for (const ch of str){
+    const cp = ch.codePointAt(0);
+    const bytes = utf8Bytes(ch);
+    const hex = bytes.map(b => b.toString(16).toUpperCase().padStart(2, "0"));
+    const unreserved = ch.charCodeAt(0) < 128 && isUnreserved(ch);
+    const label = ch === " " ? '<span class="text-slate-400">space</span>' : escapeHtml(ch);
+    const cpHex = "U+" + cp.toString(16).toUpperCase().padStart(4, "0");
+    const result = unreserved
+      ? `<span class="keep">${escapeHtml(ch)}</span> <span class="text-slate-400 text-xs">(unreserved — kept)</span>`
+      : hex.map(h => `<span class="pct">%${h}</span>`).join("");
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td>${label}</td><td>${cpHex}</td><td>${bytes.length} byte${bytes.length>1?"s":""} · ${hex.join(" ")}</td><td>${result}</td></tr>`);
+  }
+  if (!str) tb.innerHTML = `<tr><td colspan="4" class="text-slate-400">type something above</td></tr>`;
+}
+byteIn.addEventListener("input", renderBytes);
+document.querySelectorAll(".bsample").forEach(b => b.onclick = () => { byteIn.value = b.dataset.s; renderBytes(); });
+
+// ===== Query builder =====
+const qbRows = document.getElementById("qbRows");
+function addRow(k = "", v = ""){
+  const row = document.createElement("div");
+  row.className = "qb-row flex gap-2 items-center";
+  row.innerHTML =
+    `<input class="qb-k flex-1" placeholder="key" value="${escapeHtml(k)}">
+     <span class="text-slate-400 font-bold">=</span>
+     <input class="qb-v flex-1" placeholder="value" value="${escapeHtml(v)}">
+     <button class="qb-del mini px-3 py-1.5 rounded-lg font-semibold text-xs" style="background:#ef4444;box-shadow:0 3px 0 #b91c1c;">✕</button>`;
+  row.querySelectorAll("input").forEach(i => i.addEventListener("input", buildFromRows));
+  row.querySelector(".qb-del").onclick = () => { row.remove(); buildFromRows(); };
+  qbRows.appendChild(row);
+}
+function buildFromRows(){
+  const pairs = [...qbRows.querySelectorAll(".qb-row")].map(r => [r.querySelector(".qb-k").value, r.querySelector(".qb-v").value]);
+  const qs = buildQuery(pairs);
+  window.__qbOut = qs ? "?" + qs : "";
+  document.getElementById("qbOut").textContent = qs ? "?" + qs : "—";
+}
+document.getElementById("qbAdd").onclick = () => { addRow("", ""); buildFromRows(); };
+document.getElementById("qbCopy").onclick = e => copyText(window.__qbOut || "", e.target);
+
+// ===== Query parser =====
+const qpIn = document.getElementById("qpIn");
+function renderParse(){
+  const url = qpIn.value;
+  const tb = document.getElementById("qpRows");
+  tb.innerHTML = "";
+  // meta: base + fragment
+  const frag = url.split("#")[1];
+  const base = url.split("#")[0].split("?")[0];
+  document.getElementById("qpMeta").innerHTML =
+    `base <code class="mono">${escapeHtml(base) || "—"}</code>` + (frag != null ? ` &nbsp;·&nbsp; fragment <code class="mono">#${escapeHtml(frag)}</code>` : "");
+  // raw pairs for the "raw" column
+  let qs = url.split("#")[0]; const q = qs.indexOf("?"); if (q !== -1) qs = qs.slice(q + 1); else qs = "";
+  const rawPairs = qs ? qs.split("&").filter(Boolean) : [];
+  const decoded = parseQuery(url);
+  if (!decoded.length){ tb.innerHTML = `<tr><td colspan="3" class="text-slate-400">no query parameters</td></tr>`; return; }
+  decoded.forEach((pair, idx) => {
+    const raw = rawPairs[idx] || "";
+    const rawV = raw.indexOf("=") !== -1 ? raw.slice(raw.indexOf("=") + 1) : "";
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td>${escapeHtml(pair[0])}</td><td class="text-slate-500">${escapeHtml(rawV) || "—"}</td><td class="keep">${escapeHtml(pair[1]) || "—"}</td></tr>`);
+  });
+}
+qpIn.addEventListener("input", renderParse);
+
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why URLs need encoding at all", why:"A URL is not free text — RFC 3986 defines a tiny legal alphabet. Only the unreserved characters (A–Z, a–z, 0–9 and - _ . ~) are safe everywhere. A second group, the reserved characters (: / ? # [ ] @ ! $ & ' ( ) * + , ; =), are the URL's punctuation: they separate the scheme from the host, the path from the query, one parameter from the next. Everything else — spaces, accents, emoji, control characters — has no representation in a URL at all. So when a value contains a space, an ampersand, or a café's é, you cannot just drop it in: a raw space truncates the URL, a raw & splits your one value into two parameters. Percent-encoding is the escape hatch that lets any byte ride safely inside that tiny alphabet.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="mb-2"><span class="keep">unreserved</span> &nbsp; A-Z a-z 0-9 <span class="chip">-</span><span class="chip">_</span><span class="chip">.</span><span class="chip">~</span></div><div class="mb-2"><span class="text-blue-700">reserved (delimiters)</span> &nbsp; <span class="chip">:</span><span class="chip">/</span><span class="chip">?</span><span class="chip">#</span><span class="chip">&amp;</span><span class="chip">=</span><span class="chip">@</span></div><div><span class="seg seg-strip">everything else</span> &nbsp; space é 😀 … → must be %-encoded</div></div>`, code:`// raw value breaks the URL:
+"/search?q=tom & jerry"
+//            ^ space ends the URL,  & starts a new param
+
+// encoded value is safe:
+"/search?q=tom%20%26%20jerry"   //  %20 = space,  %26 = &` },
+ { title:"2. Percent-encoding = % + hex of each byte", why:"The mechanism is mechanical and total: take the character, get its byte(s), and write each byte as a percent sign followed by that byte's value in two hexadecimal digits. A space is byte 0x20, so it becomes %20. The uppercase-hex convention is normative. This is why encoded URLs look like a field of %XX: each one is exactly one byte. Decoding is the same map run backwards — spot a %, read the next two hex digits, that's your byte.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><div class="text-lg mb-2">space</div><div class="text-amber-600">byte 0x20</div><div class="text-lg mt-2"><span class="pct">%20</span></div><div class="text-slate-400 mt-3">'&amp;' → 0x26 → <span class="pct">%26</span> &nbsp; '?' → 0x3F → <span class="pct">%3F</span></div></div>`, code:`const pctByte = b => "%" + b.toString(16).toUpperCase().padStart(2,"0");
+pctByte(0x20);  // "%20"   space
+pctByte(0x26);  // "%26"   &
+pctByte(0x3F);  // "%3F"   ?
+// decode: "%3F" -> parseInt("3F",16) -> 63 -> "?"` },
+ { title:"3. Unicode → multiple UTF-8 bytes", why:"Percent-encoding operates on bytes, and the web encodes text as UTF-8, where a single character can be one to four bytes. ASCII characters are one byte (one %XX). A Latin-1 accent like é is two bytes → %C3%A9. Most CJK characters are three bytes → three escapes. Emoji and other astral-plane characters are four bytes → four escapes. That is why 'é' is not '%E9' (its Latin-1 code) but '%C3%A9' (its UTF-8 encoding), and why one emoji balloons into %F0%9F%98%80. Get the byte encoding wrong and the receiver decodes mojibake.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="mb-1">a &nbsp;→ 1 byte &nbsp;→ <span class="pct">%61</span> <span class="text-slate-400">(or kept literal)</span></div><div class="mb-1">é &nbsp;→ 2 bytes → <span class="pct">%C3</span><span class="pct">%A9</span></div><div class="mb-1">日 → 3 bytes → <span class="pct">%E6</span><span class="pct">%97</span><span class="pct">%A5</span></div><div>😀 → 4 bytes → <span class="pct">%F0</span><span class="pct">%9F</span><span class="pct">%98</span><span class="pct">%80</span></div></div>`, code:`encodeURIComponent("é");   // "%C3%A9"   (2 bytes)
+encodeURIComponent("日");  // "%E6%97%A5" (3 bytes)
+encodeURIComponent("😀");  // "%F0%9F%98%80" (4 bytes)
+// each %XX is exactly one UTF-8 byte of the character` },
+ { title:"4. encodeURIComponent vs encodeURI", why:"JavaScript ships two encoders and picking the wrong one is the #1 URL bug. encodeURIComponent is strict: it escapes every reserved character too — / ? : @ & = + $ , ; # — because it assumes you are encoding a single piece (one query value, one path segment) that must not accidentally introduce structure. encodeURI is gentle: it leaves those reserved characters alone because it assumes you handed it a whole, already-structured URL that it should only make legal without breaking. Use component for the parts you interpolate; use URI for a complete link. Never encodeURIComponent a whole URL — you would escape the :// and lose the link.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono text-xs"><div class="mb-2">input &nbsp; <span class="text-slate-500">a b/c?d=1</span></div><div class="mb-1"><span class="text-amber-600">Component</span> a%20b<span class="pct">%2F</span>c<span class="pct">%3F</span>d<span class="pct">%3D</span>1</div><div><span class="text-emerald-600">URI &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> a%20b<span class="keep">/</span>c<span class="keep">?</span>d<span class="keep">=</span>1</div><div class="text-slate-400 mt-2">component escapes / ? = ; URI keeps them</div></div>`, code:`const value = "tom & jerry";
+// value goes INSIDE a URL you build -> component
+"/search?q=" + encodeURIComponent(value);
+// -> "/search?q=tom%20%26%20jerry"
+
+// whole URL already assembled -> URI (keeps :// ? &)
+encodeURI("https://x.com/a b?q=café");
+// -> "https://x.com/a%20b?q=caf%C3%A9"` },
+ { title:"5. The + vs %20 space ambiguity", why:"There are two encodings in play and they disagree about spaces. Generic URL percent-encoding (RFC 3986) encodes a space as %20 everywhere. But application/x-www-form-urlencoded — the format HTML forms POST, and the one many query strings follow — encodes a space as +. So a decoder must know its context: inside a query string a literal + means space and should be decoded as one; inside a path a + is just a plus. encodeURIComponent always produces %20 (never +), but when you PARSE a query string you should replace + with space before percent-decoding. Miss this and 'a+b' silently stays 'a+b' or 'a b' when you didn't expect it.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full text-center font-mono"><div class="mb-2"><span class="text-slate-500">"a b"</span> encodes to…</div><div class="mb-1">URL rule &nbsp;→ <span class="pct">a%20b</span></div><div class="mb-3">form rule → <span class="pct">a+b</span></div><div class="text-slate-400">decoding a query: <span class="pct">+</span> → space, THEN %-decode</div></div>`, code:`// query-string decode must handle + as space:
+const dec = s => decodeURIComponent(s.replace(/\\+/g, " "));
+dec("a+b");        // "a b"
+dec("a%20b");      // "a b"
+decodeURIComponent("a+b");  // "a+b"  <-- plus NOT touched!` },
+ { title:"6. Building a query string safely", why:"A query string has a rigid shape: a leading ?, then key=value pairs joined by &, optionally a #fragment after. The one rule that keeps it correct: encode each key and each value on its own with encodeURIComponent, then join them with the raw = and & yourself. If you build the string first and encode it afterwards, you destroy the structure — the & and = separating your fields get escaped into %26 and %3D and the server sees one giant value. Also drop empty keys so you never emit a dangling =value with no name.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono text-center"><div class="my-1"><span class="chip">q</span><span class="text-slate-400">=</span><span class="chip">hello world</span> &nbsp; <span class="chip">tag</span><span class="text-slate-400">=</span><span class="chip">café</span></div><div class="text-amber-600 my-1">↓ encode each half, join with = and &amp; ↓</div><div><span class="pct">?q=hello%20world&amp;tag=caf%C3%A9</span></div></div>`, code:`function buildQuery(pairs){
+  return pairs
+    .filter(([k]) => k !== "")
+    .map(([k,v]) => encodeURIComponent(k)+"="+encodeURIComponent(v))
+    .join("&");
+}
+buildQuery([["q","hello world"],["tag","café"]]);
+// "q=hello%20world&tag=caf%C3%A9"` },
+ { title:"7. Parsing a query string back", why:"Parsing is the mirror image, with a few sharp edges. Strip everything up to and including the ?, and cut off any #fragment first (it is not part of the query). Split on & to get each pair, then split each pair on the FIRST = only — a value may legally contain an encoded '=' (%3D) or even a literal one. Decode the key and value independently, remembering the + → space rule from step 5. Handle a pair with no = (a bare flag) as a key with an empty value. Build these rules in and a messy real-world URL parses cleanly.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>?q=hello%20world&amp;tag=caf%C3%A9#top</div><div class="text-amber-600 my-1">↓ drop #top, split &amp;, split first = , decode ↓</div><div><span class="chip">q</span> → hello world</div><div><span class="chip">tag</span> → café</div></div>`, code:`function parseQuery(url){
+  let qs = url.split("#")[0];               // drop fragment
+  const q = qs.indexOf("?"); if (q!==-1) qs = qs.slice(q+1);
+  return qs ? qs.split("&").filter(Boolean).map(p => {
+    const i = p.indexOf("=");               // FIRST = only
+    const d = s => decodeURIComponent(s.replace(/\\+/g," "));
+    return i===-1 ? [d(p),""] : [d(p.slice(0,i)), d(p.slice(i+1))];
+  }) : [];
+}` },
+ { title:"8. Decoding & malformed input", why:"Decoding is where user input bites. decodeURIComponent does not fail softly — it throws a URIError the moment it meets a broken escape: a lone % at the end, a %zz that is not hex, or a byte sequence that is not valid UTF-8 like a truncated %E0. Because URLs come from the outside world (query params, pasted links, redirect targets) you must assume they are broken and wrap every decode in try/catch, reporting the error instead of letting it crash the request. The sister bug is double-encoding: encode an already-encoded string and every % becomes %25, so %20 turns into %2520 — decode it once and you are left with a literal %20, not a space.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-red-700 mb-1">decode("bad%")   → 🚫 URIError</div><div class="text-red-700 mb-1">decode("%zz")    → 🚫 URIError</div><div class="text-red-700 mb-2">decode("%E0")    → 🚫 malformed UTF-8</div><div class="text-amber-700">encode("%20") → "%2520"  (double-encoded)</div></div>`, code:`function safeDecode(s){
+  try { return { ok:true, value: decodeURIComponent(s) }; }
+  catch (e){ return { ok:false, error: e.message }; } // URIError
+}
+safeDecode("caf%C3%A9"); // {ok:true, value:"café"}
+safeDecode("oops%");     // {ok:false, error:"URI malformed"}
+
+encodeURIComponent("%20"); // "%2520"  <-- double-encoding trap` },
+ { title:"9. Security: never trust raw input in a URL", why:"URL encoding is not just cosmetic — skipping it is a real vulnerability. If you concatenate unencoded user input into a URL, an attacker can inject their own parameters: a value of 'x&admin=true' silently adds an admin=true param to your request. In a redirect, an unencoded value carrying a CRLF (%0D%0A) enables HTTP response splitting / header injection. And a 'next' or 'returnUrl' parameter that you redirect to without validation is a classic open-redirect used for phishing. The defense is a discipline: encode every untrusted value with encodeURIComponent before it enters a URL, decode exactly once on the way in, and validate redirect targets against an allow-list of hosts rather than trusting the string.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-red-700 mb-1">?next=" + userInput</div><div class="text-red-700 mb-2">userInput = "x&role=admin" → param injection</div><div class="text-green-700 mb-1">?next=" + encodeURIComponent(userInput)</div><div class="text-green-700">+ validate host against an allow-list</div></div>`, code:`// UNSAFE — attacker controls the URL structure:
+location = "/go?next=" + userInput;      // open-redirect / injection
+
+// SAFE — encode the value, then validate the target:
+const url = "/go?next=" + encodeURIComponent(userInput);
+const dest = new URL(userInput, location.origin);
+if (ALLOWED_HOSTS.has(dest.host)) location = dest.href;` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3000); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+addRow("q", "café & bar");
+addRow("page", "2");
+addRow("sort", "price asc");
+buildFromRows();
+renderCompare();
+runMain("component");
+renderBytes();
+renderParse();
+</script>
+</body>
+</html>
