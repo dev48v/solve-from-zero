@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 30 — JSON ⇄ YAML Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .out-row { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .out-row:last-child { border-bottom:none; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:96px; }
+  .stage { display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .stage:last-child { border-bottom:none; }
+  .stage .lbl { min-width:150px; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .stage .val { font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .seg { padding:1px 3px; border-radius:4px; }
+  .seg-strip { background:#fecaca; color:#991b1b; }
+  .seg-lower { background:#fef3c7; color:#92400e; }
+  .seg-hy    { background:#bfdbfe; color:#1e40af; }
+  .seg-keep  { background:#fde68a; color:#92400e; }
+  .pct { background:#fde68a; color:#92400e; padding:0 2px; border-radius:3px; }
+  .keep { color:#166534; }
+  .row-hover:hover { background:#fffbeb; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  table.grid { width:100%; border-collapse:collapse; font-size:13px; }
+  table.grid th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; font-weight:700; padding:6px 10px; border-bottom:1px solid #e2e8f0; }
+  table.grid td { padding:6px 10px; border-bottom:1px solid #f1f5f9; font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  .qb-k, .qb-v { border:1px solid #fde68a; border-radius:8px; padding:6px 10px; font-family:ui-monospace, Menlo, monospace; font-size:13px; }
+  .qb-k:focus, .qb-v:focus { outline:2px solid #f59e0b; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 30</div>
+      <h1 class="text-xl font-bold">🔁 JSON ⇄ YAML Converter — a hand-rolled emitter and indentation parser, both ways, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">The same data, two ways of writing it down — convert either direction, live.</h2>
+        <p class="text-slate-500 mb-5">JSON and YAML describe the <em>exact same</em> data model — objects, arrays, and four scalar types (string, number, boolean, null). They differ only in <strong>syntax</strong>: JSON marks structure with <code>{ }</code>, <code>[ ]</code>, quotes and commas; YAML marks it with <strong>indentation</strong> and a few punctuation cues, which is why config files (Kubernetes, GitHub Actions, Docker Compose) prefer it. This page is a real, offline, bidirectional converter with <strong>no library</strong>: a YAML <em>emitter</em> that walks a JSON tree and prints indented YAML, and a YAML <em>parser</em> that turns indentation back into structure. Paste either format on the left and watch the other appear — with the quoting rules, block scalars, and the famous gotchas all handled.</p>
+      </div>
+
+      <!-- MAIN CONVERTER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div class="flex gap-1 items-center">
+            <button id="dirJ2Y" class="mini toggle-on px-4 py-2 rounded-lg font-semibold text-sm">JSON → YAML</button>
+            <button id="dirY2J" class="bg-slate-100 px-4 py-2 rounded-lg font-semibold text-sm">YAML → JSON</button>
+            <button id="swap" title="swap sides & flip direction" class="bg-slate-700 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-slate-800">⇄ Swap</button>
+          </div>
+          <div class="flex gap-1 flex-wrap" id="samples"></div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider" id="srcLabel">JSON in</div>
+              <button id="copySrc" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="src" class="field mono text-sm" spellcheck="false" style="min-height:340px;"></textarea>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider" id="outLabel">YAML out</div>
+              <button id="copyOut" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="out" class="field good mono text-sm" spellcheck="false" readonly style="min-height:340px;"></textarea>
+          </div>
+        </div>
+        <div id="err" class="text-xs text-red-600 mt-2 font-semibold"></div>
+        <div class="mt-3 flex gap-5 items-center flex-wrap">
+          <div class="text-right"><div class="text-2xl font-bold stat text-amber-600" id="stNodes">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">nodes</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stKeys">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">keys</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stDepth">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">max depth</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stBytes">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">output bytes</div></div>
+        </div>
+      </div>
+
+      <!-- QUOTING TESTER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">When does a string get quoted? <span class="text-slate-400 font-normal text-sm">— the ambiguity guard</span></div>
+          <div class="flex gap-1 flex-wrap">
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="hello">hello</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="123">123</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="yes">yes</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="no">no</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="null">null</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="2020-01-01">2020-01-01</button>
+            <button class="qsample bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs mono" data-s="a: b">a: b</button>
+          </div>
+        </div>
+        <input id="qIn" class="field mono text-sm w-full" spellcheck="false" value="yes" />
+        <p class="text-xs text-slate-500 mt-2 mb-3">A plain (unquoted) YAML scalar is safe only if it can't be mistaken for something else. Type a string and see how the emitter writes it as a value — and <em>why</em> it did or didn't wrap it in quotes.</p>
+        <div class="overflow-x-auto">
+          <table class="grid"><thead><tr><th>your string</th><th>YAML value</th><th>quoted?</th><th>reason</th></tr></thead><tbody id="qRows"></tbody></table>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">The four things that bite everyone</div>
+        <p class="text-sm text-amber-800"><strong>1. The Norway problem.</strong> Unquoted <code>no</code>, <code>yes</code>, <code>on</code>, <code>off</code> are booleans in YAML 1.1 — so a country-code list with <code>NO</code> silently becomes <code>false</code>. Quote strings that look like keywords. <strong>2. Tabs are illegal for indentation.</strong> YAML only allows spaces; a stray tab is a parse error, and it's invisible in most editors. <strong>3. Comments are lost on a JSON round-trip.</strong> YAML has <code># comments</code>; JSON has none. Convert YAML → JSON → YAML and every comment is gone — JSON simply has nowhere to keep them. <strong>4. Anchors &amp; aliases</strong> (<code>&amp;name</code> / <code>*name</code>) let YAML reference repeated blocks; JSON has no equivalent, so they're flattened (copied) or dropped on conversion.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How JSON ⇄ YAML really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A converter is two mirrored halves. The JSON side is free — the language ships <code>JSON.parse</code> and <code>JSON.stringify</code>. So the real work is the YAML side: an <strong>emitter</strong> that walks a parsed tree and prints indented YAML, and a <strong>parser</strong> that reads indentation back into a tree. In production reach for <a class="text-amber-600 underline" href="https://github.com/nodeca/js-yaml">js-yaml</a> (it handles the full 1.2 spec — anchors, tags, flow, multi-document); but rolling a working subset by hand is the fastest way to <em>see</em> that YAML and JSON are the same data wearing different clothes. Below is the whole thing in vanilla JS — the exact code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Two formats, one data model</h3></div>
+        <p class="text-sm text-slate-600 mb-3">JSON and YAML both encode the same four scalar types (string, number, boolean, null) plus objects and arrays. That is the whole reason a lossless conversion is even possible. So <code>JSON.parse</code> gives you a plain JS tree, and all you have to build is the code that prints that tree as YAML and reads it back. Start with the one predicate the emitter leans on: is this node a leaf scalar, or a container to recurse into?</p>
+        <div class="relative"><pre>const isScalar = v =&gt; v === null || typeof v !== "object";
+
+function emitScalar(v){
+  if (v === null)  return "null";
+  if (v === true)  return "true";
+  if (v === false) return "false";
+  if (typeof v === "number") return String(v);
+  const s = String(v);
+  return needsQuote(s) ? JSON.stringify(s) : s;   // quote only if ambiguous
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The ambiguity guard: when to quote a string</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the single most important function. In YAML an unquoted scalar is <em>interpreted</em>: <code>123</code> is a number, <code>true</code> is a boolean, <code>null</code> is null, and — the infamous Norway problem — <code>no</code> is <strong>false</strong>. So a string is only safe to leave bare if it cannot be read as anything else. Quote it when it looks like a number, bool, null, or date, when it starts with a YAML indicator character, or when it contains a <code>": "</code> or <code>" #"</code> that would break the line.</p>
+        <div class="relative"><pre>function needsQuote(s){
+  if (s === "") return true;
+  if (/^(null|~|true|false|yes|no|on|off)$/i.test(s)) return true;  // bool/null (Norway!)
+  if (/^[-+]?(\d[\d_]*\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return true; // number-like
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return true;                    // date-like
+  if (/^\s|\s$/.test(s)) return true;                               // edge whitespace
+  if (/^[!&amp;*?|&gt;%@`"'#,\[\]{}]/.test(s)) return true;               // leading indicator
+  if (/:(\s|$)/.test(s) || /\s#/.test(s)) return true;             // "key: v" / " # c" clash
+  return false;
+}
+needsQuote("yes");   // true  -> written as "yes"
+needsQuote("hello"); // false -> written bare</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">The emitter: walk the tree, indent by depth</h3></div>
+        <p class="text-sm text-slate-600 mb-3">YAML structure <em>is</em> indentation. So the emitter is a recursion that carries the current depth: a mapping prints <code>key: value</code> for scalars, or <code>key:</code> then its children two spaces deeper; a sequence prints one <code>- item</code> per element. Empty containers can't be shown by indentation (there's nothing to indent) so they fall back to the inline <code>{}</code> / <code>[]</code> flow form.</p>
+        <div class="relative"><pre>function writeMapping(obj, indent, lines){
+  const pad = " ".repeat(indent);
+  for (const k of Object.keys(obj)){
+    const v = obj[k], key = needsQuote(k) ? JSON.stringify(k) : k;
+    if (isScalar(v))            lines.push(pad + key + ": " + emitScalar(v));
+    else if (Array.isArray(v))  v.length ? (lines.push(pad+key+":"), writeSequence(v, indent+2, lines))
+                                         : lines.push(pad + key + ": []");
+    else                        Object.keys(v).length ? (lines.push(pad+key+":"), writeMapping(v, indent+2, lines))
+                                         : lines.push(pad + key + ": {}");
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Sequences — and objects inside them</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each array element gets a <code>- </code>. A scalar is trivial; a nested array or object goes deeper. The pretty trick is an object element: emit its mapping normally, then <em>hoist the first key onto the dash line</em> so you get the idiomatic <code>- id: 1</code> with the rest aligned underneath. That one string splice is the difference between readable and ugly YAML.</p>
+        <div class="relative"><pre>function writeSequence(arr, indent, lines){
+  const pad = " ".repeat(indent);
+  for (const item of arr){
+    if (isScalar(item))          lines.push(pad + "- " + emitScalar(item));
+    else if (Array.isArray(item))(lines.push(pad + "-"), writeSequence(item, indent+2, lines));
+    else {                       // object element
+      const sub = [];
+      writeMapping(item, indent + 2, sub);
+      sub[0] = pad + "- " + sub[0].slice(indent + 2);   // first key onto the dash
+      for (const l of sub) lines.push(l);
+    }
+  }
+}
+// -> "- id: 1\n  lead: true"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Multi-line strings → block scalars <code>|</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">A string with newlines would be unreadable double-quoted with <code>\n</code> everywhere. YAML's answer is the <strong>literal block scalar</strong> <code>|</code>: write the text as indented lines and newlines are preserved verbatim. The trailing character is the <em>chomping indicator</em> — <code>|-</code> strips the final newline, <code>|</code> keeps exactly one, <code>|+</code> keeps them all. (Its sibling <code>&gt;</code> is the <em>folded</em> scalar, which turns single newlines into spaces.)</p>
+        <div class="relative"><pre>function blockHeader(str){
+  if (!str.endsWith("\n"))   return "|-";   // strip
+  if (!str.endsWith("\n\n")) return "|";    // clip (one trailing \n)
+  return "|+";                              // keep
+}
+// { note: "line one\nline two" }  ->
+//   note: |-
+//     line one
+//     line two</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Reading a scalar back</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The parser's leaf step is <code>emitScalar</code> in reverse: a quoted token keeps its literal text; a bare token is <em>coerced</em> — <code>null</code>/<code>~</code> to null, <code>true</code>/<code>false</code> to booleans, digits to a number, everything else stays a string. Because the emitter quoted anything ambiguous, this coercion is exactly what makes the round-trip lossless: <code>"123"</code> came back quoted, so it stays the string <code>"123"</code>, while bare <code>123</code> becomes the number.</p>
+        <div class="relative"><pre>function coerceScalar(s){
+  if (s === "~" || s === "null") return null;
+  if (/^true$/i.test(s))  return true;
+  if (/^false$/i.test(s)) return false;
+  if (/^[-+]?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s) &amp;&amp; /[.eE]/.test(s)) return parseFloat(s);
+  return s;                                  // plain string
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">The parser: indentation → structure</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The parser is recursive descent driven by the indent column. At a given indent it decides: does the line start with <code>- </code> (a sequence) or contain a <code>key:</code> (a mapping)? A mapping reads every sibling at that same indent; when a value is empty, it peeks — a deeper line is a nested block, otherwise the value is null. Finding the key/value colon means skipping any colon inside quotes, then requiring a following space.</p>
+        <div class="relative"><pre>function findColon(s){                 // the ": " that splits key from value
+  let inS = false, inD = false;
+  for (let k = 0; k &lt; s.length; k++){
+    const c = s[k];
+    if (c === "'" &amp;&amp; !inD) inS = !inS;
+    else if (c === '"' &amp;&amp; !inS) inD = !inD;
+    else if (c === ":" &amp;&amp; !inS &amp;&amp; !inD &amp;&amp; (k+1 &gt;= s.length || s[k+1] === " ")) return k;
+  }
+  return -1;
+}
+const indentOf = l =&gt; { let n = 0; while (l[n] === " ") n++; return n; };</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The <code>- </code> rewrite trick + the traps</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Parsing <code>- id: 1</code> (a mapping that starts on the dash line) is the classic hard part. The neat shortcut: <strong>rewrite the dash and its space into plain spaces</strong>, so <code>- id: 1</code> becomes <code>&nbsp;&nbsp;id: 1</code> sitting at a deeper column — then recurse as if it were an ordinary mapping. The continuation lines already align there. Verify the whole thing by round-tripping. And remember the losses: <strong>comments and anchors vanish through JSON</strong>, because JSON has no place to store them.</p>
+        <div class="relative"><pre>// in parseSeq, for a "- rest" line at column `ind`:
+let j = 1; while (content[j] === " ") j++;      // skip past "- "
+const restCol = ind + j;
+lines[i] = " ".repeat(restCol) + content.slice(j);   // "- id: 1" -> "  id: 1"
+arr.push(parseNode(restCol));                        // recurse as a normal node
+
+// round-trip proof:
+parseYAML(toYAML(data));   // deep-equals `data`  ✓
+// note: YAML # comments do NOT survive a trip through JSON</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 30 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real bidirectional converter: a YAML <strong>emitter</strong> that walks a JSON tree and indents by depth, an <code>needsQuote()</code> ambiguity guard that keeps <code>"123"</code>, <code>"yes"</code> and <code>"null"</code> as strings (the Norway problem, solved), literal <strong>block scalars</strong> <code>|</code> for multi-line text, and a recursive-descent <strong>parser</strong> that turns indentation back into structure — including the <code>- </code>-rewrite trick for objects inside arrays. The lesson: <strong>JSON and YAML are the same data model; conversion is just re-printing the tree — and the only truly lossy parts are comments and anchors, which JSON has nowhere to keep.</strong> <strong>👉 Tomorrow — Day 31:</strong> a <strong>SQL Formatter</strong> — pretty-print and indent any SQL query in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==YAML-ENGINE-START==  (pure, no DOM — this exact block is also run by the Node test)
+// A hand-rolled, dependency-free JSON <-> YAML pair.
+//   toYAML(value)   : a JSON value (from JSON.parse) -> YAML text
+//   parseYAML(text) : YAML text -> a JSON value (feed to JSON.stringify)
+// No library. Emitter walks the tree; parser turns indentation into structure.
+
+const IND = "  ";                                   // 2-space indent step
+function isScalar(v){ return v === null || typeof v !== "object"; }
+
+// ---- scalar quoting -------------------------------------------------------
+// A bare (plain) scalar must be QUOTED when leaving it unquoted would change
+// its meaning — the "123"/"yes"/"null" ambiguity, the Norway problem, dates,
+// leading indicators, or characters that break plain-scalar syntax.
+function needsQuote(s){
+  if (s === "") return true;
+  if (/^(null|Null|NULL|~|true|True|TRUE|false|False|FALSE|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF)$/.test(s)) return true; // bool/null incl Norway
+  if (/^[-+]?(\d[\d_]*\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return true;   // number-like
+  if (/^0x[0-9a-fA-F]+$/.test(s) || /^0o[0-7]+$/.test(s)) return true;      // hex / octal
+  if (/^[-+]?\.(inf|Inf|INF)$/.test(s) || /^\.(nan|NaN|NAN)$/.test(s)) return true;
+  if (/^\d{4}-\d{2}-\d{2}([Tt ].*)?$/.test(s)) return true;                 // date-like
+  if (/^\s|\s$/.test(s)) return true;                                       // edge whitespace
+  if (/^[!&*?|>%@`"'#,\[\]{}]/.test(s)) return true;                        // leading indicator
+  if (/^[:\-?](\s|$)/.test(s)) return true;                                 // "- " / ": " / "? " start
+  if (/:(\s|$)/.test(s)) return true;                                       // "key: value" collision
+  if (/\s#/.test(s)) return true;                                           // " # comment" collision
+  if (/[\t\r\n]/.test(s)) return true;
+  return false;
+}
+function emitScalar(v){
+  if (v === null) return "null";
+  if (v === true) return "true";
+  if (v === false) return "false";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "null";
+  const s = String(v);
+  return needsQuote(s) ? JSON.stringify(s) : s;   // JSON string == valid YAML double-quoted
+}
+function emitKey(k){
+  const s = String(k);
+  return needsQuote(s) ? JSON.stringify(s) : s;
+}
+
+// ---- block scalars (multi-line strings: `|`) ------------------------------
+function blockHeader(str){
+  if (!str.endsWith("\n")) return "|-";                 // strip: no trailing newline
+  if (!str.endsWith("\n\n")) return "|";                // clip: exactly one trailing newline
+  return "|+";                                          // keep: 2+ trailing newlines
+}
+function pushBlockBody(str, indent, lines){
+  const pad = " ".repeat(indent);
+  let parts = str.split("\n");
+  if (blockHeader(str) === "|") parts = parts.slice(0, -1);   // drop the single trailing ""
+  for (const p of parts) lines.push(p === "" ? "" : pad + p);
+}
+
+// ---- emitter (JSON tree -> YAML) ------------------------------------------
+function writeMapping(obj, indent, lines){
+  const pad = " ".repeat(indent);
+  for (const k of Object.keys(obj)){
+    const v = obj[k], key = emitKey(k);
+    if (isScalar(v)){
+      if (typeof v === "string" && v.indexOf("\n") !== -1){
+        lines.push(pad + key + ": " + blockHeader(v));
+        pushBlockBody(v, indent + 2, lines);
+      } else lines.push(pad + key + ": " + emitScalar(v));
+    } else if (Array.isArray(v)){
+      if (v.length === 0) lines.push(pad + key + ": []");
+      else { lines.push(pad + key + ":"); writeSequence(v, indent + 2, lines); }
+    } else {
+      if (Object.keys(v).length === 0) lines.push(pad + key + ": {}");
+      else { lines.push(pad + key + ":"); writeMapping(v, indent + 2, lines); }
+    }
+  }
+}
+function writeSequence(arr, indent, lines){
+  const pad = " ".repeat(indent);
+  for (const item of arr){
+    if (isScalar(item)){
+      if (typeof item === "string" && item.indexOf("\n") !== -1){
+        lines.push(pad + "- " + blockHeader(item));
+        pushBlockBody(item, indent + 4, lines);
+      } else lines.push(pad + "- " + emitScalar(item));
+    } else if (Array.isArray(item)){
+      if (item.length === 0) lines.push(pad + "- []");
+      else { lines.push(pad + "-"); writeSequence(item, indent + 2, lines); }
+    } else {
+      const keys = Object.keys(item);
+      if (keys.length === 0) lines.push(pad + "- {}");
+      else {
+        const sub = [];
+        writeMapping(item, indent + 2, sub);
+        sub[0] = pad + "- " + sub[0].slice(indent + 2);   // hoist first key onto the dash line
+        for (const l of sub) lines.push(l);
+      }
+    }
+  }
+}
+function toYAML(data){
+  if (data === undefined) return "";
+  const lines = [];
+  if (isScalar(data)){
+    if (typeof data === "string" && data.indexOf("\n") !== -1){
+      lines.push(blockHeader(data)); pushBlockBody(data, 2, lines);
+    } else lines.push(emitScalar(data));
+  } else if (Array.isArray(data)){
+    if (data.length === 0) lines.push("[]"); else writeSequence(data, 0, lines);
+  } else {
+    if (Object.keys(data).length === 0) lines.push("{}"); else writeMapping(data, 0, lines);
+  }
+  return lines.join("\n") + "\n";
+}
+
+// ---- scalar / quoted / flow reading ---------------------------------------
+function readQuotedAt(s, start){
+  const q = s[start]; let out = "", k = start + 1;
+  if (q === '"'){
+    for (; k < s.length; k++){
+      const c = s[k];
+      if (c === "\\"){
+        const n = s[k+1];
+        if (n === "u"){ out += String.fromCharCode(parseInt(s.slice(k+2, k+6), 16)); k += 5; }
+        else { const m = {n:"\n",t:"\t",r:"\r",'"':'"',"\\":"\\","/":"/",b:"\b",f:"\f","0":"\0"}; out += (m[n] !== undefined ? m[n] : n); k += 1; }
+      } else if (c === '"'){ k++; break; } else out += c;
+    }
+  } else {
+    for (; k < s.length; k++){
+      const c = s[k];
+      if (c === "'"){ if (s[k+1] === "'"){ out += "'"; k++; } else { k++; break; } } else out += c;
+    }
+  }
+  return { val: out, next: k };
+}
+function coerceScalar(s){
+  if (s === "~" || s === "null" || s === "Null" || s === "NULL") return null;
+  if (/^(true|True|TRUE)$/.test(s)) return true;
+  if (/^(false|False|FALSE)$/.test(s)) return false;
+  if (/^[-+]?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s) && /[.eE]/.test(s)) return parseFloat(s);
+  return s;
+}
+function stripInlineComment(s){
+  let inS = false, inD = false;
+  for (let k = 0; k < s.length; k++){
+    const c = s[k];
+    if (c === "'" && !inD) inS = !inS;
+    else if (c === '"' && !inS) inD = !inD;
+    else if (c === "#" && !inS && !inD && (k === 0 || /\s/.test(s[k-1]))) return s.slice(0, k);
+  }
+  return s;
+}
+function parseFlow(str){
+  let p = 0;
+  const ws = () => { while (p < str.length && /\s/.test(str[p])) p++; };
+  function val(){
+    ws(); const c = str[p];
+    if (c === "[") return arr();
+    if (c === "{") return obj();
+    if (c === '"' || c === "'"){ const r = readQuotedAt(str, p); p = r.next; return r.val; }
+    let st = p; while (p < str.length && ",]}".indexOf(str[p]) === -1) p++;
+    return coerceScalarOrEmpty(str.slice(st, p).trim());
+  }
+  function arr(){ p++; const a = []; ws(); if (str[p] === "]"){ p++; return a; } while (p < str.length){ a.push(val()); ws(); if (str[p] === ","){ p++; continue; } if (str[p] === "]"){ p++; break; } break; } return a; }
+  function obj(){ p++; const o = {}; ws(); if (str[p] === "}"){ p++; return o; } while (p < str.length){ ws(); let key; const c = str[p]; if (c === '"' || c === "'"){ const r = readQuotedAt(str, p); key = r.val; p = r.next; } else { let st = p; while (p < str.length && ":,}".indexOf(str[p]) === -1) p++; key = str.slice(st, p).trim(); } ws(); if (str[p] === ":") p++; o[key] = val(); ws(); if (str[p] === ","){ p++; continue; } if (str[p] === "}"){ p++; break; } break; } return o; }
+  return val();
+}
+function coerceScalarOrEmpty(s){ return s === "" ? null : (s[0] === '"' || s[0] === "'" ? readQuotedAt(s, 0).val : coerceScalar(s)); }
+function parseScalar(tok){
+  let s = stripInlineComment(tok).trim();
+  if (s === "") return null;
+  const c = s[0];
+  if (c === '"' || c === "'") return readQuotedAt(s, 0).val;
+  if (c === "[" || c === "{") return parseFlow(s);
+  return coerceScalar(s);
+}
+function parseKey(raw){
+  const s = raw.trim();
+  if (s[0] === '"' || s[0] === "'") return readQuotedAt(s, 0).val;
+  return s;    // JSON object keys are always strings — never coerce
+}
+
+// ---- parser (YAML text -> JSON tree) --------------------------------------
+function indentOf(l){ let n = 0; while (n < l.length && l[n] === " ") n++; return n; }
+function isBlank(l){ return /^\s*$/.test(l); }
+function isComment(l){ return /^\s*#/.test(l); }
+function findColon(s){
+  let inS = false, inD = false;
+  for (let k = 0; k < s.length; k++){
+    const c = s[k];
+    if (c === "'" && !inD) inS = !inS;
+    else if (c === '"' && !inS) inD = !inD;
+    else if (c === ":" && !inS && !inD && (k+1 >= s.length || s[k+1] === " ")) return k;
+  }
+  return -1;
+}
+function parseYAML(text){
+  const lines = String(text).replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n")
+    .filter(l => !/^(---|\.\.\.)\s*$/.test(l));   // drop bare document markers
+  let i = 0;
+  const skip = () => { while (i < lines.length && (isBlank(lines[i]) || isComment(lines[i]))) i++; };
+  const isSeqLine = c => c === "-" || c.slice(0, 2) === "- ";
+  const isBlockHdr = c => /^[|>][+\-]?\d*$/.test(c);
+
+  function parseNode(indent){
+    skip();
+    if (i >= lines.length) return null;
+    const ind = indentOf(lines[i]);
+    const content = lines[i].slice(ind);
+    if (isSeqLine(content)) return parseSeq(ind);
+    if (content[0] === "[" || content[0] === "{"){ i++; return parseFlow(stripInlineComment(content)); }
+    if (isBlockHdr(content)){ i++; return parseBlockScalar(content, indent); }
+    if (findColon(content) !== -1) return parseMap(ind);
+    i++; return parseScalar(content);
+  }
+  function parseMap(indent){
+    const obj = {};
+    while (true){
+      skip();
+      if (i >= lines.length) break;
+      const ind = indentOf(lines[i]);
+      if (ind !== indent) break;
+      const content = lines[i].slice(ind);
+      if (isSeqLine(content)) break;
+      const ci = findColon(content);
+      if (ci === -1) break;
+      const key = parseKey(content.slice(0, ci));
+      let rest = content.slice(ci + 1).replace(/^\s+/, "");
+      i++;
+      if (rest === "" || isComment(rest)){
+        skip();
+        if (i < lines.length){
+          const nind = indentOf(lines[i]);
+          const nc = lines[i].slice(nind);
+          if (nind > indent) obj[key] = parseNode(nind);
+          else if (nind === indent && isSeqLine(nc)) obj[key] = parseSeq(indent);
+          else obj[key] = null;
+        } else obj[key] = null;
+      } else if (isBlockHdr(rest)){
+        obj[key] = parseBlockScalar(rest, indent);
+      } else {
+        obj[key] = parseScalar(rest);
+      }
+    }
+    return obj;
+  }
+  function parseSeq(indent){
+    const arr = [];
+    while (true){
+      skip();
+      if (i >= lines.length) break;
+      const ind = indentOf(lines[i]);
+      if (ind !== indent) break;
+      const content = lines[i].slice(ind);
+      if (!isSeqLine(content)) break;
+      if (content === "-"){
+        i++;
+        skip();
+        if (i < lines.length && indentOf(lines[i]) > ind) arr.push(parseNode(indentOf(lines[i])));
+        else arr.push(null);
+      } else {
+        let j = 1; while (j < content.length && content[j] === " ") j++;
+        const restCol = ind + j;
+        lines[i] = " ".repeat(restCol) + content.slice(j);   // rewrite "- x" as "  x", then parse
+        arr.push(parseNode(restCol));
+      }
+    }
+    return arr;
+  }
+  function parseBlockScalar(header, parentIndent){
+    const folded = header[0] === ">";
+    const chomp = header.indexOf("-") !== -1 ? "-" : header.indexOf("+") !== -1 ? "+" : "";
+    const body = [];
+    while (i < lines.length){
+      const ln = lines[i];
+      if (isBlank(ln)){ body.push(""); i++; continue; }
+      if (indentOf(ln) > parentIndent){ body.push(ln); i++; continue; }
+      break;
+    }
+    let bi = Infinity;
+    for (const ln of body) if (ln !== "") bi = Math.min(bi, indentOf(ln));
+    if (!isFinite(bi)) bi = parentIndent + 2;
+    let content = body.map(ln => ln === "" ? "" : ln.slice(bi));
+    if (chomp !== "+"){ while (content.length && content[content.length-1] === "") content.pop(); }
+    let text = folded ? content.reduce((a, l, idx) => idx === 0 ? l : (l === "" || content[idx-1] === "" ? a + "\n" + l : a + " " + l), "") : content.join("\n");
+    if (chomp === "-") return text;
+    if (chomp === "+") return text + (body.length ? "\n" : "");
+    return text + "\n";        // clip: single trailing newline
+  }
+
+  skip();
+  if (i >= lines.length) return null;
+  return parseNode(indentOf(lines[i]));
+}
+
+if (typeof module !== "undefined" && module.exports) module.exports = { toYAML, parseYAML };
+// ==YAML-ENGINE-END==
+
+// ===== LOOK: converter =====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+function byteLen(s){ return new Blob([s]).size; }
+
+const SAMPLE_JSON = JSON.stringify({
+  service: "wsx-api",
+  port: 8085,
+  enabled: true,
+  replicas: 3,
+  maintainer: null,
+  ratios: [0.25, 0.5, 0.75],
+  regions: ["us", "uk", "fr"],
+  banner: "line one\nline two\nline three",
+  offices: [ { city: "Salt Lake City", country: "US" }, { city: "Manchester", country: "UK" } ],
+  flags: { beta: false, tricky: ["123", "yes", "no", "null"] },
+  empty: {}, none: []
+}, null, 2);
+
+const SAMPLE_YAML = "# app config (comments are lost on a JSON round-trip)\n" +
+"name: checkout\nversion: 2                 # bare number\nsecure: yes                # Norway problem -> becomes true!\n" +
+"tags:\n  - web\n  - \"123\"                  # quoted, stays a string\nlimits:\n  cpu: 2\n  mem: 512\nnote: |\n  first line\n  second line\n";
+
+let mode = "j2y";  // j2y | y2j
+const srcTa = document.getElementById("src");
+const outTa = document.getElementById("out");
+const errEl = document.getElementById("err");
+const srcLabel = document.getElementById("srcLabel");
+const outLabel = document.getElementById("outLabel");
+const dirJ2Y = document.getElementById("dirJ2Y");
+const dirY2J = document.getElementById("dirY2J");
+
+function setMode(m, keepSrc){
+  mode = m;
+  dirJ2Y.classList.toggle("toggle-on", m === "j2y");
+  dirJ2Y.classList.toggle("bg-slate-100", m !== "j2y");
+  dirY2J.classList.toggle("toggle-on", m === "y2j");
+  dirY2J.classList.toggle("bg-slate-100", m !== "y2j");
+  srcLabel.textContent = m === "j2y" ? "JSON in" : "YAML in";
+  outLabel.textContent = m === "j2y" ? "YAML out" : "JSON out";
+  if (!keepSrc) srcTa.value = m === "j2y" ? SAMPLE_JSON : SAMPLE_YAML;
+  convert();
+}
+
+function stats(data){
+  let nodes = 0, keys = 0, depth = 0;
+  (function walk(v, d){
+    depth = Math.max(depth, d);
+    if (Array.isArray(v)){ nodes++; v.forEach(x => walk(x, d + 1)); }
+    else if (v && typeof v === "object"){ nodes++; for (const k of Object.keys(v)){ keys++; walk(v[k], d + 1); } }
+    else nodes++;
+  })(data, 0);
+  return { nodes, keys, depth };
+}
+
+function convert(){
+  const srcText = srcTa.value;
+  errEl.textContent = "";
+  let data, output = "", okFlag = true, errMsg = "";
+  try {
+    if (mode === "j2y"){ data = JSON.parse(srcText); output = toYAML(data); }
+    else { data = parseYAML(srcText); output = JSON.stringify(data, null, 2); }
+  } catch (e){ okFlag = false; errMsg = (mode === "j2y" ? "Invalid JSON — " : "Invalid YAML — ") + (e.message || e); }
+  if (okFlag){
+    outTa.value = output;
+    outTa.classList.remove("bad"); outTa.classList.add("good");
+    const s = stats(data);
+    document.getElementById("stNodes").textContent = s.nodes;
+    document.getElementById("stKeys").textContent = s.keys;
+    document.getElementById("stDepth").textContent = s.depth;
+    document.getElementById("stBytes").textContent = byteLen(output);
+  } else {
+    outTa.value = "";
+    outTa.classList.remove("good"); outTa.classList.add("bad");
+    errEl.textContent = "⚠ " + errMsg;
+    ["stNodes","stKeys","stDepth","stBytes"].forEach(id => document.getElementById(id).textContent = "0");
+  }
+}
+
+srcTa.addEventListener("input", convert);
+dirJ2Y.onclick = () => setMode("j2y");
+dirY2J.onclick = () => setMode("y2j");
+document.getElementById("swap").onclick = () => {
+  // move the current output into the source and flip direction
+  const carried = outTa.value;
+  setMode(mode === "j2y" ? "y2j" : "j2y", true);
+  if (carried){ srcTa.value = carried; convert(); }
+};
+document.getElementById("copySrc").onclick = e => copyText(srcTa.value, e.target);
+document.getElementById("copyOut").onclick = e => copyText(outTa.value, e.target);
+
+// sample buttons
+const SAMPLES = [
+  { label: "config", j: SAMPLE_JSON },
+  { label: "array of objects", j: JSON.stringify([{ id: 1, ok: true }, { id: 2, ok: false }], null, 2) },
+  { label: "deeply nested", j: JSON.stringify({ a: { b: { c: { d: [1, 2, 3] } } } }, null, 2) },
+  { label: "tricky scalars", j: JSON.stringify({ vals: ["123", "yes", "no", "null", "true", "3.14", "2020-01-01"] }, null, 2) },
+  { label: "multi-line", j: JSON.stringify({ readme: "step 1\nstep 2\nstep 3" }, null, 2) }
+];
+const samplesEl = document.getElementById("samples");
+SAMPLES.forEach(s => {
+  const b = document.createElement("button");
+  b.className = "bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs";
+  b.textContent = s.label;
+  b.onclick = () => { setMode("j2y", true); srcTa.value = s.j; convert(); };
+  samplesEl.appendChild(b);
+});
+
+// ===== LOOK: quoting tester =====
+const qIn = document.getElementById("qIn");
+function quoteReason(s){
+  if (s === "") return "empty string — bare would be null";
+  if (/^(null|Null|NULL|~|true|True|TRUE|false|False|FALSE|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF)$/.test(s)) return "reads as a boolean/null (the Norway problem)";
+  if (/^[-+]?(\d[\d_]*\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return "reads as a number";
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return "reads as a date";
+  if (/^\s|\s$/.test(s)) return "leading/trailing whitespace";
+  if (/^[!&*?|>%@`"'#,\[\]{}]/.test(s)) return "starts with a YAML indicator character";
+  if (/^[:\-?](\s|$)/.test(s)) return "starts with a structural marker";
+  if (/:(\s|$)/.test(s)) return "contains ': ' which would look like a key/value split";
+  if (/\s#/.test(s)) return "contains ' #' which would start a comment";
+  if (/[\t\r\n]/.test(s)) return "contains a tab/newline";
+  return "safe as a plain scalar";
+}
+function renderQuote(){
+  const s = qIn.value;
+  const q = needsQuote(s);
+  const emitted = emitScalar(s);
+  const tb = document.getElementById("qRows");
+  tb.innerHTML =
+    `<tr><td>${escapeHtml(s) || '<span class="text-slate-400">(empty)</span>'}</td>` +
+    `<td><span class="${q ? "pct" : "keep"}">key: ${escapeHtml(emitted)}</span></td>` +
+    `<td>${q ? '<span class="chip" style="background:#fde68a;color:#92400e;">quoted</span>' : '<span class="chip" style="background:#dcfce7;color:#166534;">bare</span>'}</td>` +
+    `<td class="text-slate-500" style="font-family:inherit;">${escapeHtml(quoteReason(s))}</td></tr>`;
+}
+qIn.addEventListener("input", renderQuote);
+document.querySelectorAll(".qsample").forEach(b => b.onclick = () => { qIn.value = b.dataset.s; renderQuote(); });
+
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. JSON and YAML are the same data model", why:"Before any syntax, hold on to the one fact that makes conversion possible: JSON and YAML describe identical data. Both have exactly the same building blocks — mappings (objects), sequences (arrays), and four scalar types: string, number, boolean, and null. YAML is often called a superset of JSON, and in practice any valid JSON document is also valid YAML. What differs is only how that shared tree is written on the page. JSON is compact and unambiguous, ideal for machines and APIs. YAML drops most of the punctuation in favour of layout, which is why humans reach for it in config files — Kubernetes manifests, GitHub Actions, Docker Compose, CI pipelines. Converting between them is therefore never about changing the data; it is about re-printing the same tree in the other notation.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="grid grid-cols-2 gap-3"><div><div class="text-slate-400 mb-1">JSON</div>{<br>&nbsp;&nbsp;"port": 80,<br>&nbsp;&nbsp;"tags": ["a","b"]<br>}</div><div><div class="text-slate-400 mb-1">YAML</div>port: 80<br>tags:<br>&nbsp;&nbsp;- a<br>&nbsp;&nbsp;- b</div></div><div class="text-center text-amber-600 mt-3">same tree · different clothes</div></div>`, code:`// identical data, two encodings
+JSON.parse('{"port":80,"tags":["a","b"]}');
+// { port: 80, tags: ["a","b"] }
+
+// the YAML for the SAME object:
+// port: 80
+// tags:
+//   - a
+//   - b` },
+ { title:"2. In YAML, indentation IS the structure", why:"JSON marks nesting with explicit delimiters — every object is wrapped in braces, every array in brackets, every level closed by a matching character. YAML throws almost all of that away and uses indentation instead: a child is simply printed a couple of spaces further right than its parent. Two spaces per level is the near-universal convention (tabs are forbidden — more on that later). This is what gives YAML its clean look, but it also means whitespace is load-bearing: get the indentation wrong and you change the meaning or break the parse. For the converter this is the central design decision — the emitter must track the current depth and pad every line accordingly, and the parser must read that padding back to rebuild the tree.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>server:</div><div>&nbsp;&nbsp;<span class="seg seg-keep">host</span>: localhost <span class="text-slate-400">← 2 spaces = child of server</span></div><div>&nbsp;&nbsp;ports:</div><div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="seg seg-hy">- 80</span> <span class="text-slate-400">← 4 spaces = inside ports</span></div><div>&nbsp;&nbsp;&nbsp;&nbsp;- 443</div></div>`, code:`// depth drives the left padding
+const pad = " ".repeat(indent);      // indent = depth * 2
+lines.push(pad + key + ": " + value);
+// nesting deeper? recurse with indent + 2
+writeMapping(child, indent + 2, lines);` },
+ { title:"3. The emitter: walk the tree, indent by depth", why:"The JSON-to-YAML direction is a depth-first walk over the parsed tree, carrying the current indentation. At each node the emitter asks a single question: is this a scalar or a container? A scalar is printed inline as its text. A container prints its opener and then recurses one level deeper. A mapping emits each entry as either 'key: value' (scalar value) or 'key:' followed by the indented children. Because YAML has no closing brackets, there is nothing to emit on the way back up — you simply stop indenting. The whole emitter is therefore two small mutually-recursive functions, writeMapping and writeSequence, plus emitScalar for the leaves. That symmetry is why a few dozen lines can print arbitrarily deep documents.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-amber-600 mb-1">walk(node, depth):</div><div>&nbsp;scalar?&nbsp;&nbsp;→ print &nbsp;key: value</div><div>&nbsp;object?&nbsp;&nbsp;→ print key:, then walk(children, depth+1)</div><div>&nbsp;array? &nbsp;&nbsp;→ for each: print "- ", walk(item, depth+1)</div></div>`, code:`function writeMapping(obj, indent, lines){
+  const pad = " ".repeat(indent);
+  for (const k of Object.keys(obj)){
+    const v = obj[k];
+    if (isScalar(v)) lines.push(pad + k + ": " + emitScalar(v));
+    else { lines.push(pad + k + ":");
+           walk(v, indent + 2, lines); }   // recurse deeper
+  }
+}` },
+ { title:"4. key: value for mappings, - item for sequences", why:"Two tiny shapes carry almost all of YAML. A mapping entry is 'key: value' — note the mandatory space after the colon; 'key:value' with no space is a single plain scalar, not a pair, and this trips people constantly. A sequence element is a dash-space '- ' followed by the value, one per line. Nesting composes these: a mapping value can be a sequence (print the key, then the dashed items indented under it), and a sequence element can be a mapping (print '- ' then the first key on that same line, aligning the rest beneath). Empty containers are the one case indentation cannot express — there is nothing to indent — so they fall back to JSON-style flow: an empty object is {} and an empty array is [] written inline.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div><span class="seg seg-keep">name</span>: Ada &nbsp;&nbsp;<span class="text-slate-400">← mapping: key + space + value</span></div><div class="mt-1">roles:</div><div>&nbsp;&nbsp;<span class="seg seg-hy">-</span> admin &nbsp;&nbsp;<span class="text-slate-400">← sequence item</span></div><div>&nbsp;&nbsp;<span class="seg seg-hy">-</span> editor</div><div class="mt-1">meta: <span class="chip">{}</span> &nbsp;<span class="text-slate-400">← empty → flow form</span></div></div>`, code:`// mapping value that is a scalar:
+"port: 8085"
+// mapping value that is a sequence:
+"tags:\\n  - web\\n  - api"
+// sequence element that is a mapping (first key hoisted):
+"- id: 1\\n  lead: true"
+// empty containers use flow style:
+"meta: {}"   "items: []"` },
+ { title:"5. When to QUOTE: the ambiguity guard", why:"This is the subtle heart of a correct emitter. An unquoted YAML scalar is not text — it is interpreted. Bare 123 is the number one-hundred-twenty-three; bare true is a boolean; bare null (or ~) is null; and, most notoriously, bare yes / no / on / off are booleans too (the 'Norway problem', where a list of country codes containing NO silently becomes false). So a string is only safe to write bare if it cannot be misread as any of those. The emitter must quote a string when it looks like a number, boolean, null or date, when it starts with a reserved indicator character, or when it contains a ': ' or ' #' that would change how the line parses. Quote correctly and the round-trip is lossless: '123' comes back a string, 123 comes back a number.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="mb-1">"123" &nbsp;→ <span class="pct">"123"</span> &nbsp;<span class="text-slate-400">looks like a number</span></div><div class="mb-1">"yes" &nbsp;→ <span class="pct">"yes"</span> &nbsp;<span class="text-slate-400">looks like a bool (Norway!)</span></div><div class="mb-1">"null" → <span class="pct">"null"</span> <span class="text-slate-400">looks like null</span></div><div class="mb-1">hello &nbsp;→ <span class="keep">hello</span> &nbsp;<span class="text-slate-400">safe, left bare</span></div></div>`, code:`function needsQuote(s){
+  if (/^(null|~|true|false|yes|no|on|off)$/i.test(s)) return true;
+  if (/^[-+]?\\d[\\d_]*\\.?\\d*([eE][-+]?\\d+)?$/.test(s)) return true;
+  if (/^\\d{4}-\\d{2}-\\d{2}/.test(s)) return true;      // date
+  if (/^[!&*?|>%@\`"'#,\\[\\]{}]/.test(s)) return true;  // indicator
+  if (/:(\\s|$)/.test(s) || /\\s#/.test(s)) return true; // ": " / " #"
+  return false;
+}` },
+ { title:"6. Block style vs flow style", why:"YAML offers two ways to write any collection. Block style is the indentation-based, one-item-per-line layout that makes YAML readable and is what our emitter produces for non-empty containers. Flow style is the compact, JSON-like form on a single line: [1, 2, 3] for a sequence and {a: 1, b: 2} for a mapping. They are fully interchangeable and can even be nested inside each other. Flow style is handy for short inline collections and is the only sensible way to render an empty container, which is why the emitter uses {} and [] there. A robust parser has to accept both — someone may paste flow YAML, or in fact paste raw JSON, which is just flow style with everything quoted — so the reader needs a small flow sub-parser alongside the indentation logic.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-slate-400 mb-1">block style</div><div>nums:</div><div>&nbsp;&nbsp;- 1</div><div>&nbsp;&nbsp;- 2</div><div class="text-slate-400 mt-2 mb-1">flow style (same value)</div><div>nums: <span class="seg seg-keep">[1, 2]</span></div></div>`, code:`// both parse to the same array:
+parseYAML("nums:\\n  - 1\\n  - 2");   // { nums: [1,2] }
+parseYAML("nums: [1, 2]");           // { nums: [1,2] }
+
+// JSON is just fully-quoted flow YAML:
+parseYAML('{"a": 1, "b": [2, 3]}');  // { a:1, b:[2,3] }` },
+ { title:"7. Multi-line strings: block scalars | and >", why:"A string that contains newlines would be miserable double-quoted, with a \\n at every break. YAML solves this with block scalars. The literal style, marked with a pipe |, keeps the text exactly as written: each line is indented under the key and every newline is preserved. The folded style, marked with a greater-than >, instead folds single line-breaks into spaces (handy for wrapping long prose) while blank lines stay as paragraph breaks. Both take an optional chomping indicator that controls the trailing newline: a minus (|-) strips it, the bare pipe clips to a single newline, and a plus (|+) keeps every trailing blank line. Our emitter picks the indicator from how the source string ends, so a multi-line value survives the round-trip intact.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>note: <span class="seg seg-keep">|</span></div><div>&nbsp;&nbsp;line one</div><div>&nbsp;&nbsp;line two</div><div class="text-slate-400 mt-2">| keeps newlines · &gt; folds them to spaces</div><div class="text-slate-400">|- strip · | clip · |+ keep trailing</div></div>`, code:`// { note: "line one\\nline two" } emits:
+// note: |-
+//   line one
+//   line two
+
+function blockHeader(str){
+  if (!str.endsWith("\\n"))   return "|-"; // strip
+  if (!str.endsWith("\\n\\n")) return "|";  // clip
+  return "|+";                             // keep
+}` },
+ { title:"8. The parser: indentation stack → nesting", why:"Reading YAML back is recursive descent driven by columns. The parser looks at the indentation of the current line to know which level it belongs to, and at the first characters to know the kind: a line starting with '- ' opens a sequence, a line containing a 'key:' opens a mapping, anything else is a scalar. It reads all siblings that share the same indent; when a line is more indented it descends into a child block, and when it dedents it returns up the tree. Conceptually the running indent forms a stack — push on the way in, pop on the way out — which is exactly how nesting is recovered without any closing brackets to lean on. The trickiest detail is finding the key/value colon: it must be a ': ' that is not inside quotes, so the scanner tracks quote state as it goes.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>a:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="text-slate-400">indent 0 → root map</span></div><div>&nbsp;&nbsp;b:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="text-slate-400">indent 2 → child of a</span></div><div>&nbsp;&nbsp;&nbsp;&nbsp;- x&nbsp;&nbsp;<span class="text-slate-400">indent 4 → seq in b</span></div><div>&nbsp;&nbsp;c: 1&nbsp;&nbsp;&nbsp;<span class="text-slate-400">back to indent 2</span></div></div>`, code:`function parseMap(indent){
+  const obj = {};
+  while (sameIndent(indent)){
+    const ci = findColon(line);          // ": " outside quotes
+    const key = line.slice(0, ci).trim();
+    const rest = line.slice(ci + 1).trim();
+    obj[key] = rest === "" ? parseChild(indent)  // deeper block
+                           : parseScalar(rest);
+  }
+  return obj;
+}` },
+ { title:"9. YAML gotchas: Norway, tabs, anchors", why:"YAML's friendliness hides sharp edges. The Norway problem: unquoted no, yes, on, off are booleans in the widely-used YAML 1.1, so the country code NO becomes false and version numbers like 1.10 can lose a digit — always quote strings that could be read as keywords. Tabs are illegal for indentation: YAML permits only spaces, and because a stray tab is invisible in most editors it produces baffling parse errors. And YAML has features JSON simply lacks: anchors (&name) mark a node and aliases (*name) reuse it, letting a document reference repeated blocks, while tags (!!str) force a type. None of these have a JSON representation, so a converter either expands them (copying the referenced value) or drops them. Knowing these keeps you from writing YAML that means something other than you intended.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-red-700 mb-1">country: NO &nbsp;→ false &nbsp;<span class="text-slate-400">(Norway!)</span></div><div class="text-red-700 mb-1">&nbsp;&nbsp;&nbsp;&nbsp;→ TAB indent &nbsp;→ 🚫 parse error</div><div class="mb-1">base: &amp;def { a: 1 }</div><div>use: *def &nbsp;<span class="text-slate-400">← alias reuses &amp;def</span></div></div>`, code:`// quote keyword-like strings:
+country: "NO"        // stays a string, not false
+version: "1.10"      // stays "1.10", not 1.1
+
+// anchors / aliases have no JSON equivalent:
+defaults: &d { retries: 3 }
+job: { <<: *d }      // merges the anchored map` },
+ { title:"10. Comments are lost on a JSON round-trip", why:"The most surprising loss is the quietest one. YAML supports comments — anything after an unquoted # to the end of the line — and teams lean on them heavily to document config. JSON has no comment syntax at all. So the moment you convert YAML to JSON, every comment is discarded, because JSON.parse builds a data tree with nowhere to attach them; convert that JSON back to YAML and the comments are simply gone. The same is true of blank lines, key ordering nuances, and the specific quoting or block style you chose — the JSON tree preserves the data, not its presentation. This is why tools that must keep comments (like formatters that rewrite a file in place) parse into a richer 'concrete syntax tree' rather than round-tripping through JSON. For a plain data converter it is a fine and expected trade-off — just never run a hand-annotated config through JSON and expect the notes to come back.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>port: 80 <span class="seg seg-strip"># prod only</span></div><div class="text-amber-600 my-1">↓ YAML → JSON → YAML ↓</div><div>port: 80 <span class="text-slate-400">← comment gone forever</span></div><div class="text-slate-400 mt-2">JSON has nowhere to store a comment</div></div>`, code:`const yaml = "port: 80  # prod only";
+const data = parseYAML(yaml);   // { port: 80 }  — comment dropped
+JSON.stringify(data);           // '{"port":80}'
+toYAML(data);                   // "port: 80\\n"  — no comment
+// data survives; presentation (comments, order) does not` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3200); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+setMode("j2y");
+renderQuote();
+</script>
+</body>
+</html>
