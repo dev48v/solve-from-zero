@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 31 — SQL Formatter / Beautifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:96px; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  table.grid { width:100%; border-collapse:collapse; font-size:13px; }
+  table.grid th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; font-weight:700; padding:6px 10px; border-bottom:1px solid #e2e8f0; }
+  table.grid td { padding:6px 10px; border-bottom:1px solid #f1f5f9; font-family:ui-monospace, Menlo, monospace; word-break:break-all; }
+  /* token colours for the tokenizer viewer */
+  .tok { padding:2px 4px; border-radius:5px; margin:2px 1px; display:inline-block; font-family:ui-monospace, Menlo, monospace; font-size:12.5px; white-space:pre; }
+  .tok-kw  { background:#fde68a; color:#92400e; font-weight:700; }
+  .tok-fn  { background:#fef3c7; color:#b45309; font-weight:700; }
+  .tok-str { background:#dcfce7; color:#166534; }
+  .tok-com { background:#e2e8f0; color:#64748b; font-style:italic; }
+  .tok-num { background:#dbeafe; color:#1e40af; }
+  .tok-id  { background:#f1f5f9; color:#334155; }
+  .tok-op  { background:#fee2e2; color:#991b1b; }
+  .tok-p   { background:#ede9fe; color:#5b21b6; font-weight:700; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 31</div>
+      <h1 class="text-xl font-bold">🧹 SQL Formatter — a hand-rolled tokenizer + pretty-printer, quote-and-comment aware, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Paste a messy one-line query — get readable, indented SQL back.</h2>
+        <p class="text-slate-500 mb-5">A SQL formatter does not <em>understand</em> your query — it re-lays it out. But it can't just push the text through a few regexes: the word <code>select</code> inside a string literal, a table literally named <code>`order`</code>, or a <code>--</code> comment must all survive <strong>verbatim</strong>. So the real work is a <strong>tokenizer</strong> that is aware of quotes and comments, followed by a printer that puts major clauses on their own lines, indents subqueries by parenthesis depth, and aligns <code>AND</code>/<code>OR</code> under <code>WHERE</code>. This page is that formatter, hand-rolled in vanilla JS with <strong>no library</strong> — uppercase or lowercase the keywords, choose the indent, pick a comma style, or minify back to a single line.</p>
+      </div>
+
+      <!-- MAIN FORMATTER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div class="flex gap-1 items-center">
+            <button id="mPretty" class="mini toggle-on px-4 py-2 rounded-lg font-semibold text-sm">✨ Pretty</button>
+            <button id="mMinify" class="bg-slate-100 px-4 py-2 rounded-lg font-semibold text-sm">➖ Minify</button>
+          </div>
+          <div class="flex gap-1 flex-wrap" id="samples"></div>
+        </div>
+
+        <!-- options -->
+        <div class="flex gap-4 flex-wrap items-center mb-3 text-sm">
+          <div class="flex items-center gap-1">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Keywords</span>
+            <button data-case="upper" class="optCase bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">UPPER</button>
+            <button data-case="lower" class="optCase bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">lower</button>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Indent</span>
+            <button data-ind="2" class="optInd bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">2</button>
+            <button data-ind="4" class="optInd bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">4</button>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Commas</span>
+            <button data-comma="trailing" class="optComma bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">trailing,</button>
+            <button data-comma="leading" class="optComma bg-slate-100 px-3 py-1.5 rounded-lg font-semibold text-xs">, leading</button>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">SQL in</div>
+              <button id="copySrc" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="src" class="field mono text-sm" spellcheck="false" style="min-height:320px;"></textarea>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider" id="outLabel">Formatted out</div>
+              <button id="copyOut" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="out" class="field good mono text-sm" spellcheck="false" readonly style="min-height:320px;"></textarea>
+          </div>
+        </div>
+        <div id="err" class="text-xs text-red-600 mt-2 font-semibold"></div>
+        <div class="mt-3 flex gap-5 items-center flex-wrap">
+          <div class="text-right"><div class="text-2xl font-bold stat text-amber-600" id="stTokens">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">tokens</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stKeywords">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">keywords</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stDepth">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">max paren depth</div></div>
+          <div class="text-right"><div class="text-2xl font-bold stat text-slate-700" id="stLines">0</div><div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">output lines</div></div>
+        </div>
+      </div>
+
+      <!-- TOKENIZER VIEWER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold">How the tokenizer sees your SQL <span class="text-slate-400 font-normal text-sm">— every token, colour-coded</span></div>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Formatting is only safe once the text is split into <strong>tokens</strong>. Notice that a whole string literal is a <em>single</em> green token and a comment a single grey one — the formatter never looks <em>inside</em> them, which is exactly why the word <code>select</code> in a string is left untouched. Keywords are recognised and can be re-cased; identifiers and operators are moved around but never rewritten.</p>
+        <div class="mb-3 flex gap-3 flex-wrap text-[11px] font-semibold">
+          <span class="tok tok-kw">keyword</span><span class="tok tok-fn">function</span><span class="tok tok-str">string</span><span class="tok tok-com">comment</span><span class="tok tok-num">number</span><span class="tok tok-id">identifier</span><span class="tok tok-op">operator</span><span class="tok tok-p">paren/comma</span>
+        </div>
+        <div id="tokView" class="p-3 rounded-lg bg-slate-50 border border-slate-200 leading-8" style="min-height:56px;"></div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Why a find-and-replace formatter is a trap</div>
+        <p class="text-sm text-amber-800"><strong>1. Strings and comments are sacred.</strong> A naive <code>replace(/select/gi, "SELECT")</code> would corrupt <code>WHERE note = 'please select one'</code>. You must tokenize first so string and comment spans are opaque. <strong>2. Reserved words make legal identifiers.</strong> Quoted names like <code>"order"</code> or <code>`select`</code> are columns, not clauses — casing or line-breaking them is a bug. <strong>3. Parentheses mean two different things.</strong> <code>(</code> after a function name is an argument list (keep it inline); <code>(</code> before <code>SELECT</code> opens a subquery (break and indent). Only depth-tracking tells them apart. <strong>4. Dialects disagree.</strong> <code>#</code> comments (MySQL), <code>$$</code> bodies (Postgres), <code>[bracketed]</code> identifiers (SQL Server), <code>||</code> vs <code>+</code> concatenation — a production tool like <a class="text-amber-600 underline" href="https://github.com/sql-formatter-org/sql-formatter">sql-formatter</a> is dialect-aware precisely because one regex can't cover them all.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a SQL formatter really works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A formatter is two stages: a <strong>tokenizer</strong> that turns the raw text into a list of typed tokens — keeping every string, comment and quoted identifier verbatim — and a <strong>printer</strong> that walks those tokens and decides where the line breaks and indents go. There is no parsing of meaning; the layout is driven entirely by which token is a clause keyword and how deep the parentheses are. In production reach for <a class="text-amber-600 underline" href="https://github.com/sql-formatter-org/sql-formatter">sql-formatter</a> (it is dialect-aware — MySQL, Postgres, T-SQL, BigQuery — and handles the edge cases a hand-rolled version won't); but building the working core yourself is the fastest way to see that pretty-printing is just <em>re-spacing a token stream</em>. Below is the whole thing in vanilla JS — the exact code powering the LOOK tab.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The tokenizer: strings and comments first</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Everything hinges on this. Before you can move a single token you must slice the text into tokens, and the ones that must be captured <em>whole</em> are string literals (<code>'...'</code> with the <code>''</code> escape), the two comment styles (<code>-- line</code> and <code>/* block */</code>), and quoted identifiers (<code>"name"</code>, <code>`name`</code>). Scan character by character; when you hit an opening quote or comment marker, consume greedily to its close and emit one token. Because these spans become opaque, nothing downstream can ever peek inside them.</p>
+        <div class="relative"><pre>if (c === "'"){                       // string literal, '' is an escaped quote
+  let a = i; i++;
+  while (i &lt; n){ if (s[i] === "'"){ if (s[i+1] === "'"){ i += 2; continue; } i++; break; } i++; }
+  toks.push({ type:"string", val:s.slice(a,i) }); continue;
+}
+if (c === "-" &amp;&amp; s[i+1] === "-"){      // line comment to end of line
+  let a = i; while (i &lt; n &amp;&amp; s[i] !== "\n") i++;
+  toks.push({ type:"lcomment", val:s.slice(a,i) }); continue;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Words, numbers, operators, punctuation</h3></div>
+        <p class="text-sm text-slate-600 mb-3">After the quote-aware cases, the rest is routine. A run of letters/digits/underscore is a <em>word</em> (a keyword or an identifier — decided later). Digits form a <em>number</em> (watch for <code>0x</code> hex and exponents). Structural characters <code>, ( ) ; .</code> get their own token types because layout depends on them. Everything else — <code>= &lt; &gt; + - * /</code> and the multi-char operators <code>&lt;= &gt;= &lt;&gt; != || :: -&gt;</code> — is an operator.</p>
+        <div class="relative"><pre>if (/[0-9]/.test(c) || (c === "." &amp;&amp; /[0-9]/.test(s[i+1]))){
+  const m = /^0[xX][0-9a-fA-F]+/.exec(s.slice(i))
+         || /^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(s.slice(i));
+  toks.push({ type:"number", val:m[0] }); i += m[0].length; continue;
+}
+if (/[A-Za-z_@#$]/.test(c)){          // word = keyword OR identifier
+  let a = i; while (i &lt; n &amp;&amp; /[A-Za-z0-9_@#$]/.test(s[i])) i++;
+  toks.push({ type:"word", val:s.slice(a,i) }); continue;
+}
+// then: "," "(" ")" ";" "." get their own types; multi-char ops before single</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Keyword recognition + casing</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A word is a keyword only if its uppercased form is in a known set. Tag each word with <code>isKw</code>/<code>isFunc</code> so the printer can re-case keywords (<code>select</code> → <code>SELECT</code>) while leaving identifiers verbatim. Multi-word phrases (<code>GROUP BY</code>, <code>LEFT OUTER JOIN</code>) are merged into a single logical token so they can never be split across lines.</p>
+        <div class="relative"><pre>const canon = word.toUpperCase();
+const isKw   = KEYWORDS.has(canon);
+const isFunc = FUNCTIONS.has(canon);
+
+function caseWord(tok, kwCase){
+  if (tok.isKw || tok.isFunc) return kwCase === "lower" ? tok.canon.toLowerCase() : tok.canon;
+  return tok.val;                     // identifiers &amp; quoted names: never touched
+}
+// merge pass: ["GROUP","BY"] -&gt; one token {canon:"GROUP BY"}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Clause-driven line breaks</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The printer keeps a current line buffer and an indent level. When it meets a <strong>major clause</strong> keyword — <code>SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, UNION</code> — it flushes the current line and starts a fresh one at the clause indent. That single rule is what turns a one-line query into the familiar stepped shape.</p>
+        <div class="relative"><pre>const MAJOR = new Set(["SELECT","FROM","WHERE","GROUP BY","ORDER BY",
+                       "HAVING","LIMIT","OFFSET","UNION","VALUES","SET"]);
+if (MAJOR.has(canon)){
+  nl(frame.base);              // flush current line, indent to clause base
+  put(caseWord(tok, kwCase), false);
+  frame.clause = canon;
+}
+// nl(level) = flush(); curIndent = level;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Subqueries: indent by parenthesis depth</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A <code>(</code> is ambiguous. Peek at the next real token: if it is <code>SELECT</code> (or <code>WITH</code>) the paren opens a <strong>subquery</strong>, so push a new frame one level deeper and drop to a new line; otherwise it is a function/expression paren, kept inline. A frame stack makes nesting fall out naturally — each <code>)</code> pops back to its opener's indent.</p>
+        <div class="relative"><pre>const sub = nextSig(idx)?.canon === "SELECT" || nextSig(idx)?.canon === "WITH";
+if (sub){
+  put("(", true);
+  frames.push({ base: curIndent + 1, clause:null, sub:true });
+  nl(curIndent + 1);            // subquery body starts one level in
+} else {
+  put("(", glueToPrev);         // count(  -&gt; stays inline
+  frames.push({ base: curIndent, sub:false });
+}
+// on ")": const f = frames.pop(); if (f.sub){ nl(f.base - 1); put(")", false); }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Column lists + comma style</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Inside <code>SELECT</code>, <code>GROUP BY</code>, <code>ORDER BY</code> each item goes on its own line. A comma at the clause's own depth triggers a break — but a comma inside a function's argument list belongs to a deeper (inline) frame, so it stays put. Flip between <em>trailing</em> commas (end of line) and <em>leading</em> commas (start of the next line, which makes diffs cleaner) with one branch.</p>
+        <div class="relative"><pre>if (tok.type === "comma"){
+  if (frame.commaBreak &amp;&amp; commaStyle === "leading"){
+    nl(frame.listIndent); put(",", false);      //  ", col" on the next line
+  } else {
+    put(",", false);                            //  "col,"  on this line
+    if (frame.commaBreak) nl(frame.listIndent);
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">JOIN / ON layout &amp; aligning AND/OR</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A <code>JOIN</code> (in all its flavours) starts a new line aligned with <code>FROM</code>; its <code>ON</code> drops one level in. Inside <code>WHERE</code>, <code>HAVING</code> and <code>ON</code>, each <code>AND</code>/<code>OR</code> starts a new line indented one step under the clause keyword, so a stack of conditions lines up. Outside those clauses (say a boolean in a <code>CASE</code>) <code>AND</code> stays inline.</p>
+        <div class="relative"><pre>if (JOINS.has(canon)){ nl(frame.base); put(disp, false); frame.clause = "JOIN"; }
+if (canon === "ON"){   nl(frame.base + 1); put(disp, false); frame.clause = "ON"; frame.clauseIndent = frame.base + 1; }
+if (canon === "AND" || canon === "OR"){
+  if (["WHERE","HAVING","ON"].includes(frame.clause)) nl(frame.clauseIndent + 1);
+  put(disp, needSpace());
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Minify — the inverse — and the library</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Minifying is the same token stream with the line-break rules switched off: drop the comments (a <code>--</code> line comment can't survive on one line anyway), then join the tokens with a single space where one is needed and none around <code>. ( )</code> and before commas. The result is guaranteed to be a single line. Verify the whole formatter by round-tripping — <code>minify(format(sql))</code> should equal <code>minify(sql)</code>. And when the query might be MySQL one day and BigQuery the next, hand the job to <code>sql-formatter</code>.</p>
+        <div class="relative"><pre>function minifySQL(sql){
+  const toks = classify(tokenize(sql))
+    .filter(t =&gt; t.type !== "lcomment" &amp;&amp; t.type !== "bcomment");   // no comments on one line
+  let out = "", prev = null;
+  for (const tok of toks){ out += (need(prev, tok) ? " " : "") + text(tok); prev = tok; }
+  return out.trim();                    // one line, always
+}
+// npm i sql-formatter   ->   format(sql, { language: "postgresql" })</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 31 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real SQL beautifier: a <strong>quote- and comment-aware tokenizer</strong> that keeps every string, comment and quoted identifier verbatim (so <code>select</code> inside a literal is never touched), keyword recognition with <strong>upper/lower casing</strong>, clause-driven <strong>line breaks</strong>, subquery <strong>indentation by parenthesis depth</strong> via a frame stack, per-clause <strong>column/comma styles</strong>, <code>JOIN</code>/<code>ON</code> layout with aligned <code>AND</code>/<code>OR</code>, and a <strong>minifier</strong> that collapses it all back to one line. The lesson: <strong>pretty-printing isn't parsing — it's re-spacing a token stream, and the only hard part is tokenizing correctly so the layout rules never corrupt the query.</strong> <strong>👉 Tomorrow — Day 32:</strong> a <strong>Word &amp; Character Counter</strong> — live word, character, sentence and reading-time stats as you type.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==SQL-ENGINE-START==  (pure, no DOM — this exact block is also run by the Node test)
+// A hand-rolled, dependency-free SQL pretty-printer + minifier.
+//   tokenize(sql)         : SQL text -> array of tokens (quote/comment aware)
+//   formatSQL(sql, opts)  : messy SQL -> indented, keyword-cased SQL
+//   minifySQL(sql, opts)  : SQL -> a single collapsed line
+// No library. A real tokenizer preserves strings/comments/identifiers verbatim;
+// a token-stream printer applies clause-driven line breaks and paren-depth indent.
+
+// ---- keyword tables -------------------------------------------------------
+const KEYWORDS = new Set(("SELECT FROM WHERE GROUP ORDER BY HAVING LIMIT OFFSET UNION ALL DISTINCT AS ON " +
+  "USING JOIN INNER LEFT RIGHT FULL OUTER CROSS NATURAL AND OR NOT IN IS NULL LIKE ILIKE BETWEEN EXISTS " +
+  "CASE WHEN THEN ELSE END ASC DESC NULLS FIRST LAST INSERT INTO VALUES UPDATE SET DELETE CREATE TABLE " +
+  "VIEW INDEX DROP ALTER ADD COLUMN PRIMARY KEY FOREIGN REFERENCES UNIQUE CHECK CONSTRAINT DEFAULT WITH " +
+  "RECURSIVE RETURNING TRUE FALSE TOP FETCH NEXT ROW ROWS ONLY PARTITION OVER INTERVAL CASCADE GRANT " +
+  "INT INTEGER BIGINT SMALLINT VARCHAR TEXT BOOLEAN DATE TIMESTAMP NUMERIC DECIMAL FLOAT SERIAL").split(/\s+/));
+const FUNCTIONS = new Set(("COUNT SUM AVG MIN MAX COALESCE CAST NULLIF ROUND ABS CEIL FLOOR LENGTH CHAR_LENGTH " +
+  "LOWER UPPER TRIM LTRIM RTRIM SUBSTR SUBSTRING REPLACE CONCAT NOW CURRENT_DATE CURRENT_TIMESTAMP EXTRACT " +
+  "DATE_TRUNC IFNULL ISNULL GREATEST LEAST ROW_NUMBER RANK DENSE_RANK LAG LEAD FIRST_VALUE LAST_VALUE " +
+  "STRING_AGG ARRAY_AGG JSON_AGG TO_CHAR TO_DATE").split(/\s+/));
+
+// multi-word keyword phrases that must print/case as a unit (longest first)
+const MERGE = [
+  ["LEFT","OUTER","JOIN"], ["RIGHT","OUTER","JOIN"], ["FULL","OUTER","JOIN"],
+  ["GROUP","BY"], ["ORDER","BY"], ["PARTITION","BY"],
+  ["LEFT","JOIN"], ["RIGHT","JOIN"], ["INNER","JOIN"], ["FULL","JOIN"], ["CROSS","JOIN"], ["OUTER","JOIN"],
+  ["INSERT","INTO"], ["DELETE","FROM"], ["UNION","ALL"],
+  ["IS","NOT"], ["NOT","NULL"], ["NOT","IN"], ["NOT","LIKE"], ["NOT","EXISTS"]
+];
+
+// layout classes (canonical, post-merge)
+const MAJOR = new Set(["SELECT","FROM","WHERE","GROUP BY","ORDER BY","HAVING","LIMIT","OFFSET","UNION",
+  "UNION ALL","VALUES","SET","RETURNING","WITH","INSERT INTO","DELETE FROM","UPDATE","INTO"]);
+const JOINS = new Set(["JOIN","INNER JOIN","LEFT JOIN","RIGHT JOIN","FULL JOIN","CROSS JOIN","OUTER JOIN",
+  "LEFT OUTER JOIN","RIGHT OUTER JOIN","FULL OUTER JOIN"]);
+const LIST_BREAK = new Set(["SELECT","GROUP BY","ORDER BY","SET","RETURNING"]);   // each item on its own line
+const COMMA_LIST = new Set(["SELECT","GROUP BY","ORDER BY","SET","RETURNING","FROM","VALUES"]);
+const MODIFIERS = new Set(["DISTINCT","ALL","TOP"]);   // stay on the clause keyword's line
+
+// ---- tokenizer ------------------------------------------------------------
+function tokenize(sql){
+  const s = String(sql), n = s.length, toks = [];
+  let i = 0;
+  const identStart = c => /[A-Za-z_@#$]/.test(c);
+  const identPart  = c => /[A-Za-z0-9_@#$]/.test(c);
+  while (i < n){
+    const c = s[i];
+    if (/\s/.test(c)){ let a = i; while (i < n && /\s/.test(s[i])) i++; toks.push({ type:"ws", val:s.slice(a,i) }); continue; }
+    if (c === "-" && s[i+1] === "-"){ let a = i; while (i < n && s[i] !== "\n") i++; toks.push({ type:"lcomment", val:s.slice(a,i) }); continue; }
+    if (c === "/" && s[i+1] === "*"){ let a = i; i += 2; while (i < n && !(s[i] === "*" && s[i+1] === "/")) i++; i = Math.min(n, i+2); toks.push({ type:"bcomment", val:s.slice(a,i) }); continue; }
+    if (c === "'"){ let a = i; i++; while (i < n){ if (s[i] === "'"){ if (s[i+1] === "'"){ i += 2; continue; } i++; break; } i++; } toks.push({ type:"string", val:s.slice(a,i) }); continue; }
+    if (c === '"'){ let a = i; i++; while (i < n){ if (s[i] === '"'){ if (s[i+1] === '"'){ i += 2; continue; } i++; break; } i++; } toks.push({ type:"dquote", val:s.slice(a,i) }); continue; }
+    if (c === "`"){ let a = i; i++; while (i < n && s[i] !== "`") i++; i = Math.min(n, i+1); toks.push({ type:"bquote", val:s.slice(a,i) }); continue; }
+    if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(s[i+1]))){
+      const rest = s.slice(i);
+      let m = /^0[xX][0-9a-fA-F]+/.exec(rest) || /^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(rest);
+      toks.push({ type:"number", val:m[0] }); i += m[0].length; continue;
+    }
+    if (identStart(c)){ let a = i; while (i < n && identPart(s[i])) i++; toks.push({ type:"word", val:s.slice(a,i) }); continue; }
+    if (c === ","){ toks.push({ type:"comma", val:"," }); i++; continue; }
+    if (c === "("){ toks.push({ type:"lparen", val:"(" }); i++; continue; }
+    if (c === ")"){ toks.push({ type:"rparen", val:")" }); i++; continue; }
+    if (c === ";"){ toks.push({ type:"semi", val:";" }); i++; continue; }
+    if (c === "."){ toks.push({ type:"dot", val:"." }); i++; continue; }
+    const three = s.substr(i,3), two = s.substr(i,2);
+    if (three === "->>"){ toks.push({ type:"op", val:three }); i += 3; continue; }
+    if (["<=",">=","<>","!=","||","::","->",":="].includes(two)){ toks.push({ type:"op", val:two }); i += 2; continue; }
+    toks.push({ type:"op", val:c }); i++;
+  }
+  return toks;
+}
+
+// ---- merge multi-word keywords + tag words --------------------------------
+function classify(tokens){
+  const sig = tokens.filter(t => t.type !== "ws").map(t => {
+    if (t.type === "word"){ const canon = t.val.toUpperCase(); return { ...t, canon, isKw: KEYWORDS.has(canon), isFunc: FUNCTIONS.has(canon) }; }
+    return { ...t };
+  });
+  const out = [];
+  for (let i = 0; i < sig.length; i++){
+    let merged = null;
+    for (const phrase of MERGE){
+      if (i + phrase.length > sig.length) continue;
+      let ok = true;
+      for (let k = 0; k < phrase.length; k++){ const w = sig[i+k]; if (w.type !== "word" || w.canon !== phrase[k]) { ok = false; break; } }
+      if (ok){ merged = phrase; break; }
+    }
+    if (merged){
+      const canon = merged.join(" ");
+      out.push({ type:"word", val:canon, canon, isKw:true, isFunc:false, mergedFrom: sig.slice(i, i+merged.length).map(w=>w.val) });
+      i += merged.length - 1;
+    } else out.push(sig[i]);
+  }
+  return out;
+}
+
+function caseWord(tok, kwCase){
+  if (tok.isKw || tok.isFunc) return kwCase === "lower" ? tok.canon.toLowerCase() : tok.canon;
+  return tok.val;   // identifiers, quoted names — verbatim
+}
+
+// ---- formatter ------------------------------------------------------------
+function formatSQL(sql, opts){
+  opts = opts || {};
+  const W = opts.indent != null ? opts.indent : 2;
+  const kwCase = opts.case || "upper";
+  const commaStyle = opts.comma || "trailing";      // "trailing" | "leading"
+  const toks = classify(tokenize(sql));
+
+  const lines = [];
+  let cur = "", curIndent = 0, prev = null;
+  const pad = lvl => " ".repeat(Math.max(0, lvl) * W);
+  const flush = () => { if (cur.trim() !== "") lines.push(pad(curIndent) + cur.replace(/\s+$/,"")); cur = ""; };
+  const nl = lvl => { flush(); curIndent = lvl; };
+  const put = (text, spaceBefore) => { cur = cur === "" ? text : cur + (spaceBefore ? " " : "") + text; };
+
+  const rootFrame = () => ({ base:0, commaBreak:false, listIndent:0, pendingListBreak:false, clause:null, clauseIndent:0, sub:true });
+  const frames = [rootFrame()];
+  const top = () => frames[frames.length - 1];
+
+  function needSpace(tok){
+    if (!prev) return false;
+    if (tok.type === "comma" || tok.type === "semi" || tok.type === "rparen" || tok.type === "dot") return false;
+    if (prev.type === "dot" || prev.type === "lparen") return false;
+    return true;
+  }
+  function spaceBeforeParen(isSub){
+    if (!prev) return false;
+    if (isSub) return true;
+    if (prev.type === "rparen") return false;
+    if (prev.type === "word" && (!prev.isKw || prev.isFunc)) return false;   // function / identifier call
+    return true;
+  }
+  function nextSig(from){ for (let k = from + 1; k < toks.length; k++){ const t = toks[k]; if (t.type !== "lcomment" && t.type !== "bcomment") return t; } return null; }
+  const breakList = () => { const f = top(); if (f.pendingListBreak){ nl(f.listIndent); f.pendingListBreak = false; } };
+
+  for (let idx = 0; idx < toks.length; idx++){
+    const tok = toks[idx], f = top();
+
+    if (tok.type === "lcomment"){
+      if (cur.trim() !== "") { put(tok.val, true); flush(); } else lines.push(pad(curIndent) + tok.val);
+      prev = null; continue;
+    }
+    if (tok.type === "bcomment"){ put(tok.val, needSpace(tok)); prev = { type:"bcomment" }; continue; }
+
+    if (tok.type === "word"){
+      const canon = tok.canon, disp = caseWord(tok, kwCase);
+      if (MAJOR.has(canon)){
+        nl(f.base); put(disp, false);
+        f.clause = canon; f.clauseIndent = f.base;
+        if (LIST_BREAK.has(canon)){ f.commaBreak = true; f.listIndent = f.base + 1; f.pendingListBreak = true; }
+        else if (COMMA_LIST.has(canon)){ f.commaBreak = true; f.listIndent = f.base + 1; f.pendingListBreak = false; }
+        else { f.commaBreak = false; }
+        prev = tok; continue;
+      }
+      if (JOINS.has(canon)){ nl(f.base); put(disp, false); f.clause = "JOIN"; f.clauseIndent = f.base; f.commaBreak = false; prev = tok; continue; }
+      if (canon === "ON"){ nl(f.base + 1); put(disp, false); f.clause = "ON"; f.clauseIndent = f.base + 1; prev = tok; continue; }
+      if (canon === "AND" || canon === "OR"){
+        if (f.clause === "WHERE" || f.clause === "HAVING" || f.clause === "ON"){ nl(f.clauseIndent + 1); put(disp, false); }
+        else put(disp, needSpace(tok));
+        prev = tok; continue;
+      }
+      if (!MODIFIERS.has(canon)) breakList();
+      put(disp, needSpace(tok)); prev = tok; continue;
+    }
+
+    if (tok.type === "number" || tok.type === "string" || tok.type === "dquote" || tok.type === "bquote"){
+      breakList(); put(tok.val, needSpace(tok)); prev = tok; continue;
+    }
+
+    if (tok.type === "comma"){
+      if (f.commaBreak && commaStyle === "leading"){ nl(f.listIndent); put(",", false); }
+      else { put(",", false); if (f.commaBreak) nl(f.listIndent); }
+      prev = { type:"comma" }; continue;
+    }
+
+    if (tok.type === "lparen"){
+      breakList();
+      const sub = (() => { const nx = nextSig(idx); return nx && nx.type === "word" && (nx.canon === "SELECT" || nx.canon === "WITH"); })();
+      if (sub){
+        put("(", spaceBeforeParen(true));
+        const base2 = curIndent + 1;
+        frames.push({ base:base2, commaBreak:false, listIndent:base2 + 1, pendingListBreak:false, clause:null, clauseIndent:base2, sub:true });
+        nl(base2); prev = { type:"lparen" };
+      } else {
+        put("(", spaceBeforeParen(false));
+        frames.push({ base:curIndent, commaBreak:false, listIndent:curIndent, pendingListBreak:false, clause:f.clause, clauseIndent:f.clauseIndent, sub:false });
+        prev = { type:"lparen" };
+      }
+      continue;
+    }
+
+    if (tok.type === "rparen"){
+      const f2 = frames.length > 1 ? frames.pop() : top();
+      if (f2.sub){ nl(f2.base - 1); put(")", false); } else put(")", false);
+      prev = { type:"rparen" }; continue;
+    }
+
+    if (tok.type === "semi"){ put(";", false); flush(); frames.length = 0; frames.push(rootFrame()); curIndent = 0; prev = null; continue; }
+
+    if (tok.type === "dot"){ put(".", false); prev = { type:"dot" }; continue; }
+
+    // operator
+    if (!MODIFIERS.has((tok.val||"").toUpperCase())) breakList();
+    put(tok.val, needSpace(tok)); prev = tok;
+  }
+  flush();
+  return lines.join("\n").replace(/[ \t]+$/gm, "");
+}
+
+// ---- minifier (inverse: collapse to one line) -----------------------------
+function minifySQL(sql, opts){
+  opts = opts || {};
+  const kwCase = opts.case || "upper";
+  const toks = classify(tokenize(sql)).filter(t => t.type !== "lcomment" && t.type !== "bcomment");
+  let out = "", prev = null;
+  const need = tok => {
+    if (!prev) return false;
+    if (tok.type === "comma" || tok.type === "semi" || tok.type === "rparen" || tok.type === "dot") return false;
+    if (prev.type === "dot" || prev.type === "lparen") return false;
+    if (tok.type === "lparen"){
+      if (prev.type === "rparen") return false;
+      if (prev.type === "word" && (!prev.isKw || prev.isFunc)) return false;
+      return true;
+    }
+    return true;
+  };
+  for (const tok of toks){
+    const text = tok.type === "word" ? caseWord(tok, kwCase) : tok.val;
+    out += (need(tok) ? " " : "") + text;
+    prev = tok.type === "word" ? tok : { type: tok.type };
+  }
+  return out.trim();
+}
+
+if (typeof module !== "undefined" && module.exports) module.exports = { tokenize, formatSQL, minifySQL, classify };
+// ==SQL-ENGINE-END==
+
+// ===== LOOK: formatter UI =====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+const SAMPLES = [
+  { label: "joins", sql: "select u.id, u.name , u.email from users u left join orders o on o.user_id=u.id and o.status='paid' where u.active=1 and o.total>100 group by u.id, u.name order by u.name desc limit 10" },
+  { label: "subquery", sql: "select c.name, (select count(*) from orders o where o.customer_id=c.id) as order_count from customers c where c.region in ('US','UK') order by order_count desc" },
+  { label: "CTE", sql: "with recent as (select customer_id, sum(total) as spend from orders where created_at >= '2026-01-01' group by customer_id) select c.name, r.spend from customers c inner join recent r on r.customer_id = c.id where r.spend > 500" },
+  { label: "CASE", sql: "select id, case when score >= 90 then 'A' when score >= 80 then 'B' else 'C' end as grade from students where enrolled = true" },
+  { label: "insert", sql: "insert into audit_log (user_id, action, detail, created_at) values (42, 'login', 'ok from 10.0.0.1', now()), (43, 'logout', null, now())" },
+  { label: "string-with-keyword", sql: "select id, 'please select an option from the list' as hint, `order` as ord from menu m -- a comment mentioning where and join\nwhere m.note like '%group by%' and m.active is not null" }
+];
+const DEFAULT_SQL = SAMPLES[0].sql;
+
+let opt = { case: "upper", indent: 2, comma: "trailing" };
+let viewMode = "pretty";   // "pretty" | "min"
+
+const srcTa = document.getElementById("src");
+const outTa = document.getElementById("out");
+const errEl = document.getElementById("err");
+const outLabel = document.getElementById("outLabel");
+
+function maxParenDepth(toks){ let d = 0, m = 0; for (const t of toks){ if (t.type === "lparen"){ d++; if (d > m) m = d; } else if (t.type === "rparen") d = Math.max(0, d - 1); } return m; }
+
+function tokClass(t){
+  if (t.type === "string") return "tok-str";
+  if (t.type === "lcomment" || t.type === "bcomment") return "tok-com";
+  if (t.type === "number") return "tok-num";
+  if (t.type === "dquote" || t.type === "bquote") return "tok-id";
+  if (t.type === "comma" || t.type === "lparen" || t.type === "rparen" || t.type === "semi") return "tok-p";
+  if (t.type === "op" || t.type === "dot") return "tok-op";
+  if (t.type === "word"){ if (t.isKw) return "tok-kw"; if (t.isFunc) return "tok-fn"; return "tok-id"; }
+  return "tok-id";
+}
+function renderTokens(sql){
+  const toks = classify(tokenize(sql));
+  const html = toks.map(t => `<span class="tok ${tokClass(t)}" title="${t.type}">${escapeHtml(t.val)}</span>`).join("");
+  document.getElementById("tokView").innerHTML = html || '<span class="text-slate-400 text-sm">—</span>';
+}
+
+function render(){
+  const srcText = srcTa.value;
+  errEl.textContent = "";
+  let output = "";
+  try {
+    output = viewMode === "min" ? minifySQL(srcText, { case: opt.case }) : formatSQL(srcText, opt);
+  } catch (e){
+    errEl.textContent = "⚠ " + (e.message || e);
+  }
+  outTa.value = output;
+  outLabel.textContent = viewMode === "min" ? "Minified out" : "Formatted out";
+  const toks = classify(tokenize(srcText));
+  document.getElementById("stTokens").textContent = toks.length;
+  document.getElementById("stKeywords").textContent = toks.filter(t => t.type === "word" && t.isKw).length;
+  document.getElementById("stDepth").textContent = maxParenDepth(toks);
+  document.getElementById("stLines").textContent = output ? output.split("\n").length : 0;
+  renderTokens(srcText);
+}
+
+srcTa.addEventListener("input", render);
+
+// mode buttons
+const mPretty = document.getElementById("mPretty"), mMinify = document.getElementById("mMinify");
+function setMode(m){
+  viewMode = m;
+  mPretty.classList.toggle("toggle-on", m === "pretty"); mPretty.classList.toggle("bg-slate-100", m !== "pretty");
+  mMinify.classList.toggle("toggle-on", m === "min");    mMinify.classList.toggle("bg-slate-100", m !== "min");
+  render();
+}
+mPretty.onclick = () => setMode("pretty");
+mMinify.onclick = () => setMode("min");
+
+// option buttons
+function wireOpts(sel, key, cast){
+  document.querySelectorAll(sel).forEach(b => b.onclick = () => {
+    document.querySelectorAll(sel).forEach(x => { x.classList.remove("toggle-on"); x.classList.add("bg-slate-100"); });
+    b.classList.add("toggle-on"); b.classList.remove("bg-slate-100");
+    opt[key] = cast ? cast(b.dataset[Object.keys(b.dataset)[0]]) : b.dataset[Object.keys(b.dataset)[0]];
+    render();
+  });
+}
+wireOpts(".optCase", "case", null);
+wireOpts(".optInd", "indent", v => parseInt(v, 10));
+wireOpts(".optComma", "comma", null);
+// set initial active states
+document.querySelector('.optCase[data-case="upper"]').classList.add("toggle-on");
+document.querySelector('.optCase[data-case="upper"]').classList.remove("bg-slate-100");
+document.querySelector('.optInd[data-ind="2"]').classList.add("toggle-on");
+document.querySelector('.optInd[data-ind="2"]').classList.remove("bg-slate-100");
+document.querySelector('.optComma[data-comma="trailing"]').classList.add("toggle-on");
+document.querySelector('.optComma[data-comma="trailing"]').classList.remove("bg-slate-100");
+
+// sample buttons
+const samplesEl = document.getElementById("samples");
+SAMPLES.forEach(s => {
+  const b = document.createElement("button");
+  b.className = "bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs";
+  b.textContent = s.label;
+  b.onclick = () => { srcTa.value = s.sql; setMode("pretty"); render(); };
+  samplesEl.appendChild(b);
+});
+
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+document.getElementById("copySrc").onclick = e => copyText(srcTa.value, e.target);
+document.getElementById("copyOut").onclick = e => copyText(outTa.value, e.target);
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why format SQL at all", why:"Databases do not care how a query is laid out — SELECT id FROM t and a beautifully indented version run identically. Formatting is entirely for humans. A well-formatted query is faster to read, its intent is obvious at a glance, and — the underrated benefit — it produces clean version-control diffs: when every column and clause sits on its own line, a one-column change shows up as a one-line diff instead of a rewritten wall of text. That makes code review of SQL migrations and reports far easier, and it is why teams run a formatter in CI just as they do for application code. A formatter is a pure presentation tool: it must change the whitespace and nothing else, so the query's meaning is guaranteed untouched.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-slate-400 mb-1">before</div><div>select id,name,total from orders where paid=1</div><div class="text-amber-600 my-2">↓ format ↓</div><div class="text-slate-400 mb-1">after</div><div>SELECT</div><div>&nbsp;&nbsp;id,</div><div>&nbsp;&nbsp;name,</div><div>&nbsp;&nbsp;total</div><div>FROM orders</div><div>WHERE paid = 1</div></div>`, code:`// same query, same result — only the whitespace changed
+// win: readable, reviewable, clean line-by-line diffs
+formatSQL("select id,name from t where a=1");
+// SELECT
+//   id,
+//   name
+// FROM t
+// WHERE a = 1` },
+ { title:"2. Tokenizing — the hard part", why:"You cannot format SQL by pushing regexes over the raw string, because the query contains regions that must never be touched: string literals, comments, and quoted identifiers. If you blindly uppercased every occurrence of 'select', you would wreck WHERE hint = 'please select one'. So step one is a tokenizer that scans the text character by character and, crucially, treats those regions as opaque single tokens. A single-quoted string runs to its closing quote (with '' as an escaped quote inside); a -- comment runs to end of line; a /* */ block runs to its terminator; double-quotes and backticks wrap identifiers. Only after the text is safely divided into typed tokens can any layout rule run — and by construction none of them can ever reach inside a string or comment.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>WHERE note = <span class="seg" style="background:#dcfce7;color:#166534;padding:1px 3px;border-radius:4px;">'select all rows'</span></div><div class="text-slate-400 mt-2">the string is ONE token →</div><div class="text-slate-400">the word 'select' inside is invisible</div><div class="mt-2">x <span class="seg" style="background:#e2e8f0;color:#64748b;padding:1px 3px;border-radius:4px;">-- join later</span></div><div class="text-slate-400">comment is one token too</div></div>`, code:`if (c === "'"){                 // consume the whole string literal
+  let a = i; i++;
+  while (i < n){
+    if (s[i] === "'"){ if (s[i+1] === "'"){ i += 2; continue; } i++; break; }
+    i++;
+  }
+  toks.push({ type:"string", val:s.slice(a,i) });   // opaque token
+}
+// -- and /* */ comments captured the same way` },
+ { title:"3. Keyword recognition + casing", why:"Once you have word tokens, you must decide which are SQL keywords and which are the user's own identifiers (table names, columns, aliases). The test is simple: uppercase the word and look it up in a set of known keywords (and a set of built-in functions). If it matches, it is a keyword and may be re-cased to the user's chosen style — usually UPPERCASE, which makes the query's skeleton pop out from the lowercase data names. If it does not match, it is an identifier and must be printed exactly as typed; casing someone's my_table to MY_TABLE could even break a case-sensitive database. Multi-word keywords such as GROUP BY or LEFT OUTER JOIN are first merged into one logical token so they are recognised as a unit and can never be split across a line break.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">select</span> → <span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">SELECT</span> <span class="text-slate-400">keyword, re-cased</span></div><div class="mt-1"><span class="seg" style="background:#fef3c7;color:#b45309;padding:1px 3px;border-radius:4px;">count</span> → <span class="seg" style="background:#fef3c7;color:#b45309;padding:1px 3px;border-radius:4px;">COUNT</span> <span class="text-slate-400">function</span></div><div class="mt-1"><span class="seg" style="background:#f1f5f9;color:#334155;padding:1px 3px;border-radius:4px;">customers</span> → <span class="seg" style="background:#f1f5f9;color:#334155;padding:1px 3px;border-radius:4px;">customers</span> <span class="text-slate-400">identifier, verbatim</span></div></div>`, code:`const canon = word.toUpperCase();
+const isKw = KEYWORDS.has(canon);
+
+function caseWord(tok, kwCase){
+  if (tok.isKw || tok.isFunc)
+    return kwCase === "lower" ? tok.canon.toLowerCase() : tok.canon;
+  return tok.val;               // identifier: never rewritten
+}` },
+ { title:"4. Clause-driven line breaks", why:"The signature look of formatted SQL — the vertical stack of clauses — comes from one rule. The printer maintains a current line and an indent level. When it encounters a major clause keyword (SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, UNION, and the statement heads INSERT INTO, UPDATE, DELETE FROM) it flushes whatever is on the current line and begins a new line at the base indent for the current query. So a query that arrived as one long string is broken at exactly those keywords, and each clause lines up in the left column. Everything between clauses — expressions, table names, conditions — simply accumulates on the current line until the next clause or a more specific rule (a comma, a JOIN, an AND) forces its own break.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">SELECT</span> …</div><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">FROM</span> …</div><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">WHERE</span> …</div><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">ORDER BY</span> …</div><div class="text-slate-400 mt-2">each major clause → new line at base indent</div></div>`, code:`const MAJOR = new Set(["SELECT","FROM","WHERE","GROUP BY",
+  "ORDER BY","HAVING","LIMIT","UNION","INSERT INTO","UPDATE"]);
+
+if (MAJOR.has(canon)){
+  nl(frame.base);                 // flush + indent to clause base
+  put(caseWord(tok, kwCase), false);
+  frame.clause = canon;           // remember what clause we're in
+}` },
+ { title:"5. Indenting subqueries by paren depth", why:"Parentheses are where a formatter earns its keep, because '(' means two completely different things. After a function name — count(*), coalesce(a, b) — it opens an argument list that should stay inline. But before a SELECT it opens a subquery, which should break onto its own indented block so the nesting is visible. You tell them apart by peeking at the next real token: if it is SELECT (or WITH) you are entering a subquery. Track this with a stack of frames — push a frame carrying a deeper base indent when a subquery opens, and pop it on the matching ')'. Because the stack records the indent of each opener, arbitrarily deep nesting lays itself out correctly, and the closing paren returns to exactly the column its opener sat on.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>FROM (</div><div>&nbsp;&nbsp;<span class="seg" style="background:#ede9fe;color:#5b21b6;padding:1px 3px;border-radius:4px;">SELECT</span> id</div><div>&nbsp;&nbsp;FROM orders</div><div>) o</div><div class="text-slate-400 mt-2">count(*) stays inline · (SELECT …) breaks + indents</div></div>`, code:`const sub = nextSig(idx)?.canon === "SELECT";   // subquery?
+if (sub){
+  put("(", true);
+  frames.push({ base: curIndent + 1, sub:true });  // deeper frame
+  nl(curIndent + 1);
+} else {
+  put("(", glue);                                  // function call: inline
+  frames.push({ base: curIndent, sub:false });
+}
+// on ")": f = frames.pop(); if (f.sub){ nl(f.base - 1); put(")"); }` },
+ { title:"6. Column lists and comma styles", why:"Inside SELECT, GROUP BY and ORDER BY the convention is one item per line, which makes long projection lists easy to scan and to diff. The mechanism is a per-frame flag: when the printer enters one of those clauses it marks 'break on commas', so each comma at that frame's own depth ends the line and the next column starts fresh. The subtlety is that a comma inside a function's argument list belongs to a deeper, inline frame that does not have the flag set — so coalesce(a, b) keeps its arguments together while the top-level column list breaks. On top of that sits a style choice: trailing commas sit at the end of each line, while leading commas sit at the start of the next line, an old-school style some teams prefer because adding a column touches only one line in the diff.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-slate-400 mb-1">trailing</div><div>SELECT</div><div>&nbsp;&nbsp;a,</div><div>&nbsp;&nbsp;b</div><div class="text-slate-400 mt-2 mb-1">leading</div><div>SELECT</div><div>&nbsp;&nbsp;a</div><div>, b</div></div>`, code:`if (tok.type === "comma"){
+  if (frame.commaBreak && commaStyle === "leading"){
+    nl(frame.listIndent); put(",", false);   // ", b" on next line
+  } else {
+    put(",", false);                          // "a,"  on this line
+    if (frame.commaBreak) nl(frame.listIndent);
+  }
+}` },
+ { title:"7. JOIN / ON layout", why:"Joins get their own treatment so the shape of a multi-table query is obvious. Every join flavour — JOIN, INNER JOIN, LEFT JOIN, RIGHT/FULL/CROSS and their OUTER variants — starts a new line aligned with FROM, so the list of tables reads as a vertical column. The join's ON condition then drops one indent level below, visually attaching the condition to the join it belongs to. Because the multi-word join names were merged into single tokens back in the classify step, 'LEFT OUTER JOIN' is one atom and can never be broken across the wrap. The result is the familiar staircase where you can run your eye down the FROM/JOIN column to see every table, and glance right to see how each is joined.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>FROM users u</div><div><span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">LEFT JOIN</span> orders o</div><div>&nbsp;&nbsp;<span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">ON</span> o.user_id = u.id</div><div class="text-slate-400 mt-2">joins align under FROM · ON drops one level</div></div>`, code:`if (JOINS.has(canon)){
+  nl(frame.base); put(disp, false);      // align with FROM
+  frame.clause = "JOIN";
+}
+if (canon === "ON"){
+  nl(frame.base + 1); put(disp, false);  // indent under the join
+  frame.clause = "ON"; frame.clauseIndent = frame.base + 1;
+}` },
+ { title:"8. Aligning AND / OR under WHERE", why:"A WHERE clause with several conditions is much clearer when each AND/OR begins its own line, indented one step under the WHERE keyword so the conditions form a neat aligned list. The printer only applies this inside the clauses where it makes sense — WHERE, HAVING and a join's ON — which it knows because it recorded the current clause when it printed the keyword. Anywhere else, for example an AND buried inside a CASE expression or a function argument, the word is left inline so you do not get spurious breaks in the middle of an expression. This clause-awareness — breaking AND under WHERE but not elsewhere — is a small example of why a token stream that remembers a little context beats a stateless search-and-replace.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>WHERE u.active = 1</div><div>&nbsp;&nbsp;<span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">AND</span> o.total &gt; 100</div><div>&nbsp;&nbsp;<span class="seg" style="background:#fde68a;color:#92400e;padding:1px 3px;border-radius:4px;">OR</span> o.vip = true</div><div class="text-slate-400 mt-2">aligned one level under WHERE</div></div>`, code:`if (canon === "AND" || canon === "OR"){
+  if (["WHERE","HAVING","ON"].includes(frame.clause)){
+    nl(frame.clauseIndent + 1);   // new aligned line
+    put(disp, false);
+  } else {
+    put(disp, needSpace(tok));    // inside CASE/expr: stay inline
+  }
+}` },
+ { title:"9. Minify — the inverse", why:"Minifying is the mirror image of pretty-printing: same token stream, but the line-break rules are switched off. Run the tokenizer, drop the comments (a -- line comment cannot survive on a single line, and inline block comments are noise you rarely want when collapsing), then join the remaining tokens with a single space wherever one is required and none around the glue characters — no space before a comma, none around a dot, none inside a function call's opening paren. Because there is nothing that emits a newline, the output is guaranteed to be exactly one line. Minifying is handy for embedding a query in a log line, a config value, or a one-off shell command — and it doubles as a correctness check: minify(format(sql)) should equal minify(sql), proving the pretty-printer only moved whitespace.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>SELECT</div><div>&nbsp;&nbsp;id,</div><div>&nbsp;&nbsp;name</div><div>FROM t</div><div class="text-amber-600 my-2">↓ minify ↓</div><div>SELECT id, name FROM t</div><div class="text-slate-400 mt-2">one line · comments dropped</div></div>`, code:`function minifySQL(sql){
+  const toks = classify(tokenize(sql))
+    .filter(t => t.type !== "lcomment" && t.type !== "bcomment");
+  let out = "", prev = null;
+  for (const tok of toks){
+    out += (need(prev, tok) ? " " : "") + text(tok);
+    prev = tok;
+  }
+  return out.trim();          // always a single line
+}` },
+ { title:"10. Why a real parser beats regex", why:"The hand-rolled formatter on this page works well for ordinary queries, but SQL is a large family of dialects and a token-and-layout approach eventually meets edge cases it cannot handle correctly. Different databases use different comment markers (# in MySQL), different identifier quoting ([brackets] in SQL Server), dollar-quoted function bodies in Postgres, window frames, MERGE statements, array and JSON operators, and keywords that are contextual (a word that is reserved in one position and a valid column name in another). Getting all of that right means actually parsing the grammar of a specific dialect rather than pattern-matching tokens. That is what a production library like sql-formatter does: it is dialect-aware, so it knows the true keyword set and structure for MySQL, PostgreSQL, T-SQL, BigQuery and more, and formats reliably where a generic tokenizer would guess. Roll your own to understand the mechanics; reach for the library when correctness across dialects matters.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-red-700"># mysql comment</div><div class="text-red-700">[bracketed] identifier &nbsp;(T-SQL)</div><div class="text-red-700">$$ body $$ &nbsp;(postgres)</div><div class="text-slate-400 mt-2">one regex can't know them all →</div><div class="text-amber-600">use a dialect-aware parser</div></div>`, code:`// npm i sql-formatter
+import { format } from "sql-formatter";
+format(messySql, { language: "postgresql", tabWidth: 2 });
+format(messySql, { language: "mysql" });
+// dialect-aware: knows the real keyword set & grammar
+// per database — correct where a generic tokenizer guesses` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let cur = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ cur=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,cur-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,cur+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(cur>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(cur+1); },3600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+srcTa.value = DEFAULT_SQL;
+render();
+</script>
+</body>
+</html>
