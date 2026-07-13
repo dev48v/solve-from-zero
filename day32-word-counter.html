@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 32 — Word &amp; Character Counter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 14px; }
+  .field.bad { background:#fef2f2; border-color:#fca5a5; }
+  .field.good { background:#f0fdf4; border-color:#86efac; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .stat { font-variant-numeric:tabular-nums; }
+  textarea.field { width:100%; resize:vertical; min-height:96px; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; }
+  .toggle-on { background:#f59e0b !important; color:#fff !important; box-shadow:0 3px 0 #d97706; }
+  table.grid { width:100%; border-collapse:collapse; font-size:13px; }
+  table.grid th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; font-weight:700; padding:6px 10px; border-bottom:1px solid #e2e8f0; }
+  table.grid td { padding:6px 10px; border-bottom:1px solid #f1f5f9; font-family:ui-monospace, Menlo, monospace; }
+  /* stat cards */
+  .statcard { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; text-align:center; }
+  .statcard .n { font-size:26px; font-weight:800; line-height:1; color:#0f172a; font-variant-numeric:tabular-nums; }
+  .statcard .l { font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; font-weight:700; margin-top:6px; }
+  /* limit meters */
+  .meter { height:11px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+  .meter > i { display:block; height:100%; width:0; background:#f59e0b; border-radius:999px; transition:width .15s ease; }
+  .meter.over > i { background:#ef4444; }
+  /* grapheme breakdown chips */
+  .g { display:inline-block; padding:3px 7px; margin:2px; border-radius:7px; font-family:ui-monospace, Menlo, monospace; font-size:16px; background:#f1f5f9; border:1px solid #e2e8f0; }
+  .g.multi { background:#fde68a; border-color:#f59e0b; color:#92400e; }
+  .g.ws { background:#eef2f7; color:#cbd5e1; }
+  .g sub { font-size:9px; color:#b45309; font-family:ui-monospace, Menlo, monospace; }
+  .bignum { font-variant-numeric:tabular-nums; font-weight:800; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 32</div>
+      <h1 class="text-xl font-bold">🔤 Word &amp; Character Counter — live stats that count the way you <em>read</em>, not the way memory stores it</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Type or paste text — every count updates live as you type.</h2>
+        <p class="text-slate-500 mb-5">A word counter looks like the simplest tool on earth, and the naïve version is one line — <code>text.length</code>. But that number is a lie the moment your text contains an emoji, an accented letter, or any non-Latin script: JavaScript strings are stored as <strong>UTF-16 code units</strong>, so <code>"👍".length</code> is <strong>2</strong> and a family emoji <code>"👨‍👩‍👧"</code> is <strong>8</strong> — even though a person sees <em>one</em> character. This page counts the way you actually <em>read</em>: it splits text into <strong>graphemes</strong> (user-perceived characters) with <code>Intl.Segmenter</code>, into <strong>words</strong> by the same locale-aware rules, and derives sentences, paragraphs, lines, reading &amp; speaking time, keyword density, and live Twitter / SMS / meta-description limit meters. All vanilla JS, <strong>no library</strong>.</p>
+      </div>
+
+      <!-- MAIN COUNTER -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Your text</div>
+          <div class="flex gap-1 flex-wrap items-center">
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold mr-1">samples</span>
+            <span id="samples" class="flex gap-1 flex-wrap"></span>
+            <button id="clearBtn" class="bg-slate-100 hover:bg-red-100 px-3 py-1 rounded-lg font-semibold text-xs ml-1">clear</button>
+            <button id="copySrc" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy text</button>
+          </div>
+        </div>
+        <textarea id="src" class="field mono text-sm" spellcheck="false" style="min-height:200px;font-size:14px;line-height:1.6;"></textarea>
+
+        <!-- stat grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+          <div class="statcard"><div class="n text-amber-600" id="stChars">0</div><div class="l">characters</div></div>
+          <div class="statcard"><div class="n" id="stCharsNo">0</div><div class="l">chars, no spaces</div></div>
+          <div class="statcard"><div class="n text-amber-600" id="stWords">0</div><div class="l">words</div></div>
+          <div class="statcard"><div class="n" id="stSent">0</div><div class="l">sentences</div></div>
+          <div class="statcard"><div class="n" id="stPara">0</div><div class="l">paragraphs</div></div>
+          <div class="statcard"><div class="n" id="stLines">0</div><div class="l">lines</div></div>
+          <div class="statcard"><div class="n" id="stRead">0s</div><div class="l">reading · ~200 wpm</div></div>
+          <div class="statcard"><div class="n" id="stSpeak">0s</div><div class="l">speaking · ~130 wpm</div></div>
+        </div>
+      </div>
+
+      <!-- GRAPHEME CONTRAST -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="font-bold mb-1">Why <code>.length</code> is not the character count <span class="text-slate-400 font-normal text-sm">— three different numbers for the same text</span></div>
+        <p class="text-xs text-slate-500 mb-3">JavaScript gives you the storage size, not the human count. Watch these diverge as you type an emoji or an accent: <code>.length</code> counts UTF-16 <strong>code units</strong>, spreading (<code>[...s]</code>) counts <strong>code points</strong>, and <code>Intl.Segmenter</code> counts <strong>graphemes</strong> — what a reader calls "a character". The three agree only for plain ASCII.</p>
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="rounded-xl border border-slate-200 p-3 text-center">
+            <div class="bignum text-2xl text-slate-400" id="cuCount">0</div>
+            <div class="text-[10px] uppercase tracking-wider font-bold text-slate-400 mt-1"><code>.length</code> · code units</div>
+          </div>
+          <div class="rounded-xl border border-slate-200 p-3 text-center">
+            <div class="bignum text-2xl text-slate-600" id="cpCount">0</div>
+            <div class="text-[10px] uppercase tracking-wider font-bold text-slate-400 mt-1"><code>[...s]</code> · code points</div>
+          </div>
+          <div class="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-center">
+            <div class="bignum text-2xl text-amber-600" id="grCount">0</div>
+            <div class="text-[10px] uppercase tracking-wider font-bold text-amber-700 mt-1">Segmenter · graphemes ✓</div>
+          </div>
+        </div>
+        <div id="contrastNote" class="text-xs font-semibold text-amber-800 mb-3"></div>
+        <div class="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Grapheme breakdown <span class="text-slate-300">(amber = one grapheme made of several code units)</span></div>
+        <div id="grView" class="p-3 rounded-lg bg-slate-50 border border-slate-200" style="min-height:52px;line-height:2;"></div>
+      </div>
+
+      <!-- KEYWORD DENSITY + LIMIT METERS -->
+      <div class="grid md:grid-cols-2 gap-5 mt-5">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-1">Keyword density</div>
+          <p class="text-xs text-slate-500 mb-3">Top words after removing common <em>stop-words</em> (the, and, of…). Density = a word's count ÷ total words — the metric SEO writers watch so a page reads naturally instead of being stuffed.</p>
+          <table class="grid"><thead><tr><th>#</th><th>Word</th><th>Count</th><th>Density</th></tr></thead><tbody id="densityBody"></tbody></table>
+          <div id="densityEmpty" class="text-slate-400 text-sm py-3">Type some words…</div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="font-bold mb-1">Limit meters</div>
+          <p class="text-xs text-slate-500 mb-3">Live fill against the classic caps. The bar turns <span class="text-red-600 font-bold">red</span> once you pass the limit.</p>
+          <div id="meters" class="space-y-4"></div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">The traps a one-liner falls into</div>
+        <p class="text-sm text-amber-800"><strong>1. <code>.length</code> is code units, not characters.</strong> A single emoji is a surrogate <em>pair</em> (2), a flag is two regional-indicators (4), a ZWJ family can be 8 — yet each is one grapheme. Counting storage size over-counts anything past the Basic Multilingual Plane. <strong>2. Even code points aren't enough.</strong> <code>café</code> can be 4 code points (é precomposed) or 5 (e + a combining accent) for the same visible word — only grapheme segmentation gives the reader's count. <strong>3. Words aren't just <code>split(" ")</code>.</strong> Punctuation, em-dashes, apostrophes, and scripts written without spaces (Chinese, Japanese, Thai) break naïve splitting; <code>Intl.Segmenter</code> with <code>granularity:"word"</code> and <code>isWordLike</code> is locale-aware. <strong>4. Sentence &amp; paragraph counts are heuristics.</strong> "Mr. Smith" has one period but isn't two sentences — treat these as estimates, not truth. <strong>5. The limits mean different things.</strong> Twitter weights URLs and CJK differently; SMS is 160 only in <strong>GSM-7</strong> — one emoji flips the whole message to <strong>UCS-2</strong> and the cap drops to 70.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a real counter works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A counter is a pipeline: take the raw string, and derive every statistic from the <em>right unit</em>. The one decision that separates a toy from a correct tool is refusing to use <code>String.length</code> for anything a human calls "a character" — you segment into <strong>graphemes</strong> instead. From the grapheme and word lists, sentences, paragraphs, lines, reading time, keyword density and the platform limit meters all fall out. Everything below is vanilla JS with <strong>no library</strong> — the exact code powering the LOOK tab. In production you rarely need a package for this; the platform's own <code>Intl.Segmenter</code> is the library.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Count graphemes, not <code>.length</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole tool hinges on this. <code>Intl.Segmenter</code> with <code>granularity:"grapheme"</code> splits text into user-perceived characters, so an emoji ZWJ sequence or a base-letter-plus-combining-mark counts as <strong>one</strong>. Keep a spread fallback (<code>[...s]</code>) for ancient engines — it gets code points right (better than <code>.length</code>) even if it can't merge ZWJ clusters.</p>
+        <div class="relative"><pre>function graphemes(str){
+  if (typeof Intl !== "undefined" &amp;&amp; Intl.Segmenter){
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    return [...seg.segment(str)].map(s =&gt; s.segment);
+  }
+  return [...str];                 // fallback: code points, not code units
+}
+const charCount = graphemes(text).length;          // ✓ what a reader sees
+// contrast: text.length (code units)  vs  [...text].length (code points)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Characters with vs without spaces</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Two standard numbers. "With spaces" is the full grapheme count; "without spaces" filters out every whitespace grapheme (space, tab, newline). Filtering on the grapheme list — not the raw string — keeps the count correct when the text also holds emoji.</p>
+        <div class="relative"><pre>const gr = graphemes(text);
+const withSpaces    = gr.length;
+const withoutSpaces = gr.filter(g =&gt; !/^\s+$/.test(g)).length;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Words the locale-aware way</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>text.split(/\s+/)</code> breaks on the very first hyphenated term or CJK sentence. The right tool is <code>Intl.Segmenter</code> at <code>granularity:"word"</code>: it yields segments flagged <code>isWordLike</code>, so punctuation and spaces are dropped and scripts without spaces still segment. A Unicode regex is the fallback.</p>
+        <div class="relative"><pre>function words(text){
+  if (typeof Intl !== "undefined" &amp;&amp; Intl.Segmenter){
+    const seg = new Intl.Segmenter(undefined, { granularity: "word" });
+    return [...seg.segment(text)].filter(s =&gt; s.isWordLike).map(s =&gt; s.segment);
+  }
+  return text.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) || [];
+}
+const wordCount = words(text).length;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Sentences, paragraphs, lines (heuristics)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">These are estimates, not grammar. A sentence ends at <code>. ! ? …</code> — so split on runs of those and count non-empty pieces. A paragraph is a block separated by a blank line. A line is literally a <code>\n</code>-delimited row. Be honest that "Mr. Smith" fools the sentence rule; that's the accepted trade-off every counter makes.</p>
+        <div class="relative"><pre>const sentences = text.trim()
+  ? text.split(/[.!?…]+/).map(s =&gt; s.trim()).filter(Boolean).length : 0;
+const paragraphs = text.trim()
+  ? text.split(/\n\s*\n/).map(s =&gt; s.trim()).filter(Boolean).length : 0;
+const lines = text === "" ? 0 : text.split(/\r\n|\r|\n/).length;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Reading &amp; speaking time</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Both are just <em>words ÷ rate</em>. Silent reading averages ~200–250 words per minute; speaking aloud is slower, ~130 wpm (the number voice-over and presentation guides use). Multiply by 60 for seconds, then format. It's an estimate — dense or technical text reads slower — but it's the number every blog "5 min read" badge is built on.</p>
+        <div class="relative"><pre>const readingSec  = wordCount / 200 * 60;   // ~200 wpm silent reading
+const speakingSec = wordCount / 130 * 60;   // ~130 wpm read aloud
+
+function fmt(sec){
+  if (sec &lt;= 0) return "0s";
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m ? m + "m" + (s ? " " + s + "s" : "") : s + "s";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Keyword density + stop-words</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Lower-case the words, drop <em>stop-words</em> (the, and, of — function words that dominate every text and carry no topic), tally frequencies, and sort. Density is a word's count divided by the <strong>total</strong> word count. Writers use it to catch keyword-stuffing; anything spiking above a few percent reads unnaturally.</p>
+        <div class="relative"><pre>const STOP = new Set("the a an and or but of to in on for with as is are was".split(" "));
+function density(text, topN){
+  const ws = words(text).map(w =&gt; w.toLowerCase());
+  const total = ws.length, freq = {};
+  for (const w of ws) if (!STOP.has(w) &amp;&amp; w.length &gt; 1) freq[w] = (freq[w] || 0) + 1;
+  return Object.entries(freq).sort((a,b) =&gt; b[1] - a[1]).slice(0, topN)
+    .map(([word, count]) =&gt; ({ word, count, pct: count / total * 100 }));
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">The 280 / 160 limit meters</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A tweet is <strong>280</strong>; a meta description renders to about <strong>160</strong>; an SMS is <strong>160</strong> — but only in <strong>GSM-7</strong>, the 7-bit alphabet feature phones used. The instant a character falls outside GSM-7 (any emoji, curly quote, or non-Latin letter) the whole message switches to 16-bit <strong>UCS-2</strong> and the limit collapses to <strong>70</strong>. So the SMS meter must first decide the encoding, then pick the cap.</p>
+        <div class="relative"><pre>function smsInfo(text){
+  const gsm = /^[@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !"#¤%&amp;'()*+,\-.\/0-9:;&lt;=&gt;?¡A-ZÄÖÑÜ§¿a-zäöñüà\^{}\\\[~\]|€]*$/;
+  const isGsm = gsm.test(text);
+  return { encoding: isGsm ? "GSM-7" : "UCS-2", limit: isGsm ? 160 : 70 };
+}
+function meter(count, limit){                 // bar fills, then goes red past cap
+  return { pct: Math.min(100, count / limit * 100), over: count &gt; limit };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wire it live — and mind the locale</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Recompute everything on every <code>input</code> event — it's cheap for any realistic paste. One subtlety worth knowing: <code>Intl.Segmenter</code> takes a locale. Word segmentation of Japanese or Thai (no spaces between words) genuinely depends on it, and even the grapheme rules can vary. Pass the user's locale when it matters; <code>undefined</code> uses the runtime default. That's the whole tool — no dependencies, all standard platform APIs.</p>
+        <div class="relative"><pre>const ta = document.getElementById("src");
+ta.addEventListener("input", () =&gt; render(makeStats(ta.value)));
+
+// locale matters for CJK/Thai word splitting:
+new Intl.Segmenter("ja", { granularity: "word" });   // Japanese
+new Intl.Segmenter("th", { granularity: "word" });   // Thai
+new Intl.Segmenter(undefined, { granularity: "word" }); // runtime default</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 32 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real word &amp; character counter: <strong>grapheme-aware</strong> character counts via <code>Intl.Segmenter</code> (so an emoji ZWJ sequence counts as <strong>one</strong>, not its 8 code units), <strong>locale-aware word counting</strong>, sentence / paragraph / line heuristics, <strong>reading &amp; speaking time</strong> from words-per-minute, <strong>keyword density</strong> with stop-word removal, and live <strong>Twitter / SMS / meta</strong> limit meters that know GSM-7 from UCS-2. The lesson: <strong>the hard part of "just count the characters" is choosing the right unit — code units store the string, but graphemes are what a person reads, and every honest counter counts graphemes.</strong> <strong>👉 Tomorrow — Day 33:</strong> a <strong>CSS Gradient Generator</strong> — build linear &amp; radial gradients with live stops and copy the exact <code>background</code> value.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==COUNT-ENGINE-START==  (pure, no DOM — this exact block is also run by the Node test)
+// A dependency-free word & character counter.
+//   graphemes(str)   : str -> array of user-perceived characters (Intl.Segmenter)
+//   words(str)       : str -> array of word-like segments (locale aware)
+//   makeStats(str)   : str -> every statistic the UI shows
+//   smsInfo(str)     : str -> { encoding, limit } (GSM-7 vs UCS-2)
+// The core idea: never use String.length for anything a human calls "a character".
+// .length is UTF-16 code units; [...s] is code points; Segmenter gives graphemes.
+
+// stop-words for keyword density (function words that carry no topic)
+const STOPWORDS = new Set(("the a an and or but of to in on at for with as is are was were be been being " +
+  "it its this that these those i you he she we they them his her their our your my me him us do does did " +
+  "have has had not no so if then than too very can will just from by about into over after out up down " +
+  "one all any some such only own same s t can't don't").split(/\s+/));
+
+// ---- grapheme + code-unit + code-point counts ----------------------------
+function graphemes(str){
+  const s = String(str);
+  if (typeof Intl !== "undefined" && Intl.Segmenter){
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    return [...seg.segment(s)].map(x => x.segment);
+  }
+  return [...s];                        // fallback: code points (better than .length)
+}
+function codeUnitCount(str){ return String(str).length; }        // UTF-16 units — what .length returns
+function codePointCount(str){ return [...String(str)].length; }  // code points — spread iterates by cp
+
+// ---- words (locale-aware) -------------------------------------------------
+function words(str){
+  const s = String(str);
+  if (typeof Intl !== "undefined" && Intl.Segmenter){
+    const seg = new Intl.Segmenter(undefined, { granularity: "word" });
+    const out = [];
+    for (const x of seg.segment(s)) if (x.isWordLike) out.push(x.segment);
+    return out;
+  }
+  return s.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu) || [];
+}
+
+// ---- sentence / paragraph / line heuristics -------------------------------
+function countSentences(str){
+  const s = String(str);
+  if (!s.trim()) return 0;
+  return s.split(/[.!?…]+/).map(x => x.trim()).filter(x => x.length > 0).length;
+}
+function countParagraphs(str){
+  const s = String(str);
+  if (!s.trim()) return 0;
+  return s.split(/\n\s*\n/).map(x => x.trim()).filter(x => x.length > 0).length;
+}
+function countLines(str){
+  const s = String(str);
+  return s === "" ? 0 : s.split(/\r\n|\r|\n/).length;
+}
+
+// ---- reading / speaking time ----------------------------------------------
+function fmtTime(sec){
+  if (sec <= 0) return "0s";
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  if (m === 0) return s + "s";
+  return m + "m" + (s ? " " + s + "s" : "");
+}
+
+// ---- keyword density ------------------------------------------------------
+function keywordDensity(str, topN){
+  const ws = words(str).map(w => w.toLowerCase());
+  const total = ws.length;
+  const freq = Object.create(null);
+  for (const w of ws){ if (w.length > 1 && !STOPWORDS.has(w) && /[\p{L}]/u.test(w)) freq[w] = (freq[w] || 0) + 1; }
+  const rows = Object.keys(freq).map(w => ({ word: w, count: freq[w], pct: total ? freq[w] / total * 100 : 0 }))
+    .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
+    .slice(0, topN || 10);
+  return { rows, total };
+}
+
+// ---- SMS encoding (GSM-7 vs UCS-2) ----------------------------------------
+const GSM7_BASIC = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ!\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const GSM7_EXT = "^{}\\[~]|€";
+function smsInfo(str){
+  const s = String(str);
+  let units = 0, isGsm = true;
+  for (const ch of s){                        // iterate by code point
+    if (GSM7_BASIC.indexOf(ch) !== -1) units += 1;
+    else if (GSM7_EXT.indexOf(ch) !== -1) units += 2;   // escape char + char
+    else { isGsm = false; break; }
+  }
+  if (!isGsm){
+    const cu = s.length;                       // UCS-2 counts UTF-16 code units
+    const single = 70, multi = 67;
+    return { encoding: "UCS-2", units: cu, limit: single,
+             segments: cu === 0 ? 0 : (cu <= single ? 1 : Math.ceil(cu / multi)) };
+  }
+  const single = 160, multi = 153;
+  return { encoding: "GSM-7", units, limit: single,
+           segments: units === 0 ? 0 : (units <= single ? 1 : Math.ceil(units / multi)) };
+}
+
+// ---- the one call the UI (and the test) uses ------------------------------
+function makeStats(str){
+  const s = String(str);
+  const gr = graphemes(s);
+  const charsWithSpaces = gr.length;
+  const charsNoSpaces   = gr.filter(g => !/^\s+$/.test(g)).length;
+  const wl = words(s);
+  const wordCount = wl.length;
+  return {
+    charsWithSpaces, charsNoSpaces,
+    codeUnits: codeUnitCount(s), codePoints: codePointCount(s), graphemes: charsWithSpaces,
+    words: wordCount,
+    sentences: countSentences(s),
+    paragraphs: countParagraphs(s),
+    lines: countLines(s),
+    readingSec: wordCount / 200 * 60,
+    speakingSec: wordCount / 130 * 60,
+    density: keywordDensity(s, 10),
+    sms: smsInfo(s),
+    twitter: charsWithSpaces,      // graphemes (Twitter's own weighting is close for plain text)
+    meta: charsWithSpaces
+  };
+}
+
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { graphemes, codeUnitCount, codePointCount, words, countSentences,
+    countParagraphs, countLines, keywordDensity, smsInfo, makeStats, fmtTime };
+// ==COUNT-ENGINE-END==
+
+// ===== LOOK: counter UI =====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+const SAMPLES = [
+  { label: "paragraph", text: "Writing well is rewriting. The first draft is you telling yourself the story; every draft after that is you telling it to the reader. Cut the words that do no work. Keep the ones that do two." },
+  { label: "tweet 😀", text: "Shipped Day 32 of my build-from-zero series today: a word & character counter that actually counts emoji correctly 🎉👏\n\nTurns out \"just use .length\" is a lie the moment a 👨‍👩‍👧 shows up. Grapheme segmentation FTW." },
+  { label: "emoji / unicode", text: "👍 café 👨‍👩‍👧 🇫🇷 café" },
+  { label: "over 280", text: "The single most surprising thing about counting characters in JavaScript is that there is no single answer. Ask for the length of a string containing one family emoji and you get eight, ask a person and you get one, and both are technically correct depending on which unit you decided a character is made of. This sentence alone is well past a tweet." },
+  { label: "multi-line", text: "First paragraph, first line.\nStill the first paragraph, second line.\n\nSecond paragraph starts here.\n\nThird paragraph. It has two sentences! Does it count them?" }
+];
+const DEFAULT_TEXT = SAMPLES[0].text;
+
+const srcTa = document.getElementById("src");
+
+function renderGraphemeView(str){
+  const gr = graphemes(str).slice(0, 140);
+  const html = gr.map(g => {
+    if (/^\s+$/.test(g)) return `<span class="g ws" title="whitespace">${g === "\n" ? "↵" : "·"}</span>`;
+    const cu = g.length;
+    const cls = cu > 1 ? "g multi" : "g";
+    const sub = cu > 1 ? `<sub>${cu}u</sub>` : "";
+    return `<span class="${cls}" title="${cu} code unit${cu>1?"s":""}">${escapeHtml(g)}${sub}</span>`;
+  }).join("");
+  const more = graphemes(str).length > 140 ? '<span class="text-slate-400 text-xs ml-1">… (first 140 shown)</span>' : "";
+  document.getElementById("grView").innerHTML = html ? html + more : '<span class="text-slate-400 text-sm">—</span>';
+}
+
+const METER_DEFS = [
+  { key: "twitter", label: "Twitter / X", cap: 280 },
+  { key: "sms",     label: "SMS",         cap: null },   // cap decided by encoding
+  { key: "meta",    label: "Meta description", cap: 160 }
+];
+
+function renderMeters(st){
+  const box = document.getElementById("meters");
+  box.innerHTML = METER_DEFS.map(def => {
+    let count, cap, extra = "";
+    if (def.key === "sms"){
+      count = st.sms.units; cap = st.sms.limit;
+      extra = `<span class="text-slate-400 font-normal">· ${st.sms.encoding} · ${st.sms.segments} segment${st.sms.segments===1?"":"s"}</span>`;
+    } else { count = st[def.key]; cap = def.cap; }
+    const pct = cap ? Math.min(100, count / cap * 100) : 0;
+    const over = count > cap;
+    const numCls = over ? "text-red-600" : "text-slate-700";
+    return `<div>
+      <div class="flex items-center justify-between text-sm mb-1">
+        <span class="font-semibold">${def.label} ${extra}</span>
+        <span class="mono font-bold ${numCls}">${count} / ${cap}</span>
+      </div>
+      <div class="meter ${over ? "over" : ""}"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join("");
+}
+
+function renderDensity(st){
+  const body = document.getElementById("densityBody");
+  const empty = document.getElementById("densityEmpty");
+  const rows = st.density.rows;
+  if (!rows.length){ body.innerHTML = ""; empty.style.display = ""; return; }
+  empty.style.display = "none";
+  body.innerHTML = rows.map((r, i) => `<tr>
+    <td class="text-slate-400">${i + 1}</td>
+    <td class="font-semibold" style="color:#92400e">${escapeHtml(r.word)}</td>
+    <td>${r.count}</td>
+    <td>
+      <div class="flex items-center gap-2">
+        <div class="meter" style="width:70px"><i style="width:${Math.min(100, r.pct * 4)}%"></i></div>
+        <span>${r.pct.toFixed(1)}%</span>
+      </div>
+    </td></tr>`).join("");
+}
+
+function render(){
+  const t = srcTa.value;
+  const st = makeStats(t);
+  document.getElementById("stChars").textContent   = st.charsWithSpaces.toLocaleString();
+  document.getElementById("stCharsNo").textContent = st.charsNoSpaces.toLocaleString();
+  document.getElementById("stWords").textContent   = st.words.toLocaleString();
+  document.getElementById("stSent").textContent    = st.sentences.toLocaleString();
+  document.getElementById("stPara").textContent    = st.paragraphs.toLocaleString();
+  document.getElementById("stLines").textContent   = st.lines.toLocaleString();
+  document.getElementById("stRead").textContent    = fmtTime(st.readingSec);
+  document.getElementById("stSpeak").textContent   = fmtTime(st.speakingSec);
+
+  document.getElementById("cuCount").textContent = st.codeUnits.toLocaleString();
+  document.getElementById("cpCount").textContent = st.codePoints.toLocaleString();
+  document.getElementById("grCount").textContent = st.graphemes.toLocaleString();
+
+  const note = document.getElementById("contrastNote");
+  if (st.codeUnits === st.graphemes && st.codePoints === st.graphemes){
+    note.textContent = t ? "All three agree — this text is plain ASCII, so storage size happens to equal the reader's count." : "";
+    note.className = "text-xs font-semibold text-slate-500 mb-3";
+  } else {
+    const overCu = st.codeUnits - st.graphemes;
+    note.textContent = `⚠ ${overCu} phantom character${overCu === 1 ? "" : "s"}: .length over-counts by ${overCu} here because emoji / combined characters take more than one code unit. Graphemes (${st.graphemes}) is what a reader sees.`;
+    note.className = "text-xs font-semibold text-amber-800 mb-3";
+  }
+
+  renderGraphemeView(t);
+  renderDensity(st);
+  renderMeters(st);
+}
+
+srcTa.addEventListener("input", render);
+
+// samples
+const samplesEl = document.getElementById("samples");
+SAMPLES.forEach(s => {
+  const b = document.createElement("button");
+  b.className = "bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs";
+  b.textContent = s.label;
+  b.onclick = () => { srcTa.value = s.text; render(); };
+  samplesEl.appendChild(b);
+});
+document.getElementById("clearBtn").onclick = () => { srcTa.value = ""; render(); srcTa.focus(); };
+
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => btn.textContent = o, 1200); }
+}
+document.getElementById("copySrc").onclick = e => copyText(srcTa.value, e.target);
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why counting beats .length", why:"A word counter looks trivial, and that is exactly the trap. The one-liner text.length returns the number of UTF-16 code units the JavaScript engine uses to store the string — which is a number about memory, not about what a person reads. For plain English it happens to match, so the bug stays hidden until real text arrives: an emoji, an accented name, a line of Arabic or Japanese. The moment any of those appear, .length over-counts, and a counter that promised 'characters' starts lying. So the first design decision of a correct counter is to reject .length for the character stat and to build every number from the unit that matches human perception. Everything else in this lesson follows from taking that seriously.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-slate-400 mb-1">the same emoji, three answers</div><div>"👨‍👩‍👧".length &nbsp;<span class="text-red-600">= 8</span> <span class="text-slate-400">code units</span></div><div>[..."👨‍👩‍👧"].length <span class="text-slate-500">= 5</span> <span class="text-slate-400">code points</span></div><div>graphemes("👨‍👩‍👧") <span class="text-amber-600">= 1</span> <span class="text-slate-400">what you see ✓</span></div></div>`, code:`// the naive counter — wrong for anything but ASCII
+const n = text.length;          // UTF-16 code units (storage size)
+
+"👍".length          // 2  — one emoji, two code units
+"café".length        // 4 or 5, depending how é is encoded
+"你好".length         // 2  — ok here, but luck, not design
+// a correct counter never uses .length for "characters"` },
+ { title:"2. Code units vs code points", why:"To see why .length is wrong you have to know how strings are stored. JavaScript uses UTF-16: every string is a sequence of 16-bit code units. Characters in the Basic Multilingual Plane (most Latin, Greek, Cyrillic, CJK) fit in one unit. But characters above U+FFFF — most emoji, many rarer scripts, mathematical symbols — do not fit, so they are encoded as a surrogate PAIR: two code units that together stand for one code point. That is why '👍'.length is 2. Spreading the string ([...s]) or using for…of iterates by code POINT instead, correctly treating the surrogate pair as one. So [...'👍'].length is 1. Code points are a real improvement over code units — but, as the next step shows, still not the number a human would give.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>👍 = U+1F44D</div><div class="text-slate-400 mt-1">above U+FFFF → stored as a surrogate pair</div><div class="mt-2">code units: <span class="text-red-600">D83D DC4D</span> = 2</div><div>code point: <span class="text-amber-600">1F44D</span> = 1</div><div class="text-slate-400 mt-2">[...s] and for…of iterate by code point</div></div>`, code:`"👍".length            // 2  (two UTF-16 code units)
+[..."👍"].length       // 1  (one code point)
+[..."👍"]              // ["👍"]  — surrogate pair rejoined
+
+// spreading / for…of iterate by code point, not code unit
+for (const cp of "a👍b") { /* "a", "👍", "b" */ }` },
+ { title:"3. Graphemes — what a reader calls a character", why:"Even code points can disagree with a human. Two things break the 'one code point = one character' assumption. First, combining marks: 'é' can be a single precomposed code point (U+00E9) OR the letter 'e' followed by a separate combining-acute code point (U+0301) — same visible letter, but one code point or two. Second, ZWJ sequences: emoji like the family '👨‍👩‍👧' are several emoji glued with zero-width joiners into one glyph — five code points, one picture. A grapheme cluster is the Unicode term for 'what the user perceives as a single character', and grapheme segmentation merges combining marks and ZWJ sequences into single units. That is the count a human gives, and the count a correct tool must report.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>café &nbsp;<span class="text-slate-400">= c a f é</span></div><div class="text-slate-400 mt-1">é = U+00E9 (1 cp) &nbsp;OR&nbsp; e + U+0301 (2 cp)</div><div class="mt-2">👨‍👩‍👧 = 👨 ZWJ 👩 ZWJ 👧</div><div class="text-slate-400">5 code points · joined into 1 grapheme</div><div class="text-amber-600 mt-2">graphemes count both as the reader does</div></div>`, code:`// combining mark: same word, different code-point count
+[..."cafe\\u0301"].length   // 5  (e + combining accent)
+[..."café"].length          // 4  (precomposed é)
+// …but a reader says 4 either way → graphemes = 4
+
+// ZWJ emoji: 5 code points, 1 grapheme
+[..."👨‍👩‍👧"].length         // 5
+graphemes("👨‍👩‍👧").length    // 1` },
+ { title:"4. Intl.Segmenter — the built-in library", why:"You do not implement the Unicode grapheme-cluster algorithm by hand — it is a large, versioned specification. The platform ships it: Intl.Segmenter, standard in every current browser and in Node. Create one with granularity:'grapheme' and it yields the grapheme clusters of any string; count them for the true character count. The same API with granularity:'word' does word segmentation, and 'sentence' does a basic sentence split. Because it is part of Intl, it is locale-aware — you can pass a locale and it will apply the right rules. For the rare ancient engine without it, a spread fallback ([...s]) still fixes the worst bug (surrogate pairs) even though it cannot merge ZWJ clusters. Reaching for Segmenter is the professional move: correct, standard, zero dependencies.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>new Intl.Segmenter(undefined,</div><div>&nbsp;&nbsp;{ granularity: <span class="text-amber-600">"grapheme"</span> })</div><div class="text-slate-400 mt-2">granularity: "grapheme" · "word" · "sentence"</div><div class="text-slate-400">locale-aware · shipped in browsers + Node</div></div>`, code:`const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const chars = [...seg.segment("👨‍👩‍👧 café")].map(s => s.segment);
+chars.length;                       // 6  (family, space, c, a, f, é)
+
+function graphemes(str){
+  if (Intl.Segmenter){
+    return [...new Intl.Segmenter(undefined,{granularity:"grapheme"})
+             .segment(str)].map(s => s.segment);
+  }
+  return [...str];                  // fallback: code points
+}` },
+ { title:"5. Counting words", why:"Words are as slippery as characters. text.split(/\\s+/) splits on spaces, which fails immediately: it splits hyphenated compounds oddly, keeps punctuation glued to words, mishandles apostrophes, and completely breaks for scripts written without spaces — Chinese, Japanese and Thai put no space between words, so a whole sentence counts as one 'word'. Intl.Segmenter with granularity:'word' solves all of it: it returns segments, each flagged isWordLike, so you keep the real words and drop spaces and punctuation, and it applies locale-specific word-breaking including dictionary-based splitting for CJK. The regex fallback — match runs of letters and numbers, allowing internal apostrophes and hyphens — is good enough for Latin scripts when Segmenter is missing. Either way, count words by segmenting, never by naive splitting.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>"don't stop—now"</div><div class="text-slate-400 mt-1">split(/\\s+/) → ["don't","stop—now"] = 2 ✗</div><div class="text-amber-600 mt-1">Segmenter isWordLike → don't · stop · now = 3 ✓</div><div class="text-slate-400 mt-2">CJK: "你好世界" has no spaces → 2 words</div></div>`, code:`function words(str){
+  if (Intl.Segmenter){
+    const seg = new Intl.Segmenter(undefined, { granularity: "word" });
+    return [...seg.segment(str)].filter(s => s.isWordLike)
+                                .map(s => s.segment);
+  }
+  return str.match(/[\\p{L}\\p{N}]+(?:['’-][\\p{L}\\p{N}]+)*/gu) || [];
+}
+words("don't stop—now").length;     // 3` },
+ { title:"6. Sentences, paragraphs, lines", why:"These three are useful but they are heuristics, and an honest tool treats them as estimates. Lines are unambiguous — count the rows between newline characters. Paragraphs are blocks separated by a blank line, so split on two-or-more newlines and count the non-empty blocks. Sentences are the fuzzy one: the rule 'a sentence ends at . ! ? or …' is right most of the time, so split on runs of those terminators and count the non-empty pieces. But it is fooled by abbreviations ('Mr. Smith', 'e.g.', '3.14'), by ellipses, and by decimal points — each looks like a sentence boundary and is not. Perfect sentence segmentation needs language models; a counter deliberately trades that away for a fast, transparent rule, and simply tells the user the number is approximate.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>"Hi there. How are you? Great!"</div><div class="text-amber-600">→ 3 sentences ✓</div><div class="mt-2 text-slate-400">but the heuristic slips:</div><div>"Mr. Smith paid \\$3.50."</div><div class="text-red-600">→ counts 3, a human says 1 ✗</div></div>`, code:`const sentences = text.trim()
+  ? text.split(/[.!?…]+/).map(s => s.trim()).filter(Boolean).length
+  : 0;
+
+const paragraphs = text.trim()
+  ? text.split(/\\n\\s*\\n/).map(p => p.trim()).filter(Boolean).length
+  : 0;
+
+const lines = text === "" ? 0 : text.split(/\\r\\n|\\r|\\n/).length;
+// honest label: these are estimates, not grammar` },
+ { title:"7. Reading & speaking time", why:"Reading time is the friendly 'X min read' badge, and it is a one-line estimate: word count divided by a reading rate. Silent reading of ordinary prose averages roughly 200–250 words per minute, so dividing by 200 is a common, slightly conservative choice. Speaking aloud is much slower — audiobook, presentation and voice-over guidance clusters around 130 words per minute — so a separate speaking-time estimate divides by 130. Multiply the minutes by 60 to work in seconds, then format nicely (a bare '0s' for empty, 'm s' once you pass a minute). It is genuinely just words ÷ rate; the value is not precision but calibration — telling a reader whether they are facing a 2-minute skim or a 20-minute commitment, and telling a speaker how long their script will run.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>600 words</div><div class="mt-1">reading: 600 / 200 = <span class="text-amber-600">3 min</span></div><div>speaking: 600 / 130 ≈ <span class="text-amber-600">4m 37s</span></div><div class="text-slate-400 mt-2">~200 wpm silent · ~130 wpm aloud</div></div>`, code:`const readingSec  = wordCount / 200 * 60;   // silent reading
+const speakingSec = wordCount / 130 * 60;   // read aloud
+
+function fmtTime(sec){
+  if (sec <= 0) return "0s";
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m ? m + "m" + (s ? " " + s + "s" : "") : s + "s";
+}
+fmtTime(600 / 130 * 60);          // "4m 37s"` },
+ { title:"8. Keyword density & stop-words", why:"Keyword density is the share of the text each word takes up — a word's occurrences divided by the total word count. Writers and SEO tools watch it to catch two problems: a topic word that never appears (the page is off-topic) or one that appears so often the text reads as spam ('keyword stuffing'). The catch is that the most frequent words in ANY text are function words — the, a, and, of, to — which carry no topic and would swamp the table. So you filter a set of stop-words first, leaving the content words, then tally and sort by frequency. Present the top ten with their percentages. It is a simple frequency count with one filtering step, but it turns a wall of text into an at-a-glance sense of what the writing is actually about.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div class="text-slate-400">"the cat sat on the mat, the cat ran"</div><div class="mt-1 text-slate-400">drop stop-words (the, on) →</div><div class="mt-1">cat &nbsp;<span class="text-amber-600">2 · 22%</span></div><div>sat &nbsp;<span class="text-slate-500">1 · 11%</span></div><div>mat &nbsp;<span class="text-slate-500">1 · 11%</span></div><div>ran &nbsp;<span class="text-slate-500">1 · 11%</span></div></div>`, code:`const STOP = new Set("the a an and or of to in on for with is".split(" "));
+function density(text, topN){
+  const ws = words(text).map(w => w.toLowerCase());
+  const total = ws.length, freq = {};
+  for (const w of ws)
+    if (w.length > 1 && !STOP.has(w)) freq[w] = (freq[w]||0) + 1;
+  return Object.entries(freq)
+    .sort((a,b) => b[1]-a[1]).slice(0, topN)
+    .map(([word,count]) => ({ word, count, pct: count/total*100 }));
+}` },
+ { title:"9. The 280 / 160 / 160 limits", why:"Three limits appear again and again. A tweet is 280 characters (Twitter counts most characters as 1 but weights some ranges and treats a URL as a fixed length — for plain text the grapheme count is a good proxy). A search-result meta description is not a hard limit but a rendering budget: Google shows roughly 155–160 characters before truncating, so 160 is the working cap. The famous one is SMS: 160 characters — but ONLY in GSM-7, the 7-bit alphabet built for early phones. The catch is brutal: include a single character outside GSM-7 — any emoji, a curly quote, an em-dash, a non-Latin letter — and the entire message re-encodes as 16-bit UCS-2, where the limit drops to 70. And a few GSM-7 characters (like { } [ ] € ^) secretly cost two. So an SMS meter has to detect the encoding first, then choose the cap; a naive 'length ≤ 160' check is wrong for real messages.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>Tweet &nbsp;&nbsp;<span class="text-amber-600">280</span></div><div>Meta &nbsp;&nbsp;&nbsp;<span class="text-amber-600">~160</span> <span class="text-slate-400">(render budget)</span></div><div class="mt-2">SMS · GSM-7 &nbsp;<span class="text-amber-600">160</span></div><div>SMS · UCS-2 &nbsp;<span class="text-red-600">70</span> <span class="text-slate-400">← one emoji flips it</span></div></div>`, code:`function smsInfo(text){
+  const gsm = /^[\\x00-\\x7F …GSM-7 set… ]*$/;   // 7-bit alphabet
+  const isGsm = gsm.test(text);
+  return {
+    encoding: isGsm ? "GSM-7" : "UCS-2",
+    limit:    isGsm ? 160     : 70          // one emoji → 70
+  };
+}
+const over = count > cap;         // → paint the bar red` },
+ { title:"10. Locale — the last subtlety", why:"Counting is not culture-neutral. The clearest case is word segmentation: Japanese, Chinese and Thai are written with no spaces between words, so splitting on whitespace gives one giant 'word' for a whole sentence. Correct word counts there require dictionary- or model-based segmentation — which is exactly why Intl.Segmenter takes a locale argument and why passing the right one ('ja', 'th', 'zh') matters. Grapheme rules are mostly universal but even they have locale-sensitive edges. Reading speed varies by language and script too, so a words-per-minute constant tuned for English is only an approximation elsewhere. The practical rule: pass the user's locale to Segmenter when you know it (undefined uses the runtime default, which is fine for mixed or unknown input), and remember that every 'the count' is really 'the count for this locale'. That humility is what separates a serious counter from a toy.", concept:`<div class="bg-slate-100 p-4 rounded text-xs w-full font-mono"><div>"わたしはねこです"</div><div class="text-slate-400 mt-1">no spaces — split(" ") → 1 word ✗</div><div class="text-amber-600 mt-1">Segmenter("ja") → わたし · は · ねこ · です</div><div class="text-slate-400 mt-2">pass a locale when you know it</div></div>`, code:`// word segmentation genuinely depends on locale
+new Intl.Segmenter("ja", { granularity: "word" });   // Japanese
+new Intl.Segmenter("th", { granularity: "word" });   // Thai
+new Intl.Segmenter("zh", { granularity: "word" });   // Chinese
+new Intl.Segmenter(undefined, { granularity: "word" }); // default
+
+// every count is really "the count for this locale"` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },3600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+srcTa.value = DEFAULT_TEXT;
+render();
+</script>
+</body>
+</html>
