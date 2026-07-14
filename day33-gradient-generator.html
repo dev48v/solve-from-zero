@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 33 — CSS Gradient Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .seg { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; display:inline-flex; }
+  .seg button { padding:8px 16px; font-weight:700; font-size:13px; background:#fff; color:#475569; }
+  .seg button.on { background:#f59e0b; color:#fff; }
+  .chip { display:inline-block; padding:5px 11px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  /* checkerboard so transparency + preview read clearly */
+  .checker { background-image:
+      linear-gradient(45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(-45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#e2e8f0 75%),
+      linear-gradient(-45deg,transparent 75%,#e2e8f0 75%);
+      background-size:20px 20px; background-position:0 0,0 10px,10px -10px,-10px 0; }
+  /* stop track */
+  .track { position:relative; height:34px; border-radius:9px; border:1px solid #cbd5e1; cursor:copy; touch-action:none; }
+  .stopm { position:absolute; top:-7px; width:20px; height:48px; transform:translateX(-50%); cursor:grab; }
+  .stopm:active { cursor:grabbing; }
+  .stopm .knob { position:absolute; top:0; left:50%; transform:translateX(-50%); width:18px; height:18px; border-radius:50%; border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+  .stopm .stem { position:absolute; top:16px; left:50%; transform:translateX(-50%); width:2px; height:32px; background:#0f172a; opacity:.5; }
+  .stopm.sel .knob { border-color:#0f172a; box-shadow:0 0 0 2px #f59e0b; }
+  .dial { position:relative; width:120px; height:120px; border-radius:50%; background:conic-gradient(#f8fafc,#e2e8f0,#f8fafc,#e2e8f0,#f8fafc); border:2px solid #cbd5e1; cursor:pointer; touch-action:none; }
+  .dial .needle { position:absolute; left:50%; top:50%; width:3px; height:52px; background:#f59e0b; border-radius:3px; transform-origin:bottom center; transform:translate(-50%,-100%) rotate(0deg); }
+  .dial .hub { position:absolute; left:50%; top:50%; width:14px; height:14px; border-radius:50%; background:#0f172a; transform:translate(-50%,-50%); }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:9px; padding:7px 9px; }
+  input[type=color] { width:38px; height:30px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; padding:2px; cursor:pointer; }
+  .row { display:flex; align-items:center; gap:8px; padding:7px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
+  .row.sel { border-color:#f59e0b; background:#fffbeb; }
+  .sl { accent-color:#f59e0b; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 33</div>
+      <h1 class="text-xl font-bold">🎨 CSS Gradient Generator — a gradient is a picture you <em>describe</em>, not a colour you pick</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Build a gradient — drag the stops, spin the angle, copy the exact CSS.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A CSS gradient is not a colour — it is a <strong>generated image</strong> the browser paints from a short recipe: a <em>type</em> (linear, radial or conic), a <em>direction</em> (an angle, or a shape and centre), and an ordered list of <strong>colour stops</strong> (a colour at a position). The browser interpolates smoothly between the stops. This tool lets you assemble that recipe by hand and shows the exact <code>background</code> value it produces — the same string you paste into real CSS. No library, all vanilla JS.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: live preview + output -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Live preview</div>
+            <div id="preview" class="checker rounded-xl border border-slate-200" style="height:320px;"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">CSS output</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre-wrap;word-break:break-word;"></pre>
+            <div class="text-xs text-slate-400 mt-2">Tip: click the bar to add a stop, drag a knob to move it, double-click a knob to remove it.</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: controls -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+          <!-- type -->
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</div>
+            <div class="seg" id="typeSeg">
+              <button data-type="linear" class="on">Linear</button>
+              <button data-type="radial">Radial</button>
+              <button data-type="conic">Conic</button>
+            </div>
+          </div>
+
+          <!-- direction panels -->
+          <div id="dirLinear" class="dir-panel">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Angle</div>
+            <div class="flex items-center gap-5 flex-wrap">
+              <div class="dial" id="angleDial"><div class="needle" id="angleNeedle"></div><div class="hub"></div></div>
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <input id="angleNum" type="number" min="0" max="360" class="field mono w-20 text-sm" value="90" />
+                  <span class="text-slate-400 text-sm">deg</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1" id="angleDirs"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="dirRadial" class="dir-panel hidden">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Shape</div>
+                <div class="seg" id="shapeSeg">
+                  <button data-shape="circle" class="on">Circle</button>
+                  <button data-shape="ellipse">Ellipse</button>
+                </div>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Size</div>
+                <select id="sizeSel" class="field text-sm w-full">
+                  <option>farthest-corner</option>
+                  <option>farthest-side</option>
+                  <option>closest-corner</option>
+                  <option>closest-side</option>
+                </select>
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Centre — X <span id="rxLbl" class="text-amber-600">50%</span> · Y <span id="ryLbl" class="text-amber-600">50%</span></div>
+              <input id="rX" type="range" min="0" max="100" value="50" class="sl w-full" />
+              <input id="rY" type="range" min="0" max="100" value="50" class="sl w-full" />
+            </div>
+          </div>
+
+          <div id="dirConic" class="dir-panel hidden">
+            <div class="flex items-center gap-5 flex-wrap">
+              <div class="dial" id="conicDial"><div class="needle" id="conicNeedle"></div><div class="hub"></div></div>
+              <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">From angle</div>
+                <div class="flex items-center gap-2 mb-3">
+                  <input id="conicNum" type="number" min="0" max="360" class="field mono w-20 text-sm" value="0" />
+                  <span class="text-slate-400 text-sm">deg</span>
+                </div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Centre — X <span id="cxLbl" class="text-amber-600">50%</span> · Y <span id="cyLbl" class="text-amber-600">50%</span></div>
+                <input id="cX" type="range" min="0" max="100" value="50" class="sl w-full" />
+                <input id="cY" type="range" min="0" max="100" value="50" class="sl w-full" />
+              </div>
+            </div>
+          </div>
+
+          <!-- stops -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Colour stops</div>
+              <button id="addStop" class="bg-slate-100 hover:bg-amber-100 px-3 py-1 rounded-lg font-semibold text-xs">+ Add stop</button>
+            </div>
+            <div id="track" class="track checker mb-3"></div>
+            <div id="stopRows" class="space-y-2"></div>
+          </div>
+
+          <!-- actions -->
+          <div class="flex items-center gap-2 flex-wrap pt-1">
+            <button id="randomize" class="mini px-4 py-2 rounded-lg font-semibold text-sm">🎲 Randomize</button>
+            <button id="reverse" class="bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">↔ Reverse</button>
+            <button id="reset" class="bg-slate-100 hover:bg-red-100 px-4 py-2 rounded-lg font-semibold text-sm">Reset</button>
+          </div>
+
+          <!-- presets -->
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets</div>
+            <div id="presets" class="flex flex-wrap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. A gradient is an image, not a colour.</strong> It belongs to <code>background-image</code> (or the <code>background</code> shorthand), never <code>background-color</code> — so it can be layered, sized and repeated like any picture. <strong>2. The angle points the other way to trigonometry.</strong> In CSS <code>0deg</code> is straight <em>up</em> and angles grow <em>clockwise</em>, so <code>90deg</code> flows to the right and <code>180deg</code> downward — the opposite winding to the maths <code>atan2</code> you might reach for. <strong>3. Two stops at the same position make a hard line.</strong> <code>red 50%, blue 50%</code> has no blend at all — that is how you draw stripes and pie slices, not a bug. <strong>4. Order and position both matter.</strong> Stops are read left-to-right; a stop whose position is smaller than the one before it is clamped, not moved — so reordering means re-sorting by position. <strong>5. Conic ≠ radial.</strong> Radial spreads colour <em>outward</em> from a centre (a glow); conic sweeps it <em>around</em> a centre (a pie chart or colour wheel).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How CSS gradients actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A gradient generator is a tiny bit of string assembly wrapped in a live UI. You keep a <strong>state object</strong> — the type, the direction, and an ordered array of colour stops — and one pure function turns that state into the exact CSS <code>background</code> value. Everything the user drags, spins or types just mutates the state and re-renders. There is <strong>no library</strong> here; the whole engine is the function below, and the browser does the actual painting.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Model the gradient as state</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Everything the UI can change lives in one object: the <code>type</code>, the direction fields for each type, and the <code>stops</code> array where each stop is a colour plus a position percent. Keep the array in <em>insertion</em> order so a knob you are dragging never jumps index mid-drag — you sort a copy only when you emit CSS.</p>
+        <div class="relative"><pre>const state = {
+  type: "linear",          // "linear" | "radial" | "conic"
+  angle: 90,               // linear: degrees, 0 = up, clockwise
+  shape: "circle", size: "farthest-corner", posX: 50, posY: 50,  // radial
+  conicAngle: 0, conicX: 50, conicY: 50,                         // conic
+  stops: [ { color: "#f59e0b", pos: 0 }, { color: "#b45309", pos: 100 } ]
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Sort stops by position</h3></div>
+        <p class="text-sm text-slate-600 mb-3">CSS reads stops left-to-right, so before you build the string you sort by position. Make it a <strong>stable</strong> sort (keep insertion order for equal positions) — that is exactly what makes a hard stop (<code>red 50%, blue 50%</code>) render as a crisp line in the order you added the two colours.</p>
+        <div class="relative"><pre>function sortStops(stops){
+  return stops
+    .map((s, i) =&gt; ({ s, i }))                         // remember original index
+    .sort((a, b) =&gt; (a.s.pos - b.s.pos) || (a.i - b.i)) // stable: ties keep order
+    .map(x =&gt; x.s);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Turn stops into a CSS list</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each stop becomes <code>"color pos%"</code>, joined with commas. That comma-separated list is the shared body of every gradient type — the only thing that changes between linear, radial and conic is the header in front of it.</p>
+        <div class="relative"><pre>function stopsToCss(stops){
+  return sortStops(stops)
+    .map(s =&gt; `${s.color} ${s.pos}%`)
+    .join(", ");
+}
+// [{color:"#f00",pos:0},{color:"#00f",pos:100}] -&gt; "#f00 0%, #00f 100%"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Assemble each gradient type</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One function, three shapes of header. <code>linear-gradient(angle, …stops)</code>, <code>radial-gradient(shape size at x% y%, …stops)</code>, and <code>conic-gradient(from angle at x% y%, …stops)</code>. This is the entire engine — the same function the LOOK tab and the Node test both call.</p>
+        <div class="relative"><pre>function buildGradient(state){
+  const stops = stopsToCss(state.stops);
+  if (state.type === "radial")
+    return `radial-gradient(${state.shape} ${state.size} at ${state.posX}% ${state.posY}%, ${stops})`;
+  if (state.type === "conic")
+    return `conic-gradient(from ${state.conicAngle}deg at ${state.conicX}% ${state.conicY}%, ${stops})`;
+  return `linear-gradient(${state.angle}deg, ${stops})`;   // linear
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Paint the preview &amp; output</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Apply the value to <code>background</code> (or <code>background-image</code>) on the preview element, and drop the same string into the copy box. One <code>render()</code> function does both, called after every state change — the browser handles the actual interpolation.</p>
+        <div class="relative"><pre>function render(){
+  const css = buildGradient(state);
+  preview.style.background = css;
+  cssOut.textContent = "background: " + css + ";";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Drag a stop along the track</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Position a knob with <code>left: pos%</code>. On pointer-move, convert the cursor's X into a 0–100 percent of the track width, clamp it, and write it back to that stop. Because the state array is unsorted, the dragged index stays put; the sort happens only when you build the CSS.</p>
+        <div class="relative"><pre>function posFromEvent(e, track){
+  const r = track.getBoundingClientRect();
+  const pct = (e.clientX - r.left) / r.width * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));   // clamp 0..100
+}
+track.addEventListener("pointermove", e =&gt; {
+  if (dragIndex == null) return;
+  state.stops[dragIndex].pos = posFromEvent(e, track);
+  render();
+});</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">The angle dial (0 = up, clockwise)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A click on the dial gives you an offset from centre. CSS angles start at the top and grow clockwise, which is <em>not</em> what <code>atan2(y, x)</code> gives — so use <code>atan2(dx, -dy)</code> to get the CSS convention directly, then rotate the needle by that same value.</p>
+        <div class="relative"><pre>function angleFromEvent(e, dial){
+  const r = dial.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2);
+  const dy = e.clientY - (r.top + r.height / 2);
+  let deg = Math.atan2(dx, -dy) * 180 / Math.PI;   // 0 = up, clockwise
+  return Math.round((deg + 360) % 360);
+}
+needle.style.transform = `translate(-50%,-100%) rotate(${state.angle}deg)`;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Add, remove, reverse, randomize</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every extra feature is just an array edit followed by <code>render()</code>. Add a stop where the user clicks; remove on double-click (but keep at least two); reverse by flipping each position to <code>100 - pos</code>; randomize by generating a few stops with random colours and sorted positions.</p>
+        <div class="relative"><pre>function addStop(pos, color){ state.stops.push({ pos, color }); render(); }
+function removeStop(i){ if (state.stops.length &gt; 2){ state.stops.splice(i,1); render(); } }
+function reverse(){ state.stops.forEach(s =&gt; s.pos = 100 - s.pos); render(); }
+function randomColor(){ return "#" + Math.floor(Math.random()*0xffffff).toString(16).padStart(6,"0"); }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 33 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real CSS gradient generator: a <strong>state object</strong> holding the type, direction and an ordered array of colour stops; a single pure <code>buildGradient()</code> that emits valid <code>linear-gradient</code> / <code>radial-gradient</code> / <code>conic-gradient</code> syntax; a draggable stop track; an angle dial that respects the <strong>0 = up, clockwise</strong> convention; and add / remove / reverse / randomize built out of plain array edits. The lesson: <strong>a gradient is a generated image described by a tiny recipe — get the string right and the browser does all the painting.</strong> <strong>👉 Tomorrow — Day 34:</strong> a <strong>Box-Shadow Generator</strong> — stack offsets, blur, spread and colour into a live <code>box-shadow</code> you can copy.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==GRAD-ENGINE-START==  (pure, no DOM — this exact block is also run by the Node test)
+// A dependency-free CSS gradient generator.
+//   sortStops(stops)     : stops -> new array sorted by position (stable)
+//   stopsToCss(stops)    : stops -> "color pos%, color pos%, ..."
+//   buildGradient(state) : state -> the full CSS `background` value string
+// The core idea: a CSS gradient is a generated <image>, assembled from an
+// ordered list of colour stops plus a direction (angle / shape / centre).
+
+function clamp(n, lo, hi){ return Math.min(hi, Math.max(lo, n)); }
+
+// order stops left-to-right by position; ties keep insertion order (stable)
+function sortStops(stops){
+  return stops
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => (a.s.pos - b.s.pos) || (a.i - b.i))
+    .map(x => x.s);
+}
+
+// "color pos%, color pos%, ..."  — two stops at one pos is a hard stop (a line)
+function stopsToCss(stops){
+  return sortStops(stops)
+    .map(s => `${s.color} ${s.pos}%`)
+    .join(", ");
+}
+
+// assemble the full CSS background value for the current state
+function buildGradient(state){
+  const stops = stopsToCss(state.stops);
+  if (state.type === "radial"){
+    const shape = state.shape || "circle";
+    const size  = state.size  || "farthest-corner";
+    return `radial-gradient(${shape} ${size} at ${state.posX}% ${state.posY}%, ${stops})`;
+  }
+  if (state.type === "conic"){
+    return `conic-gradient(from ${state.conicAngle}deg at ${state.conicX}% ${state.conicY}%, ${stops})`;
+  }
+  return `linear-gradient(${state.angle}deg, ${stops})`;   // linear (default)
+}
+
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { sortStops, stopsToCss, buildGradient, clamp };
+// ==GRAD-ENGINE-END==
+
+// ===== LOOK: generator UI =====
+const DEFAULT_STATE = () => ({
+  type: "linear", angle: 90,
+  shape: "circle", size: "farthest-corner", posX: 50, posY: 50,
+  conicAngle: 0, conicX: 50, conicY: 50,
+  stops: [ { color:"#f59e0b", pos:0 }, { color:"#b45309", pos:100 } ]
+});
+let state = DEFAULT_STATE();
+let selIndex = 0;
+
+const preview = document.getElementById("preview");
+const cssOut  = document.getElementById("cssOut");
+const track   = document.getElementById("track");
+const stopRows= document.getElementById("stopRows");
+
+// ---- hex colour helpers (for interpolating a colour when you click the track)
+function hexToRgb(h){
+  h = h.replace("#","");
+  if (h.length === 3) h = h.split("").map(c => c+c).join("");
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbToHex(r,g,b){ return "#" + [r,g,b].map(v => clamp(Math.round(v),0,255).toString(16).padStart(2,"0")).join(""); }
+function mix(a, b, t){
+  const A = hexToRgb(a), B = hexToRgb(b);
+  return rgbToHex(A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t);
+}
+function colorAt(pos){
+  const s = sortStops(state.stops);
+  if (!s.length) return "#888888";
+  if (pos <= s[0].pos) return s[0].color;
+  if (pos >= s[s.length-1].pos) return s[s.length-1].color;
+  for (let i = 0; i < s.length - 1; i++){
+    if (pos >= s[i].pos && pos <= s[i+1].pos){
+      const span = (s[i+1].pos - s[i].pos) || 1;
+      return mix(s[i].color, s[i+1].color, (pos - s[i].pos) / span);
+    }
+  }
+  return s[0].color;
+}
+
+// ---- render everything from state
+function render(){
+  const css = buildGradient(state);
+  preview.style.backgroundImage = css;
+  preview.style.backgroundColor = "transparent";
+  cssOut.textContent = "background: " + css + ";";
+  renderTrack();
+  renderRows();
+}
+
+function renderTrack(){
+  // paint the track itself as a left-to-right sample of the stops
+  track.style.backgroundImage = `linear-gradient(90deg, ${stopsToCss(state.stops)})`;
+  track.innerHTML = "";
+  state.stops.forEach((st, i) => {
+    const m = document.createElement("div");
+    m.className = "stopm" + (i === selIndex ? " sel" : "");
+    m.style.left = st.pos + "%";
+    m.dataset.i = i;
+    m.innerHTML = `<div class="knob" style="background:${st.color}"></div><div class="stem"></div>`;
+    track.appendChild(m);
+  });
+}
+
+function renderRows(){
+  stopRows.innerHTML = "";
+  state.stops.forEach((st, i) => {
+    const row = document.createElement("div");
+    row.className = "row" + (i === selIndex ? " sel" : "");
+    row.innerHTML = `
+      <input type="color" value="${st.color}" data-color="${i}" />
+      <input type="number" min="0" max="100" value="${st.pos}" data-pos="${i}" class="field mono w-20 text-sm" />
+      <span class="text-slate-400 text-sm">%</span>
+      <span class="mono text-xs text-slate-400 flex-1 truncate">${st.color}</span>
+      <button data-del="${i}" class="text-slate-400 hover:text-red-500 font-bold px-2" title="remove">✕</button>`;
+    stopRows.appendChild(row);
+  });
+  stopRows.querySelectorAll("[data-color]").forEach(inp => inp.oninput = e => {
+    state.stops[+e.target.dataset.color].color = e.target.value; render();
+  });
+  stopRows.querySelectorAll("[data-pos]").forEach(inp => inp.oninput = e => {
+    state.stops[+e.target.dataset.pos].pos = clamp(+e.target.value || 0, 0, 100); render();
+  });
+  stopRows.querySelectorAll("[data-del]").forEach(b => b.onclick = e => removeStop(+e.currentTarget.dataset.del));
+}
+
+function removeStop(i){
+  if (state.stops.length <= 2) return;   // need at least two to blend
+  state.stops.splice(i, 1);
+  selIndex = clamp(selIndex, 0, state.stops.length - 1);
+  render();
+}
+
+// ---- track drag / add / remove
+let dragIndex = null;
+function posFromEvent(e){
+  const r = track.getBoundingClientRect();
+  return clamp(Math.round((e.clientX - r.left) / r.width * 100), 0, 100);
+}
+track.addEventListener("pointerdown", e => {
+  const m = e.target.closest(".stopm");
+  if (m){
+    dragIndex = +m.dataset.i; selIndex = dragIndex;
+    track.setPointerCapture(e.pointerId); renderRows(); renderTrack();
+  } else {
+    const pos = posFromEvent(e);
+    state.stops.push({ color: colorAt(pos), pos });
+    selIndex = state.stops.length - 1;
+    render();
+  }
+});
+track.addEventListener("pointermove", e => {
+  if (dragIndex == null) return;
+  state.stops[dragIndex].pos = posFromEvent(e);
+  render();
+});
+track.addEventListener("pointerup", () => { dragIndex = null; });
+track.addEventListener("dblclick", e => {
+  const m = e.target.closest(".stopm");
+  if (m) removeStop(+m.dataset.i);
+});
+
+document.getElementById("addStop").onclick = () => {
+  state.stops.push({ color: colorAt(50), pos: 50 });
+  selIndex = state.stops.length - 1; render();
+};
+
+// ---- type switch
+document.querySelectorAll("#typeSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#typeSeg button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  state.type = b.dataset.type;
+  document.getElementById("dirLinear").classList.toggle("hidden", state.type !== "linear");
+  document.getElementById("dirRadial").classList.toggle("hidden", state.type !== "radial");
+  document.getElementById("dirConic").classList.toggle("hidden", state.type !== "conic");
+  render();
+});
+
+// ---- linear angle dial + presets
+const angleDial = document.getElementById("angleDial");
+const angleNeedle = document.getElementById("angleNeedle");
+const angleNum = document.getElementById("angleNum");
+function setAngle(deg){
+  state.angle = clamp(Math.round(deg), 0, 360) % 361;
+  angleNum.value = state.angle;
+  angleNeedle.style.transform = `translate(-50%,-100%) rotate(${state.angle}deg)`;
+  render();
+}
+function angleFromEvent(e, dial){
+  const r = dial.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width/2);
+  const dy = e.clientY - (r.top + r.height/2);
+  return Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
+}
+let angleDrag = false;
+angleDial.addEventListener("pointerdown", e => { angleDrag = true; angleDial.setPointerCapture(e.pointerId); setAngle(angleFromEvent(e, angleDial)); });
+angleDial.addEventListener("pointermove", e => { if (angleDrag) setAngle(angleFromEvent(e, angleDial)); });
+angleDial.addEventListener("pointerup", () => { angleDrag = false; });
+angleNum.oninput = () => setAngle(+angleNum.value || 0);
+
+const DIRS = [ ["↖",315],["↑",0],["↗",45],["←",270],["•",90],["→",90],["↙",225],["↓",180],["↘",135] ];
+const angleDirs = document.getElementById("angleDirs");
+DIRS.forEach(([sym,deg]) => {
+  const b = document.createElement("button");
+  b.className = "bg-slate-100 hover:bg-amber-100 rounded font-bold text-sm py-1";
+  b.textContent = sym; b.title = deg + "deg";
+  b.onclick = () => setAngle(deg);
+  angleDirs.appendChild(b);
+});
+
+// ---- conic dial + centre
+const conicDial = document.getElementById("conicDial");
+const conicNeedle = document.getElementById("conicNeedle");
+const conicNum = document.getElementById("conicNum");
+function setConic(deg){
+  state.conicAngle = clamp(Math.round(deg), 0, 360) % 361;
+  conicNum.value = state.conicAngle;
+  conicNeedle.style.transform = `translate(-50%,-100%) rotate(${state.conicAngle}deg)`;
+  render();
+}
+let conicDrag = false;
+conicDial.addEventListener("pointerdown", e => { conicDrag = true; conicDial.setPointerCapture(e.pointerId); setConic(angleFromEvent(e, conicDial)); });
+conicDial.addEventListener("pointermove", e => { if (conicDrag) setConic(angleFromEvent(e, conicDial)); });
+conicDial.addEventListener("pointerup", () => { conicDrag = false; });
+conicNum.oninput = () => setConic(+conicNum.value || 0);
+
+// ---- radial + conic centre sliders
+function bindRange(id, key, lblId){
+  const el = document.getElementById(id), lbl = document.getElementById(lblId);
+  el.oninput = () => { state[key] = +el.value; if (lbl) lbl.textContent = el.value + "%"; render(); };
+}
+bindRange("rX", "posX", "rxLbl"); bindRange("rY", "posY", "ryLbl");
+bindRange("cX", "conicX", "cxLbl"); bindRange("cY", "conicY", "cyLbl");
+document.querySelectorAll("#shapeSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#shapeSeg button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); state.shape = b.dataset.shape; render();
+});
+document.getElementById("sizeSel").onchange = e => { state.size = e.target.value; render(); };
+
+// ---- actions
+function randomColor(){ return "#" + Math.floor(Math.random()*0xffffff).toString(16).padStart(6,"0"); }
+document.getElementById("randomize").onclick = () => {
+  const n = 2 + Math.floor(Math.random()*3);            // 2..4 stops
+  state.stops = Array.from({length:n}, (_,i) => ({ color: randomColor(), pos: Math.round(i/(n-1)*100) }));
+  state.angle = Math.round(Math.random()*360);
+  setAngle(state.angle); render();
+};
+document.getElementById("reverse").onclick = () => { state.stops.forEach(s => s.pos = 100 - s.pos); render(); };
+document.getElementById("reset").onclick = () => { state = DEFAULT_STATE(); selIndex = 0; syncControls(); render(); };
+
+// ---- presets
+const PRESETS = [
+  { name:"Amber", state:{ type:"linear", angle:135, stops:[{color:"#f59e0b",pos:0},{color:"#b45309",pos:100}] } },
+  { name:"Sunset", state:{ type:"linear", angle:45, stops:[{color:"#ff6a00",pos:0},{color:"#ee0979",pos:100}] } },
+  { name:"Ocean", state:{ type:"linear", angle:90, stops:[{color:"#2193b0",pos:0},{color:"#6dd5ed",pos:100}] } },
+  { name:"Peach", state:{ type:"linear", angle:120, stops:[{color:"#ffecd2",pos:0},{color:"#fcb69f",pos:100}] } },
+  { name:"Stripes", state:{ type:"linear", angle:90, stops:[{color:"#f59e0b",pos:0},{color:"#f59e0b",pos:50},{color:"#0f172a",pos:50},{color:"#0f172a",pos:100}] } },
+  { name:"Spotlight", state:{ type:"radial", shape:"circle", size:"farthest-corner", posX:50, posY:40, stops:[{color:"#ffffff",pos:0},{color:"#0f172a",pos:100}] } },
+  { name:"Colour wheel", state:{ type:"conic", conicAngle:0, conicX:50, conicY:50, stops:[{color:"#ff0000",pos:0},{color:"#ffff00",pos:17},{color:"#00ff00",pos:33},{color:"#00ffff",pos:50},{color:"#0000ff",pos:67},{color:"#ff00ff",pos:83},{color:"#ff0000",pos:100}] } },
+  { name:"Pie", state:{ type:"conic", conicAngle:0, conicX:50, conicY:50, stops:[{color:"#f59e0b",pos:0},{color:"#f59e0b",pos:35},{color:"#10b981",pos:35},{color:"#10b981",pos:70},{color:"#3b82f6",pos:70},{color:"#3b82f6",pos:100}] } }
+];
+const presetsEl = document.getElementById("presets");
+PRESETS.forEach(p => {
+  const b = document.createElement("span");
+  b.className = "chip"; b.textContent = p.name;
+  b.onclick = () => { state = Object.assign(DEFAULT_STATE(), JSON.parse(JSON.stringify(p.state))); selIndex = 0; syncControls(); render(); };
+  presetsEl.appendChild(b);
+});
+
+// ---- push state back into the controls after a preset/reset
+function syncControls(){
+  document.querySelectorAll("#typeSeg button").forEach(x => x.classList.toggle("on", x.dataset.type === state.type));
+  document.getElementById("dirLinear").classList.toggle("hidden", state.type !== "linear");
+  document.getElementById("dirRadial").classList.toggle("hidden", state.type !== "radial");
+  document.getElementById("dirConic").classList.toggle("hidden", state.type !== "conic");
+  angleNum.value = state.angle; angleNeedle.style.transform = `translate(-50%,-100%) rotate(${state.angle}deg)`;
+  conicNum.value = state.conicAngle; conicNeedle.style.transform = `translate(-50%,-100%) rotate(${state.conicAngle}deg)`;
+  document.getElementById("rX").value = state.posX; document.getElementById("rxLbl").textContent = state.posX + "%";
+  document.getElementById("rY").value = state.posY; document.getElementById("ryLbl").textContent = state.posY + "%";
+  document.getElementById("cX").value = state.conicX; document.getElementById("cxLbl").textContent = state.conicX + "%";
+  document.getElementById("cY").value = state.conicY; document.getElementById("cyLbl").textContent = state.conicY + "%";
+  document.querySelectorAll("#shapeSeg button").forEach(x => x.classList.toggle("on", x.dataset.shape === state.shape));
+  document.getElementById("sizeSel").value = state.size;
+}
+
+// ---- copy
+function copyText(text, btn){
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  if (btn){ const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1200); }
+}
+document.getElementById("copyCss").onclick = e => copyText(cssOut.textContent, e.target);
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A gradient is a generated image", why:"The first mental shift is that a gradient is not a colour at all — it is an image the browser paints on the fly from a short description. That is why gradients live in background-image (and the background shorthand), never background-color, and why they can be sized, positioned, repeated and layered exactly like a PNG. The values linear-gradient(), radial-gradient() and conic-gradient() each return a CSS <image>, the same value type as url('photo.png'). Nothing is downloaded and nothing is rasterised at author time: you hand the browser a recipe, and it computes the pixels at render, at whatever resolution the element happens to be, so a gradient stays razor-sharp at any size and on any display density. Once you see gradients as procedurally generated pictures rather than fancy colours, everything else — angles, shapes, stops — falls into place as parameters of that picture.", concept:`<div class="w-full space-y-2 text-xs font-mono"><div class="rounded-lg h-14 flex items-center justify-center text-white font-bold" style="background:linear-gradient(90deg,#f59e0b,#b45309)">a generated &lt;image&gt;</div><div class="text-slate-500">background-image: linear-gradient(...);  <span class="text-red-500">/* not a colour */</span></div></div>`, code:`/* a gradient is an <image>, like url() — so it goes in background-image */
+.box { background-image: linear-gradient(90deg, #f59e0b, #b45309); }
+
+/* the shorthand works too */
+.box { background: linear-gradient(90deg, #f59e0b, #b45309); }
+
+/* this does NOT work — background-color only accepts a single colour */
+.box { background-color: linear-gradient(...); }  /* ignored */` },
+ { title:"2. linear-gradient(angle, stops)", why:"The linear gradient is the workhorse. Its syntax is linear-gradient( <direction>, <stop>, <stop>, … ). The direction is either a keyword like 'to right' / 'to bottom left', or an angle in degrees; leave it out and it defaults to 'to bottom' (180deg). After the direction comes the comma-separated list of colour stops. The colours are blended along a single straight axis — imagine an arrow pointing in the direction you gave; every line perpendicular to that arrow is one solid colour, and the colour changes only as you move along the arrow. That single-axis nature is what distinguishes 'linear' from radial and conic: one direction, one blend. Because the direction can be a plain angle, a linear gradient is the easiest type to drive from a dial or a number input, which is why generators usually open on it.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-16" style="background:linear-gradient(90deg,#f59e0b,#3b82f6)"></div><div class="text-xs font-mono text-slate-500">linear-gradient(<span class="text-amber-600">90deg</span>, #f59e0b, #3b82f6)</div></div>`, code:`linear-gradient(to right, #f59e0b, #3b82f6)     /* keyword direction */
+linear-gradient(90deg,   #f59e0b, #3b82f6)     /* same thing, as an angle */
+linear-gradient(#f59e0b, #3b82f6)              /* default direction = to bottom */
+
+/* every line perpendicular to the arrow is one flat colour */` },
+ { title:"3. Colour stops, positions & interpolation", why:"A colour stop is a colour with an optional position — a length or a percentage measured along the gradient line, where 0% is the start and 100% is the end. If you omit positions, the browser spreads the stops evenly (two colours land at 0% and 100%, three at 0/50/100, and so on). Between any two adjacent stops the browser interpolates: it walks smoothly from one colour to the next, by default in the sRGB colour space, producing every intermediate shade. Give a stop an explicit position and you pin that colour to that point, compressing or stretching the blends on either side. This is the heart of the whole tool — the ordered list of (colour, position) pairs IS the gradient; the type and direction just say how that 0%–100% line is laid across the box. Master stops and you can draw anything from a soft two-colour fade to a precise multi-band flag.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-16" style="background:linear-gradient(90deg,#f59e0b 0%,#10b981 30%,#3b82f6 100%)"></div><div class="text-xs font-mono text-slate-500">#f59e0b <span class="text-amber-600">0%</span>, #10b981 <span class="text-amber-600">30%</span>, #3b82f6 <span class="text-amber-600">100%</span></div><div class="text-xs text-slate-400">the 30% pin squeezes the first blend, stretches the second</div></div>`, code:`/* explicit positions pin colours; the browser blends between them */
+linear-gradient(90deg, #f59e0b 0%, #10b981 30%, #3b82f6 100%)
+
+/* omit positions and they spread evenly: 0% / 50% / 100% */
+linear-gradient(90deg, #f59e0b, #10b981, #3b82f6)` },
+ { title:"4. The angle convention — 0deg is up", why:"Angles in CSS gradients trip up almost everyone, because they do not match the trigonometry you learned in school. In CSS, 0deg points straight UP (toward the top of the box) and the angle increases CLOCKWISE: 90deg points right, 180deg points down, 270deg points left. Standard maths, by contrast, puts 0 pointing right and grows counter-clockwise. So a naive atan2(y, x) gives the wrong number for a gradient dial. The fix is to swap the arguments and flip the vertical sign: atan2(dx, -dy) yields degrees in the CSS convention directly (screen Y grows downward, hence the minus). Keyword directions map to angles cleanly — 'to top' = 0deg, 'to right' = 90deg, 'to bottom' = 180deg, 'to left' = 270deg — and the corner keywords like 'to top right' resolve to whatever angle makes the gradient line hit that corner, which depends on the box's aspect ratio.", concept:`<div class="w-full text-xs font-mono grid grid-cols-2 gap-2"><div class="rounded-lg h-16 flex items-center justify-center text-white" style="background:linear-gradient(0deg,#0f172a,#f59e0b)">0deg → up</div><div class="rounded-lg h-16 flex items-center justify-center text-white" style="background:linear-gradient(90deg,#0f172a,#f59e0b)">90deg → right</div><div class="rounded-lg h-16 flex items-center justify-center text-white" style="background:linear-gradient(180deg,#0f172a,#f59e0b)">180deg → down</div><div class="rounded-lg h-16 flex items-center justify-center text-white" style="background:linear-gradient(270deg,#0f172a,#f59e0b)">270deg → left</div></div>`, code:`/* CSS: 0deg = up, clockwise.  Maths atan2 is right-based & CCW. */
+let deg = Math.atan2(dx, -dy) * 180 / Math.PI;   // dx,dy from dial centre
+deg = (deg + 360) % 360;                          // 0..360, CSS convention
+
+// 0deg=to top · 90deg=to right · 180deg=to bottom · 270deg=to left` },
+ { title:"5. radial-gradient — shape, size, position", why:"A radial gradient blends colour OUTWARD from a centre point, like a glow or a spotlight. Its header is radial-gradient( <shape> <size> at <position>, …stops ). The shape is 'circle' or 'ellipse' (ellipse is the default, stretching to the box's aspect ratio). The size decides where 100% lands, using an extent keyword: closest-side, closest-corner, farthest-side, or farthest-corner (the default) — each measures from the centre to that feature of the box. The 'at <position>' clause moves the centre anywhere, e.g. 'at 30% 70%' or 'at top left'; omit it and the centre sits at the middle. The same stop list follows, but now 0% is the centre and 100% is the chosen edge, so the colours form concentric rings rather than parallel bands. Radial is the tool for vignettes, soft spotlights, buttons with a domed sheen, and fake round shadows.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-24" style="background:radial-gradient(circle farthest-corner at 50% 40%,#fff,#0f172a)"></div><div class="text-xs font-mono text-slate-500">radial-gradient(<span class="text-amber-600">circle farthest-corner</span> at <span class="text-amber-600">50% 40%</span>, #fff, #0f172a)</div></div>`, code:`radial-gradient(circle farthest-corner at 50% 50%, #fff, #0f172a)
+radial-gradient(ellipse closest-side at 30% 70%, #f59e0b, transparent)
+
+/* shape: circle | ellipse   size: closest/farthest -side/-corner */
+/* here 0% = the centre, 100% = the chosen edge → concentric rings */` },
+ { title:"6. conic-gradient — sweep around a centre", why:"A conic gradient sweeps colour AROUND a centre point instead of outward from it — picture the hand of a clock rotating, painting as it goes. Its header is conic-gradient( from <angle> at <position>, …stops ), and here the stop positions are angles: 0% is the start of the sweep, 100% is a full turn (you can also write real angles like 90deg). Because the colour changes with rotation rather than distance, conic gradients draw the things radial cannot: pie charts and donut charts (hard stops at each slice boundary), colour wheels (a rainbow of stops around the circle), angular 'shine' sweeps, and even simple clock-style progress rings. The 'from' angle rotates the whole wheel; the 'at' position moves its centre. It is the newest of the three types but has broad support now, and it turns a few lines of CSS into charts that would otherwise need SVG or canvas.", concept:`<div class="w-full flex items-center gap-4"><div style="width:96px;height:96px;border-radius:50%;background:conic-gradient(from 0deg,#f59e0b 0% 35%,#10b981 35% 70%,#3b82f6 70% 100%)"></div><div style="width:96px;height:96px;border-radius:50%;background:conic-gradient(from 0deg,red,#ff0,#0f0,#0ff,#00f,#f0f,red)"></div><div class="text-xs font-mono text-slate-500">pie · colour wheel</div></div>`, code:`/* pie chart: hard stops at each slice boundary */
+conic-gradient(from 0deg, #f59e0b 0% 35%, #10b981 35% 70%, #3b82f6 70% 100%)
+
+/* colour wheel: rainbow of stops around the turn */
+conic-gradient(from 0deg at 50% 50%, red, #ff0, #0f0, #0ff, #00f, #f0f, red)` },
+ { title:"7. Multiple stops & hard stops (stripes)", why:"You are not limited to two colours — a gradient can hold as many stops as you like, and the interesting trick is what happens when two stops share the SAME position. Normally the browser blends between adjacent stops; but if stop A ends at 50% and stop B begins at 50%, there is zero distance to blend across, so you get a crisp, hard edge — a line, not a fade. Repeat that and you have stripes, bands, and flags with no image file at all: 'red 0% 50%, blue 50% 100%' is a two-colour split down the middle. In a conic gradient the same hard-stop technique produces the clean wedges of a pie chart. So the single rule 'two stops at one position = a sharp edge' unlocks a whole category of designs — checkerboards, ribbons, progress bars, category legends — that people wrongly assume need SVG. It is also why a generator must preserve stop ORDER for equal positions: swap the two and the stripe's colours swap sides.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-16" style="background:linear-gradient(90deg,#f59e0b 0% 33%,#10b981 33% 66%,#3b82f6 66% 100%)"></div><div class="text-xs font-mono text-slate-500">#f59e0b 0% <span class="text-amber-600">33%</span>, #10b981 <span class="text-amber-600">33%</span> 66% …</div><div class="text-xs text-slate-400">same position twice → hard line, no blend</div></div>`, code:`/* soft blend */      linear-gradient(90deg, red, blue)
+/* hard split (line) */ linear-gradient(90deg, red 50%, blue 50%)
+
+/* three sharp bands — a flag, no image needed */
+linear-gradient(90deg, #f59e0b 0% 33%, #10b981 33% 66%, #3b82f6 66% 100%)` },
+ { title:"8. Interpolation hints & midpoints", why:"By default the colour midpoint between two stops sits exactly halfway, and the transition is linear in sRGB. CSS lets you move that midpoint with an interpolation HINT: a bare percentage placed BETWEEN two colour stops (no colour, just a number) that says 'the 50/50 blend should happen here instead of the middle'. Push the hint toward one end and that colour dominates more of the band, giving you an eased, non-linear fade that often looks more natural than the mechanical straight blend — handy for soft shadows and glows where a linear ramp looks muddy. It is easy to confuse a hint with a stop: a stop is 'colour + position', a hint is 'position only'. Modern CSS goes further and lets you choose the interpolation colour space (for example 'in oklch') so the in-between colours stay vivid instead of graying out, but the humble midpoint hint is supported everywhere and is the quickest way to fix an ugly transition.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-12" style="background:linear-gradient(90deg,#f59e0b,#3b82f6)"></div><div class="rounded-lg h-12" style="background:linear-gradient(90deg,#f59e0b,20%,#3b82f6)"></div><div class="text-xs font-mono text-slate-500">top: default midpoint · bottom: hint at <span class="text-amber-600">20%</span></div></div>`, code:`/* the lone 20% is an interpolation HINT, not a stop (no colour) */
+linear-gradient(90deg, #f59e0b, 20%, #3b82f6)
+
+/* choose a colour space so mid-tones stay vivid (modern browsers) */
+linear-gradient(in oklch 90deg, #f59e0b, #3b82f6)` },
+ { title:"9. Layering multiple gradients", why:"background-image accepts a COMMA-SEPARATED list of images, and they stack with the first one on top. Because gradients are images, you can layer several — and since gradients can include 'transparent' and semi-transparent colours, the layers show through one another. This is how CSS draws patterns with no assets: a grid is two repeating-linear-gradients (one for vertical lines, one for horizontal); a spotlight-over-photo is a radial-gradient layered above a url(); polka dots are a radial-gradient with background-size and repetition. Each layer can have its own size, position and repeat via the matching background-size / background-position / background-repeat lists. The mental model is Photoshop layers expressed in one property. A generator can stay single-layer and still be useful, but knowing that the output is just one image in a stack is what lets you drop it into a larger composition without surprises — and explains why the value goes in background-IMAGE, so it can join siblings.", concept:`<div class="w-full space-y-2"><div class="rounded-lg h-20" style="background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.8),transparent 40%),linear-gradient(135deg,#f59e0b,#b45309)"></div><div class="text-xs font-mono text-slate-500">radial(highlight) <span class="text-amber-600">,</span> linear(base) — first layer on top</div></div>`, code:`/* comma-separated list: first image paints on TOP */
+background-image:
+  radial-gradient(circle at 30% 30%, rgba(255,255,255,.8), transparent 40%),
+  linear-gradient(135deg, #f59e0b, #b45309);
+
+/* a grid pattern from two repeating gradients — zero image files */` },
+ { title:"10. Performance — where gradients beat images", why:"Gradients are resolution-independent vector recipes, so they earn their place for three reasons. First, weight: a two-colour fade is a handful of bytes of CSS versus a PNG or JPG that costs an HTTP request and kilobytes — and it never blurs on a 4K or Retina screen because the browser regenerates it at the display's true resolution. Second, flexibility: you can animate or theme a gradient by swapping a variable or transitioning a custom property, and it reflows to any element size for free, which an exported image cannot. Third, maintainability: no asset pipeline, no re-export when a brand colour changes. The trade-off is cost at paint time — very large gradients, or many layered/animated ones, are computed every frame, so animating background on a full-screen element can cause jank (prefer animating transform/opacity, or a small gradient scaled up). And gradients can only make gradients: for real photographic texture you still need an image. The rule of thumb: reach for a gradient for solid-to-solid transitions, glows, stripes, charts and UI sheen; reach for an image when you need genuine detail.", concept:`<div class="w-full text-xs font-mono space-y-1"><div class="text-emerald-600">✓ tiny (bytes, not KB) · crisp at any DPI · themeable</div><div class="text-emerald-600">✓ stripes · glows · charts · UI sheen — no asset</div><div class="text-red-500">✗ photographic detail — use an image</div><div class="text-red-500">✗ animating a huge/full-screen gradient can jank</div></div>`, code:`/* cheap, crisp, themeable — no request, no blur on Retina */
+.btn { background: linear-gradient(180deg, #f59e0b, #d97706); }
+
+/* animate transform/opacity, NOT a full-screen gradient, to stay smooth */
+/* need real photo texture? that is the one job for an <img>/url() */` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4200); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+syncControls();
+render();
+</script>
+</body>
+</html>
