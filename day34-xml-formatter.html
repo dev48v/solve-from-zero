@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 34 — XML Formatter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .seg { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; display:inline-flex; }
+  .seg button { padding:8px 16px; font-weight:700; font-size:13px; background:#fff; color:#475569; }
+  .seg button.on { background:#f59e0b; color:#fff; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:2px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .io { width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:12px; outline:none; font-size:13px; line-height:1.55; }
+  .io:focus { border-color:#f59e0b; box-shadow:0 0 0 2px #fde68a; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .tok-open   { color:#38bdf8; }
+  .tok-close  { color:#f472b6; }
+  .tok-text   { color:#e2e8f0; }
+  .tok-attr   { color:#fbbf24; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 34</div>
+      <h1 class="text-xl font-bold">📄 XML Formatter — messy XML is still a <em>tree</em>; tokenize it, track the depth, re-indent</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Paste messy or minified XML — get it back clean, correctly nested, and validated.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">XML looks like a wall of angle-brackets, but it is really a <strong>tree written as flat text</strong>: every <code>&lt;tag&gt;</code> opens a branch and every <code>&lt;/tag&gt;</code> closes it. This tool doesn't lean on the browser's parser to lay it out — it runs a tiny <strong>tokenizer</strong> that splits the text into tags, text, comments and CDATA, then walks those tokens while tracking the current <strong>depth</strong> with a stack. Depth × indent gives the indentation; the same stack catches any <strong>mismatched or unclosed tag</strong> and tells you exactly which one broke. Flip to <strong>Minify</strong> and the identical token list is re-joined with the whitespace stripped. All vanilla JS, nothing uploaded.</p>
+      </div>
+
+      <!-- controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-5 flex flex-wrap items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Mode</span>
+          <div class="seg" id="modeSeg">
+            <button data-mode="pretty" class="on">✨ Format</button>
+            <button data-mode="minify">🗜 Minify</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Indent</span>
+          <div class="seg" id="indentSeg">
+            <button data-indent="2" class="on">2 spaces</button>
+            <button data-indent="4">4 spaces</button>
+            <button data-indent="tab">Tab</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+          <button id="sampleBtn" class="chip">Load sample</button>
+          <button id="brokenBtn" class="chip">Load broken</button>
+          <button id="clearBtn" class="chip">Clear</button>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- input -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Input — paste XML</div>
+          <textarea id="input" spellcheck="false" placeholder="Paste minified or messy XML here…" class="io mono" style="height:430px;resize:vertical;"></textarea>
+        </div>
+        <!-- output -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Output</div>
+            <button id="copyBtn" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy</button>
+          </div>
+          <div id="err" class="hidden" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px;"></div>
+          <pre id="output" style="height:430px;white-space:pre;overflow:auto;margin:0;"></pre>
+          <div id="stats" class="text-xs text-slate-400 mt-2 mono"></div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. A raw <code>&lt;</code> always starts a tag.</strong> That is why real text content has to escape it as <code>&amp;lt;</code> (and <code>&amp;</code> as <code>&amp;amp;</code>) — a stray <code>&lt;</code> in your data is not content, it is a broken tag, and every XML parser will choke on it. <strong>2. Every tag must close — there are no void elements.</strong> In HTML <code>&lt;img&gt;</code> and <code>&lt;br&gt;</code> stand alone, but XML has no such list: you must write <code>&lt;img/&gt;</code> or <code>&lt;img&gt;&lt;/img&gt;</code>, and this validator flags a lone <code>&lt;img&gt;</code> as unclosed. <strong>3. Self-closing and empty are the same thing.</strong> <code>&lt;br/&gt;</code> and <code>&lt;br&gt;&lt;/br&gt;</code> mean an identical empty element; the formatter picks one clean form. <strong>4. Attribute spacing is cosmetic, values are not.</strong> Order and the gaps around <code>=</code> carry no meaning, so we tidy them — but the value between the quotes is preserved byte-for-byte, quotes and all. <strong>5. Whitespace inside text can be significant.</strong> A generic re-indent could change meaning, so this tool only trims the whitespace-only gaps <em>between</em> element tags and never rewrites the text inside a leaf like <code>&lt;name&gt;John&lt;/name&gt;</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How an XML formatter actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A pretty-printer is not magic and it is not a regex — it is a two-pass pipeline. <strong>Pass one</strong> turns the flat text into a list of <em>tokens</em> (tags, text, comments). <strong>Pass two</strong> walks those tokens keeping a running <strong>depth</strong> on a stack: an open tag pushes and indents deeper, a close tag pops and outdents, and if a close tag does not match the top of the stack you have found the exact broken tag. There is <strong>no library</strong> here; the whole engine is the handful of functions below, and the same functions power both the Format and Minify buttons.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Model XML as a flat token stream</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Before you can indent anything you need to know <em>what</em> each piece is. The formatter's first job is to turn the raw string into an ordered array of tokens, each tagged with a <code>kind</code>: an <code>open</code> tag, a <code>close</code> tag, a <code>self</code>-closing tag, plain <code>text</code>, or a <code>comment</code>/<code>cdata</code>/<code>decl</code>. Nesting is not stored yet — that is rebuilt in pass two — so this stays a simple left-to-right scan.</p>
+        <div class="relative"><pre>// one token = one piece of the document, in source order
+// { kind:"open"|"close"|"self"|"text"|"comment"|"cdata"|"decl", name, attrStr, raw, pos }
+// e.g.  &lt;book id="bk1"&gt;Hi&lt;/book&gt;  ->
+//   { kind:"open",  name:"book", attrStr:' id="bk1"' }
+//   { kind:"text",  raw:"Hi" }
+//   { kind:"close", name:"book" }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Scan the string, splitting at every <code>&lt;</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">Walk a cursor through the text. If the current char is <code>&lt;</code> you are at the start of some markup; otherwise you are in text, which runs until the next <code>&lt;</code>. Everything hangs off that one branch. Whitespace-only text between tags is kept as a token now and dropped later, so the pass stays dumb and total.</p>
+        <div class="relative"><pre>while (i &lt; n){
+  if (xml[i] === "&lt;"){
+    // …decide which kind of markup this is (step 3)…
+  } else {
+    const nx = xml.indexOf("&lt;", i);       // text runs up to the next tag
+    const end = nx === -1 ? n : nx;
+    toks.push({ kind:"text", raw: xml.slice(i, end), pos: i });
+    i = end;
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Classify the markup by its prefix</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Not everything in angle brackets is an element. Check the characters right after <code>&lt;</code>: <code>&lt;!--</code> is a comment, <code>&lt;![CDATA[</code> is raw character data, <code>&lt;?</code> is a processing instruction / declaration, <code>&lt;!</code> is a doctype. Each of those runs to its own terminator, and if that terminator is missing you already have a clean error to report. Anything else is a real tag.</p>
+        <div class="relative"><pre>if (xml.startsWith("&lt;!--", i)){
+  const e = xml.indexOf("--&gt;", i);
+  if (e === -1) throw new XmlError("Unclosed comment (no matching --&gt;)", "&lt;!--", i);
+  toks.push({ kind:"comment", raw: xml.slice(i, e + 3), pos: i }); i = e + 3;
+}
+else if (xml.startsWith("&lt;![CDATA[", i)){ /* run to ]]&gt; */ }
+else if (xml.startsWith("&lt;?", i))        { /* run to ?&gt;  (declaration) */ }
+else if (xml.startsWith("&lt;!", i))        { /* run to &gt;   (doctype)     */ }
+else { /* a real element tag — step 4 */ }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Find the tag's end — but respect quotes</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The naive move is <code>indexOf("&gt;")</code>, but that breaks the instant an attribute value contains a <code>&gt;</code>, e.g. <code>&lt;rule expr="a &gt; b"/&gt;</code>. So scan for the closing <code>&gt;</code> while tracking whether you are inside a <code>"</code> or <code>'</code> string, and ignore any <code>&gt;</code> found inside quotes. This tiny state machine is the difference between a toy and a formatter that survives real data.</p>
+        <div class="relative"><pre>function findTagEnd(s, start){
+  let quote = null;
+  for (let j = start + 1; j &lt; s.length; j++){
+    const c = s[j];
+    if (quote){ if (c === quote) quote = null; }   // leaving a quoted value
+    else if (c === '"' || c === "'") quote = c;    // entering one
+    else if (c === "&gt;") return j;                  // real tag end
+  }
+  return -1;                                        // unterminated tag
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Split name from attributes; detect close &amp; self-close</h3></div>
+        <p class="text-sm text-slate-600 mb-3">With the tag text in hand, a leading <code>/</code> means a close tag and a trailing <code>/</code> means self-closing. The name is the first run of non-space characters; whatever follows is the attribute string, kept verbatim so values are never corrupted. When you re-emit the tag you tidy the <em>spacing</em> around attributes but copy each value — quotes included — exactly as written.</p>
+        <div class="relative"><pre>const isClose = raw[1] === "/";
+let inner = raw.slice(isClose ? 2 : 1, -1).trim();   // drop &lt; / and &gt;
+let self = false;
+if (!isClose &amp;&amp; inner.endsWith("/")){ self = true; inner = inner.slice(0, -1).trim(); }
+const name = inner.match(/^([^\s\/&gt;]+)/)[1];
+const attrStr = inner.slice(name.length);            // preserved as-is
+
+// re-emit: normalise spacing, keep every value byte-for-byte
+function serializeTag(name, attrStr, selfClose){
+  let s = "&lt;" + name;
+  for (const a of parseAttrs(attrStr)) s += " " + a.name + (a.value !== undefined ? "=" + a.value : "");
+  return s + (selfClose ? "/&gt;" : "&gt;");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Track depth with a stack — and validate</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the heart of it. Keep a <code>stack</code> of open tags and an integer <code>depth</code>. An <code>open</code> tag prints at the current depth, pushes its name, and increments depth. A <code>close</code> tag must match the name on top of the stack: if the stack is empty it is a stray close, if the names differ it is a mismatch — either way you know the <strong>exact offending tag</strong>. Pop, decrement, print. Anything left on the stack at the end is an unclosed tag.</p>
+        <div class="relative"><pre>if (t.kind === "open"){ lines.push(pad + openTag); stack.push(t); depth++; }
+
+if (t.kind === "close"){
+  if (!stack.length)
+    throw new XmlError("Unexpected &lt;/" + t.name + "&gt; — nothing is open", "&lt;/" + t.name + "&gt;", t.pos);
+  const open = stack[stack.length - 1];
+  if (open.name !== t.name)
+    throw new XmlError("Mismatched: &lt;" + open.name + "&gt; open, found &lt;/" + t.name + "&gt;", "&lt;/" + t.name + "&gt;", t.pos);
+  stack.pop(); depth = Math.max(0, depth - 1);
+  lines.push(unit.repeat(depth) + "&lt;/" + t.name + "&gt;");
+}
+// after the loop: if (stack.length) -> "Unclosed tag &lt;" + stack.pop().name + "&gt;"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Indentation = depth × the indent unit</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Once depth is tracked, indenting is trivial: the prefix for a line is the indent unit (two spaces, four spaces, or a tab) repeated <code>depth</code> times. Every token type — text, comments, self-closing tags — is printed at the current depth; only open and close tags move it. That single rule is what turns a one-line blob into a readable tree.</p>
+        <div class="relative"><pre>const unit = opt.indent != null ? opt.indent : "  ";   // "  " | "    " | "\t"
+const pad  = unit.repeat(depth);                       // e.g. depth 3 -> 6 spaces
+
+lines.push(pad + serializeTag(t.name, t.attrStr, true)); // self-closing at this depth
+// comments / cdata / declarations print at `pad` too and never change depth</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Keep leaf elements on one line</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Blindly putting every token on its own line makes <code>&lt;name&gt;John&lt;/name&gt;</code> sprawl across three lines, which reads worse. So when an <code>open</code> tag is followed by a single <code>text</code> token and then its matching <code>close</code>, collapse all three onto one line — a two-token lookahead. Empty elements (<code>&lt;tag&gt;&lt;/tag&gt;</code>) collapse the same way.</p>
+        <div class="relative"><pre>const a = toks[k + 1], b = toks[k + 2];
+// &lt;tag&gt;text&lt;/tag&gt;  ->  one line
+if (a &amp;&amp; a.kind === "text" &amp;&amp; b &amp;&amp; b.kind === "close" &amp;&amp; b.name === t.name){
+  lines.push(pad + openTag + a.raw.trim() + "&lt;/" + t.name + "&gt;"); k += 2; continue;
+}
+// &lt;tag&gt;&lt;/tag&gt;  ->  one line
+if (a &amp;&amp; a.kind === "close" &amp;&amp; a.name === t.name){
+  lines.push(pad + openTag + "&lt;/" + t.name + "&gt;"); k += 1; continue;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Minify: the same tokens, whitespace stripped</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Minify is not a separate parser — it reuses the exact same token list. Instead of adding indentation and newlines, you concatenate every tag back-to-back and trim the whitespace-only text between them (text inside a leaf is kept). That is why Format and Minify are perfect inverses of structure: one adds layout, the other removes it, both from one <code>tokenize()</code>.</p>
+        <div class="relative"><pre>function minifyXml(xml){
+  const toks = tokenize(xml); let out = "";
+  for (const t of toks){
+    if (t.kind === "text"){ const x = t.raw.trim(); if (x) out += x; }
+    else if (t.kind === "open")  out += serializeTag(t.name, t.attrStr, false);
+    else if (t.kind === "self")  out += serializeTag(t.name, t.attrStr, true);
+    else if (t.kind === "close") out += "&lt;/" + t.name + "&gt;";
+    else out += t.raw.trim();                 // comment / cdata / declaration
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Wire the UI: run on input, copy, show errors</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole engine is pure, so the UI layer is thin: on every keystroke, call the engine inside a <code>try/catch</code>. On success, drop the string into the output box and update the stats. On an <code>XmlError</code>, show a red banner with the message and the offending tag, and convert the byte position into a friendly line/column. Copy is one clipboard call.</p>
+        <div class="relative"><pre>function run(){
+  try {
+    const result = mode === "minify" ? minifyXml(src) : formatXml(src, { indent });
+    output.textContent = result; showStats(src, result); hideError();
+  } catch (e){
+    output.textContent = ""; showError(e);   // e.message + e.tag + line/col from e.pos
+  }
+}
+input.addEventListener("input", run);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 34 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real XML formatter with <strong>no library</strong>: a <code>tokenize()</code> pass that scans the string and classifies each piece as a tag, text, comment or CDATA (respecting quotes inside attributes); a <code>formatXml()</code> pass that walks those tokens while tracking <strong>depth on a stack</strong> — the same stack that indents the tree also catches every mismatched or unclosed tag and names the offender; attribute values preserved verbatim; leaf elements kept on one line; and a <code>minifyXml()</code> that re-joins the identical tokens with the whitespace stripped. The lesson: <strong>pretty-printing is a two-pass pipeline — tokenize, then walk with a depth stack — and that stack is your validator for free.</strong> <strong>👉 Tomorrow — Day 35:</strong> a <strong>Box-Shadow Generator</strong> — stack offset, blur, spread and colour into a live <code>box-shadow</code> you can copy.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==XML-ENGINE-START==  (pure, no DOM — this exact block is also run by the Node test)
+// A dependency-free XML pretty-printer + minifier.
+//   tokenize(xml)        : xml string -> flat array of {kind,name,attrStr,raw,pos} tokens
+//   serializeTag(...)    : rebuild a clean "<name attr=...>" (attribute values preserved)
+//   formatXml(xml, opt)  : tokens -> indented, VALIDATED xml (throws XmlError on bad nesting)
+//   minifyXml(xml)       : tokens -> one line, inter-tag whitespace stripped
+// The core idea: XML is a TREE written as flat text. Tokenize it, then walk the
+// tokens while tracking DEPTH with a stack — that one stack both drives the
+// indentation and catches every mismatched / unclosed tag (the offender is named).
+
+function XmlError(message, tag, pos){
+  this.name = "XmlError"; this.message = message; this.tag = tag; this.pos = pos;
+}
+XmlError.prototype = Object.create(Error.prototype);
+XmlError.prototype.constructor = XmlError;
+
+// find the '>' that closes a tag opened at `start`, skipping any '>' inside quotes
+function findTagEnd(s, start){
+  let quote = null;
+  for (let j = start + 1; j < s.length; j++){
+    const c = s[j];
+    if (quote){ if (c === quote) quote = null; }
+    else if (c === '"' || c === "'") quote = c;
+    else if (c === ">") return j;
+  }
+  return -1;
+}
+
+// parse an attribute string into {name,value} pairs; value KEEPS its original quotes
+function parseAttrs(attrStr){
+  const out = []; const re = /([^\s=\/]+)(\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?/g; let m;
+  while ((m = re.exec(attrStr || ""))) out.push({ name: m[1], value: m[3] });
+  return out;
+}
+// re-emit a tag with tidy spacing but verbatim values
+function serializeTag(name, attrStr, selfClose){
+  let s = "<" + name;
+  for (const a of parseAttrs(attrStr)) s += " " + a.name + (a.value !== undefined ? "=" + a.value : "");
+  return s + (selfClose ? "/>" : ">");
+}
+
+// PASS ONE: split raw XML into an ordered list of tokens (no tree yet)
+function tokenize(xml){
+  const toks = []; let i = 0; const n = xml.length;
+  while (i < n){
+    if (xml[i] === "<"){
+      if (xml.startsWith("<!--", i)){
+        const e = xml.indexOf("-->", i);
+        if (e === -1) throw new XmlError("Unclosed comment (no matching -->)", "<!--", i);
+        toks.push({ kind:"comment", raw: xml.slice(i, e + 3), pos: i }); i = e + 3;
+      } else if (xml.startsWith("<![CDATA[", i)){
+        const e = xml.indexOf("]]>", i);
+        if (e === -1) throw new XmlError("Unclosed CDATA section (no matching ]]>)", "<![CDATA[", i);
+        toks.push({ kind:"cdata", raw: xml.slice(i, e + 3), pos: i }); i = e + 3;
+      } else if (xml.startsWith("<?", i)){
+        const e = xml.indexOf("?>", i);
+        if (e === -1) throw new XmlError("Unclosed processing instruction (no matching ?>)", "<?", i);
+        toks.push({ kind:"decl", raw: xml.slice(i, e + 2), pos: i }); i = e + 2;
+      } else if (xml.startsWith("<!", i)){
+        const e = findTagEnd(xml, i);
+        if (e === -1) throw new XmlError("Unclosed declaration (no matching >)", "<!", i);
+        toks.push({ kind:"doctype", raw: xml.slice(i, e + 1), pos: i }); i = e + 1;
+      } else {
+        const e = findTagEnd(xml, i);
+        if (e === -1) throw new XmlError("Unclosed tag (no matching >)", xml.slice(i, i + 16), i);
+        const raw = xml.slice(i, e + 1);
+        const isClose = raw[1] === "/";
+        let inner = raw.slice(isClose ? 2 : 1, -1).trim();      // strip '<' '/' '>'
+        let self = false;
+        if (!isClose && inner.endsWith("/")){ self = true; inner = inner.slice(0, -1).trim(); }
+        const m = inner.match(/^([^\s\/>]+)/);
+        if (!m) throw new XmlError("Tag has no name", raw, i);
+        const name = m[1];
+        const attrStr = inner.slice(name.length);
+        toks.push({ kind: isClose ? "close" : (self ? "self" : "open"), name, attrStr, raw, pos: i });
+        i = e + 1;
+      }
+    } else {
+      const nx = xml.indexOf("<", i);
+      const e = nx === -1 ? n : nx;
+      toks.push({ kind:"text", raw: xml.slice(i, e), pos: i });
+      i = e;
+    }
+  }
+  return toks;
+}
+
+// PASS TWO: pretty-print. Walk tokens, track depth with a stack, validate every close.
+function formatXml(xml, opt){
+  opt = opt || {};
+  const unit = opt.indent != null ? opt.indent : "  ";
+  const toks = tokenize(xml);
+  const lines = []; const stack = []; let depth = 0;
+
+  for (let k = 0; k < toks.length; k++){
+    const t = toks[k];
+    const pad = unit.repeat(depth);
+
+    if (t.kind === "text"){
+      const txt = t.raw.trim();
+      if (txt) lines.push(pad + txt);
+      continue;
+    }
+    if (t.kind === "comment" || t.kind === "cdata" || t.kind === "decl" || t.kind === "doctype"){
+      lines.push(pad + t.raw.trim());
+      continue;
+    }
+    if (t.kind === "self"){
+      lines.push(pad + serializeTag(t.name, t.attrStr, true));
+      continue;
+    }
+    if (t.kind === "open"){
+      const openTag = serializeTag(t.name, t.attrStr, false);
+      const a = toks[k + 1], b = toks[k + 2];
+      // <tag>text</tag>  -> keep on one line
+      if (a && a.kind === "text" && b && b.kind === "close" && b.name === t.name){
+        lines.push(pad + openTag + a.raw.trim() + "</" + t.name + ">"); k += 2; continue;
+      }
+      // <tag></tag>  -> keep on one line
+      if (a && a.kind === "close" && a.name === t.name){
+        lines.push(pad + openTag + "</" + t.name + ">"); k += 1; continue;
+      }
+      lines.push(pad + openTag); stack.push(t); depth++;
+      continue;
+    }
+    if (t.kind === "close"){
+      if (!stack.length)
+        throw new XmlError("Unexpected </" + t.name + "> — there is no open tag to close", "</" + t.name + ">", t.pos);
+      const open = stack[stack.length - 1];
+      if (open.name !== t.name)
+        throw new XmlError("Mismatched tag: <" + open.name + "> is still open, but found </" + t.name + ">", "</" + t.name + ">", t.pos);
+      stack.pop(); depth = Math.max(0, depth - 1);
+      lines.push(unit.repeat(depth) + "</" + t.name + ">");
+      continue;
+    }
+  }
+  if (stack.length){
+    const open = stack[stack.length - 1];
+    throw new XmlError("Unclosed tag <" + open.name + "> — it never gets a matching </" + open.name + ">", "<" + open.name + ">", open.pos);
+  }
+  return lines.join("\n");
+}
+
+// minify: same tokens, inter-tag whitespace dropped, everything on one line
+function minifyXml(xml){
+  const toks = tokenize(xml); let out = "";
+  for (const t of toks){
+    if (t.kind === "text"){ const x = t.raw.trim(); if (x) out += x; }
+    else if (t.kind === "open")  out += serializeTag(t.name, t.attrStr, false);
+    else if (t.kind === "self")  out += serializeTag(t.name, t.attrStr, true);
+    else if (t.kind === "close") out += "</" + t.name + ">";
+    else out += t.raw.trim();
+  }
+  return out;
+}
+
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { tokenize, serializeTag, formatXml, minifyXml, XmlError };
+// ==XML-ENGINE-END==
+
+// ===== LOOK: the formatter UI =====
+const inputEl  = document.getElementById("input");
+const outputEl = document.getElementById("output");
+const errEl    = document.getElementById("err");
+const statsEl  = document.getElementById("stats");
+const copyBtn  = document.getElementById("copyBtn");
+
+let mode = "pretty";
+let indent = "  ";
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function bytes(s){ return new Blob([s]).size; }
+function lineCol(src, pos){
+  if (pos == null) return null;
+  const before = src.slice(0, pos);
+  const nl = before.lastIndexOf("\n");
+  return { line: before.split("\n").length, col: pos - nl };
+}
+
+function hideError(){ errEl.classList.add("hidden"); errEl.innerHTML = ""; }
+function showError(e){
+  errEl.classList.remove("hidden");
+  const lc = lineCol(inputEl.value, e.pos);
+  const where = lc ? ` (line ${lc.line}, col ${lc.col})` : "";
+  errEl.innerHTML = `<strong>⚠ ${esc(e.message)}</strong>` +
+    (e.tag ? `<br><span class="mono">offending: ${esc(e.tag)}${where}</span>` : "");
+  statsEl.textContent = "";
+}
+function showStats(src, result){
+  let els = 0;
+  try { els = tokenize(src).filter(t => t.kind === "open" || t.kind === "self").length; } catch (_) {}
+  const lines = result ? result.split("\n").length : 0;
+  statsEl.textContent = `${els} element${els !== 1 ? "s" : ""} · ${lines} line${lines !== 1 ? "s" : ""} · ${bytes(src)} → ${bytes(result)} bytes`;
+}
+
+function run(){
+  const src = inputEl.value;
+  if (!src.trim()){ outputEl.textContent = ""; statsEl.textContent = ""; hideError(); return; }
+  try {
+    const result = mode === "minify" ? minifyXml(src) : formatXml(src, { indent });
+    outputEl.textContent = result;
+    hideError();
+    showStats(src, result);
+  } catch (e){
+    outputEl.textContent = "";
+    showError(e);
+  }
+}
+
+inputEl.addEventListener("input", run);
+
+document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#modeSeg button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); mode = b.dataset.mode; run();
+});
+document.querySelectorAll("#indentSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#indentSeg button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  indent = b.dataset.indent === "tab" ? "\t" : " ".repeat(+b.dataset.indent);
+  run();
+});
+
+copyBtn.onclick = () => {
+  const text = outputEl.textContent;
+  if (!text) return;
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  const o = copyBtn.textContent; copyBtn.textContent = "✓ Copied!";
+  setTimeout(() => copyBtn.textContent = o, 1200);
+};
+
+const SAMPLE = `<?xml version="1.0" encoding="UTF-8"?><catalog><book id="bk101" lang="en"><author>Gambardella, Matthew</author><title>XML Developer's Guide</title><genre>Computer</genre><price>44.95</price><description>An in-depth look at creating applications with XML.</description><tags><tag>xml</tag><tag>guide</tag></tags></book><book id="bk102"><author>Ralls, Kim</author><title>Midnight Rain</title><price>5.95</price><cover url="img/rain.png"/><!-- on sale --></book></catalog>`;
+
+const BROKEN = `<catalog>
+  <book id="bk101">
+    <author>Gambardella, Matthew</author>
+    <title>XML Developer's Guide</title>
+  </book>
+  <book>
+    <author>Ralls, Kim</author>
+    <title>Midnight Rain</price>
+  </book>
+</catalog>`;
+
+document.getElementById("sampleBtn").onclick = () => { inputEl.value = SAMPLE; run(); };
+document.getElementById("brokenBtn").onclick = () => { mode = "pretty"; document.querySelectorAll("#modeSeg button").forEach(x => x.classList.toggle("on", x.dataset.mode === "pretty")); inputEl.value = BROKEN; run(); };
+document.getElementById("clearBtn").onclick  = () => { inputEl.value = ""; run(); inputEl.focus(); };
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. XML is a tree written as flat text", why:"The single mental shift that makes formatting click is that an XML document is a tree, not a string. Every opening tag begins a branch and its matching closing tag ends it, so the nesting of the tags IS the shape of the data. A minified document hides that shape by removing the newlines and indentation, but the tree is still there — the tags encode it. A formatter's whole job is to recover the tree's shape and draw it back on the page with indentation, and a validator's job is to confirm the branches actually close in the right order. Once you picture the angle-bracket soup as a tree, tokenizing and depth-tracking stop feeling like tricks and start feeling inevitable.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">flat text (minified):</div><div class="text-sky-300">&lt;a&gt;&lt;b&gt;hi&lt;/b&gt;&lt;/a&gt;</div><div class="text-slate-400 mt-2">is really this tree:</div><div class="text-emerald-300">a<br>└─ b<br>&nbsp;&nbsp;&nbsp;└─ "hi"</div></div>`, code:`<!-- the same document, two layouts, ONE tree -->
+<a><b>hi</b></a>                <!-- minified -->
+
+<a>                            <!-- formatted -->
+  <b>hi</b>
+</a>` },
+ { title:"2. Tokenizing — split into pieces first", why:"You cannot indent a document you have not broken into pieces, so pass one is tokenizing: a single left-to-right scan that turns the raw string into an ordered list of tokens. Each token is one atom of the document — a tag, a run of text, a comment, a CDATA block, or the XML declaration. Crucially, tokenizing does NOT build the tree or check nesting; it just labels each piece in the order it appears. Keeping this pass dumb and total is what makes the whole formatter reliable: every character of the input ends up in exactly one token, and the smart work is deferred to pass two. This separation — lexing, then structuring — is exactly how real parsers and compilers are organised.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">&lt;book&gt;Hi&lt;/book&gt; tokenizes to:</div><div class="text-sky-300">{ open  "book" }</div><div class="text-slate-200">{ text  "Hi"   }</div><div class="text-pink-300">{ close "book" }</div></div>`, code:`// one scan, one array — order preserved, nesting NOT yet resolved
+tokenize("<book>Hi</book>")
+// => [ {kind:"open",  name:"book"},
+//      {kind:"text",  raw:"Hi"},
+//      {kind:"close", name:"book"} ]` },
+ { title:"3. Classifying markup by its prefix", why:"Not everything wrapped in angle brackets is an element, and treating it all the same is a classic bug. The first two or three characters after the < tell you the kind: <!-- opens a comment that runs to -->, <![CDATA[ opens raw character data that runs to ]]>, <? opens a processing instruction or the XML declaration ending in ?>, and <! opens a doctype. Only when none of those match is it a genuine element tag. Each special kind has its own terminator, and looking for that terminator gives you a free error check: a comment with no --> is malformed, and you can say so precisely. Getting this classification right is what lets a formatter leave comments and CDATA untouched instead of mangling them as if they were tags.", concept:`<div class="w-full space-y-1 text-xs mono"><div><span class="text-amber-300">&lt;!--</span> … <span class="text-amber-300">--&gt;</span>&nbsp;&nbsp;comment</div><div><span class="text-amber-300">&lt;![CDATA[</span> … <span class="text-amber-300">]]&gt;</span>&nbsp;raw data</div><div><span class="text-amber-300">&lt;?</span>xml … <span class="text-amber-300">?&gt;</span>&nbsp;&nbsp;declaration</div><div><span class="text-amber-300">&lt;!</span>DOCTYPE … <span class="text-amber-300">&gt;</span>&nbsp;doctype</div><div><span class="text-sky-300">&lt;tag&gt;</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;element</div></div>`, code:`if      (s.startsWith("<!--", i))     kind = "comment";  // -> "-->"
+else if (s.startsWith("<![CDATA[", i)) kind = "cdata";   // -> "]]>"
+else if (s.startsWith("<?", i))        kind = "decl";     // -> "?>"
+else if (s.startsWith("<!", i))        kind = "doctype";  // -> ">"
+else                                    kind = "element"; // a real tag` },
+ { title:"4. Finding the tag end, quotes and all", why:"The obvious way to find where a tag ends is to search for the next >, and it works right up until an attribute value contains one — think of <rule expr=\"a > b\"/>. A blind indexOf('>') stops inside the quotes and splits the tag in the wrong place, corrupting everything after it. The fix is a tiny state machine: scan character by character, flip an in-quote flag whenever you cross a \" or ', and only accept a > as the tag's end when you are NOT inside quotes. It is five lines of code, but it is the exact line between a toy that works on clean examples and a formatter that survives real-world XML with comparison operators, URLs and JSON snippets stuffed into attributes. Whenever you tokenize a language, remember that string literals hide the delimiters you are scanning for.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-sky-300">&lt;rule expr="a &gt; b"/&gt;</div><div class="text-red-400">indexOf('&gt;') stops here → &lt;rule expr="a &gt;</div><div class="text-emerald-300">quote-aware scan stops here → …"/&gt;</div></div>`, code:`function findTagEnd(s, start){
+  let quote = null;
+  for (let j = start + 1; j < s.length; j++){
+    const c = s[j];
+    if (quote){ if (c === quote) quote = null; }   // inside "…" or '…'
+    else if (c === '"' || c === "'") quote = c;
+    else if (c === ">") return j;                  // a REAL end
+  }
+  return -1;
+}` },
+ { title:"5. Name, attributes, self-close", why:"With one tag's text isolated, three quick reads finish it off. A / right after the opening < means this is a closing tag. A / right before the closing > means the element is self-closing (empty). The tag name is simply the first run of characters up to a space or the end, and everything after the name is the attribute string. A formatter should preserve attribute VALUES exactly — the text between the quotes can be anything and is meaningful — while it is free to tidy the incidental spacing around them, because attribute order and the gaps around = carry no meaning in XML. That is why re-emitting a tag parses the attributes into name/value pairs and rejoins them with single spaces, copying each value verbatim. Respecting that value-vs-spacing distinction is what keeps a formatter safe to run on data you care about.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-sky-300">&lt;book&nbsp;&nbsp;id='bk1'&nbsp;&nbsp;lang = "en"&gt;</div><div class="text-slate-400">name:</div><div class="text-emerald-300">book</div><div class="text-slate-400">attrs (values kept, spacing tidied):</div><div class="text-amber-300">id='bk1' lang="en"</div></div>`, code:`const isClose = raw[1] === "/";                 // </book>
+let inner = raw.slice(isClose ? 2 : 1, -1).trim();
+let self = !isClose && inner.endsWith("/");     // <br/>
+if (self) inner = inner.slice(0, -1).trim();
+const name    = inner.match(/^([^\\s\\/>]+)/)[1];
+const attrStr = inner.slice(name.length);       // preserved as-is` },
+ { title:"6. Depth-tracking with a stack — the core", why:"Everything so far was setup; this is the engine. Keep a stack of the tags that are currently open and an integer depth. When you meet an opening tag, print it at the current depth, push its name onto the stack, and increase depth by one. When you meet a closing tag, the name on top of the stack MUST equal the closing tag's name — if it does, pop it and decrease depth; if it does not, you have found a mismatch. This same stack answers three questions at once: how deep to indent (its height), whether a close is legal (does the top match), and whether the document is complete (is the stack empty at the end). A stack is the natural data structure for anything nested — brackets, parentheses, function calls — and XML nesting is no exception.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-sky-300">&lt;a&gt;</div><div class="text-slate-400 pl-4">push a → stack [a], depth 1</div><div class="text-sky-300 pl-4">&lt;b&gt;</div><div class="text-slate-400 pl-8">push b → stack [a,b], depth 2</div><div class="text-pink-300 pl-4">&lt;/b&gt;</div><div class="text-slate-400 pl-8">top is b ✓ pop → depth 1</div><div class="text-pink-300">&lt;/a&gt;</div><div class="text-slate-400 pl-4">top is a ✓ pop → depth 0 ✓ done</div></div>`, code:`if (kind === "open"){ stack.push(name); depth++; }
+
+if (kind === "close"){
+  const open = stack[stack.length - 1];
+  if (open !== name) throw Mismatch(open, name);  // wrong tag
+  stack.pop(); depth--;
+}
+// end of input: stack must be empty, else something is unclosed` },
+ { title:"7. Turning depth into indentation", why:"Once depth is being tracked, indentation is almost free — it is the chosen indent unit repeated depth times. The unit is a preference: two spaces, four spaces, or a tab, and swapping it changes nothing else in the algorithm. The rule is that a line's leading whitespace equals unit × depth, and only opening and closing tags move depth; text, comments, and self-closing tags all print at whatever depth is current. This is the moment the flat token list becomes a visible tree: children sit further right than their parents because their depth is higher. Because the indent is derived from depth rather than guessed from the input, the output is perfectly consistent no matter how ragged the source was.", concept:`<div class="w-full text-xs mono"><div class="text-sky-300">&lt;catalog&gt;</div><div class="text-sky-300">&nbsp;&nbsp;&lt;book&gt;</div><div class="text-slate-200">&nbsp;&nbsp;&nbsp;&nbsp;&lt;title&gt;XML&lt;/title&gt;</div><div class="text-pink-300">&nbsp;&nbsp;&lt;/book&gt;</div><div class="text-pink-300">&lt;/catalog&gt;</div><div class="text-slate-400 mt-2">indent = "  " × depth (0, 1, 2, 1, 0)</div></div>`, code:`const unit = "  ";                 // or "    " or "\\t"
+const pad  = unit.repeat(depth);   // depth 2 -> 4 spaces
+lines.push(pad + tag);             // every printed line is pad + content` },
+ { title:"8. Leaf elements on one line", why:"A purely mechanical printer would put the opening tag, the text, and the closing tag of <name>John</name> on three separate lines, which is technically correct but reads badly and wastes vertical space. Good formatters special-case a leaf: when an opening tag is immediately followed by a single text token and then its own closing tag, the three collapse onto one line. Detecting this needs only a two-token lookahead — peek at the next token and the one after it — and the empty-element case (<tag></tag>) collapses the same way. This is a cosmetic rule, not a correctness one, but it is the difference between output people actually want to read and output they immediately reach to re-collapse. It also mirrors how humans naturally write XML by hand.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">mechanical (3 lines):</div><div class="text-slate-200">&lt;name&gt;<br>&nbsp;&nbsp;John<br>&lt;/name&gt;</div><div class="text-slate-400 mt-1">leaf rule (1 line):</div><div class="text-emerald-300">&lt;name&gt;John&lt;/name&gt;</div></div>`, code:`const a = toks[k+1], b = toks[k+2];      // two-token lookahead
+if (a.kind === "text" && b.kind === "close" && b.name === t.name){
+  emit(pad + open + a.raw.trim() + "</" + t.name + ">");
+  k += 2;                                  // consume text + close
+}` },
+ { title:"9. Minify — the inverse from the same tokens", why:"Minifying is not a second parser; it is the same token list emitted with the opposite layout policy. Where the formatter adds newlines and indentation between tags, the minifier concatenates the tags directly and drops the whitespace-only text that sat between them. Text inside a leaf is preserved, because that whitespace can be meaningful, but the pretty-printing gaps you added are exactly the ones that are safe to remove. This symmetry is the elegant part: one tokenize() feeds two tiny emitters, so Format and Minify are provably consistent — minifying then formatting returns you to the same tree. It also shows why round-tripping works: the structural information lives in the tags, and whitespace between them is just presentation.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">formatted in:</div><div class="text-sky-300">&lt;a&gt;<br>&nbsp;&nbsp;&lt;b&gt;hi&lt;/b&gt;<br>&lt;/a&gt;</div><div class="text-slate-400 mt-1">minified out:</div><div class="text-emerald-300">&lt;a&gt;&lt;b&gt;hi&lt;/b&gt;&lt;/a&gt;</div></div>`, code:`// same tokens, drop inter-tag whitespace, no newlines
+for (const t of tokenize(xml)){
+  if (t.kind === "text"){ const x = t.raw.trim(); if (x) out += x; }
+  else out += emitTag(t);   // tags back-to-back
+}` },
+ { title:"10. Why not just DOMParser?", why:"Browsers ship a real XML parser — DOMParser — so why write your own tokenizer? Three reasons. First, control over layout: DOMParser gives you a node tree but no opinion on indentation, self-close style, or keeping leaves on one line, so you would be writing a serializer by hand anyway. Second, error reporting: a browser parser reports failure through a <parsererror> element whose message and format vary by browser, whereas your own walk knows the exact token and byte offset where nesting broke, which is what a formatter needs to say 'this </title> should have been </price>'. Third, understanding: a hand-written pass is a few dozen lines you can read, test in Node, and reason about — no black box. DOMParser is the right tool for consuming XML into objects; a purpose-built tokenizer is the right tool for pretty-printing and validating it with precise, friendly errors.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-emerald-300">✓ full control of indent / self-close / leaf layout</div><div class="text-emerald-300">✓ exact offending tag + line/col on error</div><div class="text-emerald-300">✓ ~60 lines, Node-testable, no black box</div><div class="text-slate-400 mt-1">DOMParser is for consuming XML → objects,</div><div class="text-slate-400">not for pretty-printing it your way.</div></div>`, code:`// DOMParser gives a tree but a vague, browser-specific error:
+const doc = new DOMParser().parseFromString(xml, "application/xml");
+if (doc.querySelector("parsererror")) { /* which tag? unclear */ }
+
+// our walk names the offender precisely:
+// "Mismatched tag: <title> is still open, but found </price>"` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK with the sample
+inputEl.value = SAMPLE;
+run();
+</script>
+</body>
+</html>

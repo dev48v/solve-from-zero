@@ -40,6 +40,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 31 — SQL Formatter](https://dev48v.infy.uk/solve/day31-sql-formatter.html) — `day31-sql-formatter.html`
 - [SolveFromZero · Day 32 — Word & Character Counter](https://dev48v.infy.uk/solve/day32-word-counter.html) — `day32-word-counter.html`
 - [SolveFromZero · Day 33 — CSS Gradient Generator](https://dev48v.infy.uk/solve/day33-gradient-generator.html) — `day33-gradient-generator.html`
+- [SolveFromZero · Day 34 — XML Formatter](https://dev48v.infy.uk/solve/day34-xml-formatter.html) — `day34-xml-formatter.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
