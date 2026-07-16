@@ -41,6 +41,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 32 — Word & Character Counter](https://dev48v.infy.uk/solve/day32-word-counter.html) — `day32-word-counter.html`
 - [SolveFromZero · Day 33 — CSS Gradient Generator](https://dev48v.infy.uk/solve/day33-gradient-generator.html) — `day33-gradient-generator.html`
 - [SolveFromZero · Day 34 — XML Formatter](https://dev48v.infy.uk/solve/day34-xml-formatter.html) — `day34-xml-formatter.html`
+- [SolveFromZero · Day 35 — Box-Shadow Generator](https://dev48v.infy.uk/solve/day35-box-shadow-generator.html) — `day35-box-shadow-generator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

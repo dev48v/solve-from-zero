@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 35 — Box-Shadow Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .seg { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; display:inline-flex; }
+  .seg button { padding:8px 16px; font-weight:700; font-size:13px; background:#fff; color:#475569; }
+  .seg button.on { background:#f59e0b; color:#fff; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  /* checkerboard so the box + its shadow read clearly on either stage colour */
+  .checker { background-image:
+      linear-gradient(45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(-45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#e2e8f0 75%),
+      linear-gradient(-45deg,transparent 75%,#e2e8f0 75%);
+      background-size:22px 22px; background-position:0 0,0 11px,11px -11px,-11px 0; }
+  .sl { accent-color:#f59e0b; width:100%; }
+  .field { background:#fffbeb; border:1px solid #fde68a; border-radius:9px; padding:6px 8px; }
+  input[type=color] { width:40px; height:32px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; padding:2px; cursor:pointer; }
+  .layer { display:flex; align-items:center; gap:9px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; cursor:pointer; }
+  .layer.sel { border-color:#f59e0b; background:#fffbeb; }
+  .layer .sw { width:22px; height:22px; border-radius:6px; border:1px solid #cbd5e1; flex:none; }
+  .ctl .lbl { display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#475569; margin-bottom:3px; }
+  .ctl { margin-bottom:11px; }
+  .togg { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:#475569; cursor:pointer; user-select:none; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 35</div>
+      <h1 class="text-xl font-bold">🌑 Box-Shadow Generator — a shadow is just <em>four lengths and a colour</em>; stack a few and you have depth</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Drag the sliders, stack the layers, copy the exact <code>box-shadow</code>.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A CSS shadow is not a picture — it is a tiny <strong>recipe of four numbers and a colour</strong>: how far to nudge it <em>right</em> and <em>down</em> (offset-x / offset-y), how <em>soft</em> the edge is (blur), how much bigger or smaller than the box it is (spread), and the colour — whose <strong>alpha does most of the work</strong>. One line reads flat; the trick real designers use is to <strong>stack several faint shadows</strong> into one comma-separated list, so a card gets both a tight contact shadow and a wide ambient one. This tool assembles that list by hand and shows the exact value you paste into CSS. No library, all vanilla JS.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: live preview + output -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live preview</div>
+              <div class="flex items-center gap-3">
+                <label class="togg text-xs">Box <input type="color" id="boxColor" value="#ffffff" style="width:30px;height:24px;"></label>
+                <div class="seg" id="stageSeg">
+                  <button data-stage="light" class="on">Light</button>
+                  <button data-stage="dark">Dark</button>
+                </div>
+              </div>
+            </div>
+            <div id="stage" class="checker rounded-xl border border-slate-200" style="height:340px;display:flex;align-items:center;justify-content:center;">
+              <div id="box" style="width:150px;height:150px;border-radius:18px;background:#ffffff;"></div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">CSS output</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre-wrap;word-break:break-word;margin:0;"></pre>
+          </div>
+
+          <!-- presets -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets</div>
+            <div id="presets"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: controls -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <!-- layer list -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Shadow layers <span class="text-slate-400 normal-case">(first = on top)</span></div>
+              <button id="addLayer" class="chip">+ Add layer</button>
+            </div>
+            <div id="layerList" class="space-y-2"></div>
+          </div>
+
+          <!-- editor for the selected layer -->
+          <div id="editor" class="border-t border-slate-100 pt-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Editing <span id="editTitle" class="text-amber-600">Layer 1</span></div>
+              <label class="togg"><input type="checkbox" id="insetTog" class="sl" style="width:auto;"> Inset</label>
+            </div>
+
+            <div class="ctl">
+              <div class="lbl"><span>Offset X (horizontal)</span><span class="mono" id="valX">0px</span></div>
+              <input type="range" id="rngX" class="sl" min="-100" max="100" step="1" value="0">
+            </div>
+            <div class="ctl">
+              <div class="lbl"><span>Offset Y (vertical)</span><span class="mono" id="valY">10px</span></div>
+              <input type="range" id="rngY" class="sl" min="-100" max="100" step="1" value="10">
+            </div>
+            <div class="ctl">
+              <div class="lbl"><span>Blur radius</span><span class="mono" id="valBlur">25px</span></div>
+              <input type="range" id="rngBlur" class="sl" min="0" max="150" step="1" value="25">
+            </div>
+            <div class="ctl">
+              <div class="lbl"><span>Spread radius</span><span class="mono" id="valSpread">-5px</span></div>
+              <input type="range" id="rngSpread" class="sl" min="-80" max="80" step="1" value="-5">
+            </div>
+            <div class="ctl">
+              <div class="lbl"><span>Opacity (colour alpha)</span><span class="mono" id="valOpacity">18%</span></div>
+              <input type="range" id="rngOpacity" class="sl" min="0" max="100" step="1" value="18">
+            </div>
+            <div class="flex items-center gap-3 mt-1">
+              <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Colour</span>
+              <input type="color" id="shColor" value="#0f172a">
+              <span class="mono text-xs text-slate-500" id="rgbaOut">rgba(15, 23, 42, 0.18)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. The colour's alpha is the whole trick.</strong> A solid black shadow looks like a photocopier smudge; real shadows are <code>rgba(0,0,0,0.1)</code>-ish. Almost every "why does my shadow look cheap" problem is an opacity that is too high. <strong>2. Blur and spread are different.</strong> <em>Blur</em> softens the edge outward from the shape; <em>spread</em> grows (positive) or shrinks (negative) the shadow's <em>size</em> before it is blurred — a negative spread is the secret to a tight, believable drop. <strong>3. The order of the list is a stacking order.</strong> In a comma-separated <code>box-shadow</code>, the <em>first</em> shadow paints on <em>top</em> of the later ones — exactly the reverse of what people expect. <strong>4. <code>inset</code> flips the light around.</strong> The same four numbers, with <code>inset</code>, carve the shadow <em>into</em> the box instead of casting it outward — that is how you make pressed buttons and inner wells. <strong>5. Shadows are free of the layout.</strong> Unlike a bigger border or an extra element, a shadow takes up <em>no space</em> and never pushes its neighbours around; it also follows the box's <code>border-radius</code> automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How box-shadow actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A shadow generator has no algorithm to speak of — the cleverness is entirely in the <strong>data model</strong>. Hold each shadow as a plain object of five numbers plus a colour and an <code>inset</code> flag; hold the whole design as an <em>array</em> of those objects. Everything else is two tiny functions: one that turns a single object into a <code>box-shadow</code> fragment, and one that joins the array with commas. The sliders write into the selected object, you re-serialise, and you drop the string straight onto <code>element.style.boxShadow</code>. There is <strong>no library</strong>; the entire engine is the handful of functions below.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Model one shadow as a plain object</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The CSS syntax <code>[inset] &lt;x&gt; &lt;y&gt; &lt;blur&gt; &lt;spread&gt; &lt;color&gt;</code> maps one-to-one onto an object. Keep the four lengths as plain numbers (pixels), the colour as an <code>{r,g,b}</code> triple, the transparency as a separate <code>opacity</code> percentage, and <code>inset</code> as a boolean. Splitting colour from opacity is deliberate: it lets one slider drive the alpha without touching the hue.</p>
+        <div class="relative"><pre>// one shadow = the box-shadow syntax as data
+// box-shadow: [inset] offset-x offset-y blur spread color
+const layer = {
+  x: 0, y: 10,          // offset-x, offset-y  (px)
+  blur: 25, spread: -5, // blur-radius, spread-radius (px)
+  color: { r:15, g:23, b:42 },
+  opacity: 18,          // % -> the colour's alpha
+  inset: false
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Build the colour: hex + opacity → rgba()</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The native colour input gives you a <code>#rrggbb</code> hex, but a shadow needs an <em>alpha</em>. So convert the hex to red/green/blue integers, divide the opacity percentage by 100, and assemble an <code>rgba()</code> string. This one function is why the opacity slider feels like the most important control on the panel.</p>
+        <div class="relative"><pre>function hexToRgb(hex){
+  hex = hex.replace("#", "");
+  if (hex.length === 3) hex = hex.split("").map(c =&gt; c + c).join("");
+  const n = parseInt(hex, 16);
+  return { r:(n &gt;&gt; 16) &amp; 255, g:(n &gt;&gt; 8) &amp; 255, b:n &amp; 255 };
+}
+function rgba(layer){
+  const { r, g, b } = layer.color;
+  return `rgba(${r}, ${g}, ${b}, ${layer.opacity / 100})`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Serialise one shadow to a string</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Now turn one object into one valid <code>box-shadow</code> fragment. Push the parts into an array in the exact CSS order, prepend <code>inset</code> only when the flag is set, and join with spaces. Building an array and joining — rather than string-concatenating — keeps the optional <code>inset</code> keyword clean and the output free of stray spaces.</p>
+        <div class="relative"><pre>function shadowToString(s){
+  const parts = [];
+  if (s.inset) parts.push("inset");
+  parts.push(s.x + "px", s.y + "px", s.blur + "px", s.spread + "px", rgba(s));
+  return parts.join(" ");
+}
+// { x:0, y:10, blur:25, spread:-5, opacity:18 }
+//   -> "0px 10px 25px -5px rgba(15, 23, 42, 0.18)"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Join the layers with commas = the value</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A stacked shadow is nothing more than several fragments in one comma-separated list. Map the whole array through <code>shadowToString</code> and join with <code>", "</code>. That single string is the complete <code>box-shadow</code> value — the same text you would type by hand — and it is what makes multiple layers a first-class feature rather than a hack.</p>
+        <div class="relative"><pre>function joinShadows(list){
+  return list.map(shadowToString).join(", ");
+}
+// two layers ->
+// "0px 10px 25px -5px rgba(15,23,42,0.15),
+//  0px 4px 6px -2px rgba(15,23,42,0.10)"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">State = an array + a selected index</h3></div>
+        <p class="text-sm text-slate-600 mb-3">All the UI mutates just two variables: the <code>shadows</code> array and which layer is currently <code>selected</code>. The sliders never touch the DOM's style directly — they edit <code>shadows[selected]</code> and call one <code>render()</code>. Keeping a single source of truth is what makes add / remove / reorder trivial later.</p>
+        <div class="relative"><pre>let shadows = [
+  { x:0, y:10, blur:25, spread:-5, color:{r:15,g:23,b:42}, opacity:15, inset:false },
+  { x:0, y:4,  blur:6,  spread:-2, color:{r:15,g:23,b:42}, opacity:10, inset:false }
+];
+let selected = 0;              // which layer the editor edits</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Sliders write into the selected layer</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every range input maps to one field of the selected object. On <code>input</code>, coerce the value to a number, store it, and re-render — live, on every pixel of the drag. Because the model is plain data, wiring a control is a one-liner and the preview updates instantly with no diffing.</p>
+        <div class="relative"><pre>rngBlur.addEventListener("input", () =&gt; {
+  shadows[selected].blur = +rngBlur.value;   // "+" -> number
+  render();
+});
+insetTog.addEventListener("change", () =&gt; {
+  shadows[selected].inset = insetTog.checked;
+  render();
+});</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">render(): one string, straight onto the box</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The render is the payoff. Build the value once, assign it to the preview element's <code>style.boxShadow</code> — the browser does all the actual shadow maths — and mirror the same string into the read-only CSS output. There is no canvas and no drawing loop; you are just handing CSS to the engine that already knows how to paint it.</p>
+        <div class="relative"><pre>function render(){
+  const css = joinShadows(shadows);
+  box.style.boxShadow = css;                 // the browser paints it
+  cssOut.textContent  = "box-shadow: " + css + ";";
+  renderLayerList();                         // refresh the strip
+  syncEditor();                              // sliders show selected layer
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Add, remove, and select layers</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Multiple shadows fall out of the array for free. "Add" pushes a fresh object and selects it; "remove" splices one out and clamps the selection; clicking a row sets <code>selected</code>. Guard against removing the last layer so the box is never left with an invalid empty value.</p>
+        <div class="relative"><pre>function addLayer(){
+  shadows.push({ x:0, y:8, blur:16, spread:0,
+                 color:{r:15,g:23,b:42}, opacity:20, inset:false });
+  selected = shadows.length - 1; render();
+}
+function removeLayer(i){
+  if (shadows.length === 1) return;          // keep at least one
+  shadows.splice(i, 1);
+  selected = Math.min(selected, shadows.length - 1); render();
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Layering for real depth (the design part)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One shadow looks flat; believable elevation comes from stacking a <em>tight, darker</em> contact shadow over a <em>wide, fainter</em> ambient one — mimicking how a direct light and the sky both cast shadows. Remember the list is a stacking order: put the sharp one <em>first</em> so it sits on top. Presets are just canned arrays of this shape.</p>
+        <div class="relative"><pre>// "layered depth" preset — sharp on top, soft underneath
+const softCard = [
+  { x:0, y:2,  blur:4,  spread:-1, opacity:12, color:INK },  // contact
+  { x:0, y:12, blur:24, spread:-6, opacity:14, color:INK }   // ambient
+];
+// order matters: first fragment paints ON TOP of the later ones</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Copy the CSS — and why not filter?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Copy is one clipboard call on the already-built string. And a closing choice: why <code>box-shadow</code> rather than <code>filter: drop-shadow()</code>? <code>box-shadow</code> follows the box's rectangle and <code>border-radius</code>, takes no layout space, and accepts a stacked list — perfect for cards and buttons. <code>drop-shadow</code> traces the alpha silhouette (great for irregular PNGs) but does not stack the same way. Pick the tool that matches the shape you are shadowing.</p>
+        <div class="relative"><pre>copyCss.onclick = () =&gt; {
+  const css = "box-shadow: " + joinShadows(shadows) + ";";
+  navigator.clipboard.writeText(css);
+  copyCss.textContent = "✓ Copied!";
+  setTimeout(() =&gt; copyCss.textContent = "Copy CSS", 1200);
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 35 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real box-shadow generator with <strong>no library</strong>: a data model where each shadow is a plain object (four lengths, an <code>{r,g,b}</code> colour, an opacity and an <code>inset</code> flag), a <code>shadowToString()</code> that serialises one object into the exact CSS fragment, and a <code>joinShadows()</code> that comma-joins the array into a full stacked value dropped straight onto <code>element.style.boxShadow</code>. The sliders mutate one object and re-render live; add / remove make <strong>multiple layers</strong> a first-class feature; and the lesson underneath is that <strong>the hard part of a visual tool is almost always the data model, not the drawing — model it well and the CSS engine does the painting for you.</strong> <strong>👉 Tomorrow — Day 36:</strong> a <strong>Cubic-Bézier Easing Editor</strong> — drag two control points and watch the animation curve come alive.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==SHADOW-ENGINE-START==  (pure, no DOM — this exact block also runs under Node)
+// A dependency-free box-shadow model + serialiser.
+//   hexToRgb(hex)        : "#rrggbb" -> {r,g,b}
+//   rgba(layer)          : layer -> "rgba(r, g, b, a)"  (opacity% -> alpha)
+//   shadowToString(s)    : one layer object -> one "[inset] x y blur spread rgba()" fragment
+//   joinShadows(list)    : array of layers -> full comma-separated box-shadow value
+// The core idea: a shadow is just FOUR LENGTHS AND A COLOUR held as data. Stack a
+// few faint ones in a comma list and you get depth — the browser paints it for you.
+
+function hexToRgb(hex){
+  hex = String(hex).replace("#", "");
+  if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+  const n = parseInt(hex, 16);
+  return { r:(n >> 16) & 255, g:(n >> 8) & 255, b:n & 255 };
+}
+function rgbToHex(c){
+  return "#" + [c.r, c.g, c.b].map(v => Math.max(0, Math.min(255, v|0)).toString(16).padStart(2, "0")).join("");
+}
+// opacity is stored as a 0-100 percentage; alpha is that / 100
+function rgba(layer){
+  const { r, g, b } = layer.color;
+  const a = Math.round(layer.opacity) / 100;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+// one layer object -> one valid box-shadow fragment (inset only when set)
+function shadowToString(s){
+  const parts = [];
+  if (s.inset) parts.push("inset");
+  parts.push(s.x + "px", s.y + "px", s.blur + "px", s.spread + "px", rgba(s));
+  return parts.join(" ");
+}
+// the whole design is a comma-separated list; first fragment paints ON TOP
+function joinShadows(list){
+  return list.map(shadowToString).join(", ");
+}
+
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { hexToRgb, rgbToHex, rgba, shadowToString, joinShadows };
+// ==SHADOW-ENGINE-END==
+
+// ===== LOOK: the generator UI =====
+const INK = { r:15, g:23, b:42 };
+let shadows = [
+  { x:0, y:10, blur:25, spread:-5, color:{ ...INK }, opacity:18, inset:false }
+];
+let selected = 0;
+
+const box       = document.getElementById("box");
+const stage     = document.getElementById("stage");
+const cssOut    = document.getElementById("cssOut");
+const copyCss   = document.getElementById("copyCss");
+const layerList = document.getElementById("layerList");
+const editTitle = document.getElementById("editTitle");
+const boxColor  = document.getElementById("boxColor");
+
+const rngX = document.getElementById("rngX"), valX = document.getElementById("valX");
+const rngY = document.getElementById("rngY"), valY = document.getElementById("valY");
+const rngBlur = document.getElementById("rngBlur"), valBlur = document.getElementById("valBlur");
+const rngSpread = document.getElementById("rngSpread"), valSpread = document.getElementById("valSpread");
+const rngOpacity = document.getElementById("rngOpacity"), valOpacity = document.getElementById("valOpacity");
+const shColor = document.getElementById("shColor"), rgbaOut = document.getElementById("rgbaOut");
+const insetTog = document.getElementById("insetTog");
+
+// build the layer strip; each row selects, shows a swatch + summary + remove
+function renderLayerList(){
+  layerList.innerHTML = "";
+  shadows.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "layer" + (i === selected ? " sel" : "");
+    row.innerHTML =
+      `<span class="sw" style="background:${rgba(s)}"></span>
+       <div class="flex-1 min-w-0">
+         <div class="text-sm font-bold text-slate-700">Layer ${i + 1}${s.inset ? " · inset" : ""}</div>
+         <div class="mono text-xs text-slate-400 truncate">${shadowToString(s)}</div>
+       </div>
+       <button title="remove" class="rm text-slate-400 hover:text-red-500 font-bold px-1" ${shadows.length === 1 ? "style='visibility:hidden'" : ""}>✕</button>`;
+    row.onclick = (e) => {
+      if (e.target.classList.contains("rm")){ removeLayer(i); return; }
+      selected = i; render();
+    };
+    layerList.appendChild(row);
+  });
+}
+
+// push the selected layer's values back into the slider controls
+function syncEditor(){
+  const s = shadows[selected];
+  editTitle.textContent = `Layer ${selected + 1}`;
+  rngX.value = s.x;             valX.textContent = s.x + "px";
+  rngY.value = s.y;             valY.textContent = s.y + "px";
+  rngBlur.value = s.blur;       valBlur.textContent = s.blur + "px";
+  rngSpread.value = s.spread;   valSpread.textContent = s.spread + "px";
+  rngOpacity.value = s.opacity; valOpacity.textContent = s.opacity + "%";
+  shColor.value = rgbToHex(s.color);
+  rgbaOut.textContent = rgba(s);
+  insetTog.checked = s.inset;
+}
+
+function render(){
+  const css = joinShadows(shadows);
+  box.style.boxShadow = css;
+  cssOut.textContent = "box-shadow: " + css + ";";
+  renderLayerList();
+  syncEditor();
+}
+
+function addLayer(){
+  shadows.push({ x:0, y:8, blur:16, spread:0, color:{ ...INK }, opacity:22, inset:false });
+  selected = shadows.length - 1;
+  render();
+}
+function removeLayer(i){
+  if (shadows.length === 1) return;
+  shadows.splice(i, 1);
+  if (selected >= shadows.length) selected = shadows.length - 1;
+  render();
+}
+
+// wire the sliders -> selected layer -> live render
+rngX.addEventListener("input", () => { shadows[selected].x = +rngX.value; render(); });
+rngY.addEventListener("input", () => { shadows[selected].y = +rngY.value; render(); });
+rngBlur.addEventListener("input", () => { shadows[selected].blur = +rngBlur.value; render(); });
+rngSpread.addEventListener("input", () => { shadows[selected].spread = +rngSpread.value; render(); });
+rngOpacity.addEventListener("input", () => { shadows[selected].opacity = +rngOpacity.value; render(); });
+shColor.addEventListener("input", () => { shadows[selected].color = hexToRgb(shColor.value); render(); });
+insetTog.addEventListener("change", () => { shadows[selected].inset = insetTog.checked; render(); });
+document.getElementById("addLayer").onclick = addLayer;
+
+// box colour + stage light/dark
+boxColor.addEventListener("input", () => { box.style.background = boxColor.value; });
+document.querySelectorAll("#stageSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#stageSeg button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  if (b.dataset.stage === "dark"){ stage.classList.remove("checker"); stage.style.background = "#0f172a"; }
+  else { stage.style.background = ""; stage.classList.add("checker"); }
+});
+
+copyCss.onclick = () => {
+  const css = "box-shadow: " + joinShadows(shadows) + ";";
+  navigator.clipboard && navigator.clipboard.writeText(css);
+  const o = copyCss.textContent; copyCss.textContent = "✓ Copied!";
+  setTimeout(() => copyCss.textContent = o, 1200);
+};
+
+// ===== presets: canned arrays of the same layer shape =====
+const PRESETS = {
+  "Soft card":    [{ x:0, y:1, blur:2, spread:0, color:{ ...INK }, opacity:8, inset:false },
+                   { x:0, y:8, blur:24, spread:-6, color:{ ...INK }, opacity:14, inset:false }],
+  "Layered depth":[{ x:0, y:1, blur:1, spread:0, color:{ ...INK }, opacity:11, inset:false },
+                   { x:0, y:4, blur:8, spread:-2, color:{ ...INK }, opacity:11, inset:false },
+                   { x:0, y:16, blur:32, spread:-8, color:{ ...INK }, opacity:13, inset:false }],
+  "Long shadow":  [{ x:18, y:18, blur:0, spread:0, color:{ ...INK }, opacity:12, inset:false }],
+  "Inset well":   [{ x:0, y:4, blur:10, spread:-2, color:{ ...INK }, opacity:30, inset:true }],
+  "Neumorphic":   [{ x:12, y:12, blur:24, spread:0, color:{ r:163, g:177, b:198 }, opacity:60, inset:false },
+                   { x:-12, y:-12, blur:24, spread:0, color:{ r:255, g:255, b:255 }, opacity:90, inset:false }],
+  "Amber glow":   [{ x:0, y:0, blur:14, spread:1, color:{ r:245, g:158, b:11 }, opacity:55, inset:false },
+                   { x:0, y:0, blur:38, spread:6, color:{ r:245, g:158, b:11 }, opacity:35, inset:false }]
+};
+const presetsEl = document.getElementById("presets");
+Object.keys(PRESETS).forEach(name => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = name;
+  b.onclick = () => {
+    shadows = PRESETS[name].map(s => ({ ...s, color: { ...s.color } }));
+    selected = 0;
+    if (name === "Neumorphic"){ box.style.background = "#e0e5ec"; boxColor.value = "#e0e5ec"; }
+    render();
+  };
+  presetsEl.appendChild(b);
+});
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A shadow is four lengths and a colour", why:"The single mental shift that makes box-shadow click is that a shadow is not an image you paint — it is a short recipe the browser renders for you. The recipe is four lengths and a colour: how far right (offset-x) and down (offset-y) the shadow is nudged from the box, how far its edge is blurred, how much its size is grown or shrunk (spread), and what colour it is. Once you see it as five slots to fill rather than something to draw, every control on the panel becomes obvious, and the leap to stacking several shadows becomes natural rather than surprising.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">box-shadow:</div><div><span class="text-sky-300">10px</span> <span class="text-emerald-300">10px</span> <span class="text-amber-300">25px</span> <span class="text-pink-300">-5px</span> <span class="text-slate-200">rgba(0,0,0,.2)</span></div><div class="text-slate-400 mt-1">x&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;blur&nbsp;&nbsp;spread&nbsp;colour</div></div>`, code:`/* the whole syntax, one line */
+box-shadow: 10px 10px 25px -5px rgba(0,0,0,.2);
+/*          x    y    blur spread colour       */` },
+ { title:"2. Offset X / Y — where it falls", why:"The first two numbers move the shadow away from the box. A positive offset-x pushes the shadow to the right, a negative one to the left; a positive offset-y pushes it down, a negative one up. Together they say where the imaginary light is: a shadow that falls down and slightly right (positive y, small positive x) reads as a light source up and to the left, which is what human eyes expect. Setting both to zero puts the shadow directly behind the box, which — combined with blur and spread — is how you make an even glow.", concept:`<div class="w-full text-xs mono space-y-1"><div class="text-emerald-300">y &gt; 0 → shadow below (light from above)</div><div class="text-sky-300">x &gt; 0 → shadow to the right</div><div class="text-slate-400">x = 0, y = 0 → even halo behind the box</div></div>`, code:`box-shadow: 0  10px ... ;   /* falls straight down  */
+box-shadow: 8px 8px ... ;   /* down-and-right       */
+box-shadow: 0   0   ... ;   /* even glow / halo      */` },
+ { title:"3. Blur radius — how soft the edge is", why:"The third number is the blur radius, and it controls how sharply the shadow's edge fades. A blur of 0 gives a hard-edged shadow — a solid duplicate of the box offset behind it, the look of retro 'long shadows'. Increase it and the edge feathers outward over that many pixels, so large blur values give the soft, diffuse shadow of a cloudy day. Blur can never be negative. It is the control that most changes the mood: small blur reads crisp and technical, large blur reads gentle and ambient.", concept:`<div class="w-full flex items-end justify-center gap-6" style="height:120px"><div style="width:52px;height:52px;border-radius:10px;background:#fff;box-shadow:0 8px 0 0 rgba(15,23,42,.25)"></div><div style="width:52px;height:52px;border-radius:10px;background:#fff;box-shadow:0 8px 16px 0 rgba(15,23,42,.25)"></div><div style="width:52px;height:52px;border-radius:10px;background:#fff;box-shadow:0 8px 40px 0 rgba(15,23,42,.25)"></div></div>`, code:`box-shadow: 0 8px  0px 0 rgba(0,0,0,.25);  /* hard  */
+box-shadow: 0 8px 16px 0 rgba(0,0,0,.25);  /* soft  */
+box-shadow: 0 8px 40px 0 rgba(0,0,0,.25);  /* fluffy*/` },
+ { title:"4. Spread — grow or shrink before the blur", why:"The fourth number, spread, is the one people skip and the one that separates cheap shadows from good ones. Spread changes the shadow's SIZE before it is blurred: a positive spread inflates the shadow so it pokes out on all sides, while a negative spread deflates it so it hides behind the box and only the blurred halo peeks out. That negative-spread trick is the secret to a tight, believable drop shadow — it keeps the soft glow from ballooning wider than the element. Positive spread, by contrast, is what you want for an even outline or a focus ring.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-pink-300">spread -6px → shadow smaller than box → tight, subtle</div><div class="text-slate-400">spread  0px → shadow same size as box</div><div class="text-emerald-300">spread +6px → shadow bigger → outline / ring</div></div>`, code:`box-shadow: 0 12px 24px -6px rgba(0,0,0,.2);  /* tight  */
+box-shadow: 0 12px 24px  0px rgba(0,0,0,.2);  /* neutral*/
+box-shadow: 0  0px  0px  4px rgba(59,130,246,.6); /*ring*/` },
+ { title:"5. Colour — the alpha is everything", why:"The final slot is the colour, and the most important thing about it is the alpha. Beginners reach for solid black and get a heavy, dirty smudge; real interfaces use a mostly-transparent colour — something like a 10-to-20-percent black — so the shadow tints the background rather than blotting it out. Because the shadow is drawn UNDER the box, its alpha is what lets the page show through. This is also why the generator splits colour from opacity into two controls: you almost always keep the hue and just dial the transparency until it looks like a shadow rather than a shape.", concept:`<div class="w-full flex items-center justify-center gap-6" style="height:120px"><div style="width:56px;height:56px;border-radius:12px;background:#fff;box-shadow:0 10px 20px 0 rgba(15,23,42,1)"></div><div style="width:56px;height:56px;border-radius:12px;background:#fff;box-shadow:0 10px 20px 0 rgba(15,23,42,.15)"></div></div><div class="text-center text-xs text-slate-400 mono">alpha 1.0 (smudge) &nbsp;·&nbsp; alpha 0.15 (real)</div>`, code:`box-shadow: 0 10px 20px rgba(0,0,0,1);    /* smudge */
+box-shadow: 0 10px 20px rgba(0,0,0,.15);  /* real   */
+/* keep the hue, dial the alpha — that's the craft */` },
+ { title:"6. inset — carve the shadow inward", why:"Prefix the whole thing with the keyword inset and the shadow flips: instead of being cast outward behind the box, it is painted INSIDE the box's edges, as though the surface were recessed. The same four numbers now describe an inner shadow — an inset with a small downward offset makes a text field or a pressed button look sunken, and a symmetric inset makes a soft inner vignette. Inner and outer shadows can even coexist in the same list, which is how neumorphism gets its 'pushed into the surface' look. It is one keyword, but it doubles what box-shadow can express.", concept:`<div class="w-full flex items-center justify-center gap-6" style="height:120px"><div style="width:70px;height:44px;border-radius:10px;background:#e2e8f0;box-shadow:0 6px 14px rgba(15,23,42,.25)"></div><div style="width:70px;height:44px;border-radius:10px;background:#e2e8f0;box-shadow:inset 0 4px 10px rgba(15,23,42,.4)"></div></div><div class="text-center text-xs text-slate-400 mono">outer (raised) &nbsp;·&nbsp; inset (pressed)</div>`, code:`box-shadow:       0 6px 14px rgba(0,0,0,.25);  /* raised  */
+box-shadow: inset 0 4px 10px rgba(0,0,0,.40);  /* pressed */` },
+ { title:"7. Multiple shadows stack in one list", why:"A single element can carry many shadows: you write them as one comma-separated list on the same box-shadow property. Each fragment is independent — its own offsets, blur, spread, colour and inset flag — and the browser composites them together. This is the feature that turns box-shadow from a toy into a design tool, because real elevation is never one shadow. Crucially the list is ordered as a STACK: the first fragment is painted on top of the second, which is on top of the third, so a sharp contact shadow listed first sits above a broad ambient one listed later.", concept:`<div class="w-full flex items-center justify-center" style="height:120px"><div style="width:80px;height:80px;border-radius:16px;background:#fff;box-shadow:0 1px 1px rgba(15,23,42,.12),0 4px 8px -2px rgba(15,23,42,.12),0 16px 32px -8px rgba(15,23,42,.16)"></div></div><div class="text-center text-xs text-slate-400 mono">three faint shadows composited = real depth</div>`, code:`box-shadow:
+  0 1px  1px      rgba(0,0,0,.12),   /* painted on TOP */
+  0 4px  8px  -2px rgba(0,0,0,.12),
+  0 16px 32px -8px rgba(0,0,0,.16);  /* painted BEHIND */` },
+ { title:"8. Order is a stacking order", why:"Because the fragments composite front-to-back, the order you list them in matters — and it is the reverse of most people's intuition. The FIRST shadow in the comma list is drawn nearest the viewer, so it wins where fragments overlap; each later fragment is painted further back. In practice you list the tight, darker contact shadow first so its crisp edge stays visible, then the wide, faint ambient shadows after it. Get the order wrong and a big soft shadow can wash out the sharp one you wanted on top. This mirrors how z-order works elsewhere in CSS: earlier means closer.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">box-shadow list, front → back:</div><div class="text-pink-300">1st fragment&nbsp;&nbsp;→ nearest viewer (on top)</div><div class="text-sky-300">2nd fragment&nbsp;&nbsp;→ behind the 1st</div><div class="text-emerald-300">3rd fragment&nbsp;&nbsp;→ furthest back</div></div>`, code:`/* sharp contact shadow FIRST so it stays on top */
+box-shadow:
+  0 2px 4px  -1px rgba(0,0,0,.18),   /* front */
+  0 12px 24px -6px rgba(0,0,0,.14);  /* back  */` },
+ { title:"9. Shadows cost no layout space", why:"A shadow is pure paint: it lives in its own rendering step and takes up zero room in the layout. That is a big practical advantage over faking depth with an extra border, an outline, or a wrapper element — none of which a shadow needs, and all of which would shove neighbouring elements around. You can add, animate, or remove a box-shadow and nothing reflows; only the paint changes, which is cheap and smooth. Shadows also automatically follow the box's border-radius, so a rounded card gets a rounded shadow with no extra work — another reason box-shadow beats hand-rolled alternatives.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-emerald-300">✓ takes no layout space — nothing reflows</div><div class="text-emerald-300">✓ follows border-radius automatically</div><div class="text-emerald-300">✓ cheap to animate (paint only)</div><div class="text-slate-400 mt-1">border / outline / wrapper divs do none of this</div></div>`, code:`.card        { box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.card:hover  { box-shadow: 0 16px 40px rgba(0,0,0,.18); }
+/* the hover just repaints — no reflow, no jump */` },
+ { title:"10. box-shadow vs filter: drop-shadow", why:"There are two ways to cast a shadow in CSS and they are not interchangeable. box-shadow shadows the element's BOX — its rectangle plus border-radius — takes no layout space, and accepts a stacked comma list, which makes it ideal for cards, buttons and inputs. filter: drop-shadow() instead traces the element's ALPHA SILHOUETTE, so it hugs the visible pixels of a transparent PNG, an SVG icon, or text with cut-out shapes — something box-shadow cannot do. The trade-off: drop-shadow does not stack into multiple layers the same clean way and is a filter, so it can affect blending. Reach for box-shadow for rectangular UI, drop-shadow for irregular graphics.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-sky-300">box-shadow</div><div class="text-slate-400 pl-3">→ shadows the box + radius, stacks, no layout cost</div><div class="text-amber-300 mt-1">filter: drop-shadow()</div><div class="text-slate-400 pl-3">→ shadows the alpha shape (PNG / SVG / text)</div></div>`, code:`/* rectangular card — box-shadow */
+.card { box-shadow: 0 10px 25px -5px rgba(0,0,0,.2); }
+
+/* irregular PNG / icon — drop-shadow */
+.logo { filter: drop-shadow(0 6px 8px rgba(0,0,0,.4)); }` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// init LOOK
+render();
+</script>
+</body>
+</html>
