@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 36 — Cubic-Bézier Easing Editor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .sl { accent-color:#f59e0b; width:100%; }
+  .numfield { width:100%; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; padding:5px 8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-variant-numeric:tabular-nums; color:#0f172a; }
+  .numfield:focus { outline:2px solid #f59e0b; }
+  #curve { width:100%; height:360px; display:block; border-radius:14px; background:#fff; cursor:crosshair; touch-action:none; }
+  /* animation demo pieces */
+  .track { position:relative; height:44px; border-radius:12px; background:#f1f5f9; border:1px solid #e2e8f0; overflow:visible; }
+  .track .goal { position:absolute; top:0; bottom:0; width:2px; background:#cbd5e1; }
+  .ball { position:absolute; top:50%; width:30px; height:30px; border-radius:50%; }
+  .ball.eased  { background:#f59e0b; box-shadow:0 3px 8px rgba(245,158,11,.5); z-index:2; margin-top:-15px; }
+  .ball.linear { background:#cbd5e1; opacity:.85; z-index:1; margin-top:-15px; }
+  .prop-tile { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px; text-align:center; }
+  .prop-stage { height:70px; display:flex; align-items:center; justify-content:center; }
+  .demo-track { position:relative; height:26px; border-radius:8px; background:#f1f5f9; border:1px solid #e2e8f0; margin:4px 0; }
+  .demo-ball { position:absolute; top:3px; left:4px; width:18px; height:18px; border-radius:50%; background:#f59e0b; }
+  @keyframes slideDemo { from { left:4px; } to { left:calc(100% - 22px); } }
+  .anim-slide { animation: slideDemo 1.6s infinite alternate; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 36</div>
+      <h1 class="text-xl font-bold">〰️ Cubic-Bézier Easing Editor — the four numbers are just <em>two control points</em> on a time→progress curve</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Drag the two dots, watch the motion, copy the exact <code>cubic-bezier(…)</code>.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A CSS easing is not a shape you draw — it is a <strong>timing curve</strong>: the horizontal axis is <em>time</em> (0 → 1) and the vertical axis is how far the animation has <em>progressed</em> (0 → 1). The curve always starts at the bottom-left <code>(0,0)</code> and ends at the top-right <code>(1,1)</code>; the only things you control are the <strong>two handles</strong> that bend it, and those handles are exactly the four numbers <code>cubic-bezier(x1, y1, x2, y2)</code>. Pull a handle up early and motion starts fast; pull it flat and motion crawls then snaps. Push a handle <em>past</em> the top or below the bottom and progress overshoots 100% or dips below 0 — that is how a "bounce" or an "anticipation" is born. Drag below, hit a preset, and read the value you paste straight into CSS. No library, all vanilla JS + canvas.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: the curve editor + output + presets -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Timing curve <span class="text-slate-400 normal-case">— drag <span style="color:#f59e0b">P1</span> and <span style="color:#3b82f6">P2</span></span></div>
+              <div class="text-xs text-slate-400">x = time · y = progress</div>
+            </div>
+            <canvas id="curve" class="border border-slate-200"></canvas>
+            <div class="grid grid-cols-4 gap-2 mt-3">
+              <label class="text-xs font-bold text-slate-500">x1<input id="nX1" class="numfield mt-1" type="number" step="0.01" min="0" max="1"></label>
+              <label class="text-xs font-bold text-slate-500">y1<input id="nY1" class="numfield mt-1" type="number" step="0.01"></label>
+              <label class="text-xs font-bold text-slate-500">x2<input id="nX2" class="numfield mt-1" type="number" step="0.01" min="0" max="1"></label>
+              <label class="text-xs font-bold text-slate-500">y2<input id="nY2" class="numfield mt-1" type="number" step="0.01"></label>
+            </div>
+            <p class="text-xs text-slate-400 mt-2"><b>x1 &amp; x2 are locked to 0–1</b> (time can't run backwards); <b>y1 &amp; y2 are free</b> — that's what lets a curve overshoot.</p>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">CSS output</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre-wrap;word-break:break-word;margin:0;"></pre>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets</div>
+            <div id="presets"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: live animation playground -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live preview <span class="text-slate-400 normal-case">— the same curve, playing on a loop</span></div>
+            <button id="playBtn" class="mini px-3 py-1 rounded-lg font-semibold text-xs">⏸ Pause</button>
+          </div>
+
+          <!-- hero track: eased ball vs linear ghost -->
+          <div>
+            <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+              <span><span style="color:#f59e0b;font-weight:700">● eased</span> follows your curve</span>
+              <span><span style="color:#94a3b8;font-weight:700">● linear</span> = constant speed (for comparison)</span>
+            </div>
+            <div class="track" id="track">
+              <div class="goal" style="left:12px"></div>
+              <div class="goal" style="right:12px"></div>
+              <div class="ball linear" id="ballLinear"></div>
+              <div class="ball eased" id="ballEased"></div>
+            </div>
+          </div>
+
+          <!-- the same easing applied to 3 other properties -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="prop-tile"><div class="text-xs font-bold text-slate-500 mb-1">Scale</div><div class="prop-stage"><div id="pScale" style="width:34px;height:34px;border-radius:9px;background:#f59e0b;"></div></div></div>
+            <div class="prop-tile"><div class="text-xs font-bold text-slate-500 mb-1">Fade</div><div class="prop-stage"><div id="pFade" style="width:34px;height:34px;border-radius:9px;background:#3b82f6;"></div></div></div>
+            <div class="prop-tile"><div class="text-xs font-bold text-slate-500 mb-1">Rotate</div><div class="prop-stage"><div id="pRotate" style="width:34px;height:34px;border-radius:9px;background:#10b981;"></div></div></div>
+          </div>
+
+          <!-- duration control -->
+          <div class="border-t border-slate-100 pt-4">
+            <div class="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>Duration</span><span class="mono" id="durVal">900ms</span></div>
+            <input type="range" id="rngDur" class="sl" min="200" max="2500" step="50" value="900">
+            <div class="flex justify-between text-xs text-slate-400 mt-3">
+              <span>Time&nbsp; <span class="mono text-slate-600" id="tVal">0.00</span></span>
+              <span>Eased progress&nbsp; <span class="mono text-amber-600" id="pVal">0.00</span></span>
+            </div>
+            <p class="text-xs text-slate-400 mt-3">Notice the <b>Fade</b> tile clamps between 0 and 1 even when the curve overshoots — opacity has no "110%". <b>Scale</b> and <b>Rotate</b> happily overshoot, which is exactly why "back / bounce" easings feel springy.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. The axes are time and progress — not X and Y position.</strong> The curve does not describe a path across the screen; it maps "how much time has passed" to "how far along the animation is". A steep part = fast motion, a flat part = the element barely moving. <strong>2. <code>t</code> is not <code>x</code>.</strong> A Bézier is drawn by a hidden parameter <code>t</code>, but the browser needs the <em>y</em> at a given <em>time x</em> — and x(t) is itself a curve, so you must <em>solve</em> for the t whose x equals your time before you can read y. That solve is the only real math in the whole tool. <strong>3. x is clamped, y is not.</strong> The two control-point x values are forced into 0–1 because time can't reverse; the y values are free — and y going above 1 or below 0 is precisely what makes progress overshoot (bounce) or back up first (anticipation). <strong>4. The named keywords are just presets.</strong> <code>ease</code> is literally <code>cubic-bezier(.25,.1,.25,1)</code>, <code>ease-in-out</code> is <code>(.42,0,.58,1)</code>, and <code>linear</code> is the straight diagonal <code>(0,0,1,1)</code> — nothing magic, just four numbers. <strong>5. Ease-<em>out</em> feels best for things arriving.</strong> Fast-then-slow (ease-out) reads as an object settling into place; slow-then-fast (ease-in) reads as an object leaving. Using the wrong one is why some UIs feel sluggish or abrupt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How cubic-bezier easing actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A cubic-bézier editor has exactly one hard idea and a lot of easy plumbing. The hard idea: the curve is drawn by a hidden parameter <code>t</code>, but an easing must answer "at time <em>x</em>, how far along am I?" — and because the x-axis is <em>also</em> a curve of <code>t</code>, you have to <strong>solve for the <code>t</code> whose x equals your time</strong>, then read y there. Everything else is plumbing: store four numbers, map the unit square to canvas pixels, draw a sampled curve, drag two dots, and run one animation clock. There is <strong>no library</strong> — the entire engine is the handful of functions below, and it is the same math browsers run internally.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The whole state is four numbers</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A cubic Bézier easing has four fixed points: it always begins at <code>(0,0)</code> and ends at <code>(1,1)</code>, so those never move. The only thing you edit is the two control points <code>P1=(x1,y1)</code> and <code>P2=(x2,y2)</code> — which is why the CSS function takes exactly four arguments. Keep them in one plain object; that object <em>is</em> your document.</p>
+        <div class="relative"><pre>// cubic-bezier(x1, y1, x2, y2)
+// endpoints are fixed: P0 = (0,0)  and  P3 = (1,1)
+// you only ever move the two control points:
+let curve = { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0 };  // this is "ease"
+// x1, x2 will be clamped to 0..1 (time); y1, y2 are free (can overshoot)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Turn one axis into a cubic polynomial</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each axis of the curve (x and y separately) is a cubic in <code>t</code>. With the endpoints fixed at 0 and 1, the Bézier collapses to the tidy polynomial <code>a·t³ + b·t² + c·t</code>. Pre-computing the three coefficients from the two control values (this is the classic WebKit "UnitBezier" form) makes evaluating the curve — and later its slope — a couple of multiplications.</p>
+        <div class="relative"><pre>// one axis, control values a1 &amp; a2  (endpoints are 0 and 1)
+function coeffs(a1, a2){
+  const c = 3 * a1;
+  const b = 3 * (a2 - a1) - c;
+  const a = 1 - c - b;          // forces the axis to reach 1 at t = 1
+  return { a, b, c };
+}
+// value of that axis at parameter t:  a t³ + b t² + c t
+function bezier(t, a1, a2){
+  const { a, b, c } = coeffs(a1, a2);
+  return ((a * t + b) * t + c) * t;   // Horner form
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Its derivative (for Newton's method)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To solve the curve quickly we need its slope, <code>dx/dt</code>. Differentiating <code>a·t³ + b·t² + c·t</code> gives <code>3a·t² + 2b·t + c</code> — another two-multiply expression. This is the "which way and how steeply is x changing?" that Newton-Raphson will use to home in on the right <code>t</code>.</p>
+        <div class="relative"><pre>// d/dt of  a t³ + b t² + c t  =  3a t² + 2b t + c
+function bezierD(t, a1, a2){
+  const { a, b, c } = coeffs(a1, a2);
+  return (3 * a * t + 2 * b) * t + c;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The crux: solve x(t) = time for t</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the only real algorithm. The animation gives you a <em>time</em> (0–1); you need the <code>t</code> whose x-curve equals that time. Newton-Raphson converges in a handful of steps because <code>t ≈ x</code> is already a great starting guess. If the slope goes flat (a nearly vertical curve) Newton can stall, so fall back to plain bisection, which always brackets the answer. This is exactly what browser engines do.</p>
+        <div class="relative"><pre>function solveT(x, x1, x2){
+  if (x &lt;= 0) return 0;
+  if (x &gt;= 1) return 1;
+  let t = x;                                 // x is a great first guess
+  for (let i = 0; i &lt; 8; i++){               // Newton-Raphson
+    const err = bezier(t, x1, x2) - x;
+    if (Math.abs(err) &lt; 1e-6) return t;
+    const d = bezierD(t, x1, x2);
+    if (Math.abs(d) &lt; 1e-6) break;           // flat slope -> bisect instead
+    t -= err / d;
+  }
+  let lo = 0, hi = 1; t = x;                 // bisection fallback (always works)
+  for (let i = 0; i &lt; 40; i++){
+    const xv = bezier(t, x1, x2);
+    if (Math.abs(xv - x) &lt; 1e-6) break;
+    if (xv &lt; x) lo = t; else hi = t;
+    t = (lo + hi) / 2;
+  }
+  return t;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">The easing function itself</h3></div>
+        <p class="text-sm text-slate-600 mb-3">With the solver in hand the easing is one line: find the <code>t</code> for the given time on the <em>x</em> axis, then read the <em>y</em> axis at that same <code>t</code>. Time in, eased progress out. Every property you animate — position, scale, opacity — multiplies its range by this returned value.</p>
+        <div class="relative"><pre>function ease(x, x1, y1, x2, y2){
+  const t = solveT(x, x1, x2);   // find t where the x-curve == time
+  return bezier(t, y1, y2);      // read the y-curve at that t
+}
+// ease(0.5, 0.42, 0, 0.58, 1)  ->  0.5   (ease-in-out is symmetric at the middle)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Map the unit square to canvas pixels</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The maths lives in a 0–1 world; the screen is pixels with y pointing <em>down</em>. Two helpers convert between them. Leave vertical head-room (map a range like <code>-0.6 … 1.6</code>) so overshooting curves don't clip off the top or bottom, and remember to <em>flip</em> y so progress grows upward like a graph.</p>
+        <div class="relative"><pre>const PADX = 30, MT = 18, MB = 18;   // pixel margins
+const YMIN = -0.6, YMAX = 1.6;       // value range shown (head-room for overshoot)
+const toPx = x =&gt; PADX + x * (W - 2*PADX);
+const toPy = y =&gt; H - MB - ((y - YMIN)/(YMAX - YMIN)) * (H - MT - MB);  // y flipped
+const fromPx = px =&gt; (px - PADX) / (W - 2*PADX);
+const fromPy = py =&gt; YMIN + ((H - MB) - py)/(H - MT - MB) * (YMAX - YMIN);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Draw the curve by sampling t</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To <em>draw</em> the curve you don't need the solver at all — just walk <code>t</code> from 0 to 1 in small steps and plot the point <code>(x(t), y(t))</code>. Draw the faint diagonal (that's <code>linear</code>) for reference, the two handle lines from each endpoint to its control point, then the curve on top. The handle lines are the visual cue that these dots "pull" the curve toward themselves.</p>
+        <div class="relative"><pre>function drawCurve(c){
+  ctx.beginPath();
+  for (let i = 0; i &lt;= 100; i++){
+    const t = i / 100;
+    const x = bezier(t, c.x1, c.x2);
+    const y = bezier(t, c.y1, c.y2);
+    i ? ctx.lineTo(toPx(x), toPy(y)) : ctx.moveTo(toPx(x), toPy(y));
+  }
+  ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3; ctx.stroke();
+  handleLine(0, 0, c.x1, c.y1);   // (0,0) -> P1
+  handleLine(1, 1, c.x2, c.y2);   // (1,1) -> P2
+  dot(c.x1, c.y1, "#f59e0b");     // draggable P1
+  dot(c.x2, c.y2, "#3b82f6");     // draggable P2
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Drag the two control points</h3></div>
+        <p class="text-sm text-slate-600 mb-3">On pointer-down, find which handle (if any) is under the cursor in pixel space. On move, convert the cursor back to curve space and write it into the dragged point — <strong>clamping x to 0–1</strong> (time can't reverse) while leaving <strong>y free</strong> (so you can drag a handle above 1 or below 0 to create overshoot). Pointer events cover mouse and touch with one code path.</p>
+        <div class="relative"><pre>let dragging = null;               // "P1" | "P2" | null
+canvas.addEventListener("pointerdown", e =&gt; {
+  const [mx, my] = mouse(e);
+  if (near(mx, my, curve.x1, curve.y1)) dragging = "P1";
+  else if (near(mx, my, curve.x2, curve.y2)) dragging = "P2";
+});
+canvas.addEventListener("pointermove", e =&gt; {
+  if (!dragging) return;
+  const [mx, my] = mouse(e);
+  const x = Math.min(1, Math.max(0, fromPx(mx)));   // clamp time to 0..1
+  const y = fromPy(my);                             // progress is free
+  if (dragging === "P1"){ curve.x1 = x; curve.y1 = y; }
+  else                  { curve.x2 = x; curve.y2 = y; }
+  sync();                                           // redraw + refresh CSS output
+});
+addEventListener("pointerup", () =&gt; dragging = null);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">One clock drives every demo</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A single <code>requestAnimationFrame</code> loop keeps a clock in milliseconds. The current <em>time</em> is <code>clock / duration</code> (capped at 1), and the eased value is <code>ease(time, …)</code>. Feed that one number to everything — the ball's position, a scale, an opacity, a rotation, and a marker on the curve — so they stay perfectly in sync. Add a short hold at the end before wrapping so the loop is readable.</p>
+        <div class="relative"><pre>let clock = 0, last = 0, playing = true;
+const HOLD = 450;                              // pause at the end of each loop
+function frame(ts){
+  const dt = ts - (last || ts); last = ts;
+  if (playing) clock += dt;
+  if (clock &gt;= duration + HOLD) clock = 0;      // loop
+  const time = Math.min(clock / duration, 1);  // x axis  (0..1)
+  const p = ease(time, curve.x1, curve.y1, curve.x2, curve.y2);
+  ballEased.style.left  = (12 + p * TRACK) + "px";   // eased
+  ballLinear.style.left = (12 + time * TRACK) + "px"; // linear ghost
+  pScale.style.transform  = `scale(${0.4 + p * 0.9})`;
+  pFade.style.opacity     = Math.max(0, Math.min(1, p));  // opacity clamps!
+  pRotate.style.transform = `rotate(${p * 360}deg)`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Serialise to CSS + presets are just data</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The output is one template string — round the four numbers and wrap them in <code>cubic-bezier(…)</code> — copied to the clipboard in a single call. And the named easings you reach for daily are nothing but canned versions of the same four numbers, so a preset is just an object you drop into state. That's the whole tool.</p>
+        <div class="relative"><pre>const r = n =&gt; Math.round(n * 1000) / 1000;
+const toCss = c =&gt; `cubic-bezier(${r(c.x1)}, ${r(c.y1)}, ${r(c.x2)}, ${r(c.y2)})`;
+
+copyBtn.onclick = () =&gt; navigator.clipboard.writeText(toCss(curve));
+
+const PRESETS = {                       // the CSS keywords, decoded
+  "linear":      { x1:0,    y1:0,   x2:1,    y2:1   },
+  "ease":        { x1:0.25, y1:0.1, x2:0.25, y2:1   },
+  "ease-in":     { x1:0.42, y1:0,   x2:1,    y2:1   },
+  "ease-out":    { x1:0,    y1:0,   x2:0.58, y2:1   },
+  "ease-in-out": { x1:0.42, y1:0,   x2:0.58, y2:1   },
+  "ease-out-back": { x1:0.34, y1:1.56, x2:0.64, y2:1 }  // overshoots past 1 -> springy
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 36 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real cubic-bézier easing editor with <strong>no library</strong>: a four-number state, a WebKit-style polynomial for each axis (<code>a·t³+b·t²+c·t</code>), a <code>solveT()</code> that uses Newton-Raphson (with a bisection safety net) to find the <code>t</code> for a given time, and an <code>ease()</code> that reads y there — the exact algorithm a browser runs. On top sit the easy parts: a canvas that maps the unit square to pixels and draws the curve by sampling <code>t</code>, two draggable control points (x clamped to time, y free for overshoot), and one animation clock feeding position, scale, opacity and rotation at once. The lesson underneath: <strong>an easing is not a picture — it is a function from time to progress, and once you can solve the curve, everything visual is just multiplying a range by one number.</strong> <strong>👉 Tomorrow — Day 37:</strong> a <strong>Keyframe / @keyframes Animation Builder</strong> — add stops on a timeline, tween any property, and export the full <code>@keyframes</code> rule.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==BEZIER-ENGINE-START==  (pure, no DOM — this exact block also runs under Node)
+// CSS cubic-bezier(x1,y1,x2,y2): a curve from (0,0) to (1,1) whose two control
+// points are P1=(x1,y1) and P2=(x2,y2). The X axis is TIME (0..1), the Y axis is
+// animation PROGRESS. Each axis is stored as a cubic polynomial a·t³+b·t²+c·t
+// (the WebKit "UnitBezier" form) so evaluating and differentiating are cheap.
+//   coeffs(a1,a2) : two control values -> {a,b,c}
+//   bezier(t,a1,a2): value of ONE axis at parameter t
+//   bezierD(t,a1,a2): derivative dValue/dt (for Newton)
+//   solveT(x,x1,x2): the t whose x-curve == time x  (Newton + bisection)
+//   ease(x,x1,y1,x2,y2): the easing function — time in, eased progress out
+//   toCss(c): the four numbers -> "cubic-bezier(...)" string
+
+function coeffs(a1, a2){            // one axis, endpoints fixed at 0 and 1
+  const c = 3 * a1;
+  const b = 3 * (a2 - a1) - c;
+  const a = 1 - c - b;             // guarantees the axis reaches 1 at t = 1
+  return { a, b, c };
+}
+function bezier(t, a1, a2){        // a t³ + b t² + c t   (Horner form)
+  const { a, b, c } = coeffs(a1, a2);
+  return ((a * t + b) * t + c) * t;
+}
+function bezierD(t, a1, a2){       // 3a t² + 2b t + c
+  const { a, b, c } = coeffs(a1, a2);
+  return (3 * a * t + 2 * b) * t + c;
+}
+// The trap: t is NOT x. Given a time x, find the t whose x-curve equals x,
+// then read the y-curve there. Newton-Raphson, with a bisection fallback.
+function solveT(x, x1, x2){
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  let t = x;                                   // x is a great first guess
+  for (let i = 0; i < 8; i++){
+    const err = bezier(t, x1, x2) - x;
+    if (Math.abs(err) < 1e-6) return t;
+    const d = bezierD(t, x1, x2);
+    if (Math.abs(d) < 1e-6) break;             // flat slope -> bisect instead
+    t -= err / d;
+  }
+  let lo = 0, hi = 1; t = x;                   // bisection always brackets the root
+  for (let i = 0; i < 40; i++){
+    const xv = bezier(t, x1, x2);
+    if (Math.abs(xv - x) < 1e-6) break;
+    if (xv < x) lo = t; else hi = t;
+    t = (lo + hi) / 2;
+  }
+  return t;
+}
+function ease(x, x1, y1, x2, y2){
+  return bezier(solveT(x, x1, x2), y1, y2);    // time in -> eased progress out
+}
+function toCss(c){
+  const r = n => Math.round(n * 1000) / 1000;
+  return `cubic-bezier(${r(c.x1)}, ${r(c.y1)}, ${r(c.x2)}, ${r(c.y2)})`;
+}
+
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { coeffs, bezier, bezierD, solveT, ease, toCss };
+// ==BEZIER-ENGINE-END==
+
+// ===== LOOK: the editor UI =====
+let curve = { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0 };   // start on "ease"
+let duration = 900;
+let playing = true;
+
+const cv = document.getElementById("curve");
+const ctx = cv.getContext("2d");
+const cssOut = document.getElementById("cssOut");
+const nX1 = document.getElementById("nX1"), nY1 = document.getElementById("nY1");
+const nX2 = document.getElementById("nX2"), nY2 = document.getElementById("nY2");
+
+// coordinate mapping: unit square lives inside a range with head-room for overshoot
+let W = 0, H = 0, DPR = 1;
+const PADX = 34, MT = 20, MB = 20, YMIN = -0.6, YMAX = 1.6;
+function toPx(x){ return PADX + x * (W - 2 * PADX); }
+function toPy(y){ return H - MB - ((y - YMIN) / (YMAX - YMIN)) * (H - MT - MB); }
+function fromPx(px){ return (px - PADX) / (W - 2 * PADX); }
+function fromPy(py){ return YMIN + ((H - MB) - py) / (H - MT - MB) * (YMAX - YMIN); }
+
+function resizeCanvas(){
+  const rect = cv.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  W = rect.width; H = rect.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+function drawGrid(){
+  ctx.clearRect(0, 0, W, H);
+  // shade the 0..1 progress band
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(toPx(0), toPy(1), toPx(1) - toPx(0), toPy(0) - toPy(1));
+  // vertical time gridlines
+  ctx.strokeStyle = "#eef2f7"; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++){
+    const x = i / 4;
+    ctx.beginPath(); ctx.moveTo(toPx(x), toPy(YMAX)); ctx.lineTo(toPx(x), toPy(YMIN)); ctx.stroke();
+  }
+  // the 0 and 1 progress lines (dashed = the unit square top & bottom)
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = "#cbd5e1";
+  [0, 1].forEach(y => { ctx.beginPath(); ctx.moveTo(toPx(0), toPy(y)); ctx.lineTo(toPx(1), toPy(y)); ctx.stroke(); });
+  ctx.setLineDash([]);
+  // faint diagonal = linear reference
+  ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(toPx(0), toPy(0)); ctx.lineTo(toPx(1), toPy(1)); ctx.stroke();
+  // axis labels
+  ctx.fillStyle = "#94a3b8"; ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.fillText("time →", toPx(1) - 42, toPy(0) + 15);
+  ctx.save(); ctx.translate(toPx(0) - 22, toPy(1) + 34); ctx.rotate(-Math.PI / 2);
+  ctx.fillText("progress →", 0, 0); ctx.restore();
+}
+
+function handleLine(ax, ay, bx, by, color){
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(toPx(ax), toPy(ay)); ctx.lineTo(toPx(bx), toPy(by)); ctx.stroke();
+}
+function anchor(x, y){
+  ctx.fillStyle = "#0f172a";
+  ctx.beginPath(); ctx.arc(toPx(x), toPy(y), 4, 0, 7); ctx.fill();
+}
+function dot(x, y, color){
+  ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(toPx(x), toPy(y), 8, 0, 7); ctx.fill(); ctx.stroke();
+}
+
+function drawCurve(marker){
+  drawGrid();
+  handleLine(0, 0, curve.x1, curve.y1, "#fbbf24");
+  handleLine(1, 1, curve.x2, curve.y2, "#93c5fd");
+  // the curve itself, sampled over t
+  ctx.beginPath();
+  for (let i = 0; i <= 120; i++){
+    const t = i / 120;
+    const x = bezier(t, curve.x1, curve.x2);
+    const y = bezier(t, curve.y1, curve.y2);
+    i ? ctx.lineTo(toPx(x), toPy(y)) : ctx.moveTo(toPx(x), toPy(y));
+  }
+  ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.stroke();
+  // moving marker (time -> eased progress), with guide lines
+  if (marker){
+    const mx = toPx(marker.x), my = toPy(marker.y);
+    ctx.strokeStyle = "rgba(148,163,184,.7)"; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(mx, toPy(0)); ctx.lineTo(mx, my); ctx.lineTo(toPx(0), my); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath(); ctx.arc(mx, my, 5, 0, 7); ctx.fill();
+  }
+  anchor(0, 0); anchor(1, 1);
+  dot(curve.x1, curve.y1, "#f59e0b");
+  dot(curve.x2, curve.y2, "#3b82f6");
+}
+
+// keep the CSS output + the four number inputs in step with the state
+function syncFields(){
+  const s = toCss(curve);
+  cssOut.textContent = "transition-timing-function: " + s + ";";
+  const r = n => Math.round(n * 1000) / 1000;
+  nX1.value = r(curve.x1); nY1.value = r(curve.y1);
+  nX2.value = r(curve.x2); nY2.value = r(curve.y2);
+}
+function sync(){ syncFields(); }   // drawing happens every rAF frame
+
+// ---- dragging the two control points ----
+let dragging = null;
+function mousePos(e){
+  const rect = cv.getBoundingClientRect();
+  return [e.clientX - rect.left, e.clientY - rect.top];
+}
+function near(mx, my, x, y){
+  const dx = mx - toPx(x), dy = my - toPy(y);
+  return dx * dx + dy * dy < 220;   // ~15px radius
+}
+cv.addEventListener("pointerdown", e => {
+  const [mx, my] = mousePos(e);
+  if (near(mx, my, curve.x1, curve.y1)) dragging = "P1";
+  else if (near(mx, my, curve.x2, curve.y2)) dragging = "P2";
+  if (dragging) cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  const [mx, my] = mousePos(e);
+  const x = Math.min(1, Math.max(0, fromPx(mx)));            // time clamped 0..1
+  const y = Math.min(YMAX, Math.max(YMIN, fromPy(my)));      // progress free (bounded to canvas)
+  if (dragging === "P1"){ curve.x1 = x; curve.y1 = y; }
+  else { curve.x2 = x; curve.y2 = y; }
+  syncFields();
+});
+window.addEventListener("pointerup", () => dragging = null);
+
+// ---- the four number inputs write back into state ----
+function bindNum(el, key, clamp01){
+  el.addEventListener("input", () => {
+    let v = parseFloat(el.value);
+    if (isNaN(v)) return;
+    if (clamp01) v = Math.min(1, Math.max(0, v));
+    curve[key] = v;
+    // don't overwrite the box the user is typing in
+    cssOut.textContent = "transition-timing-function: " + toCss(curve) + ";";
+  });
+}
+bindNum(nX1, "x1", true); bindNum(nY1, "y1", false);
+bindNum(nX2, "x2", true); bindNum(nY2, "y2", false);
+
+// ---- copy ----
+document.getElementById("copyCss").onclick = () => {
+  const b = document.getElementById("copyCss");
+  const css = "transition-timing-function: " + toCss(curve) + ";";
+  navigator.clipboard && navigator.clipboard.writeText(css);
+  const o = b.textContent; b.textContent = "✓ Copied!";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- presets: the CSS keywords are just four numbers ----
+const PRESETS = {
+  "linear":         { x1:0,    y1:0,    x2:1,    y2:1    },
+  "ease":           { x1:0.25, y1:0.1,  x2:0.25, y2:1    },
+  "ease-in":        { x1:0.42, y1:0,    x2:1,    y2:1    },
+  "ease-out":       { x1:0,    y1:0,    x2:0.58, y2:1    },
+  "ease-in-out":    { x1:0.42, y1:0,    x2:0.58, y2:1    },
+  "ease-in-back":   { x1:0.36, y1:0,    x2:0.66, y2:-0.56 },
+  "ease-out-back":  { x1:0.34, y1:1.56, x2:0.64, y2:1    },
+  "ease-in-out-back":{x1:0.68, y1:-0.6, x2:0.32, y2:1.6  }
+};
+const presetsEl = document.getElementById("presets");
+Object.keys(PRESETS).forEach(name => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = name;
+  b.onclick = () => {
+    curve = { ...PRESETS[name] };
+    presetsEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    syncFields();
+  };
+  presetsEl.appendChild(b);
+});
+
+// ---- duration + play/pause ----
+const rngDur = document.getElementById("rngDur"), durVal = document.getElementById("durVal");
+rngDur.addEventListener("input", () => { duration = +rngDur.value; durVal.textContent = duration + "ms"; });
+const playBtn = document.getElementById("playBtn");
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? "⏸ Pause" : "▶ Play"; };
+
+// ---- the single animation clock feeds every demo ----
+const ballEased = document.getElementById("ballEased");
+const ballLinear = document.getElementById("ballLinear");
+const track = document.getElementById("track");
+const pScale = document.getElementById("pScale");
+const pFade = document.getElementById("pFade");
+const pRotate = document.getElementById("pRotate");
+const tVal = document.getElementById("tVal"), pVal = document.getElementById("pVal");
+let clock = 0, last = 0;
+const HOLD = 450;
+function frame(ts){
+  const dt = ts - (last || ts); last = ts;
+  if (playing) clock += dt;
+  if (clock >= duration + HOLD) clock = 0;
+  const time = Math.min(clock / duration, 1);
+  const p = ease(time, curve.x1, curve.y1, curve.x2, curve.y2);
+  // hero track (ball travels between the two goal lines, 12px inset)
+  const span = Math.max(0, track.clientWidth - 24);
+  ballEased.style.left  = (12 + p * span) + "px";
+  ballLinear.style.left = (12 + time * span) + "px";
+  // three other properties, same curve
+  pScale.style.transform  = "scale(" + (0.4 + p * 0.9) + ")";
+  pFade.style.opacity     = Math.max(0, Math.min(1, p));
+  pRotate.style.transform = "rotate(" + (p * 360) + "deg)";
+  // readouts
+  tVal.textContent = time.toFixed(2);
+  pVal.textContent = p.toFixed(2);
+  // redraw the curve with the live marker
+  drawCurve({ x: time, y: p });
+  requestAnimationFrame(frame);
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Easing = time → progress, not X → Y", why:"The single biggest misconception about cubic-bezier is that the curve is a path the element travels along the screen. It is not. The horizontal axis is TIME (0 at the start of the animation, 1 at the end) and the vertical axis is PROGRESS (0 = not started, 1 = finished). A point on the curve reads as 'at this fraction of the time, the animation is this fraction done'. Where the curve is steep the element moves fast; where it is flat the element almost stops. Internalise that and every other behaviour — fast starts, slow settles, overshoots — becomes obvious.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">cubic-bezier(x1, y1, x2, y2)</div><div class="text-sky-300">x axis = TIME&nbsp;&nbsp;&nbsp;&nbsp; (0 → 1)</div><div class="text-amber-300">y axis = PROGRESS (0 → 1)</div><div class="text-slate-400 mt-1">steep = fast · flat = slow</div></div>`, code:`/* the y you read off at a given time
+   is how far the animation has progressed */
+transition-timing-function: cubic-bezier(.25, .1, .25, 1);` },
+ { title:"2. A Bézier curve is pulled by control points", why:"A cubic Bézier is defined by four points. Two are anchors the curve actually passes through — here the fixed endpoints (0,0) and (1,1) — and two are control points that the curve does NOT touch but is 'pulled' toward, like magnets bending a wire. The line from each anchor to its control point is tangent to the curve at that anchor, which is why dragging a handle changes both the shape and the starting/ending speed. This is the same maths that powers font outlines and vector-drawing pen tools; easing is just the 1-D-over-time use of it.", concept:`<div class="w-full text-xs mono space-y-1"><div class="text-slate-400">P0 (0,0) ●───▶ P1  &nbsp;(control, pulls the start)</div><div class="text-amber-300 pl-4">curve bends toward P1 then P2</div><div class="text-slate-400">P2 ◀───● P3 (1,1)  &nbsp;(control, pulls the end)</div></div>`, code:`// point on the curve at parameter t (one axis):
+// B(t) = 3(1-t)²t·c1 + 3(1-t)t²·c2 + t³     (P0=0, P3=1)
+// the curve never reaches c1 / c2 — it is pulled toward them` },
+ { title:"3. Two points are fixed — you move only two", why:"Because an easing always begins 'nothing done at time zero' and ends 'fully done at time one', the endpoints are nailed to (0,0) and (1,1) forever. That is why cubic-bezier takes four numbers and not eight: the anchors are implied. The four you supply are the x and y of the two control points. Everything a designer means by 'ease this in', 'make it snappy', 'let it overshoot' is expressed purely by where those two handles sit — no other parameter exists.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">fixed: P0 = (0,0)&nbsp;&nbsp;P3 = (1,1)</div><div class="text-amber-300">you set: P1 = (x1, y1)</div><div class="text-sky-300">you set: P2 = (x2, y2)</div><div class="text-slate-400 mt-1">→ exactly four numbers</div></div>`, code:`let curve = { x1: .42, y1: 0, x2: .58, y2: 1 }; // ease-in-out
+// P0=(0,0) and P3=(1,1) are constants, never stored` },
+ { title:"4. x is clamped 0–1, y is free", why:"The two axes have very different rules. Time (x) is forced into the range 0–1: an animation can't run before it starts or after it ends, and — more subtly — time must move strictly forward, so the spec clamps x1 and x2 into [0,1] to keep the curve a valid function of time. Progress (y), by contrast, is unrestricted. A y above 1 means the animation temporarily goes PAST its target; a y below 0 means it first backs AWAY from the target. That asymmetry is the entire source of springy, playful motion.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-sky-300">x1, x2 ∈ [0, 1]&nbsp;&nbsp;(time can't reverse)</div><div class="text-amber-300">y1, y2 ∈ (−∞, ∞)&nbsp;(progress may overshoot)</div><div class="text-slate-400 mt-1">y &gt; 1 → overshoot · y &lt; 0 → anticipation</div></div>`, code:`// legal — overshoots then settles (a "back" ease):
+cubic-bezier(0.34, 1.56, 0.64, 1);
+// x auto-clamped; try dragging a y-handle above the top line` },
+ { title:"5. The named keywords are just presets", why:"CSS ships a few keyword easings, and beginners treat them as magic — but each is literally a cubic-bezier with specific numbers. 'linear' is the straight diagonal (0,0,1,1); 'ease' (the default for transitions) is (.25,.1,.25,1); 'ease-in' is (.42,0,1,1); 'ease-out' is (0,0,.58,1); 'ease-in-out' is (.42,0,.58,1). Knowing this frees you: you are never limited to the five keywords, you can dial any curve in between, and you can read a keyword's 'personality' straight off its handle positions.", concept:`<div class="w-full space-y-1 text-xs mono"><div><span class="text-slate-400">linear&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>= (0, 0, 1, 1)</div><div><span class="text-slate-400">ease&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>= (.25, .1, .25, 1)</div><div><span class="text-slate-400">ease-in&nbsp;&nbsp;&nbsp;&nbsp;</span>= (.42, 0, 1, 1)</div><div><span class="text-slate-400">ease-out&nbsp;&nbsp;&nbsp;</span>= (0, 0, .58, 1)</div><div><span class="text-slate-400">ease-in-out</span>= (.42, 0, .58, 1)</div></div>`, code:`transition-timing-function: ease;
+/* identical to */
+transition-timing-function: cubic-bezier(.25, .1, .25, 1);` },
+ { title:"6. The catch: parameter t is not time x", why:"Here is the one genuinely tricky part. A Bézier is traced out by sweeping a hidden parameter t from 0 to 1, which produces BOTH an x and a y for each t. But an animation asks 'at time x = 0.5, what is the progress?' — and the t that gives x = 0.5 is generally NOT 0.5, because the x-axis is itself a curved function of t. So you cannot just plug your time into the formula. You must first solve the equation x(t) = time for t, and only then evaluate y(t). Skipping this and using time directly as t is the classic bug that makes home-rolled easings subtly wrong.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-red-300">WRONG: y = bezierY(time)</div><div class="text-emerald-300">RIGHT: t = solve x(t)=time; y = bezierY(t)</div><div class="text-slate-400 mt-1">t ≠ x whenever the curve is non-linear in time</div></div>`, code:`// x(t) is a curve too, so time !== t:
+const t = solveT(time, x1, x2);   // invert x(t) = time
+const progress = bezier(t, y1, y2);` },
+ { title:"7. Solving the curve: Newton-Raphson", why:"To invert x(t) = time you need a root-finder, and Newton-Raphson is the standard choice because it converges extremely fast when you start near the answer — and time itself is an excellent first guess for t. Each step corrects the guess by the error divided by the slope (the derivative you computed). Real browser engines run about four to eight of these iterations. When the curve is nearly vertical the slope can collapse toward zero and Newton can overshoot wildly, so production code keeps a bisection fallback that can never diverge. Together they give a fast, always-correct solve.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">guess t ≈ time</div><div class="text-amber-300">repeat: t −= (x(t) − time) / x'(t)</div><div class="text-slate-400">until x(t) ≈ time&nbsp;&nbsp;(≈ 4–8 steps)</div><div class="text-sky-300">flat slope? → fall back to bisection</div></div>`, code:`let t = time;
+for (let i = 0; i < 8; i++){
+  const err = bezier(t, x1, x2) - time;
+  if (Math.abs(err) < 1e-6) break;
+  t -= err / bezierD(t, x1, x2);   // Newton step
+}` },
+ { title:"8. Overshoot & anticipation (the 'back' family)", why:"Once you accept that y can leave the 0–1 band, a whole class of lively motion opens up. Pull an ENDING control point above 1 (like ease-out-back's y1 = 1.56) and the element races past its target and eases back — the 'settle with a little bounce' you see in polished apps. Pull a STARTING control point below 0 and the element first moves the wrong way, winding up like a person crouching before a jump — 'anticipation'. Genuine spring physics needs more than one cubic segment, but a single 'back' curve captures most of the charm for free.", concept:`<div class="w-full space-y-3"><div><div class="text-xs text-slate-500 mb-1">ease-out (settles, no overshoot)</div><div class="demo-track"><span class="demo-ball anim-slide" style="animation-timing-function:cubic-bezier(0,0,.58,1)"></span></div></div><div><div class="text-xs text-slate-500 mb-1">ease-out-back (overshoots past the end)</div><div class="demo-track"><span class="demo-ball anim-slide" style="animation-timing-function:cubic-bezier(.34,1.56,.64,1);background:#3b82f6"></span></div></div></div>`, code:`/* overshoot: y1 pushed above 1 */
+cubic-bezier(0.34, 1.56, 0.64, 1);
+/* anticipation: y1 pulled below 0 */
+cubic-bezier(0.36, 0, 0.66, -0.56);` },
+ { title:"9. Ease-in vs ease-out — which to use when", why:"Direction has meaning. Ease-OUT starts fast and decelerates into place; it reads as an object arriving and settling, so it is the right default for things entering the screen, opening, or responding to a tap — the UI feels instant because motion begins immediately. Ease-IN starts slow and accelerates away; it reads as an object leaving, so it suits things exiting or being dismissed. Ease-IN-OUT is symmetric and calm, good for moves between two on-screen states. Reaching for linear on UI (constant speed) is the tell of an unpolished interface, because nothing in the physical world starts and stops instantly.", concept:`<div class="w-full space-y-3"><div><div class="text-xs text-slate-500 mb-1">ease-out — enters snappily, good for arriving</div><div class="demo-track"><span class="demo-ball anim-slide" style="animation-timing-function:ease-out"></span></div></div><div><div class="text-xs text-slate-500 mb-1">ease-in — leaves, good for exiting</div><div class="demo-track"><span class="demo-ball anim-slide" style="animation-timing-function:ease-in;background:#10b981"></span></div></div><div><div class="text-xs text-slate-500 mb-1">linear — constant, feels robotic on UI</div><div class="demo-track"><span class="demo-ball anim-slide" style="animation-timing-function:linear;background:#94a3b8"></span></div></div></div>`, code:`.enter { transition-timing-function: ease-out;    } /* arriving */
+.leave { transition-timing-function: ease-in;     } /* exiting  */
+.move  { transition-timing-function: ease-in-out; } /* A → B    */` },
+ { title:"10. Where cubic-bezier stops — steps() & springs", why:"cubic-bezier is one smooth curve, which covers the vast majority of UI motion, but it has limits worth knowing. It cannot make progress wiggle up and down several times, so a true multi-bounce or elastic effect needs either the separate steps() timing function (which jumps in discrete stops — great for sprite animation and typewriter effects) or a physics-based spring (as in modern motion libraries and the emerging CSS linear() function, which approximates any shape with many line segments). Knowing the ceiling tells you when to stop fighting one cubic and reach for keyframes, steps(), or a spring instead.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-amber-300">cubic-bezier() → one smooth curve (most UI)</div><div class="text-sky-300">steps(n)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ discrete jumps (sprites, type)</div><div class="text-emerald-300">linear()&nbsp;&nbsp;&nbsp;&nbsp;→ many segments (springs, bounce)</div><div class="text-slate-400 mt-1">one cubic can't bounce repeatedly</div></div>`, code:`animation-timing-function: steps(6, end);        /* sprite frames */
+/* multi-bounce needs linear() or @keyframes: */
+animation-timing-function: linear(0, .5 25%, 1 50%, .8, 1);` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+syncFields();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
