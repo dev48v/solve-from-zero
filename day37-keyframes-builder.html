@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 37 — @keyframes Animation Builder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .sl { accent-color:#f59e0b; width:100%; }
+  .numfield { width:100%; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; padding:5px 8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-variant-numeric:tabular-nums; color:#0f172a; }
+  .numfield:focus { outline:2px solid #f59e0b; }
+  .selfield { border:1px solid #e2e8f0; background:#fff; border-radius:8px; padding:6px 8px; font-size:13px; color:#0f172a; width:100%; }
+  .selfield:focus { outline:2px solid #f59e0b; }
+
+  /* ---- timeline ---- */
+  .kf-timeline { position:relative; height:70px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; margin-top:10px; user-select:none; touch-action:none; }
+  .kf-tick { position:absolute; top:0; bottom:0; width:1px; background:#eef2f7; }
+  .kf-ticklabel { position:absolute; bottom:3px; transform:translateX(-50%); font-size:10px; color:#cbd5e1; font-family:ui-monospace,Menlo,monospace; }
+  .kf-stem { position:absolute; top:0; bottom:22px; width:2px; background:rgba(245,158,11,.28); transform:translateX(-1px); pointer-events:none; }
+  .kf-stem.sel { background:rgba(59,130,246,.55); }
+  .kf-marker { position:absolute; top:10px; transform:translateX(-50%); cursor:grab; display:flex; flex-direction:column; align-items:center; }
+  .kf-marker:active { cursor:grabbing; }
+  .kf-marker .dot { width:16px; height:16px; border-radius:50%; background:#f59e0b; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25); transition:width .1s,height .1s; }
+  .kf-marker.sel .dot { background:#3b82f6; width:20px; height:20px; }
+  .kf-marker .lbl { margin-top:4px; font-size:10px; font-weight:700; color:#64748b; font-family:ui-monospace,Menlo,monospace; }
+  .kf-marker.sel .lbl { color:#2563eb; }
+
+  /* ---- preview stage ---- */
+  .stage { position:relative; height:230px; border-radius:14px; background:
+      linear-gradient(#eef2f7 1px, transparent 1px) 0 0/22px 22px,
+      linear-gradient(90deg,#eef2f7 1px, transparent 1px) 0 0/22px 22px, #f8fafc;
+      border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  #previewBox { width:64px; height:64px; border-radius:14px; background:#f59e0b; }
+  .mini-shape { width:34px; height:34px; background:#f59e0b; }
+  .mini-shape.circle { border-radius:50%; }
+  .mini-shape.square { border-radius:8px; }
+  .mini-shape.tri { clip-path:polygon(50% 0,100% 100%,0 100%); }
+  .prop-tile { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+
+  /* UNDERSTAND demo strips */
+  .demo-box { width:26px; height:26px; border-radius:6px; background:#f59e0b; }
+  @keyframes uDur { from { transform:translateX(0); } to { transform:translateX(120px); } }
+  .u-fast { animation:uDur .6s linear infinite alternate; }
+  .u-slow { animation:uDur 2.4s linear infinite alternate; }
+  @keyframes uPulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.5); } }
+  .u-pulse { animation:uPulse 1.2s ease-in-out infinite; }
+  @keyframes uAlt { from { transform:translateX(0); } to { transform:translateX(120px); } }
+  .u-normal { animation:uAlt 1.2s linear infinite; }
+  .u-alternate { animation:uAlt 1.2s linear infinite alternate; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 37</div>
+      <h1 class="text-xl font-bold">🎞️ @keyframes Animation Builder — a keyframe is just a <em>snapshot at a percentage</em>; the browser tweens the gaps</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Add stops on the timeline, set a look for each, watch it play, copy the exact <code>@keyframes</code>.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A CSS <code>@keyframes</code> rule is not a movie — it is a short list of <strong>snapshots</strong>, each pinned to a <em>percentage</em> of the animation. You describe how the element should look at <code>0%</code>, maybe <code>50%</code>, and <code>100%</code>; the browser <strong>interpolates</strong> (tweens) every frame in between. The percentages are portions of a <em>single loop</em>, not seconds — how long that loop actually takes is a separate <code>duration</code>, how many times it repeats is <code>iteration-count</code>, and whether it ping-pongs is <code>direction</code>. Drag the dots to move a stop, tune its transform / opacity / colour, hit a preset, and paste the generated rule straight into your CSS. No library, all vanilla JS + a dynamically injected <code>&lt;style&gt;</code> tag.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: timeline + per-stop controls + global controls -->
+        <div class="space-y-5">
+          <!-- timeline -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Keyframe timeline <span class="text-slate-400 normal-case">— drag a dot to move its %</span></div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs font-bold text-slate-500">name</label>
+                <input id="animName" class="numfield" style="width:120px" value="myAnim">
+              </div>
+            </div>
+            <div id="timeline" class="kf-timeline"></div>
+            <div class="flex items-center gap-2 mt-3">
+              <button id="addStop" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">+ Add stop</button>
+              <button id="delStop" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold text-xs hover:bg-slate-300">– Remove selected</button>
+              <span class="text-xs text-slate-400 ml-auto">Editing <span id="selPctLbl" class="mono font-bold text-blue-600">0%</span></span>
+            </div>
+          </div>
+
+          <!-- per-stop controls -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">This stop's look <span class="text-slate-400 normal-case">— the snapshot at <span id="selPctLbl2" class="mono text-blue-600">0%</span></span></div>
+            <div id="stopControls" class="space-y-3"></div>
+          </div>
+
+          <!-- global controls -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Playback <span class="text-slate-400 normal-case">— these are NOT part of @keyframes; they live on the <code>animation</code> shorthand</span></div>
+            <div>
+              <div class="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>Duration <span class="text-slate-400 normal-case">(one loop)</span></span><span class="mono" id="durVal">1.5s</span></div>
+              <input type="range" id="rngDur" class="sl" min="200" max="4000" step="100" value="1500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="text-xs font-bold text-slate-500">timing-function
+                <select id="selTiming" class="selfield mt-1">
+                  <option>linear</option><option selected>ease</option><option>ease-in</option>
+                  <option>ease-out</option><option>ease-in-out</option>
+                  <option>cubic-bezier(.34,1.56,.64,1)</option><option>steps(4, end)</option>
+                </select>
+              </label>
+              <label class="text-xs font-bold text-slate-500">direction
+                <select id="selDir" class="selfield mt-1">
+                  <option>normal</option><option>reverse</option><option>alternate</option><option>alternate-reverse</option>
+                </select>
+              </label>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-slate-500 mb-1">iteration-count</div>
+              <div id="iterChips"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: live preview + CSS + presets -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live preview <span class="text-slate-400 normal-case">— running the generated rule for real</span></div>
+              <div class="flex gap-2">
+                <button id="replayBtn" class="mini px-3 py-1 rounded-lg font-semibold text-xs">↻ Replay</button>
+                <button id="playBtn" class="bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-semibold text-xs hover:bg-slate-300">⏸ Pause</button>
+              </div>
+            </div>
+            <div class="stage">
+              <div id="previewBox"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="prop-tile"><div class="text-xs font-bold text-slate-500">circle</div><div class="mini-shape circle" id="mini1"></div></div>
+              <div class="prop-tile"><div class="text-xs font-bold text-slate-500">square</div><div class="mini-shape square" id="mini2"></div></div>
+              <div class="prop-tile"><div class="text-xs font-bold text-slate-500">triangle</div><div class="mini-shape tri" id="mini3"></div></div>
+            </div>
+            <p class="text-xs text-slate-400">The three shapes share the <em>same</em> <code>@keyframes</code> rule — a named animation is reusable across any number of elements. Editing a stop re-injects the rule and restarts every one of them.</p>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Generated CSS</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre;margin:0;max-height:280px"></pre>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets <span class="text-slate-400 normal-case">— each one is just a list of stops</span></div>
+            <div id="presets"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. The percentages are not time.</strong> <code>50%</code> means "halfway through one loop", whatever the <code>duration</code> is — change the duration from 1.5s to 4s and every stop stays at the same percentage but the real seconds stretch. <strong>2. The browser fills the gaps, you don't.</strong> You give three snapshots; the engine tweens hundreds of frames between them by interpolating each animatable property. That is the whole magic word: <em>interpolation</em>. <strong>3. Only some properties tween.</strong> <code>transform</code>, <code>opacity</code> and <code>color</code> animate smoothly; things like <code>display</code> or <code>font-family</code> just jump at the stop. Animating <code>transform</code>/<code>opacity</code> is also the fast path (the compositor handles it, no layout). <strong>4. <code>duration</code>, <code>iteration-count</code> and <code>direction</code> are separate knobs.</strong> They live on the <code>animation</code> shorthand, not inside <code>@keyframes</code> — the same keyframes can play once, forever, fast, slow, or ping-pong (<code>alternate</code>) without changing a single stop. <strong>5. Changing a running rule needs a restart.</strong> Rewriting the <code>@keyframes</code> text mid-play won't update a running animation — you must remove the animation, force a reflow, then re-add it. That "none → reflow → re-add" replay trick is exactly what this tool does on every edit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How @keyframes animations actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A keyframe builder has one clever idea and a lot of easy plumbing. The clever idea: to make the browser <em>preview</em> your rule, you <strong>write CSS at runtime</strong> — create a <code>&lt;style&gt;</code> element, drop a freshly-serialised <code>@keyframes</code> string into it, and let the real CSS engine do the interpolation. The one gotcha is that a browser will <em>not</em> re-read a keyframes rule that is already playing, so after every edit you perform the <strong>replay trick</strong>: set <code>animation:none</code>, read a layout property to force a reflow, then set the animation back. Everything else is data: an array of stops, a couple of template strings, and drag-to-move on a bar. There is <strong>no library</strong>.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The whole state is a name + a list of stops</h3></div>
+        <p class="text-sm text-slate-600 mb-3">An animation is a <em>named</em> rule plus playback settings, and inside it a list of <strong>stops</strong>. Each stop is one percentage and the property values the element should have at that percentage. Keep it all in one plain object; that object <em>is</em> your document. The playback fields (<code>duration</code>, <code>timing</code>, <code>iteration</code>, <code>direction</code>) are stored here too but they belong to the <code>animation</code> shorthand, not to <code>@keyframes</code>.</p>
+        <div class="relative"><pre>let anim = {
+  name: "myAnim",
+  duration: 1500,        // ms — one loop
+  timing: "ease",        // timing-function
+  iteration: "infinite", // 1 | 2 | ... | "infinite"
+  direction: "normal",   // normal | reverse | alternate | alternate-reverse
+  stops: [
+    { pct:0,   tx:0, ty:0, scale:1,   rotate:0,   opacity:1,  bg:"#f59e0b" },
+    { pct:50,  tx:0, ty:0, scale:1.4, rotate:180, opacity:.6, bg:"#3b82f6" },
+    { pct:100, tx:0, ty:0, scale:1,   rotate:0,   opacity:1,  bg:"#f59e0b" }
+  ]
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Serialise one stop to a declaration block</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Turn a single stop into the CSS that goes inside its percentage braces. The important detail is that all the movement/size/tilt live in <em>one</em> <code>transform</code> — <code>translate</code>, then <code>scale</code>, then <code>rotate</code> — because a second <code>transform</code> line would overwrite the first. <code>opacity</code> and <code>background</code> are their own properties.</p>
+        <div class="relative"><pre>function stopBody(s){
+  return `transform: translate(${s.tx}px, ${s.ty}px) `
+       + `scale(${s.scale}) rotate(${s.rotate}deg); `
+       + `opacity: ${s.opacity}; background: ${s.bg};`;
+}
+// order matters INSIDE transform: translate → scale → rotate
+// (rotate-then-translate moves along the rotated axis — usually not what you want)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Assemble the @keyframes rule</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Sort the stops by percentage (the CSS spec doesn't require order, but sorted output is readable and lets you find the biggest gap when adding a stop), then wrap each one as <code>pct% { …decls… }</code> and nest them under <code>@keyframes name</code>. This string is the entire deliverable — it is exactly what you paste into a stylesheet.</p>
+        <div class="relative"><pre>function toKeyframes(){
+  const rows = [...anim.stops]
+    .sort((a, b) =&gt; a.pct - b.pct)
+    .map(s =&gt; `  ${s.pct}% { ${stopBody(s)} }`)
+    .join("\n");
+  return `@keyframes ${anim.name} {\n${rows}\n}`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The animation shorthand ties it to an element</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>@keyframes</code> only <em>defines</em> the motion; an element plays it via the <code>animation</code> property. The shorthand order that matters here is <code>name duration timing-function iteration-count direction</code>. Note the duration is in <em>seconds</em> in CSS, so divide your millisecond state by 1000.</p>
+        <div class="relative"><pre>function toShorthand(){
+  return `animation: ${anim.name} ${anim.duration/1000}s `
+       + `${anim.timing} ${anim.iteration} ${anim.direction};`;
+}
+// e.g. "animation: myAnim 1.5s ease infinite normal;"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Inject a &lt;style&gt; tag — write CSS at runtime</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is what makes the preview <em>real</em>: create one <code>&lt;style&gt;</code> element once, keep a handle to it, and overwrite its <code>textContent</code> with your freshly generated rule whenever the state changes. The browser's actual CSS engine now owns the interpolation — you never compute a single in-between frame yourself.</p>
+        <div class="relative"><pre>const styleEl = document.createElement("style");
+document.head.appendChild(styleEl);          // one tag, reused forever
+
+function writeRule(){
+  styleEl.textContent = toKeyframes();       // live CSS, replaced on every edit
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">The replay trick (force a restart)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Here is the one real gotcha. A browser will <strong>not</strong> pick up changes to a <code>@keyframes</code> rule for an animation that is already running, and re-assigning the same <code>animation</code> string does nothing either. The fix is a three-liner: set <code>animation</code> to <code>none</code>, then <em>read</em> a layout property (<code>offsetWidth</code>) to force a synchronous reflow so the browser commits the "no animation" state, then set the animation back. That guarantees a fresh start every time you edit.</p>
+        <div class="relative"><pre>function apply(el){
+  writeRule();
+  el.style.animation = "none";
+  void el.offsetWidth;                       // <-- force reflow (the crux)
+  el.style.animation = anim.name + " " + (anim.duration/1000) + "s "
+                     + anim.timing + " " + anim.iteration + " " + anim.direction;
+}
+// without the offsetWidth read, the two assignments collapse into one
+// and the animation never restarts.</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Drag a marker = map cursor-x to a percentage</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The timeline is one <code>&lt;div&gt;</code> with a marker per stop positioned by <code>left: pct%</code>. On pointer-down find which marker you grabbed; on move, convert the cursor's x (relative to the bar) into 0–100, clamp it, and write it back onto that stop. Pointer events cover mouse and touch with one path.</p>
+        <div class="relative"><pre>timeline.addEventListener("pointerdown", e =&gt; {
+  const m = e.target.closest(".marker");
+  if (m) { dragId = +m.dataset.id; select(dragId); }
+});
+timeline.addEventListener("pointermove", e =&gt; {
+  if (dragId == null) return;
+  const r = timeline.getBoundingClientRect();
+  let pct = Math.round((e.clientX - r.left) / r.width * 100);
+  pct = Math.max(0, Math.min(100, pct));         // clamp to the bar
+  stopById(dragId).pct = pct;
+  render();                                       // redraw + re-inject rule
+});
+addEventListener("pointerup", () =&gt; dragId = null);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Add a stop in the biggest gap</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A good "add" doesn't dump a stop on top of an existing one — it finds the widest gap between consecutive percentages and drops the new stop in the middle, copying the left neighbour's look so nothing visually jumps until you edit it. Removing just deletes the selected stop, keeping a floor of two so there is always something to interpolate between.</p>
+        <div class="relative"><pre>function addStop(){
+  const s = [...anim.stops].sort((a,b)=&gt;a.pct-b.pct);
+  let gap = -1, at = 50, from = s[0];
+  for (let i = 0; i &lt; s.length - 1; i++){
+    const g = s[i+1].pct - s[i].pct;
+    if (g &gt; gap){ gap = g; at = Math.round((s[i].pct + s[i+1].pct)/2); from = s[i]; }
+  }
+  anim.stops.push({ ...from, pct: at });   // clone neighbour, new percentage
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Pause without losing position</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You never stop the loop by deleting it — you flip <code>animation-play-state</code> between <code>running</code> and <code>paused</code>. Paused freezes the element exactly where it is and resumes from there, which is far nicer than tearing the animation down. Keep a boolean and set the property on every animated element.</p>
+        <div class="relative"><pre>let playing = true;
+playBtn.onclick = () =&gt; {
+  playing = !playing;
+  targets.forEach(el =&gt; el.style.animationPlayState = playing ? "running" : "paused");
+  playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Presets are just data · copy is one call</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every classic effect — pulse, bounce, shake, spin — is nothing but a canned list of stops, so a preset is an object you drop straight into state. And the export is one template string (the keyframes plus a <code>.selector { animation: … }</code> block) handed to the clipboard in a single call. That is the whole tool.</p>
+        <div class="relative"><pre>const PRESETS = {
+  spin:  { duration:1000, timing:"linear", stops:[
+            {pct:0,rotate:0}, {pct:100,rotate:360} ] },
+  pulse: { duration:1200, timing:"ease-in-out", stops:[
+            {pct:0,scale:1}, {pct:50,scale:1.15}, {pct:100,scale:1} ] },
+  shake: { duration:600, timing:"ease-in-out", stops:[
+            {pct:0,tx:0},{pct:25,tx:-10},{pct:50,tx:10},{pct:75,tx:-10},{pct:100,tx:0} ] },
+  // bounce = translateY dips: 0 → -60 → 0 → -30 → 0
+};
+
+copyBtn.onclick = () =&gt; navigator.clipboard.writeText(
+  toKeyframes() + "\n\n.box {\n  " + toShorthand() + "\n}"
+);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 37 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real <code>@keyframes</code> animation builder with <strong>no library</strong>: a state of one name plus a list of stops, a serialiser that turns each stop into a declaration block and assembles the full <code>@keyframes</code> rule, and — the key move — a <strong>dynamically injected <code>&lt;style&gt;</code> tag</strong> so the browser's own CSS engine interpolates the preview for you. On top sit the easy parts: a draggable timeline that maps cursor-x to a percentage, biggest-gap stop insertion, play/pause via <code>animation-play-state</code>, and the <strong>none → reflow → re-add</strong> replay trick that forces a running animation to pick up your edits. The lesson underneath: <strong>a keyframe animation is not frames you draw — it is a handful of snapshots at percentages, and the browser tweens everything in between; your job is just to write the CSS and restart it.</strong> <strong>👉 Tomorrow — Day 38:</strong> a <strong>CSS Grid Generator</strong> — draw a grid, name the areas, drag items across cells, and export the full <code>grid-template</code> rule.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==KEYFRAMES-ENGINE-START== (pure serialisers — no DOM, this block also runs under Node)
+// A CSS @keyframes rule is a NAME plus a list of STOPS. Each stop is a percentage
+// (a portion of ONE loop, not seconds) and the property values the element should
+// have there. The browser interpolates every frame between consecutive stops.
+//   stopBody(s)   : one stop -> the CSS that goes inside its { }
+//   toKeyframes() : the whole "@keyframes name { .. }" rule (sorted by %)
+//   toShorthand() : the "animation: name 1.5s ease infinite normal;" line
+function stopBody(s){
+  return "transform: translate(" + s.tx + "px, " + s.ty + "px) "
+       + "scale(" + s.scale + ") rotate(" + s.rotate + "deg); "
+       + "opacity: " + s.opacity + "; background: " + s.bg + ";";
+}
+function toKeyframes(a){
+  const rows = a.stops.slice().sort((x, y) => x.pct - y.pct)
+    .map(s => "  " + s.pct + "% { " + stopBody(s) + " }")
+    .join("\n");
+  return "@keyframes " + a.name + " {\n" + rows + "\n}";
+}
+function toShorthand(a){
+  return "animation: " + a.name + " " + (a.duration / 1000) + "s "
+       + a.timing + " " + a.iteration + " " + a.direction + ";";
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { stopBody, toKeyframes, toShorthand };
+// ==KEYFRAMES-ENGINE-END==
+
+// ===== LOOK: state =====
+let nextId = 1;
+function mkStop(pct, over){
+  return Object.assign({ id: nextId++, pct, tx:0, ty:0, scale:1, rotate:0, opacity:1, bg:"#f59e0b" }, over || {});
+}
+let anim = {
+  name: "myAnim",
+  duration: 1500,
+  timing: "ease",
+  iteration: "infinite",
+  direction: "normal",
+  stops: [
+    mkStop(0),
+    mkStop(50, { scale:1.4, rotate:180, opacity:.6, bg:"#3b82f6" }),
+    mkStop(100)
+  ]
+};
+let selectedId = anim.stops[0].id;
+let playing = true;
+
+// a <style> tag we own and overwrite on every edit — the browser interpolates for us
+const styleEl = document.createElement("style");
+document.head.appendChild(styleEl);
+
+const timeline   = document.getElementById("timeline");
+const cssOut     = document.getElementById("cssOut");
+const previewBox = document.getElementById("previewBox");
+const targets = [previewBox,
+  document.getElementById("mini1"),
+  document.getElementById("mini2"),
+  document.getElementById("mini3")];
+
+function selStop(){ return anim.stops.find(s => s.id === selectedId) || anim.stops[0]; }
+function fmt(key, v){
+  if (key === "tx" || key === "ty") return Math.round(v) + "px";
+  if (key === "scale") return (+v).toFixed(2) + "×";
+  if (key === "rotate") return Math.round(v) + "°";
+  if (key === "opacity") return (+v).toFixed(2);
+  return v;
+}
+
+// ---- inject the live rule + restart every element (the replay trick) ----
+function applyAnimation(){
+  styleEl.textContent = toKeyframes(anim);
+  const short = anim.name + " " + (anim.duration / 1000) + "s "
+              + anim.timing + " " + anim.iteration + " " + anim.direction;
+  targets.forEach(el => {
+    el.style.animation = "none";
+    void el.offsetWidth;                 // force reflow so it truly restarts
+    el.style.animation = short;
+    el.style.animationPlayState = playing ? "running" : "paused";
+  });
+}
+
+// ---- CSS output ----
+function renderCss(){
+  cssOut.textContent = toKeyframes(anim) + "\n\n.box {\n  " + toShorthand(anim) + "\n}";
+}
+
+// ---- timeline markers ----
+function renderTimeline(){
+  let html = "";
+  [0,25,50,75,100].forEach(p => {
+    html += '<div class="kf-tick" style="left:' + p + '%"></div>';
+    html += '<div class="kf-ticklabel" style="left:' + p + '%">' + p + '</div>';
+  });
+  anim.stops.forEach(s => {
+    const sel = s.id === selectedId ? " sel" : "";
+    html += '<div class="kf-stem' + sel + '" style="left:' + s.pct + '%"></div>';
+    html += '<div class="kf-marker' + sel + '" style="left:' + s.pct + '%" data-id="' + s.id + '">'
+          +   '<div class="dot"></div><div class="lbl">' + s.pct + '%</div></div>';
+  });
+  timeline.innerHTML = html;
+  const pct = selStop().pct + "%";
+  document.getElementById("selPctLbl").textContent = pct;
+  document.getElementById("selPctLbl2").textContent = pct;
+}
+
+// ---- per-stop control sliders (rebuilt only on selection / add / remove) ----
+const STOP_FIELDS = [
+  ["translateX", "tx",      -160, 160, 1,    "px"],
+  ["translateY", "ty",      -160, 160, 1,    "px"],
+  ["scale",      "scale",    0,   2,   0.01, "×"],
+  ["rotate",     "rotate",  -360, 360, 1,    "°"],
+  ["opacity",    "opacity",  0,   1,   0.01, ""]
+];
+function buildStopControls(){
+  const s = selStop();
+  let html = "";
+  STOP_FIELDS.forEach(([label, key, min, max, step]) => {
+    html += '<div>'
+      + '<div class="flex justify-between text-xs font-bold text-slate-500 mb-1">'
+      +   '<span>' + label + '</span><span class="mono" id="rd_' + key + '">' + fmt(key, s[key]) + '</span></div>'
+      + '<input type="range" class="sl" id="sl_' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + s[key] + '">'
+      + '</div>';
+  });
+  html += '<div class="flex items-center justify-between pt-1">'
+    + '<span class="text-xs font-bold text-slate-500">background</span>'
+    + '<input type="color" id="sl_bg" value="' + s.bg + '" style="width:52px;height:30px;border:none;background:none;cursor:pointer">'
+    + '</div>';
+  document.getElementById("stopControls").innerHTML = html;
+
+  STOP_FIELDS.forEach(([, key]) => {
+    const el = document.getElementById("sl_" + key);
+    el.oninput = () => {
+      const st = selStop();
+      st[key] = parseFloat(el.value);
+      document.getElementById("rd_" + key).textContent = fmt(key, st[key]);
+      liveUpdate();
+    };
+  });
+  const bg = document.getElementById("sl_bg");
+  bg.oninput = () => { selStop().bg = bg.value; renderTimeline(); liveUpdate(); };
+}
+
+// ---- lightweight update (no slider rebuild) ----
+function liveUpdate(){ renderCss(); applyAnimation(); }
+// ---- full render ----
+function render(){ renderTimeline(); renderCss(); applyAnimation(); }
+
+// ---- select a stop ----
+function select(id){ selectedId = id; renderTimeline(); buildStopControls(); }
+
+// ---- timeline drag ----
+let dragId = null;
+timeline.addEventListener("pointerdown", e => {
+  const m = e.target.closest(".kf-marker");
+  if (!m) return;
+  dragId = +m.dataset.id;
+  select(dragId);
+  timeline.setPointerCapture(e.pointerId);
+});
+timeline.addEventListener("pointermove", e => {
+  if (dragId == null) return;
+  const r = timeline.getBoundingClientRect();
+  let pct = Math.round((e.clientX - r.left) / r.width * 100);
+  pct = Math.max(0, Math.min(100, pct));
+  const s = anim.stops.find(x => x.id === dragId);
+  if (s && s.pct !== pct){ s.pct = pct; renderTimeline(); liveUpdate(); }
+});
+window.addEventListener("pointerup", () => dragId = null);
+
+// ---- add / remove ----
+document.getElementById("addStop").onclick = () => {
+  const s = anim.stops.slice().sort((a, b) => a.pct - b.pct);
+  let gap = -1, at = 50, from = s[0];
+  for (let i = 0; i < s.length - 1; i++){
+    const g = s[i+1].pct - s[i].pct;
+    if (g > gap){ gap = g; at = Math.round((s[i].pct + s[i+1].pct) / 2); from = s[i]; }
+  }
+  const ns = mkStop(at, { tx:from.tx, ty:from.ty, scale:from.scale, rotate:from.rotate, opacity:from.opacity, bg:from.bg });
+  anim.stops.push(ns);
+  selectedId = ns.id;
+  render(); buildStopControls();
+};
+document.getElementById("delStop").onclick = () => {
+  if (anim.stops.length <= 2) return;
+  const i = anim.stops.findIndex(s => s.id === selectedId);
+  anim.stops.splice(i, 1);
+  selectedId = anim.stops[Math.max(0, i - 1)].id;
+  render(); buildStopControls();
+};
+
+// ---- name ----
+const animName = document.getElementById("animName");
+animName.oninput = () => {
+  anim.name = (animName.value.trim().replace(/[^a-zA-Z0-9_-]/g, "") || "myAnim");
+  liveUpdate();
+};
+
+// ---- duration / timing / direction ----
+const rngDur = document.getElementById("rngDur"), durVal = document.getElementById("durVal");
+rngDur.oninput = () => { anim.duration = +rngDur.value; durVal.textContent = (anim.duration/1000) + "s"; liveUpdate(); };
+document.getElementById("selTiming").onchange = e => { anim.timing = e.target.value; liveUpdate(); };
+document.getElementById("selDir").onchange = e => { anim.direction = e.target.value; liveUpdate(); };
+
+// ---- iteration chips ----
+const ITER = ["1", "2", "3", "infinite"];
+const iterEl = document.getElementById("iterChips");
+ITER.forEach(v => {
+  const b = document.createElement("button");
+  b.className = "chip" + (v === anim.iteration ? " on" : "");
+  b.textContent = v === "infinite" ? "∞ infinite" : v + "×";
+  b.onclick = () => {
+    anim.iteration = v;
+    iterEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    liveUpdate();
+  };
+  iterEl.appendChild(b);
+});
+
+// ---- replay / play-pause ----
+document.getElementById("replayBtn").onclick = () => applyAnimation();
+const playBtn = document.getElementById("playBtn");
+playBtn.onclick = () => {
+  playing = !playing;
+  targets.forEach(el => el.style.animationPlayState = playing ? "running" : "paused");
+  playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+};
+
+// ---- copy ----
+document.getElementById("copyCss").onclick = () => {
+  const b = document.getElementById("copyCss");
+  const css = toKeyframes(anim) + "\n\n.box {\n  " + toShorthand(anim) + "\n}";
+  navigator.clipboard && navigator.clipboard.writeText(css);
+  const o = b.textContent; b.textContent = "✓ Copied!";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- presets: each is just a list of stops (+ suggested playback) ----
+const PRESETS = {
+  "pulse": { name:"pulse", duration:1200, timing:"ease-in-out", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0), mkStop(50, { scale:1.15 }), mkStop(100) ] },
+  "bounce": { name:"bounce", duration:1200, timing:"ease", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0), mkStop(25, { ty:-60 }), mkStop(50), mkStop(75, { ty:-30 }), mkStop(100) ] },
+  "shake": { name:"shake", duration:600, timing:"ease-in-out", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0), mkStop(25, { tx:-12 }), mkStop(50, { tx:12 }), mkStop(75, { tx:-12 }), mkStop(100) ] },
+  "spin": { name:"spin", duration:1000, timing:"linear", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0), mkStop(100, { rotate:360 }) ] },
+  "pop-in": { name:"popIn", duration:700, timing:"cubic-bezier(.34,1.56,.64,1)", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0, { scale:0, opacity:0 }), mkStop(100, { scale:1, opacity:1 }) ] },
+  "flip": { name:"flip", duration:1400, timing:"ease-in-out", iteration:"infinite", direction:"normal", stops:[
+      mkStop(0), mkStop(50, { rotate:180, scale:.7 }), mkStop(100, { rotate:360 }) ] }
+};
+const presetsEl = document.getElementById("presets");
+Object.keys(PRESETS).forEach(key => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = key;
+  b.onclick = () => {
+    const p = PRESETS[key];
+    // deep-clone so editing doesn't mutate the preset definition
+    anim = {
+      name: p.name, duration: p.duration, timing: p.timing,
+      iteration: p.iteration, direction: p.direction,
+      stops: p.stops.map(s => mkStop(s.pct, { tx:s.tx, ty:s.ty, scale:s.scale, rotate:s.rotate, opacity:s.opacity, bg:s.bg }))
+    };
+    selectedId = anim.stops[0].id;
+    presetsEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    syncControlsFromState();
+    render(); buildStopControls();
+  };
+  presetsEl.appendChild(b);
+});
+
+// push the current anim's playback settings back into the top controls after a preset
+function syncControlsFromState(){
+  animName.value = anim.name;
+  rngDur.value = anim.duration; durVal.textContent = (anim.duration/1000) + "s";
+  document.getElementById("selTiming").value =
+    [...document.getElementById("selTiming").options].some(o => o.value === anim.timing) ? anim.timing : "ease";
+  document.getElementById("selDir").value = anim.direction;
+  iterEl.querySelectorAll(".chip").forEach((c, i) => c.classList.toggle("on", ITER[i] === anim.iteration));
+}
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A keyframe is a snapshot at a percentage", why:"The mental model that unlocks everything: @keyframes does NOT store frames or a path. It stores a short list of snapshots, each pinned to a percentage of the animation — 'at 0% look like this, at 50% look like that, at 100% look like this'. Between those snapshots you write nothing; the browser fills in every frame for you. So a three-stop animation might render 180 real frames, but you only ever author three. Internalise 'snapshot at a percentage' and the rest of CSS animation stops feeling magical.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">@keyframes fadeMove {</div><div class="text-amber-300 pl-3">0%&nbsp;&nbsp; { opacity:0; transform:none }</div><div class="text-sky-300 pl-3">50%&nbsp; { opacity:1 }</div><div class="text-amber-300 pl-3">100% { transform:translateY(-20px) }</div><div class="text-slate-400">}</div><div class="text-slate-400 mt-1">3 snapshots → hundreds of frames</div></div>`, code:`@keyframes fadeMove {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { transform: translateY(-20px); }
+}` },
+ { title:"2. The browser interpolates the gaps", why:"The single word for what happens between stops is INTERPOLATION (animators call it tweening). For each animatable property the browser reads its value at the stop before and the stop after the current instant, works out how far along you are, and blends the two. Move a stop's scale from 1 to 1.5 and at the halfway frame the engine renders 1.25 — you never computed it. This is why you only author a few stops: the in-betweens are free, and they are computed on the compositor at 60fps.", concept:`<div class="w-full space-y-2 text-xs mono"><div class="text-slate-400">scale at 0% = 1.0</div><div class="text-slate-400">scale at 100% = 1.5</div><div class="text-emerald-300">→ at 50% the browser draws 1.25</div><div class="text-emerald-300">→ at 25% it draws 1.125</div><div class="text-slate-400 mt-1">you wrote 2 numbers, got a smooth ramp</div></div>`, code:`/* you write only the endpoints */
+0%   { transform: scale(1);   }
+100% { transform: scale(1.5); }
+/* browser draws 1.05, 1.10, 1.15 … every frame */` },
+ { title:"3. Percentages are portions of a loop, not seconds", why:"The most common beginner confusion: '50%' does NOT mean half a second. It means halfway through ONE iteration of the animation, whatever the duration is. The real time comes from a completely separate property, animation-duration. Set duration to 1s and 50% lands at 500ms; set it to 4s and the same 50% lands at 2000ms — the stops never move, only the clock stretches. Keeping 'percentage = shape' and 'duration = clock' apart in your head is the key.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-amber-300">50% of a 1s anim → 0.5s</div><div class="text-sky-300">50% of a 4s anim → 2.0s</div><div class="text-slate-400 mt-1">same %, different real time</div><div class="text-slate-400">shape lives in @keyframes,</div><div class="text-slate-400">time lives in animation-duration</div></div>`, code:`.a { animation: spin 1s linear infinite; } /* 50% = 0.5s */
+.b { animation: spin 4s linear infinite; } /* 50% = 2.0s */
+/* identical @keyframes spin { … } for both */` },
+ { title:"4. from / to are just 0% / 100%", why:"CSS lets you write 'from' and 'to' as friendly aliases for 0% and 100%. They are exactly equal — 'from' compiles to 0%, 'to' to 100%. Use them for the common two-stop case (a simple fade or slide) because they read like English; switch to explicit percentages the moment you need a middle stop. There is no behavioural difference, only readability, and you can even mix them, though most style guides pick one.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-amber-300">from { … }&nbsp;&nbsp;≡&nbsp;&nbsp;0% { … }</div><div class="text-sky-300">to&nbsp;&nbsp; { … }&nbsp;&nbsp;≡&nbsp;&nbsp;100% { … }</div><div class="text-slate-400 mt-1">aliases — identical output</div></div>`, code:`@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+/* exactly the same as */
+@keyframes fade { 0% { opacity: 0; } 100% { opacity: 1; } }` },
+ { title:"5. Only animatable properties tween", why:"Not every CSS property can be interpolated. Numeric / colour / length properties — opacity, transform, color, background-color, width — blend smoothly. But discrete properties like display, visibility, font-family or position simply JUMP to the new value at the stop, with no in-between. That is why you can't fade something with display:none → display:block; the display flips instantly while opacity would have to carry the fade. Knowing which properties are 'animatable' tells you what a keyframe can and can't do.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-emerald-300">smooth: opacity, transform, color, width</div><div class="text-red-300">jumps: display, visibility, font-family</div><div class="text-slate-400 mt-1">fade needs opacity, not display</div></div>`, code:`/* WON'T fade — display can't tween, it snaps */
+0% { display: none; } 100% { display: block; }
+/* DO fade with opacity + keep it in flow */
+0% { opacity: 0; } 100% { opacity: 1; }` },
+ { title:"6. @keyframes only defines — animation plays it", why:"There are two halves. @keyframes NAME { … } merely DEFINES a reusable motion; nothing moves until an element references it through the animation property. That separation is powerful: one @keyframes rule can drive dozens of elements, and the same element can swap which named animation it plays. The animation shorthand packs several settings in one line: name, duration, timing-function, delay, iteration-count, direction, fill-mode, play-state.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">/* define once */</div><div class="text-amber-300">@keyframes spin { … }</div><div class="text-slate-400 mt-1">/* reference from any element */</div><div class="text-sky-300">.loader&nbsp;{ animation: spin 1s linear infinite }</div><div class="text-sky-300">.badge&nbsp;&nbsp;{ animation: spin 3s linear infinite }</div></div>`, code:`@keyframes spin { to { transform: rotate(360deg); } }
+.loader { animation: spin 1s   linear infinite; }
+.badge  { animation: spin 3s   linear infinite; } /* same rule, slower */` },
+ { title:"7. duration vs iteration-count vs direction", why:"Three independent knobs shape playback without touching a single stop. Duration is how long one loop takes. Iteration-count is how many loops run — a number, or 'infinite'. Direction decides the play order each loop: 'normal' restarts from 0% every time (a visible jump back), while 'alternate' plays forward then backward, so a one-way 0→100 set becomes a seamless there-and-back. Most 'pulse' and 'breathing' effects are simply a 0→100 grow set to alternate.", concept:`<div class="w-full space-y-3"><div><div class="text-xs text-slate-500 mb-1">direction: normal — snaps back each loop</div><div style="position:relative;height:26px"><span class="demo-box u-normal"></span></div></div><div><div class="text-xs text-slate-500 mb-1">direction: alternate — ping-pongs</div><div style="position:relative;height:26px"><span class="demo-box u-alternate" style="background:#3b82f6"></span></div></div></div>`, code:`animation: move 1s linear infinite normal;    /* jumps back */
+animation: move 1s linear infinite alternate; /* there-and-back */
+animation: move 1s linear 3;                  /* runs 3 times, then stops */` },
+ { title:"8. timing-function bends each segment", why:"The timing-function (linear, ease, cubic-bezier, steps…) does NOT apply once across the whole animation — it applies BETWEEN each pair of stops, per segment. So an ease-in-out set on the animation eases into and out of every stop, not just the ends. You can even override it inside a specific keyframe to change the easing of just the next segment. This is the lever that makes a bounce feel snappy in one part and slow in another.", concept:`<div class="w-full space-y-3"><div><div class="text-xs text-slate-500 mb-1">linear — constant speed each segment</div><div style="position:relative;height:26px"><span class="demo-box" style="animation:uDur 1.4s linear infinite alternate"></span></div></div><div><div class="text-xs text-slate-500 mb-1">ease-in-out — soft into every stop</div><div style="position:relative;height:26px"><span class="demo-box" style="background:#10b981;animation:uDur 1.4s ease-in-out infinite alternate"></span></div></div></div>`, code:`.box { animation: move 2s ease-in-out infinite; }
+/* per-segment override — this stop enters linearly: */
+@keyframes move { 0%{…} 50%{ animation-timing-function: linear; …} 100%{…} }` },
+ { title:"9. Missing 0% or 100%? The element fills it in", why:"You don't strictly need a 0% or a 100% stop. If you omit 0%, the browser uses the element's CURRENT computed style as the implicit starting snapshot; if you omit 100%, it uses the current style as the implicit end. This 'implied keyframe' behaviour is handy — a hover-grow can define only the 100% and let the resting state be 0% automatically — but it also causes surprises when the element's base style isn't what you assumed. When in doubt, pin both ends explicitly.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-slate-400">.box { transform: scale(1); }</div><div class="text-amber-300">@keyframes grow { to { transform: scale(1.5) } }</div><div class="text-emerald-300 mt-1">implied 0% = scale(1) (the element's own style)</div></div>`, code:`.box { transform: scale(1); }              /* becomes the implied 0% */
+@keyframes grow { to { transform: scale(1.5); } }
+.box:hover { animation: grow .3s forwards; }` },
+ { title:"10. Animate transform & opacity for speed", why:"A performance rule worth burning in: animating transform and opacity is cheap because the browser can hand them to the GPU compositor — no layout, no repaint. Animating layout properties (width, height, top, left, margin) forces the browser to recompute geometry every frame, which stutters on phones. So prefer translate over top/left, scale over width/height. The 'will-change: transform' hint can pre-promote an element to its own layer, but use it sparingly — every layer costs memory.", concept:`<div class="w-full space-y-1 text-xs mono"><div class="text-emerald-300">cheap (compositor): transform, opacity</div><div class="text-red-300">costly (layout/paint): width, height, top, left</div><div class="text-slate-400 mt-1">translate ▸ not top/left · scale ▸ not width</div></div>`, code:`/* janky — recalculates layout every frame */
+@keyframes bad { to { left: 300px; width: 400px; } }
+/* smooth — GPU compositor only */
+@keyframes good { to { transform: translateX(300px) scaleX(1.5); } }` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+render();
+buildStopControls();
+</script>
+</body>
+</html>

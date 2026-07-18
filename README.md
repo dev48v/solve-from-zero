@@ -43,6 +43,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 34 — XML Formatter](https://dev48v.infy.uk/solve/day34-xml-formatter.html) — `day34-xml-formatter.html`
 - [SolveFromZero · Day 35 — Box-Shadow Generator](https://dev48v.infy.uk/solve/day35-box-shadow-generator.html) — `day35-box-shadow-generator.html`
 - [SolveFromZero · Day 36 — Cubic-Bézier Easing Editor](https://dev48v.infy.uk/solve/day36-cubic-bezier-editor.html) — `day36-cubic-bezier-editor.html`
+- [SolveFromZero · Day 37 — @keyframes Animation Builder](https://dev48v.infy.uk/solve/day37-keyframes-builder.html) — `day37-keyframes-builder.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
