@@ -44,6 +44,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 35 — Box-Shadow Generator](https://dev48v.infy.uk/solve/day35-box-shadow-generator.html) — `day35-box-shadow-generator.html`
 - [SolveFromZero · Day 36 — Cubic-Bézier Easing Editor](https://dev48v.infy.uk/solve/day36-cubic-bezier-editor.html) — `day36-cubic-bezier-editor.html`
 - [SolveFromZero · Day 37 — @keyframes Animation Builder](https://dev48v.infy.uk/solve/day37-keyframes-builder.html) — `day37-keyframes-builder.html`
+- [SolveFromZero · Day 38 — CSS Grid Generator](https://dev48v.infy.uk/solve/day38-css-grid-generator.html) — `day38-css-grid-generator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

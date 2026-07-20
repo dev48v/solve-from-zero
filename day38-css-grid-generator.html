@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 38 — CSS Grid Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .sl { accent-color:#f59e0b; width:100%; }
+  .numfield { width:100%; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; padding:5px 8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-variant-numeric:tabular-nums; color:#0f172a; }
+  .numfield:focus { outline:2px solid #f59e0b; }
+  .selfield { border:1px solid #e2e8f0; background:#fff; border-radius:8px; padding:6px 8px; font-size:13px; color:#0f172a; width:100%; }
+  .selfield:focus { outline:2px solid #f59e0b; }
+
+  /* ---- track editor rows ---- */
+  .trackrow { display:flex; align-items:center; gap:8px; }
+  .tlabel { width:34px; flex:none; font-size:11px; font-weight:800; color:#64748b; font-family:ui-monospace,Menlo,monospace; }
+  .tdel { flex:none; width:26px; height:26px; border-radius:7px; background:#f1f5f9; color:#94a3b8; font-weight:800; cursor:pointer; }
+  .tdel:hover { background:#fee2e2; color:#dc2626; }
+
+  /* ---- grid preview ---- */
+  #gridPreview { display:grid; height:340px; background:#eef2f7; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; user-select:none; touch-action:none; }
+  .gcell { background:#ffffff; border:1px dashed #cbd5e1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#cbd5e1; font-family:ui-monospace,Menlo,monospace; min-height:38px; cursor:crosshair; }
+  .gcell:hover { background:#fffbeb; border-color:#fcd34d; color:#d97706; }
+  .gitem { position:relative; z-index:2; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; font-weight:800; box-shadow:0 4px 12px rgba(0,0,0,.18); pointer-events:none; overflow:hidden; }
+  .gitem .nm { font-size:20px; line-height:1; }
+  .gitem .pl { font-size:10px; font-weight:600; opacity:.92; font-family:ui-monospace,Menlo,monospace; margin-top:3px; }
+  .gitem.sel { outline:3px solid #0f172a; outline-offset:-3px; }
+
+  /* UNDERSTAND demo grids */
+  .ug { display:grid; gap:5px; }
+  .ug > div { background:#f59e0b; border-radius:4px; min-height:20px; }
+  .ug .b { background:#3b82f6; }
+  .ug .g { background:#10b981; }
+  .ug .muted { background:#e2e8f0; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 38</div>
+      <h1 class="text-xl font-bold">🔲 CSS Grid Generator — a grid is a set of <em>tracks</em>; you place items on the <em>lines</em> between them</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Size the columns and rows, drop items onto the grid, copy the exact <code>grid-template</code> CSS.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">CSS Grid is two-dimensional layout you describe as a <strong>skeleton of tracks</strong> — a list of column widths and a list of row heights — and then <strong>place items onto</strong>. The magic units are the flexible <code>fr</code> (a fraction of leftover space), fixed <code>px</code>, content-driven <code>auto</code>, and <code>minmax()</code> for "at least this, at most that". Between the tracks run <strong>grid lines</strong>, numbered from 1 — and an item is positioned by naming the line it starts on and the line it ends on (<code>grid-column: 2 / 4</code> spans from line 2 to line 4). Add or remove tracks, drag across cells to span an item, tune the gaps, hit a preset, and paste the generated rule straight into your CSS. No library — the browser's own grid engine lays everything out; this tool just writes the <code>display:grid</code> string.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: track editors + gaps -->
+        <div class="space-y-5">
+          <!-- columns -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Columns <span class="text-slate-400 normal-case">— <code>grid-template-columns</code></span></div>
+              <button id="addCol" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">+ Add column</button>
+            </div>
+            <div id="colEditor" class="space-y-2"></div>
+          </div>
+
+          <!-- rows -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Rows <span class="text-slate-400 normal-case">— <code>grid-template-rows</code></span></div>
+              <button id="addRow" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">+ Add row</button>
+            </div>
+            <div id="rowEditor" class="space-y-2"></div>
+          </div>
+
+          <!-- gaps -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Gaps <span class="text-slate-400 normal-case">— the gutters <em>between</em> tracks (never around the edge)</span></div>
+            <div>
+              <div class="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>column-gap</span><span class="mono" id="colGapVal">12px</span></div>
+              <input type="range" id="rngColGap" class="sl" min="0" max="48" step="1" value="12">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>row-gap</span><span class="mono" id="rowGapVal">12px</span></div>
+              <input type="range" id="rngRowGap" class="sl" min="0" max="48" step="1" value="12">
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: live preview + items + CSS + presets -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live grid <span class="text-slate-400 normal-case">— drag across cells to place/span the selected item</span></div>
+              <div class="flex gap-2">
+                <button id="addItem" class="mini px-3 py-1 rounded-lg font-semibold text-xs">+ Item</button>
+                <button id="delItem" class="bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-semibold text-xs hover:bg-slate-300">– Remove</button>
+              </div>
+            </div>
+            <div id="gridPreview"></div>
+            <div class="text-xs text-slate-400">Faint cells are the <strong>tracks</strong> (labelled <span class="mono">col·row</span>). A grid with N columns has <strong>N+1 lines</strong>, numbered from 1 — placement below uses those <strong>line</strong> numbers.</div>
+
+            <!-- item chips + selected-item editor -->
+            <div>
+              <div class="text-xs font-bold text-slate-500 mb-1">Items <span class="text-slate-400">— click to select</span></div>
+              <div id="itemChips"></div>
+            </div>
+            <div id="itemEditor" class="rounded-xl bg-slate-50 border border-slate-200 p-3"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Generated CSS</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre;margin:0;max-height:300px"></pre>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets <span class="text-slate-400 normal-case">— each is just a set of tracks + placed items</span></div>
+            <div id="presets"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. You place items on LINES, not on cells.</strong> <code>grid-column: 2 / 4</code> means "start at line 2, end at line 4" — that spans the two <em>tracks</em> between those lines. A 3-column grid has lines 1, 2, 3, 4. Off-by-one here is the single most common grid bug. <strong>2. <code>fr</code> shares what's LEFT.</strong> The browser first subtracts every fixed track and every gap, then divides the remainder among the <code>fr</code> tracks in proportion — so <code>1fr 1fr</code> is a 50/50 split of the leftover, not of the whole width. <strong>3. <code>gap</code> is only between tracks.</strong> There is no gap before the first track or after the last; padding on the container does the edges. <strong>4. Placing beyond your tracks creates IMPLICIT tracks.</strong> Put an item on row line 5 when you only defined 3 rows and grid quietly adds auto-sized rows to reach it — handy, but a frequent "why is there extra space?" mystery. <strong>5. <code>span</code> counts tracks, lines count boundaries.</strong> <code>grid-column: 2 / span 2</code> and <code>grid-column: 2 / 4</code> are identical; mixing the two mental models is what trips people up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How CSS Grid actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A grid generator has one clever idea and a lot of easy plumbing. The clever idea: to make the browser <em>preview</em> your layout, you <strong>hand it a real <code>display:grid</code> container</strong> with your track strings inlined — the browser's own grid algorithm does every measurement, so you never compute a single pixel. Everything else is data: an array of column tracks, an array of row tracks, two gap numbers, and a list of items that each carry four line numbers. The one concept you must keep straight is <strong>lines vs tracks</strong>: N tracks make N+1 lines, and items are placed by line. There is <strong>no library</strong>.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The whole state is tracks + gaps + items</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A grid is a list of <strong>column tracks</strong>, a list of <strong>row tracks</strong>, two gap sizes, and a list of <strong>items</strong>. Each track carries a unit and value; each item carries four line numbers (<code>cs/ce</code> = column start/end, <code>rs/re</code> = row start/end). Keep it all in one plain object; that object <em>is</em> your document.</p>
+        <div class="relative"><pre>let grid = {
+  cols: [ {unit:"fr",v1:1}, {unit:"fr",v1:1}, {unit:"fr",v1:1} ],
+  rows: [ {unit:"auto"},    {unit:"fr",v1:1} ],
+  colGap: 12,
+  rowGap: 12,
+  items: [
+    { name:"A", cs:1, ce:2, rs:1, re:2 },   // top-left cell
+    { name:"B", cs:2, ce:4, rs:2, re:3 }    // spans cols 2-3 on row 2
+  ]
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Serialise one track to its CSS unit</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Turn a single track object into the string CSS wants. There are exactly four shapes: <code>fr</code> (a fraction of leftover space), <code>px</code> (a fixed length), <code>auto</code> (size to content), and <code>minmax(min, max)</code> (a floor and a ceiling). This tiny function is the heart of the serialiser.</p>
+        <div class="relative"><pre>function trackStr(t){
+  if (t.unit === "fr")     return t.v1 + "fr";
+  if (t.unit === "px")     return t.v1 + "px";
+  if (t.unit === "auto")   return "auto";
+  if (t.unit === "minmax") return "minmax(" + t.v1 + "px, " + t.v2 + "fr)";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Join tracks into a template string</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>grid-template-columns</code> is just each track's unit, separated by spaces. Map the array through <code>trackStr</code> and join — that single line is the whole column (or row) definition. Three <code>1fr</code> tracks become the string <code>"1fr 1fr 1fr"</code>.</p>
+        <div class="relative"><pre>function templateStr(tracks){
+  return tracks.map(trackStr).join(" ");
+}
+// grid.cols -> "1fr 1fr 1fr"
+// grid.rows -> "auto 1fr"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The gap shorthand is row-then-column</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One number if the two gaps match, otherwise the shorthand order is <code>gap: row-gap column-gap</code> (rows first — the opposite of what many expect). Collapsing equal gaps to a single value keeps the output clean.</p>
+        <div class="relative"><pre>function gapStr(g){
+  return g.rowGap === g.colGap
+    ? g.rowGap + "px"                       // gap: 12px
+    : g.rowGap + "px " + g.colGap + "px";   // gap: 12px 16px  (row col)
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">An item is four line numbers</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Placement is <em>line-based</em>: <code>grid-column: start / end</code> and <code>grid-row: start / end</code>. The end line is exclusive, so <code>2 / 4</code> occupies the two tracks between lines 2 and 4. Serialising an item is just dropping its four numbers into that template.</p>
+        <div class="relative"><pre>function itemRule(it){
+  return "." + it.name.toLowerCase() + " { "
+       + "grid-column: " + it.cs + " / " + it.ce + "; "
+       + "grid-row: "    + it.rs + " / " + it.re + "; }";
+}
+// { name:"B", cs:2, ce:4, rs:2, re:3 }
+//   -> ".b { grid-column: 2 / 4; grid-row: 2 / 3; }"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Assemble the whole rule — the deliverable</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Wrap the container declarations, then append one rule per item. This string is the entire export — exactly what you paste into a stylesheet. Notice there is no math here at all: you are only describing the skeleton; the browser measures it.</p>
+        <div class="relative"><pre>function toGridCss(g){
+  const container =
+    ".grid {\n" +
+    "  display: grid;\n" +
+    "  grid-template-columns: " + templateStr(g.cols) + ";\n" +
+    "  grid-template-rows: "    + templateStr(g.rows) + ";\n" +
+    "  gap: " + gapStr(g) + ";\n" +
+    "}";
+  const items = g.items.map(itemRule).join("\n");
+  return items ? container + "\n" + items : container;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Preview = a real grid container</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is what makes the preview <em>real</em>: create a <code>display:grid</code> element and inline the same template strings you generate. The browser's grid algorithm now owns every measurement — <code>fr</code> distribution, <code>minmax</code> clamping, gap subtraction — you never compute a pixel yourself.</p>
+        <div class="relative"><pre>function renderPreview(g){
+  const box = document.getElementById("gridPreview");
+  box.style.gridTemplateColumns = templateStr(g.cols);
+  box.style.gridTemplateRows    = templateStr(g.rows);
+  box.style.gap = gapStr(g);               // real CSS, laid out by the engine
+  box.innerHTML = ghostCells(g) + itemDivs(g);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Ghost cells reveal the tracks</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To let people <em>see</em> the skeleton, render one faint cell per column×row, each <strong>explicitly</strong> placed on its own line pair so it never fights the real items for auto-placement. Items then sit on top with a higher <code>z-index</code>. The cells are the tracks; the numbers on them are the lines you place against.</p>
+        <div class="relative"><pre>function ghostCells(g){
+  let html = "";
+  for (let r = 1; r &lt;= g.rows.length; r++)
+    for (let c = 1; c &lt;= g.cols.length; c++)
+      html += `&lt;div class="gcell" data-c="${c}" data-r="${r}"
+                    style="grid-column:${c}/${c+1};grid-row:${r}/${r+1}"&gt;
+                 ${c}·${r}&lt;/div&gt;`;
+  return html;   // explicit placement = no auto-flow surprises
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Drag across cells → min/max lines</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Dragging to span is pure arithmetic on line numbers. Remember the cell at column <em>c</em> sits between lines <em>c</em> and <em>c+1</em>. So from the first cell you grabbed to the one under the cursor, the start line is the smaller index and the end line is the larger index <strong>plus one</strong>. Clamp every line to <code>1 … tracks+1</code> so an item can never point off the grid.</p>
+        <div class="relative"><pre>function applyDrag(item, startC, startR, c, r){
+  item.cs = Math.min(startC, c);
+  item.ce = Math.max(startC, c) + 1;      // +1: end line is past the cell
+  item.rs = Math.min(startR, r);
+  item.re = Math.max(startR, r) + 1;
+  render();                                // re-serialise + re-preview
+}
+// N tracks -> lines 1 .. N+1  (clamp against this range)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Presets are just data · copy is one call</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every classic layout — holy-grail, a card wall, a sidebar shell — is nothing but a set of tracks plus a few placed items, so a preset is an object you drop straight into state. And the export is the one <code>toGridCss</code> string handed to the clipboard in a single call. That is the whole tool.</p>
+        <div class="relative"><pre>const PRESETS = {
+  "sidebar": {
+    cols:[{unit:"px",v1:220},{unit:"fr",v1:1}],
+    rows:[{unit:"auto"},{unit:"fr",v1:1}],
+    colGap:0, rowGap:0,
+    items:[ {name:"A",cs:1,ce:2,rs:1,re:3},   // sidebar spans both rows
+            {name:"B",cs:2,ce:3,rs:1,re:2},   // header
+            {name:"C",cs:2,ce:3,rs:2,re:3} ]  // content
+  }
+};
+copyBtn.onclick = () =&gt; navigator.clipboard.writeText(toGridCss(grid));</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 38 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real CSS Grid generator with <strong>no library</strong>: a state of column tracks, row tracks, two gaps and a list of items; a serialiser that turns each track into its <code>fr</code>/<code>px</code>/<code>auto</code>/<code>minmax</code> unit and each item into a line-based <code>grid-column</code>/<code>grid-row</code> rule; and — the key move — a <strong>real <code>display:grid</code> preview</strong> so the browser's own layout engine measures everything for you. On top sit the easy parts: ghost cells that expose the tracks, drag-to-span that is just <code>min</code>/<code>max</code> on line numbers, and presets that are pure data. The lesson underneath: <strong>a grid is not cells you draw — it is a skeleton of tracks with numbered lines between them, and you place items by naming lines; your job is only to describe the skeleton and let the browser lay it out.</strong> <strong>👉 Tomorrow — Day 39:</strong> a <strong>Flexbox Playground</strong> — toggle <code>justify-content</code>, <code>align-items</code>, <code>flex-wrap</code> and per-item <code>flex-grow</code> live, and export the flex CSS.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==GRID-ENGINE-START== (pure serialisers — no DOM, this block also runs under Node)
+// A CSS grid is a list of COLUMN tracks + a list of ROW tracks + two gaps + a list
+// of ITEMS. Each track has a unit (fr | px | auto | minmax); each item carries four
+// LINE numbers (cs/ce = column start/end, rs/re = row start/end). N tracks -> N+1 lines.
+//   trackStr(t)    : one track -> its CSS unit ("1fr", "100px", "auto", "minmax(..)")
+//   templateStr(a) : an array of tracks -> "1fr 1fr 1fr"
+//   gapStr(g)      : the "gap:" shorthand (row-gap column-gap, collapsed if equal)
+//   itemRule(it)   : one item -> ".b { grid-column: 2 / 4; grid-row: 2 / 3; }"
+//   toGridCss(g)   : the whole rule — container + one line per item (the deliverable)
+function trackStr(t){
+  if (t.unit === "fr")     return t.v1 + "fr";
+  if (t.unit === "px")     return t.v1 + "px";
+  if (t.unit === "auto")   return "auto";
+  if (t.unit === "minmax") return "minmax(" + t.v1 + "px, " + t.v2 + "fr)";
+  return "auto";
+}
+function templateStr(tracks){ return tracks.map(trackStr).join(" "); }
+function gapStr(g){
+  return g.rowGap === g.colGap ? g.rowGap + "px" : g.rowGap + "px " + g.colGap + "px";
+}
+function itemRule(it){
+  return "." + it.name.toLowerCase() + " { grid-column: " + it.cs + " / " + it.ce
+       + "; grid-row: " + it.rs + " / " + it.re + "; }";
+}
+function toGridCss(g){
+  const container = ".grid {\n"
+    + "  display: grid;\n"
+    + "  grid-template-columns: " + templateStr(g.cols) + ";\n"
+    + "  grid-template-rows: " + templateStr(g.rows) + ";\n"
+    + "  gap: " + gapStr(g) + ";\n"
+    + "}";
+  const items = g.items.map(itemRule).join("\n");
+  return items ? container + "\n" + items : container;
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { trackStr, templateStr, gapStr, itemRule, toGridCss };
+// ==GRID-ENGINE-END==
+
+// ===== LOOK: state =====
+const PALETTE = ["#f59e0b","#3b82f6","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
+let nextId = 1;
+function mkTrack(unit, v1, v2){
+  return { unit, v1: v1 != null ? v1 : (unit === "px" ? 100 : (unit === "minmax" ? 100 : 1)), v2: v2 != null ? v2 : 1 };
+}
+function mkItem(name, cs, ce, rs, re){ return { id: nextId++, name, cs, ce, rs, re, color: "#f59e0b" }; }
+
+let grid, selItemId;
+function loadState(obj){
+  grid = {
+    cols: obj.cols.map(t => mkTrack(t.unit, t.v1, t.v2)),
+    rows: obj.rows.map(t => mkTrack(t.unit, t.v1, t.v2)),
+    colGap: obj.colGap, rowGap: obj.rowGap,
+    items: obj.items.map((it, i) => { const n = mkItem(it.name, it.cs, it.ce, it.rs, it.re); n.color = PALETTE[i % PALETTE.length]; return n; })
+  };
+  selItemId = grid.items.length ? grid.items[0].id : null;
+  clampItems();
+  syncGapControls();
+  full();
+}
+
+// ---- DOM handles ----
+const gridPreview = document.getElementById("gridPreview");
+const cssOut      = document.getElementById("cssOut");
+const colEditor   = document.getElementById("colEditor");
+const rowEditor   = document.getElementById("rowEditor");
+const itemChips   = document.getElementById("itemChips");
+const itemEditor  = document.getElementById("itemEditor");
+
+function selItem(){ return grid.items.find(i => i.id === selItemId) || null; }
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function clampItems(){
+  const CL = grid.cols.length + 1, RL = grid.rows.length + 1;
+  grid.items.forEach(it => {
+    it.cs = clamp(it.cs, 1, CL - 1); it.ce = clamp(it.ce, it.cs + 1, CL);
+    it.rs = clamp(it.rs, 1, RL - 1); it.re = clamp(it.re, it.rs + 1, RL);
+  });
+}
+
+// ---- preview ----
+function renderPreview(){
+  gridPreview.style.gridTemplateColumns = templateStr(grid.cols);
+  gridPreview.style.gridTemplateRows    = templateStr(grid.rows);
+  gridPreview.style.gap = grid.rowGap + "px " + grid.colGap + "px";
+  let html = "";
+  for (let r = 1; r <= grid.rows.length; r++)
+    for (let c = 1; c <= grid.cols.length; c++)
+      html += '<div class="gcell" data-c="' + c + '" data-r="' + r + '" style="grid-column:' + c + '/' + (c+1) + ';grid-row:' + r + '/' + (r+1) + '">' + c + '·' + r + '</div>';
+  grid.items.forEach(it => {
+    const sel = it.id === selItemId ? " sel" : "";
+    html += '<div class="gitem' + sel + '" style="grid-column:' + it.cs + '/' + it.ce + ';grid-row:' + it.rs + '/' + it.re + ';background:' + it.color + '">'
+          + '<div class="nm">' + it.name + '</div>'
+          + '<div class="pl">' + it.cs + '/' + it.ce + ' · ' + it.rs + '/' + it.re + '</div></div>';
+  });
+  gridPreview.innerHTML = html;
+}
+
+// ---- CSS output ----
+function renderCss(){ cssOut.textContent = toGridCss(grid); }
+
+// ---- full render ----
+function render(){ renderPreview(); renderCss(); }
+
+// ---- track editors ----
+function unitOptions(sel){
+  return ["fr","px","auto","minmax"].map(u => '<option value="' + u + '"' + (u === sel ? " selected" : "") + '>' + u + '</option>').join("");
+}
+function buildTrackEditor(axis){
+  const arr = axis === "col" ? grid.cols : grid.rows;
+  const host = axis === "col" ? colEditor : rowEditor;
+  const prefix = axis === "col" ? "C" : "R";
+  let html = "";
+  arr.forEach((t, i) => {
+    let fields = "";
+    if (t.unit === "fr" || t.unit === "px"){
+      fields = '<input class="numfield tval" data-k="v1" type="number" min="0" step="' + (t.unit === "fr" ? "0.5" : "10") + '" value="' + t.v1 + '" style="width:80px">'
+             + '<span class="text-xs text-slate-400 mono">' + t.unit + '</span>';
+    } else if (t.unit === "minmax"){
+      fields = '<input class="numfield tval" data-k="v1" type="number" min="0" step="10" value="' + t.v1 + '" style="width:64px" title="min px">'
+             + '<span class="text-xs text-slate-400 mono">px,</span>'
+             + '<input class="numfield tval" data-k="v2" type="number" min="0" step="0.5" value="' + t.v2 + '" style="width:56px" title="max fr">'
+             + '<span class="text-xs text-slate-400 mono">fr</span>';
+    } else {
+      fields = '<span class="text-xs text-slate-400 mono">content-sized</span>';
+    }
+    html += '<div class="trackrow" data-i="' + i + '">'
+      + '<span class="tlabel">' + prefix + (i+1) + '</span>'
+      + '<select class="selfield tunit" style="width:96px">' + unitOptions(t.unit) + '</select>'
+      + fields
+      + '<button class="tdel ml-auto" title="remove">×</button>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+
+function onTrackEvent(axis, e){
+  const arr = axis === "col" ? grid.cols : grid.rows;
+  const row = e.target.closest(".trackrow");
+  if (!row) return;
+  const i = +row.dataset.i;
+  if (e.target.classList.contains("tunit")){
+    arr[i] = mkTrack(e.target.value);
+    clampItems(); full();
+  } else if (e.target.classList.contains("tval")){
+    arr[i][e.target.dataset.k] = parseFloat(e.target.value) || 0;
+    render();
+  } else if (e.target.classList.contains("tdel")){
+    if (arr.length <= 1) return;
+    arr.splice(i, 1);
+    clampItems(); full();
+  }
+}
+colEditor.addEventListener("input", e => onTrackEvent("col", e));
+colEditor.addEventListener("change", e => onTrackEvent("col", e));
+colEditor.addEventListener("click", e => { if (e.target.classList.contains("tdel")) onTrackEvent("col", e); });
+rowEditor.addEventListener("input", e => onTrackEvent("row", e));
+rowEditor.addEventListener("change", e => onTrackEvent("row", e));
+rowEditor.addEventListener("click", e => { if (e.target.classList.contains("tdel")) onTrackEvent("row", e); });
+
+document.getElementById("addCol").onclick = () => { if (grid.cols.length >= 8) return; grid.cols.push(mkTrack("fr")); full(); };
+document.getElementById("addRow").onclick = () => { if (grid.rows.length >= 8) return; grid.rows.push(mkTrack("fr")); full(); };
+
+// ---- gaps ----
+const rngColGap = document.getElementById("rngColGap"), colGapVal = document.getElementById("colGapVal");
+const rngRowGap = document.getElementById("rngRowGap"), rowGapVal = document.getElementById("rowGapVal");
+rngColGap.oninput = () => { grid.colGap = +rngColGap.value; colGapVal.textContent = grid.colGap + "px"; render(); };
+rngRowGap.oninput = () => { grid.rowGap = +rngRowGap.value; rowGapVal.textContent = grid.rowGap + "px"; render(); };
+function syncGapControls(){
+  rngColGap.value = grid.colGap; colGapVal.textContent = grid.colGap + "px";
+  rngRowGap.value = grid.rowGap; rowGapVal.textContent = grid.rowGap + "px";
+}
+
+// ---- items UI ----
+function buildItemsUI(){
+  itemChips.innerHTML = grid.items.map(it =>
+    '<span class="chip' + (it.id === selItemId ? " on" : "") + '" data-id="' + it.id + '" style="' + (it.id === selItemId ? "" : "background:" + it.color + "22;color:" + it.color + ";") + '">' + it.name + '</span>'
+  ).join("") || '<span class="text-xs text-slate-400">no items — add one</span>';
+  const it = selItem();
+  if (!it){ itemEditor.innerHTML = '<div class="text-xs text-slate-400">Select or add an item to edit its placement.</div>'; return; }
+  const CL = grid.cols.length + 1, RL = grid.rows.length + 1;
+  itemEditor.innerHTML =
+    '<div class="flex items-center gap-3 mb-2">'
+    + '<div class="flex items-center gap-1"><span class="text-xs font-bold text-slate-500">name</span>'
+    + '<input id="itName" class="numfield" maxlength="2" value="' + it.name + '" style="width:52px;text-align:center"></div>'
+    + '<div class="flex items-center gap-1"><span class="text-xs font-bold text-slate-500">colour</span>'
+    + '<input id="itColor" type="color" value="' + it.color + '" style="width:40px;height:28px;border:none;background:none;cursor:pointer"></div>'
+    + '</div>'
+    + '<div class="grid grid-cols-2 gap-3">'
+    +   '<div><div class="text-xs font-bold text-slate-500 mb-1">column line <span class="text-slate-400 normal-case">(1–' + CL + ')</span></div>'
+    +     '<div class="flex items-center gap-1"><input id="itCS" class="numfield" type="number" min="1" max="' + (CL-1) + '" value="' + it.cs + '"><span class="text-slate-400 font-bold">/</span><input id="itCE" class="numfield" type="number" min="2" max="' + CL + '" value="' + it.ce + '"></div></div>'
+    +   '<div><div class="text-xs font-bold text-slate-500 mb-1">row line <span class="text-slate-400 normal-case">(1–' + RL + ')</span></div>'
+    +     '<div class="flex items-center gap-1"><input id="itRS" class="numfield" type="number" min="1" max="' + (RL-1) + '" value="' + it.rs + '"><span class="text-slate-400 font-bold">/</span><input id="itRE" class="numfield" type="number" min="2" max="' + RL + '" value="' + it.re + '"></div></div>'
+    + '</div>';
+  document.getElementById("itName").oninput = e => { it.name = (e.target.value.replace(/[^a-zA-Z0-9]/g, "") || "x").slice(0,2); render(); refreshChips(); };
+  document.getElementById("itColor").oninput = e => { it.color = e.target.value; render(); refreshChips(); };
+  const bind = (id, key, lo, hi) => {
+    document.getElementById(id).onchange = e => {
+      it[key] = clamp(parseInt(e.target.value) || lo, lo, hi);
+      if (it.ce <= it.cs) it.ce = it.cs + 1;
+      if (it.re <= it.rs) it.re = it.rs + 1;
+      clampItems(); render(); buildItemsUI();
+    };
+  };
+  bind("itCS", "cs", 1, CL - 1); bind("itCE", "ce", 2, CL);
+  bind("itRS", "rs", 1, RL - 1); bind("itRE", "re", 2, RL);
+}
+function refreshChips(){
+  itemChips.querySelectorAll(".chip").forEach(ch => {
+    const it = grid.items.find(x => x.id === +ch.dataset.id);
+    if (it) ch.textContent = it.name;
+  });
+}
+itemChips.addEventListener("click", e => {
+  const ch = e.target.closest(".chip"); if (!ch || !ch.dataset.id) return;
+  selItemId = +ch.dataset.id; render(); buildItemsUI();
+});
+document.getElementById("addItem").onclick = () => {
+  const name = String.fromCharCode(65 + (grid.items.length % 26));
+  const it = mkItem(name, 1, 2, 1, 2);
+  it.color = PALETTE[grid.items.length % PALETTE.length];
+  grid.items.push(it); selItemId = it.id;
+  clampItems(); render(); buildItemsUI();
+};
+document.getElementById("delItem").onclick = () => {
+  if (grid.items.length <= 1) return;
+  const i = grid.items.findIndex(x => x.id === selItemId);
+  grid.items.splice(i, 1);
+  selItemId = grid.items[Math.max(0, i - 1)].id;
+  render(); buildItemsUI();
+};
+
+// ---- drag-to-span on the preview ----
+let dragging = false, dragStart = null;
+gridPreview.addEventListener("pointerdown", e => {
+  const cell = e.target.closest(".gcell"); if (!cell) return;
+  const it = selItem(); if (!it) return;
+  dragging = true;
+  dragStart = { c: +cell.dataset.c, r: +cell.dataset.r };
+  applyDrag(+cell.dataset.c, +cell.dataset.r);
+  gridPreview.setPointerCapture(e.pointerId);
+});
+gridPreview.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el && el.closest && el.closest(".gcell");
+  if (cell) applyDrag(+cell.dataset.c, +cell.dataset.r);
+});
+window.addEventListener("pointerup", () => { dragging = false; if (grid) buildItemsUI(); });
+function applyDrag(c, r){
+  const it = selItem(); if (!it) return;
+  it.cs = Math.min(dragStart.c, c);
+  it.ce = Math.max(dragStart.c, c) + 1;
+  it.rs = Math.min(dragStart.r, r);
+  it.re = Math.max(dragStart.r, r) + 1;
+  render();
+}
+
+// ---- copy ----
+document.getElementById("copyCss").onclick = () => {
+  const b = document.getElementById("copyCss");
+  navigator.clipboard && navigator.clipboard.writeText(toGridCss(grid));
+  const o = b.textContent; b.textContent = "✓ Copied!";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- full rebuild ----
+function full(){ buildTrackEditor("col"); buildTrackEditor("row"); buildItemsUI(); render(); }
+
+// ---- presets ----
+const PRESETS = {
+  "holy-grail": {
+    cols: [{unit:"px",v1:160},{unit:"fr",v1:1},{unit:"px",v1:160}],
+    rows: [{unit:"auto"},{unit:"fr",v1:1},{unit:"auto"}],
+    colGap: 12, rowGap: 12,
+    items: [
+      {name:"A",cs:1,ce:4,rs:1,re:2},  // header
+      {name:"B",cs:1,ce:2,rs:2,re:3},  // left nav
+      {name:"C",cs:2,ce:3,rs:2,re:3},  // main
+      {name:"D",cs:3,ce:4,rs:2,re:3},  // right aside
+      {name:"E",cs:1,ce:4,rs:3,re:4}   // footer
+    ]
+  },
+  "cards": {
+    cols: [{unit:"fr",v1:1},{unit:"fr",v1:1},{unit:"fr",v1:1}],
+    rows: [{unit:"fr",v1:1},{unit:"fr",v1:1}],
+    colGap: 16, rowGap: 16,
+    items: [
+      {name:"A",cs:1,ce:2,rs:1,re:2},{name:"B",cs:2,ce:3,rs:1,re:2},{name:"C",cs:3,ce:4,rs:1,re:2},
+      {name:"D",cs:1,ce:2,rs:2,re:3},{name:"E",cs:2,ce:3,rs:2,re:3},{name:"F",cs:3,ce:4,rs:2,re:3}
+    ]
+  },
+  "sidebar": {
+    cols: [{unit:"px",v1:220},{unit:"fr",v1:1}],
+    rows: [{unit:"auto"},{unit:"fr",v1:1}],
+    colGap: 0, rowGap: 0,
+    items: [
+      {name:"A",cs:1,ce:2,rs:1,re:3},  // sidebar, full height
+      {name:"B",cs:2,ce:3,rs:1,re:2},  // header
+      {name:"C",cs:2,ce:3,rs:2,re:3}   // content
+    ]
+  },
+  "featured": {
+    cols: [{unit:"fr",v1:2},{unit:"fr",v1:1},{unit:"fr",v1:1}],
+    rows: [{unit:"fr",v1:1},{unit:"fr",v1:1}],
+    colGap: 12, rowGap: 12,
+    items: [
+      {name:"A",cs:1,ce:2,rs:1,re:3},  // big feature spanning both rows
+      {name:"B",cs:2,ce:3,rs:1,re:2},{name:"C",cs:3,ce:4,rs:1,re:2},
+      {name:"D",cs:2,ce:4,rs:2,re:3}   // wide footer of the block
+    ]
+  },
+  "gallery": {
+    cols: [{unit:"minmax",v1:80,v2:1},{unit:"minmax",v1:80,v2:1},{unit:"minmax",v1:80,v2:1},{unit:"minmax",v1:80,v2:1}],
+    rows: [{unit:"fr",v1:1},{unit:"fr",v1:1}],
+    colGap: 10, rowGap: 10,
+    items: [
+      {name:"A",cs:1,ce:3,rs:1,re:3},  // hero tile 2x2
+      {name:"B",cs:3,ce:4,rs:1,re:2},{name:"C",cs:4,ce:5,rs:1,re:2},
+      {name:"D",cs:3,ce:4,rs:2,re:3},{name:"E",cs:4,ce:5,rs:2,re:3}
+    ]
+  }
+};
+const presetsEl = document.getElementById("presets");
+Object.keys(PRESETS).forEach(key => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = key;
+  b.onclick = () => {
+    presetsEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    loadState(PRESETS[key]);
+  };
+  presetsEl.appendChild(b);
+});
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A grid is a skeleton of tracks", why:"The mental model that unlocks everything: CSS Grid is not a bunch of boxes you draw — it is a SKELETON you define once (a list of column widths and a list of row heights) and then place items onto. grid-template-columns lists the columns left-to-right; grid-template-rows lists the rows top-to-bottom. The container becomes a grid the instant you write display:grid, and every direct child becomes a grid item. You describe the frame; the browser fits the furniture.", concept:`<div class="ug w-56" style="grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr"><div></div><div></div><div></div><div></div><div></div><div></div></div>`, code:`.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;  /* three columns */
+  grid-template-rows: 1fr 1fr;         /* two rows */
+}` },
+ { title:"2. Tracks vs LINES (the crux)", why:"This one idea prevents 90% of grid bugs. A TRACK is the space a column or row occupies; a LINE is the boundary between tracks. Critically, N tracks are separated by N+1 lines, numbered from 1. A three-column grid has lines 1, 2, 3, 4 — even though there are only three columns. You size tracks, but you PLACE items against lines. Keep the two words apart in your head and grid-column: 2 / 4 stops being a guessing game.", concept:`<div class="w-64"><div class="ug" style="grid-template-columns:1fr 1fr 1fr"><div></div><div class="muted"></div><div></div></div><div class="flex justify-between mono text-xs text-blue-600 font-bold mt-1"><span>1</span><span>2</span><span>3</span><span>4</span></div><div class="text-xs text-slate-400 mt-1">3 tracks → 4 lines</div></div>`, code:`/* 3 columns  ->  lines 1 2 3 4 */
+.item { grid-column: 2 / 4; } /* lines 2→4 = the 2 middle tracks */` },
+ { title:"3. The fr unit shares leftover space", why:"fr means 'fraction of the FREE space'. The browser first lays out every fixed track (px, and the natural size of auto/content) and subtracts every gap, and only THEN divides whatever is left among the fr tracks in proportion to their numbers. So 1fr 1fr is a 50/50 split of the remainder, and 2fr 1fr is a two-thirds / one-third split of the remainder — not of the whole width. This is why fr columns stay fluid as the container resizes while px columns stay pinned.", concept:`<div class="w-64 space-y-2"><div class="ug" style="grid-template-columns:2fr 1fr 1fr"><div></div><div class="b"></div><div class="b"></div></div><div class="text-xs mono text-slate-500">2fr 1fr 1fr → 50% / 25% / 25%</div></div>`, code:`grid-template-columns: 2fr 1fr 1fr;
+/* free space split 2:1:1  ->  50% / 25% / 25% */` },
+ { title:"4. Four ways to size a track", why:"Every track is one of four shapes. px is a hard fixed length. auto sizes to its content (as big as it needs, no bigger). fr takes a share of leftover space. And minmax(min, max) sets a floor and a ceiling — minmax(100px, 1fr) means 'never shrink below 100px, otherwise grow with the free space', which is the backbone of responsive grids. Mixing them is normal: a 200px sidebar next to a 1fr main is grid-template-columns: 200px 1fr.", concept:`<div class="w-64 space-y-1 mono text-xs"><div class="text-amber-600">100px&nbsp;&nbsp;→ fixed</div><div class="text-blue-600">auto&nbsp;&nbsp;&nbsp;→ fits content</div><div class="text-emerald-600">1fr&nbsp;&nbsp;&nbsp;&nbsp;→ shares free space</div><div class="text-purple-600">minmax(100px,1fr) → floor + ceiling</div></div>`, code:`grid-template-columns: 200px auto 1fr minmax(100px, 1fr);
+/* fixed | content | flexible | clamped-flexible */` },
+ { title:"5. gap is between tracks only", why:"gap (formerly grid-gap) adds a gutter BETWEEN tracks — never before the first track or after the last, and never around the outside of the container. If you want breathing room at the edges, that is padding on the grid itself. The shorthand takes rows first: gap: 12px 20px is 12px between rows and 20px between columns (row-gap column-gap). A single value applies to both. Gaps eat into the space fr tracks divide, which is why a wide gap makes fr columns visibly narrower.", concept:`<div class="w-64 space-y-2"><div class="ug" style="grid-template-columns:1fr 1fr 1fr;gap:14px"><div></div><div></div><div></div></div><div class="text-xs mono text-slate-500">gap: 14px — gutters between, not outside</div></div>`, code:`.grid { gap: 12px 20px; }  /* row-gap:12px  column-gap:20px */
+.grid { gap: 16px; }        /* both the same */` },
+ { title:"6. Place an item by naming lines", why:"An item chooses its patch of the grid by naming a start line and an end line on each axis: grid-column: <start> / <end> and grid-row: <start> / <end>. The end line is EXCLUSIVE, so grid-column: 1 / 3 covers the two tracks between lines 1 and 3. Leaving placement off lets the item auto-flow into the next free cell. This line-naming is the entire placement system — everything else (span, areas, spans of negative lines) is sugar on top.", concept:`<div class="w-64"><div class="ug" style="grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr"><div class="muted"></div><div class="muted"></div><div class="muted"></div><div class="b" style="grid-column:1/3;grid-row:2/3"></div><div class="muted"></div></div><div class="text-xs mono text-blue-600 mt-1">.b { grid-column: 1 / 3; grid-row: 2 / 3 }</div></div>`, code:`.hero {
+  grid-column: 1 / 3;   /* line 1 → line 3 (2 tracks) */
+  grid-row: 2 / 3;      /* the second row */
+}` },
+ { title:"7. span counts tracks, not lines", why:"There are two ways to say the same thing. grid-column: 2 / 4 names the end line explicitly. grid-column: 2 / span 2 says 'start at line 2 and cover 2 tracks' — and lands on exactly the same place. span is handy when you care about WIDTH ('always two columns wide') regardless of where the item starts; explicit end-lines are handy when you care about a fixed edge. They are interchangeable, but mixing the two mental models mid-layout is a classic source of off-by-one confusion.", concept:`<div class="w-64 space-y-1 mono text-xs"><div class="text-amber-600">grid-column: 2 / 4</div><div class="text-slate-400">≡</div><div class="text-blue-600">grid-column: 2 / span 2</div><div class="text-slate-400 mt-1">same two tracks, two ways to say it</div></div>`, code:`.a { grid-column: 2 / 4; }        /* end line = 4 */
+.a { grid-column: 2 / span 2; }   /* cover 2 tracks — identical */` },
+ { title:"8. Implicit tracks appear when you overflow", why:"You only ever define your EXPLICIT grid with grid-template-columns/rows. But if an item is placed on a line beyond that (say row line 5 when you defined only 3 rows), the browser silently creates IMPLICIT tracks to reach it. Their size comes from grid-auto-rows / grid-auto-columns (auto by default). This is why 'extra' rows sometimes appear that you never wrote — an item, or auto-flow, pushed past the explicit grid. Set grid-auto-rows to control how those overflow tracks are sized.", concept:`<div class="w-64"><div class="ug" style="grid-template-columns:1fr 1fr"><div></div><div></div><div class="b"></div><div class="b" style="border:2px dashed #1e3a8a"></div></div><div class="text-xs text-slate-400 mt-1">row 2 was auto-created (implicit)</div></div>`, code:`.grid { grid-template-rows: 1fr; }  /* only ONE explicit row */
+.grid { grid-auto-rows: 120px; }    /* overflow rows become 120px */` },
+ { title:"9. No placement? Items auto-flow", why:"Items without an explicit grid-column/row are placed automatically, one after another, into the next empty cell — left to right, top to bottom by default. grid-auto-flow controls the direction (row vs column) and whether the algorithm back-fills gaps (the dense keyword). This is why a plain display:grid with three columns and nine children just fills a neat 3×3 with no per-item CSS at all. Auto-flow plus repeat() is the fastest responsive card grid you can write.", concept:`<div class="w-64"><div class="ug" style="grid-template-columns:1fr 1fr 1fr"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div></div><div class="text-xs text-slate-400 mt-1">no placement — items flow into cells</div></div>`, code:`.grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+/* children with NO placement fill cells in order */
+.grid { grid-auto-flow: dense; } /* back-fill holes */` },
+ { title:"10. repeat() and named areas are sugar", why:"Two shorthands make big grids readable. repeat(3, 1fr) expands to 1fr 1fr 1fr, and repeat(auto-fill, minmax(180px, 1fr)) is the famous 'as many equal columns as fit' responsive trick. grid-template-areas lets you draw the layout as ASCII art — name regions in a string map, then each item says grid-area: header. Both compile down to the same tracks and lines you have been using; they are convenience layers, not new mechanics. Learn the lines first, reach for the sugar second.", concept:`<div class="w-64 space-y-1 mono text-xs"><div class="text-amber-600">repeat(3, 1fr) ≡ 1fr 1fr 1fr</div><div class="text-emerald-600">repeat(auto-fill, minmax(180px,1fr))</div><div class="text-blue-600">grid-template-areas: "head head"</div><div class="text-slate-400 mt-1">readable sugar over lines + tracks</div></div>`, code:`grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+grid-template-areas: "header header" "nav main";
+.card { grid-area: main; } /* place by area name */` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+loadState({
+  cols: [{unit:"fr",v1:1},{unit:"fr",v1:1},{unit:"fr",v1:1}],
+  rows: [{unit:"auto"},{unit:"fr",v1:1}],
+  colGap: 12, rowGap: 12,
+  items: [
+    {name:"A",cs:1,ce:2,rs:1,re:2},
+    {name:"B",cs:2,ce:4,rs:2,re:3}
+  ]
+});
+</script>
+</body>
+</html>
