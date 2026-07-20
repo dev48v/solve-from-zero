@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 39 — Meta-Tag / Open-Graph Previewer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  /* ---- form fields ---- */
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+  .tin { width:100%; border:1px solid #e2e8f0; background:#fff; border-radius:8px; padding:7px 9px; font-size:13px; color:#0f172a; }
+  .tin:focus { outline:2px solid #f59e0b; border-color:#f59e0b; }
+  textarea.tin { font-family:ui-monospace,Menlo,monospace; font-size:12px; line-height:1.5; resize:vertical; }
+
+  /* ---- Google SERP preview ---- */
+  .serp { font-family: arial, "Segoe UI", sans-serif; }
+  .serp-head { display:flex; align-items:center; gap:9px; margin-bottom:2px; }
+  .serp-fav { width:26px;height:26px;border-radius:50%;background:#f1f3f4;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;border:1px solid #ecedef;}
+  .serp-site { font-size:14px; color:#202124; line-height:1.2; }
+  .serp-url { font-size:12px; color:#5f6368; line-height:1.3; word-break:break-all; }
+  .serp-title { color:#1a0dab; font-size:20px; line-height:1.3; margin-top:3px; }
+  .serp-title:hover { text-decoration:underline; cursor:pointer; }
+  .serp-desc { color:#4d5156; font-size:14px; line-height:1.58; margin-top:3px; }
+
+  /* ---- shared card image ---- */
+  .cardimg { position:relative; width:100%; aspect-ratio:1.91/1; background:linear-gradient(135deg,#e2e8f0,#cbd5e1); overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .cardimg img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .cardimg span { position:relative; z-index:0; font-size:11px; color:#64748b; font-weight:700; font-family:ui-monospace,Menlo,monospace; text-align:center; padding:0 12px; }
+  .cardimg.noimg { background:repeating-linear-gradient(45deg,#eef2f7,#eef2f7 10px,#e2e8f0 10px,#e2e8f0 20px); }
+
+  /* ---- X / Twitter card ---- */
+  .twcard { border:1px solid #cfd9de; border-radius:16px; overflow:hidden; font-family:-apple-system,"Segoe UI",sans-serif; background:#fff; }
+  .twcard .cardimg { border-bottom:1px solid #cfd9de; }
+  .twmeta { padding:10px 12px; }
+  .twdomain { color:#536471; font-size:13px; line-height:1.35; }
+  .twtitle { color:#0f1419; font-size:15px; font-weight:600; line-height:1.3; margin-top:1px; }
+  .twdesc { color:#536471; font-size:14px; line-height:1.35; margin-top:2px; }
+  .twcard.small { display:flex; }
+  .twcard.small .cardimg { width:120px; aspect-ratio:1/1; flex:none; border-bottom:none; border-right:1px solid #cfd9de; }
+  .twcard.small .twmeta { display:flex; flex-direction:column; justify-content:center; }
+
+  /* ---- Facebook / LinkedIn card ---- */
+  .fbcard { border:1px solid #dadde1; border-radius:8px; overflow:hidden; font-family:Helvetica,Arial,sans-serif; background:#fff; }
+  .fbmeta { padding:10px 12px; background:#f2f3f5; border-top:1px solid #dadde1; }
+  .fbdomain { color:#606770; font-size:12px; text-transform:uppercase; letter-spacing:.3px; line-height:1.4; }
+  .fbtitle { color:#1d2129; font-size:16px; font-weight:700; line-height:1.3; margin-top:3px; }
+  .fbdesc { color:#606770; font-size:14px; line-height:1.4; margin-top:3px; }
+
+  /* ---- warnings ---- */
+  .warn-row { display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-bottom:1px dashed #e2e8f0; font-size:13px; color:#334155; }
+  .warn-row:last-child { border-bottom:none; }
+  .warn-ico { width:20px; flex:none; text-align:center; }
+  .bar { height:6px; border-radius:3px; background:#e2e8f0; overflow:hidden; margin-top:5px; max-width:260px; }
+  .bar > i { display:block; height:100%; border-radius:3px; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .demorow { display:flex; align-items:center; gap:8px; font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.og { background:#dbeafe; color:#1d4ed8; }
+  .pill.tw { background:#e0f2fe; color:#0369a1; }
+  .pill.base { background:#fef3c7; color:#92400e; }
+  .ratio-box { border:2px dashed #94a3b8; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:800; font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .tbar { height:14px; border-radius:4px; background:#f59e0b; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 39</div>
+      <h1 class="text-xl font-bold">🔗 Meta-Tag / OG Previewer — one set of <em>tags</em> in your <code>&lt;head&gt;</code>, three very different social <em>cards</em></h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Fill the fields <em>or</em> paste a <code>&lt;head&gt;</code> — watch the Google, X and Facebook/LinkedIn cards, then copy the tags.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">When someone shares your link, the platform's <strong>crawler</strong> fetches the page and reads a handful of <code>&lt;meta&gt;</code> tags out of the <code>&lt;head&gt;</code> to build a preview card. There are two overlapping vocabularies: <strong>Open Graph</strong> (<code>og:*</code>, used by Facebook, LinkedIn, Slack, WhatsApp and most others) and <strong>Twitter Cards</strong> (<code>twitter:*</code>, used by X). Each platform reads what it wants, <strong>falls back</strong> when a tag is missing (<code>og:title</code> ← <code>&lt;title&gt;</code>, <code>twitter:*</code> ← <code>og:*</code>), and <strong>truncates differently</strong> — Google clips the title near 60 chars, X and Facebook clip at other lengths. The image wants a <strong>1200×630</strong> (1.91:1) ratio or it gets cropped. This tool resolves that whole fallback chain live, shows the three real-world cards, and writes the exact tag block for you to paste. No library — just string work and the browser's own layout.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: source fields + paste + examples -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Source fields <span class="text-slate-400 normal-case">— the base values every card is built from</span></div>
+            <div>
+              <div class="fieldlabel">Title <span class="text-slate-400 normal-case">— becomes <code>&lt;title&gt;</code> + <code>og:title</code></span></div>
+              <input id="fTitle" class="tin" type="text" maxlength="200">
+            </div>
+            <div>
+              <div class="fieldlabel">Description <span class="text-slate-400 normal-case">— <code>meta description</code> + <code>og:description</code></span></div>
+              <textarea id="fDesc" class="tin" rows="3" maxlength="400"></textarea>
+            </div>
+            <div>
+              <div class="fieldlabel">Canonical URL <span class="text-slate-400 normal-case">— <code>og:url</code> + the displayed domain</span></div>
+              <input id="fUrl" class="tin" type="text" placeholder="https://example.com/page">
+            </div>
+            <div>
+              <div class="fieldlabel">Image URL <span class="text-slate-400 normal-case">— <code>og:image</code> · absolute, 1200×630</span></div>
+              <input id="fImage" class="tin" type="text" placeholder="https://example.com/cover.png">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="fieldlabel">Site name <span class="text-slate-400 normal-case"><code>og:site_name</code></span></div>
+                <input id="fSite" class="tin" type="text">
+              </div>
+              <div>
+                <div class="fieldlabel">Twitter card type</div>
+                <select id="fCard" class="tin">
+                  <option value="summary_large_image">summary_large_image</option>
+                  <option value="summary">summary</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">…or paste a page's <code>&lt;head&gt;</code></div>
+              <button id="parseBtn" class="mini px-3 py-1.5 rounded-lg font-semibold text-xs">Parse &amp; fill fields</button>
+            </div>
+            <textarea id="headIn" class="tin" rows="6" placeholder="&lt;head&gt; … &lt;/head&gt;"></textarea>
+            <div class="text-xs text-slate-400">The parser pulls <code>&lt;title&gt;</code>, <code>meta description</code>, every <code>og:*</code> and <code>twitter:*</code>, and the canonical link — then fills the fields above so you can see how an existing page already previews.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Examples <span class="text-slate-400 normal-case">— each is just a set of field values</span></div>
+            <div id="examples"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: warnings + 3 live cards -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Checks <span class="text-slate-400 normal-case">— length limits &amp; image ratio</span></div>
+            <div id="warnList"></div>
+            <div class="warn-row"><div class="warn-ico" id="imgIco">⏳</div><div id="imgWarn">…</div></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">🔍 Google result <span class="text-slate-400 normal-case">— title ~60, description ~160</span></div>
+            <div id="pvGoogle"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">𝕏 X / Twitter <span class="text-slate-400 normal-case">— <span id="cardKind" class="mono">summary_large_image</span></span></div>
+            <div id="pvTwitter"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">f / in Facebook / LinkedIn <span class="text-slate-400 normal-case">— reads Open Graph</span></div>
+            <div id="pvFacebook"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- generated tags -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Generated tags <span class="text-slate-400 normal-case">— paste into your <code>&lt;head&gt;</code></span></div>
+          <button id="copyTags" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy tags</button>
+        </div>
+        <pre id="tagsOut" style="white-space:pre;margin:0;max-height:340px"></pre>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. <code>og:</code> uses <code>property=</code>, <code>twitter:</code> uses <code>name=</code>.</strong> <code>&lt;meta property="og:title"&gt;</code> but <code>&lt;meta name="twitter:card"&gt;</code>. Swap the attribute and the tag is silently ignored — the single most common "why is my card blank?" bug. <strong>2. Missing tags fall back, they don't fail.</strong> No <code>og:title</code>? Facebook uses the <code>&lt;title&gt;</code>. No <code>twitter:image</code>? X uses <code>og:image</code>. You rarely need to repeat yourself — write the Open Graph set well and Twitter mostly inherits it. <strong>3. Every platform truncates at a different length.</strong> Google clips the title around 60 chars and the description around 160; X and Facebook clip elsewhere. There is no single "correct" length — write for the shortest cutoff you care about. <strong>4. The image must be an ABSOLUTE URL and roughly 1200×630.</strong> Relative paths and wrong ratios are why images vanish or get cropped; large cards want 1.91:1, and the file should be reachable by an anonymous crawler (no login wall). <strong>5. Crawlers don't run your JavaScript and they CACHE.</strong> Tags injected by client-side JS usually won't be seen — they must be in the HTML the server returns. And once a platform scrapes your URL it remembers; use each platform's debugger to force a re-scrape after you change tags.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How social previews actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE / TAGS FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A meta-tag previewer has one clever idea and a lot of easy plumbing. The clever idea: the whole tool is a <strong>fallback resolver</strong> — a tiny function that, for each platform, walks a list of tags and takes the first non-empty one (<code>twitter:title</code> → <code>og:title</code> → <code>&lt;title&gt;</code>). Everything else is data: six base fields in, a resolved <code>og{}</code>/<code>twitter{}</code> object out, three renderers that drop those strings into HTML, and a serialiser that prints the tag block. The only real-world concept you must keep straight is <strong>who reads what and how far it truncates</strong>. There is <strong>no library</strong>.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The whole state is six base fields</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You do not store a tag per platform — you store the <strong>source of truth</strong> once and derive every tag from it. Title, description, URL, image, site name, and the Twitter card type. That flat object <em>is</em> your document; the previews are just views of it.</p>
+        <div class="relative"><pre>let state = {
+  title:       "How to Build a Meta-Tag Previewer",
+  description: "A hands-on guide to Open Graph & Twitter Cards…",
+  url:         "https://solvefromzero.dev/blog/og-previewer",
+  image:       "https://solvefromzero.dev/img/og-cover.png",
+  siteName:    "SolveFromZero",
+  card:        "summary_large_image"   // or "summary"
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The fallback rule is "first non-empty wins"</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This one helper is the heart of the whole tool. Give it a list of candidates in priority order and it returns the first that actually has a value. Every fallback chain in Open Graph and Twitter Cards is just a call to this.</p>
+        <div class="relative"><pre>function pick(...vals){
+  for (const v of vals)
+    if (v != null && String(v).trim() !== "") return String(v);
+  return "";
+}
+// pick(state.twTitle, state.ogTitle, state.title)  -> first one that exists</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Resolve the base fields into og{} and twitter{}</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Now wire the chains. Open Graph reads the base fields; Twitter reads its own tag, then Open Graph, then the base — so a page that only sets <code>og:*</code> still gets a full X card. This function encodes the entire cross-platform fallback model in a dozen lines.</p>
+        <div class="relative"><pre>function resolve(s){
+  const title = pick(s.title), desc = pick(s.description);
+  const url = pick(s.url), image = pick(s.image);
+  return {
+    docTitle: title, metaDesc: desc, canonical: url,
+    og: { type:"website", title, description:desc, url, image, siteName:pick(s.siteName) },
+    tw: {
+      card:  pick(s.card, "summary_large_image"),
+      title: pick(s.twTitle, title),       // twitter:title ← og:title ← &lt;title&gt;
+      description: pick(s.twDescription, desc),
+      image: pick(s.twImage, image)        // twitter:image ← og:image
+    }
+  };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Truncation is one function + a table</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each surface clips text at a different length, so keep the limits as data and share one <code>truncate</code>. Cut at the limit, trim trailing space, add an ellipsis — that is the entire "this is what Google will actually show" logic.</p>
+        <div class="relative"><pre>const LIMITS = {
+  google:  { title: 60, desc: 160 },
+  twitter: { title: 70, desc: 200 },
+  facebook:{ title: 88, desc: 200 }
+};
+function truncate(str, n){
+  str = str || "";
+  return str.length <= n ? str : str.slice(0, n - 1).trimEnd() + "…";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Parse a pasted &lt;head&gt; (no DOM needed)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To read an existing page, sweep every <code>&lt;meta&gt;</code> tag and key it by its <code>property</code> or <code>name</code>. A small attribute-reader plus a regex loop is enough — and it runs anywhere, even under Node, because it never touches the DOM. (In the browser you could equally use <code>DOMParser</code>.)</p>
+        <div class="relative"><pre>function attr(tag, name){
+  const m = tag.match(new RegExp(name + '\\s*=\\s*"([^"]*)"', 'i'));
+  return m ? m[1] : null;
+}
+function parseHead(html){
+  const out = {};
+  const t = html.match(/&lt;title[^&gt;]*&gt;([\s\S]*?)&lt;\/title&gt;/i);
+  if (t) out.title = t[1].trim();
+  for (const m of html.matchAll(/&lt;meta\b[^&gt;]*&gt;/gi)){
+    const key = (attr(m[0],"property") || attr(m[0],"name") || "").toLowerCase();
+    const content = attr(m[0], "content");
+    if (key === "description")   out.description = content;
+    if (key === "og:image")      out.image = content;   // …and the rest
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Render #1 — the Google result</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A search result is a favicon + site name, the URL as a breadcrumb, a blue title clipped at 60, and a grey description clipped at 160. Feed the resolved values through <code>truncate</code> and drop them into markup — the preview is just HTML.</p>
+        <div class="relative"><pre>function serpHtml(t){
+  const dom = domainOf(t.canonical);
+  return `&lt;div class="serp"&gt;
+    &lt;div class="serp-site"&gt;${t.og.siteName || dom}&lt;/div&gt;
+    &lt;div class="serp-url"&gt;${breadcrumb(t.canonical)}&lt;/div&gt;
+    &lt;div class="serp-title"&gt;${truncate(t.docTitle, LIMITS.google.title)}&lt;/div&gt;
+    &lt;div class="serp-desc"&gt;${truncate(t.metaDesc, LIMITS.google.desc)}&lt;/div&gt;
+  &lt;/div&gt;`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Render #2 — the X card (two shapes)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The Twitter card type decides the layout: <code>summary_large_image</code> puts a big 1.91:1 image on top, <code>summary</code> puts a small square thumbnail on the left. Same data, one <code>if</code>. The image box shows the picture when it loads and a placeholder when it can't — so an unreachable image never breaks the card.</p>
+        <div class="relative"><pre>function twHtml(t){
+  const large = t.tw.card !== "summary";
+  const meta = `&lt;div class="twdomain"&gt;${domainOf(t.canonical)}&lt;/div&gt;
+    &lt;div class="twtitle"&gt;${truncate(t.tw.title, LIMITS.twitter.title)}&lt;/div&gt;
+    &lt;div class="twdesc"&gt;${truncate(t.tw.description, LIMITS.twitter.desc)}&lt;/div&gt;`;
+  return large
+    ? `&lt;div class="twcard"&gt;${imgBox(t.tw.image)}&lt;div class="twmeta"&gt;${meta}&lt;/div&gt;&lt;/div&gt;`
+    : `&lt;div class="twcard small"&gt;${imgBox(t.tw.image)}&lt;div class="twmeta"&gt;${meta}&lt;/div&gt;&lt;/div&gt;`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Render #3 — Facebook / LinkedIn (Open Graph)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Facebook and LinkedIn read the <em>same</em> Open Graph tags, so they share one renderer: image on top, then a grey bar with the domain in UPPERCASE, a bold title, and the description. This is why getting <code>og:*</code> right covers most of the internet at once.</p>
+        <div class="relative"><pre>function fbHtml(t){
+  return `&lt;div class="fbcard"&gt;
+    ${imgBox(t.og.image)}
+    &lt;div class="fbmeta"&gt;
+      &lt;div class="fbdomain"&gt;${domainOf(t.og.url).toUpperCase()}&lt;/div&gt;
+      &lt;div class="fbtitle"&gt;${truncate(t.og.title, LIMITS.facebook.title)}&lt;/div&gt;
+      &lt;div class="fbdesc"&gt;${truncate(t.og.description, LIMITS.facebook.desc)}&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Serialise the tag block — the deliverable</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The export is the resolved values printed as tags — remembering the attribute gotcha: <code>og:*</code> is <code>property=</code>, <code>twitter:*</code> is <code>name=</code>. Escape the content, join with newlines, hand it to the clipboard. That single string is the whole point of the tool.</p>
+        <div class="relative"><pre>function buildTags(s){
+  const t = resolve(s), e = escAttr;
+  return [
+    `&lt;title&gt;${e(t.docTitle)}&lt;/title&gt;`,
+    `&lt;meta name="description" content="${e(t.metaDesc)}"&gt;`,
+    `&lt;meta property="og:title" content="${e(t.og.title)}"&gt;`,
+    `&lt;meta property="og:image" content="${e(t.og.image)}"&gt;`,
+    `&lt;meta name="twitter:card" content="${e(t.tw.card)}"&gt;`,
+    `&lt;meta name="twitter:image" content="${e(t.tw.image)}"&gt;`
+    // …og:type/description/url/site_name + twitter:title/description
+  ].join("\n");
+}
+copyBtn.onclick = () =&gt; navigator.clipboard.writeText(buildTags(state));</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Warnings · check the image with the browser</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Lengths you can check against the <code>LIMITS</code> table. For the image ratio, don't compute anything — <strong>let the browser load it</strong> and read <code>naturalWidth</code>/<code>naturalHeight</code>. A token guards against a stale image finishing after the field changed. That is the whole tool: resolve, render, warn, copy.</p>
+        <div class="relative"><pre>let imgToken = 0;
+function checkImage(src){
+  const token = ++imgToken;
+  const im = new Image();
+  im.onload = () =&gt; {
+    if (token !== imgToken) return;            // a newer check started — ignore
+    const w = im.naturalWidth, h = im.naturalHeight;
+    const ok = Math.abs(w / h - 1.905) < 0.06; // ~1.91:1
+    warnImage(ok, `${w}×${h}`);
+  };
+  im.onerror = () =&gt; warnImage(null, "couldn't load (fine once served)");
+  im.src = src;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 39 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real meta-tag / Open-Graph previewer with <strong>no library</strong>: a state of six base fields; a <code>pick</code> helper whose "first non-empty wins" rule <em>is</em> the entire cross-platform fallback model (<code>twitter:*</code> ← <code>og:*</code> ← <code>&lt;title&gt;</code>); a shared <code>truncate</code> driven by a per-platform <code>LIMITS</code> table; three renderers that turn the resolved values into the Google, X and Facebook/LinkedIn cards; a serialiser that prints the tag block (minding <code>property=</code> vs <code>name=</code>); and the neat trick of letting the <strong>browser itself load the image</strong> to verify the 1200×630 ratio. The lesson underneath: <strong>a social preview is not something you design per platform — it is one honest set of tags, and each platform resolves, truncates and lays it out its own way; your job is to write the tags well and know how far each one gets clipped.</strong> <strong>👉 Tomorrow — Day 40:</strong> a <strong>Flexbox Playground</strong> — toggle <code>justify-content</code>, <code>align-items</code>, <code>flex-wrap</code> and per-item <code>flex-grow</code> live, and copy the flex CSS.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==OG-ENGINE-START== (pure string logic — no DOM, this block also runs under Node)
+// A social preview is built from ONE set of base fields. Each platform RESOLVES the
+// tags it wants through a fallback chain (first non-empty wins) and TRUNCATES text at
+// its own length. Open Graph (og:*, property=) feeds Facebook/LinkedIn/most; Twitter
+// Cards (twitter:*, name=) feed X and fall back to og:* and then <title>.
+//   pick(...v)     : the fallback rule — first candidate with a real value
+//   resolve(s)     : base fields -> { docTitle, metaDesc, canonical, og{}, tw{} }
+//   truncate(str,n): clip + ellipsis (per-platform limits live in LIMITS)
+//   parseHead(html): read <title> + every og:/twitter:/description out of a <head>
+//   buildTags(s)   : the whole tag block — the deliverable
+const LIMITS = {
+  google:  { title: 60, desc: 160 },
+  twitter: { title: 70, desc: 200 },
+  facebook:{ title: 88, desc: 200 }
+};
+function pick(){
+  for (let i = 0; i < arguments.length; i++){
+    const v = arguments[i];
+    if (v != null && String(v).trim() !== "") return String(v);
+  }
+  return "";
+}
+function resolve(s){
+  const title = pick(s.title), desc = pick(s.description);
+  const url = pick(s.url), image = pick(s.image);
+  return {
+    docTitle: title, metaDesc: desc, canonical: url,
+    og: {
+      type: pick(s.ogType, "website"),
+      title: pick(s.ogTitle, title),               // og:title ← <title>
+      description: pick(s.ogDescription, desc),     // og:description ← description
+      url: pick(s.ogUrl, url),
+      image: pick(s.ogImage, image),
+      siteName: pick(s.siteName)
+    },
+    tw: {
+      card: pick(s.card, s.twCard, "summary_large_image"),
+      title: pick(s.twTitle, s.ogTitle, title),               // twitter:title ← og:title ← <title>
+      description: pick(s.twDescription, s.ogDescription, desc),
+      image: pick(s.twImage, s.ogImage, image)                // twitter:image ← og:image
+    }
+  };
+}
+function truncate(str, n){
+  str = str || "";
+  return str.length <= n ? str : str.slice(0, n - 1).trimEnd() + "…";
+}
+function escAttr(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function decodeEntities(s){
+  return String(s)
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&#x27;/gi, "'").replace(/&apos;/g, "'");
+}
+function attr(tag, name){
+  const m = tag.match(new RegExp(name + '\\s*=\\s*("([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i'));
+  if (!m) return null;
+  return m[2] != null ? m[2] : (m[3] != null ? m[3] : m[4]);
+}
+function parseHead(html){
+  const out = {};
+  const t = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (t) out.title = decodeEntities(t[1].trim());
+  const metaRe = /<meta\b[^>]*>/gi; let m;
+  while ((m = metaRe.exec(html))){
+    const key = (attr(m[0], "property") || attr(m[0], "name") || "").toLowerCase();
+    const content = attr(m[0], "content");
+    if (!key || content == null) continue;
+    const c = decodeEntities(content);
+    if (key === "description")           out.description = c;
+    else if (key === "og:title")         out.ogTitle = c;
+    else if (key === "og:description")   out.ogDescription = c;
+    else if (key === "og:url")           out.ogUrl = c;
+    else if (key === "og:image")         out.ogImage = c;
+    else if (key === "og:site_name")     out.siteName = c;
+    else if (key === "og:type")          out.ogType = c;
+    else if (key === "twitter:card")     out.twCard = c;
+    else if (key === "twitter:title")    out.twTitle = c;
+    else if (key === "twitter:description") out.twDescription = c;
+    else if (key === "twitter:image" || key === "twitter:image:src") out.twImage = c;
+  }
+  const linkRe = /<link\b[^>]*>/gi;
+  while ((m = linkRe.exec(html))){
+    if ((attr(m[0], "rel") || "").toLowerCase() === "canonical"){ out.url = decodeEntities(attr(m[0], "href") || ""); }
+  }
+  return out;
+}
+function domainOf(url){
+  if (!url) return "example.com";
+  const s = url.replace(/^[a-z]+:\/\//i, "").replace(/^www\./i, "");
+  return s.split(/[\/?#]/)[0] || "example.com";
+}
+function breadcrumb(url){
+  if (!url) return "example.com";
+  const s = url.replace(/^[a-z]+:\/\//i, "").replace(/^www\./i, "");
+  const parts = s.split(/[?#]/)[0].split("/").filter(Boolean);
+  return parts.join("  ›  ");
+}
+function buildTags(s){
+  const t = resolve(s), e = escAttr;
+  const L = [
+    "<!-- Primary -->",
+    "<title>" + e(t.docTitle) + "</title>",
+    '<meta name="description" content="' + e(t.metaDesc) + '">',
+    '<link rel="canonical" href="' + e(t.canonical) + '">',
+    "",
+    "<!-- Open Graph — Facebook, LinkedIn, Slack, WhatsApp… -->",
+    '<meta property="og:type" content="' + e(t.og.type) + '">',
+    '<meta property="og:title" content="' + e(t.og.title) + '">',
+    '<meta property="og:description" content="' + e(t.og.description) + '">',
+    '<meta property="og:url" content="' + e(t.og.url) + '">',
+    '<meta property="og:image" content="' + e(t.og.image) + '">',
+    '<meta property="og:site_name" content="' + e(t.og.siteName) + '">',
+    "",
+    "<!-- Twitter / X (property? no — twitter uses name=) -->",
+    '<meta name="twitter:card" content="' + e(t.tw.card) + '">',
+    '<meta name="twitter:title" content="' + e(t.tw.title) + '">',
+    '<meta name="twitter:description" content="' + e(t.tw.description) + '">',
+    '<meta name="twitter:image" content="' + e(t.tw.image) + '">'
+  ];
+  return L.join("\n");
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { pick, resolve, truncate, parseHead, buildTags, domainOf, breadcrumb, LIMITS };
+// ==OG-ENGINE-END==
+
+// ===== LOOK: state + fields =====
+let state;
+const F = {
+  title: document.getElementById("fTitle"),
+  desc:  document.getElementById("fDesc"),
+  url:   document.getElementById("fUrl"),
+  image: document.getElementById("fImage"),
+  site:  document.getElementById("fSite"),
+  card:  document.getElementById("fCard")
+};
+const pvGoogle   = document.getElementById("pvGoogle");
+const pvTwitter  = document.getElementById("pvTwitter");
+const pvFacebook = document.getElementById("pvFacebook");
+const tagsOut    = document.getElementById("tagsOut");
+const warnList   = document.getElementById("warnList");
+const cardKind   = document.getElementById("cardKind");
+
+function setState(obj){
+  state = { title:"", description:"", url:"", image:"", siteName:"", card:"summary_large_image" };
+  for (const k in obj) if (obj[k] != null) state[k] = obj[k];
+  syncFields();
+  render();
+}
+function syncFields(){
+  F.title.value = state.title;
+  F.desc.value  = state.description;
+  F.url.value   = state.url;
+  F.image.value = state.image;
+  F.site.value  = state.siteName;
+  F.card.value  = state.card;
+}
+function readFields(){
+  state.title = F.title.value;
+  state.description = F.desc.value;
+  state.url = F.url.value;
+  state.image = F.image.value;
+  state.siteName = F.site.value;
+  state.card = F.card.value;
+  render();
+}
+["title","desc","url","image","site"].forEach(k => F[k].addEventListener("input", readFields));
+F.card.addEventListener("change", readFields);
+
+// ---- image box (shows picture, falls back to placeholder) ----
+function imgBox(src){
+  if (!src) return '<div class="cardimg noimg"><span>No og:image set</span></div>';
+  return '<div class="cardimg"><span>image can\'t load here — fine once served</span>'
+       + '<img src="' + escAttr(src) + '" alt="" onerror="this.parentElement.classList.add(\'noimg\');this.remove()"></div>';
+}
+
+// ---- three renderers ----
+function serpHtml(t){
+  const dom  = domainOf(t.canonical);
+  const site = escAttr(t.og.siteName || dom);
+  const crumb = escAttr(breadcrumb(t.canonical));
+  const title = escAttr(truncate(t.docTitle || "Untitled page", LIMITS.google.title));
+  const desc  = escAttr(truncate(t.metaDesc || "No meta description set — Google will pull a snippet from the page body instead.", LIMITS.google.desc));
+  return '<div class="serp"><div class="serp-head"><div class="serp-fav">🌐</div>'
+       + '<div><div class="serp-site">' + site + '</div><div class="serp-url">' + crumb + '</div></div></div>'
+       + '<div class="serp-title">' + title + '</div><div class="serp-desc">' + desc + '</div></div>';
+}
+function twHtml(t){
+  const large = t.tw.card !== "summary";
+  const dom   = escAttr(domainOf(t.canonical));
+  const title = escAttr(truncate(t.tw.title || "Untitled", LIMITS.twitter.title));
+  const desc  = escAttr(truncate(t.tw.description || "", LIMITS.twitter.desc));
+  const meta  = '<div class="twdomain">🔗 ' + dom + '</div>'
+              + '<div class="twtitle">' + title + '</div>'
+              + (desc ? '<div class="twdesc">' + desc + '</div>' : '');
+  return '<div class="twcard' + (large ? '' : ' small') + '">' + imgBox(t.tw.image)
+       + '<div class="twmeta">' + meta + '</div></div>';
+}
+function fbHtml(t){
+  const dom   = escAttr(domainOf(t.og.url).toUpperCase());
+  const title = escAttr(truncate(t.og.title || "Untitled", LIMITS.facebook.title));
+  const desc  = escAttr(truncate(t.og.description || "", LIMITS.facebook.desc));
+  return '<div class="fbcard">' + imgBox(t.og.image)
+       + '<div class="fbmeta"><div class="fbdomain">' + dom + '</div>'
+       + '<div class="fbtitle">' + title + '</div>'
+       + (desc ? '<div class="fbdesc">' + desc + '</div>' : '') + '</div></div>';
+}
+
+// ---- warnings ----
+function barHtml(len, max){
+  const pct = Math.min(100, Math.round(len / max * 100));
+  const col = len > max ? "#f59e0b" : (len === 0 ? "#cbd5e1" : "#10b981");
+  return '<div class="bar"><i style="width:' + pct + '%;background:' + col + '"></i></div>';
+}
+function wrow(level, html){
+  const ico = level === "ok" ? "✅" : (level === "warn" ? "⚠️" : "ℹ️");
+  return '<div class="warn-row"><div class="warn-ico">' + ico + '</div><div>' + html + '</div></div>';
+}
+function renderWarnings(t){
+  let h = "";
+  const tl = t.docTitle.length;
+  h += wrow(tl === 0 ? "warn" : (tl > LIMITS.google.title ? "warn" : "ok"),
+    '<b>Title</b> ' + tl + '/' + LIMITS.google.title + ' chars '
+    + (tl === 0 ? '— empty' : (tl > LIMITS.google.title ? '— over Google’s ~60-char cutoff; the end will be clipped' : '— fits Google'))
+    + barHtml(tl, LIMITS.google.title));
+  const dl = t.metaDesc.length;
+  h += wrow(dl === 0 ? "info" : (dl > LIMITS.google.desc ? "warn" : "ok"),
+    '<b>Description</b> ' + dl + '/' + LIMITS.google.desc + ' chars '
+    + (dl === 0 ? '— none set (Google will improvise a snippet)' : (dl > LIMITS.google.desc ? '— past ~160; the tail is dropped in results' : '— fits Google'))
+    + barHtml(dl, LIMITS.google.desc));
+  h += wrow(t.og.url ? "ok" : "warn",
+    '<b>og:url</b> ' + (t.og.url ? 'set — <span class="mono">' + escAttr(domainOf(t.og.url)) + '</span>' : 'missing — set an absolute canonical URL'));
+  h += wrow("info", '<b>twitter:card</b> = <span class="mono">' + escAttr(t.tw.card) + '</span> — '
+    + (t.tw.card === "summary" ? 'small square thumbnail' : 'big 1.91:1 banner image'));
+  warnList.innerHTML = h;
+}
+
+// ---- image dimension check (browser loads it) ----
+let imgToken = 0;
+const imgIco  = document.getElementById("imgIco");
+const imgWarn = document.getElementById("imgWarn");
+function setImg(level, html){
+  imgIco.textContent = level === "ok" ? "✅" : (level === "warn" ? "⚠️" : "ℹ️");
+  imgWarn.innerHTML = html;
+}
+function checkImage(src){
+  if (!src){ setImg("warn", '<b>og:image</b> missing — cards show a blank/placeholder image. Add a 1200×630 image.'); return; }
+  setImg("info", '<b>og:image</b> — loading to check dimensions…');
+  const token = ++imgToken;
+  const im = new Image();
+  im.onload = () => {
+    if (token !== imgToken) return;
+    const w = im.naturalWidth, h = im.naturalHeight, ratio = w / h;
+    if (!w || !h){ setImg("info", '<b>og:image</b> loaded but reported no size — aim for 1200×630.'); return; }
+    if (w === 1200 && h === 630){ setImg("ok", '<b>og:image</b> is exactly <span class="mono">1200×630</span> — ideal.'); return; }
+    const good = Math.abs(ratio - 1.905) < 0.06;
+    const small = w < 600 || h < 315;
+    if (good && !small) setImg("ok", '<b>og:image</b> <span class="mono">' + w + '×' + h + '</span> — ratio ~1.91:1 (good). 1200×630 is the sweet spot.');
+    else setImg("warn", '<b>og:image</b> <span class="mono">' + w + '×' + h + '</span> (ratio ' + ratio.toFixed(2) + ':1)'
+      + (small ? ' — too small; large cards want ≥600×315.' : ' — large cards want ~1.91:1 (1200×630); yours may be cropped.'));
+  };
+  im.onerror = () => { if (token === imgToken) setImg("info", '<b>og:image</b> couldn’t load here (CORS/offline) — may still work once served. Aim for 1200×630.'); };
+  im.src = src;
+}
+
+// ---- full render ----
+function render(){
+  const t = resolve(state);
+  pvGoogle.innerHTML   = serpHtml(t);
+  pvTwitter.innerHTML  = twHtml(t);
+  pvFacebook.innerHTML = fbHtml(t);
+  cardKind.textContent = t.tw.card;
+  tagsOut.textContent  = buildTags(state);
+  renderWarnings(t);
+  checkImage(t.og.image);
+}
+
+// ---- parse pasted head ----
+document.getElementById("parseBtn").onclick = () => {
+  const html = document.getElementById("headIn").value;
+  if (!html.trim()) return;
+  const p = parseHead(html);
+  setState({
+    title:       p.ogTitle || p.title || "",
+    description: p.ogDescription || p.description || "",
+    url:         p.ogUrl || p.url || "",
+    image:       p.ogImage || p.twImage || "",
+    siteName:    p.siteName || "",
+    card:        p.twCard || "summary_large_image"
+  });
+  const b = document.getElementById("parseBtn");
+  const o = b.textContent; b.textContent = "✓ Filled";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- copy tags ----
+document.getElementById("copyTags").onclick = () => {
+  const b = document.getElementById("copyTags");
+  navigator.clipboard && navigator.clipboard.writeText(buildTags(state));
+  const o = b.textContent; b.textContent = "✓ Copied!";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- examples (pure data) ----
+const EXAMPLES = {
+  "Blog post": {
+    title: "How to Build a Meta-Tag Previewer From Scratch",
+    description: "A hands-on guide to Open Graph and Twitter Cards — the fallback chain, per-platform truncation, and the 1200×630 image ratio, built live in vanilla JS with no library.",
+    url: "https://solvefromzero.dev/blog/og-previewer",
+    image: "https://solvefromzero.dev/img/og-cover.png",
+    siteName: "SolveFromZero",
+    card: "summary_large_image"
+  },
+  "Product page": {
+    title: "Aurora Desk Lamp — warm dimmable LED",
+    description: "A minimalist aluminium desk lamp with stepless dimming, 2700–6500K colour temperature, and USB-C passthrough charging.",
+    url: "https://shop.example.com/products/aurora-lamp",
+    image: "https://shop.example.com/img/aurora-1200x630.jpg",
+    siteName: "Aurora Store",
+    card: "summary_large_image"
+  },
+  "SaaS landing": {
+    title: "Shipfast — deploy in one command",
+    description: "Push to git and Shipfast builds, tests and ships your app to a global edge in under 40 seconds. Free for hobby projects.",
+    url: "https://shipfast.io",
+    image: "https://shipfast.io/social.png",
+    siteName: "Shipfast",
+    card: "summary"
+  },
+  "This overflows every limit": {
+    title: "This title is deliberately far too long to demonstrate exactly where Google, X and Facebook each decide to clip it with an ellipsis",
+    description: "And this description keeps going well past the roughly one-hundred-and-sixty character mark that Google shows in a search result, so you can watch the tail get quietly truncated on every single platform preview at once, right now.",
+    url: "https://example.com/very/deeply/nested/path/to/an/article",
+    image: "https://example.com/wrong-ratio.jpg",
+    siteName: "Example",
+    card: "summary_large_image"
+  },
+  "Only a <title> (watch fallbacks)": {
+    title: "A page with nothing but a title tag",
+    description: "",
+    url: "",
+    image: "",
+    siteName: "",
+    card: "summary_large_image"
+  }
+};
+const examplesEl = document.getElementById("examples");
+Object.keys(EXAMPLES).forEach((key, i) => {
+  const b = document.createElement("button");
+  b.className = "chip" + (i === 0 ? " on" : "");
+  b.textContent = key;
+  b.onclick = () => {
+    examplesEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    setState(EXAMPLES[key]);
+  };
+  examplesEl.appendChild(b);
+});
+
+// sample <head> for the paste box
+document.getElementById("headIn").value =
+  '<head>\n' +
+  '  <title>Introducing Widgets 2.0</title>\n' +
+  '  <meta name="description" content="The fastest widgets on the web, now with dark mode.">\n' +
+  '  <link rel="canonical" href="https://widgets.example/blog/2-0">\n' +
+  '  <meta property="og:title" content="Widgets 2.0 is here 🎉">\n' +
+  '  <meta property="og:image" content="https://widgets.example/og/2-0.png">\n' +
+  '  <meta property="og:site_name" content="Widgets Inc">\n' +
+  '  <meta name="twitter:card" content="summary_large_image">\n' +
+  '  <meta name="twitter:description" content="Faster, lighter, and finally dark-mode ready.">\n' +
+  '</head>';
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Two vocabularies read your <head>", why:"When a link is shared, the platform's crawler fetches the page and reads a few <meta> tags out of the <head> to build a card. There are two overlapping standards. Open Graph (og:*) was created by Facebook and is now read by LinkedIn, Slack, WhatsApp, Discord, Pinterest and most of the web. Twitter Cards (twitter:*) are read by X. You almost never write a page for just one of them — you write the Open Graph set and add a couple of Twitter tags on top.",
+   concept:`<div class="space-y-3 text-center"><div><span class="pill og">og:title</span> <span class="pill og">og:image</span> <span class="pill og">og:url</span><div class="text-xs text-slate-400 mt-1">Open Graph — Facebook, LinkedIn, Slack, WhatsApp…</div></div><div><span class="pill tw">twitter:card</span> <span class="pill tw">twitter:image</span><div class="text-xs text-slate-400 mt-1">Twitter Cards — X</div></div></div>`,
+   code:`<head>
+  <title>My Page</title>
+  <meta name="description" content="…">
+  <meta property="og:title"   content="…">   <!-- Open Graph -->
+  <meta name="twitter:card"   content="…">   <!-- Twitter  -->
+</head>` },
+ { title:"2. og: is property=, twitter: is name=", why:"This is the number-one silent failure. Open Graph tags use the property attribute: <meta property=\"og:title\">. Twitter tags use the standard name attribute: <meta name=\"twitter:card\">. If you write name=\"og:title\" or property=\"twitter:card\", the crawler simply ignores the tag — no error, no warning, just a blank or wrong card. Memorise the pair and half of all preview bugs disappear.",
+   concept:`<div class="space-y-2 mono text-xs"><div class="text-blue-700">&lt;meta <b>property</b>="og:title" content="…"&gt;</div><div class="text-sky-700">&lt;meta <b>name</b>="twitter:card" content="…"&gt;</div><div class="text-red-500 mt-2">&lt;meta name="og:title"&gt; ✗ ignored</div></div>`,
+   code:`<meta property="og:title"  content="Hello">   <!-- ✓ -->
+<meta name="twitter:card" content="summary">  <!-- ✓ -->
+<meta name="og:title"     content="Hello">   <!-- ✗ ignored -->` },
+ { title:"3. Missing tags fall back, not fail", why:"The tags form a chain of defaults. If og:title is absent, Facebook uses the <title> element. If twitter:title is absent, X uses og:title, and if that is absent too, the <title>. The same goes for description and image: twitter:image falls back to og:image. This is why you can get a perfectly good X card from a page that only set Open Graph tags — and why the whole tool is really just 'pick the first value that exists'.",
+   concept:`<div class="space-y-2 text-center"><div class="demorow justify-center"><span class="pill tw">twitter:title</span><span>←</span><span class="pill og">og:title</span><span>←</span><span class="pill base">&lt;title&gt;</span></div><div class="demorow justify-center"><span class="pill tw">twitter:image</span><span>←</span><span class="pill og">og:image</span></div><div class="text-xs text-slate-400">first non-empty wins</div></div>`,
+   code:`function pick(...vals){
+  for (const v of vals)
+    if (v && v.trim()) return v;   // first non-empty wins
+  return "";
+}
+// twitter:title  =  pick(twTitle, ogTitle, docTitle)` },
+ { title:"4. The four Open Graph must-haves", why:"The Open Graph spec marks four tags as required: og:title, og:type, og:image and og:url. In practice og:description is close to mandatory too, because without it the card body is empty or scraped from random page text. og:type is usually \"website\" for pages and \"article\" for posts. Get these five right and you have a solid card everywhere Open Graph is read — which is almost everywhere.",
+   concept:`<div class="space-y-1 mono text-xs"><div class="text-blue-700">og:title ✅</div><div class="text-blue-700">og:type ✅ <span class="text-slate-400">website | article</span></div><div class="text-blue-700">og:image ✅</div><div class="text-blue-700">og:url ✅</div><div class="text-slate-500">og:description — not required, but always add it</div></div>`,
+   code:`<meta property="og:type"  content="article">
+<meta property="og:title" content="…">
+<meta property="og:image" content="https://…/cover.png">
+<meta property="og:url"   content="https://…/page">
+<meta property="og:description" content="…">` },
+ { title:"5. Twitter card type picks the layout", why:"twitter:card decides the shape of the X preview. summary is a small card with a square thumbnail on the left and text on the right. summary_large_image is the big one — a full-width 1.91:1 banner with the text underneath; it is what you want for articles and marketing pages. (There are also player and app cards for video and mobile apps.) If you omit twitter:card, X often shows no card at all, so always set it.",
+   concept:`<div class="flex gap-3 items-center"><div class="text-center"><div class="ratio-box" style="width:60px;height:60px">1:1</div><div class="text-xs text-slate-400 mt-1">summary</div></div><div class="text-center"><div class="ratio-box" style="width:130px;height:68px">1.91:1</div><div class="text-xs text-slate-400 mt-1">summary_large_image</div></div></div>`,
+   code:`<meta name="twitter:card" content="summary_large_image">
+<!-- summary            → small square thumbnail -->
+<!-- summary_large_image → big 1.91:1 banner    -->` },
+ { title:"6. The image wants 1200×630, absolute", why:"Large cards render the image at a 1.91:1 ratio; the recommended size is 1200×630 (minimum ~600×315). A square or portrait image gets letter-boxed or cropped. Two more rules bite constantly: the URL must be ABSOLUTE (https://…, not /cover.png), and the file must be reachable by an anonymous crawler — no login wall, no localhost. Keep it under ~5–8MB. This tool checks the ratio by actually loading the image in the browser.",
+   concept:`<div class="text-center"><div class="ratio-box mx-auto" style="width:200px;height:105px">1200 × 630</div><div class="text-xs text-slate-400 mt-2">1.91 : 1 · absolute URL · publicly reachable</div></div>`,
+   code:`<meta property="og:image" content="https://site.com/og.png">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<!-- relative paths & localhost won't scrape -->` },
+ { title:"7. Every platform truncates differently", why:"There is no single 'right' length. Google shows roughly the first 60 characters of the title and 160 of the description in a search result. X clips the title around 70. Facebook shows a longer title (~88) but a short description. Because the cutoffs differ, write your most important words FIRST and target the shortest limit you care about — usually Google's 60/160. The previews here apply each limit so you can see exactly where the ellipsis lands.",
+   concept:`<div class="space-y-2 w-64"><div><div class="text-xs text-slate-500 mb-1">Google title ~60</div><div class="tbar" style="width:60%"></div></div><div><div class="text-xs text-slate-500 mb-1">X title ~70</div><div class="tbar" style="width:70%;background:#0ea5e9"></div></div><div><div class="text-xs text-slate-500 mb-1">Facebook title ~88</div><div class="tbar" style="width:88%;background:#1d4ed8"></div></div></div>`,
+   code:`const LIMITS = {
+  google:  { title: 60, desc: 160 },
+  twitter: { title: 70, desc: 200 },
+  facebook:{ title: 88, desc: 200 }
+};` },
+ { title:"8. Crawlers don't run your JavaScript", why:"The big social crawlers (facebookexternalhit, Twitterbot, LinkedInBot, Slackbot) fetch your HTML and read the tags — they generally do NOT execute your JavaScript. So meta tags added on the client with React/Vue after load are invisible to them. The tags must be in the HTML the server sends: server-side rendering, static generation, or a framework head-manager that renders on the server. If your card is blank but the tags 'are there' in DevTools, this is almost always why.",
+   concept:`<div class="space-y-2 text-center"><div class="mono text-xs text-slate-500">GET /page → crawler reads raw HTML</div><div><span class="pill base">✓ server-rendered &lt;meta&gt;</span></div><div><span class="pill" style="background:#fee2e2;color:#b91c1c">✗ JS-injected after load</span></div></div>`,
+   code:`<!-- must exist in the server's response HTML -->
+<head>
+  <meta property="og:title" content="…">
+</head>
+<!-- document.head.appendChild(meta) is too late -->` },
+ { title:"9. Platforms cache — use the debuggers", why:"Once a platform scrapes your URL it stores the result, sometimes for days. Change your tags and the old card sticks around. Every major platform ships a debugger that force-refetches and shows exactly what it sees: Facebook Sharing Debugger, the X Card Validator, LinkedIn Post Inspector. Paste your URL, hit 'scrape again', and you get the ground truth plus any warnings — far more reliable than sharing into a real post to test.",
+   concept:`<div class="space-y-1 text-xs"><div>🔵 Facebook — Sharing Debugger</div><div>⬛ X — Card Validator</div><div>🔷 LinkedIn — Post Inspector</div><div class="text-slate-400 mt-1">each one re-scrapes & shows what it reads</div></div>`,
+   code:`# force a fresh scrape after changing tags:
+# developers.facebook.com/tools/debug/
+# cards-dev.twitter.com/validator
+# linkedin.com/post-inspector/` },
+ { title:"10. og:url canonical & the secure image", why:"og:url should be the canonical, absolute address of the page — the one you want every share to consolidate onto, matching your <link rel=\"canonical\">. It stops the same article shared with ?utm=… tracking params from splitting its social counts. A few finishing touches help: og:image:width / :height let platforms lay out the card before the image loads, og:locale declares the language, and always serve everything over HTTPS. Small tags, big difference in how clean the card looks.",
+   concept:`<div class="space-y-1 mono text-xs"><div class="text-blue-700">og:url = &lt;link rel="canonical"&gt;</div><div class="text-slate-500">?utm=… → all collapse to one canonical</div><div class="text-emerald-600 mt-1">og:image:width / :height → no layout jump</div></div>`,
+   code:`<link rel="canonical" href="https://site.com/post">
+<meta property="og:url"    content="https://site.com/post">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="en_US">` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+setState(EXAMPLES["Blog post"]);
+</script>
+</body>
+</html>
