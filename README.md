@@ -46,6 +46,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 37 — @keyframes Animation Builder](https://dev48v.infy.uk/solve/day37-keyframes-builder.html) — `day37-keyframes-builder.html`
 - [SolveFromZero · Day 38 — CSS Grid Generator](https://dev48v.infy.uk/solve/day38-css-grid-generator.html) — `day38-css-grid-generator.html`
 - [SolveFromZero · Day 39 — Meta-Tag / Open-Graph Previewer](https://dev48v.infy.uk/solve/day39-og-previewer.html) — `day39-og-previewer.html`
+- [SolveFromZero · Day 40 — Flexbox Playground](https://dev48v.infy.uk/solve/day40-flexbox-playground.html) — `day40-flexbox-playground.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

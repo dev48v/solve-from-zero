@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 40 — Flexbox Playground</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  /* ---- form fields ---- */
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; margin-top:8px; }
+  input[type=range] { width:100%; accent-color:#f59e0b; }
+  .chips { display:flex; flex-wrap:wrap; margin:0 -3px; }
+
+  /* ---- flex preview ---- */
+  #flexbox { display:flex; min-height:300px; border:2px dashed #cbd5e1; border-radius:14px; background:
+      linear-gradient(90deg,rgba(148,163,184,.09) 1px,transparent 1px) 0 0/22px 22px,
+      linear-gradient(0deg,rgba(148,163,184,.09) 1px,transparent 1px) 0 0/22px 22px, #f8fafc; padding:14px; }
+  .flexitem { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:10px;
+      padding:16px 20px; font-weight:800; min-width:46px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; box-shadow:0 3px 0 #b45309; user-select:none; position:relative; transition:transform .12s;
+      font-family:ui-monospace,Menlo,monospace; text-align:center; }
+  .flexitem:hover { transform:translateY(-2px); }
+  .flexitem.sel { outline:3px solid #0f172a; outline-offset:2px; }
+  .flexitem sup { font-size:9px; opacity:.9; margin-left:4px; font-weight:700; }
+  .axisbar { font-size:12px; color:#475569; font-family:ui-monospace,Menlo,monospace; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.main { background:#fef3c7; color:#92400e; }
+  .pill.cross { background:#dbeafe; color:#1d4ed8; }
+  .dbox { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:6px; padding:6px 11px; font:700 11px ui-monospace,Menlo,monospace; display:flex; align-items:center; justify-content:center; }
+  .dcont { display:flex; gap:8px; border:2px dashed #94a3b8; border-radius:8px; padding:8px; background:#f1f5f9; }
+  .demorow { display:flex; align-items:center; gap:8px; font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 40</div>
+      <h1 class="text-xl font-bold">🧩 Flexbox Playground — flip every <em>container</em> &amp; <em>item</em> property, watch the boxes rearrange, then copy the <code>flex</code> CSS</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Toggle the <em>container</em> on the left, click a box to edit it as an <em>item</em>, and read the CSS that produced the layout.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">Flexbox is CSS's one-dimensional layout engine: you set <code>display:flex</code> on a <strong>container</strong> and its direct children become <strong>flex items</strong> laid out along one line (that can optionally wrap). Every property belongs to one of two families. <strong>Container properties</strong> — <code>flex-direction</code>, <code>justify-content</code>, <code>align-items</code>, <code>align-content</code>, <code>flex-wrap</code>, <code>gap</code> — decide the axes and how the whole group is distributed. <strong>Item properties</strong> — <code>flex-grow</code>, <code>flex-shrink</code>, <code>flex-basis</code>, <code>align-self</code>, <code>order</code> — let a single box grow, shrink, jump the cross axis or reorder itself. The trick that trips everyone up: <code>justify-content</code> works on the <strong>main axis</strong> and <code>align-*</code> on the <strong>cross axis</strong>, and <code>flex-direction</code> is what decides which is which — so the same property means "horizontal" in a row and "vertical" in a column. This tool is nothing but a state object of those properties applied as inline styles to a live box, plus a serialiser that prints the CSS. No library — just the browser's own layout.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <!-- LEFT: controls -->
+        <div class="space-y-5">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Container <span class="text-slate-400 normal-case">— <code>display:flex</code> is already set; these style the whole group</span></div>
+
+            <div class="fieldlabel">flex-direction <span class="text-slate-400 normal-case">— picks the MAIN axis</span></div>
+            <div id="cc-flexDirection" class="chips"></div>
+
+            <div class="fieldlabel">flex-wrap <span class="text-slate-400 normal-case">— let items flow onto multiple lines</span></div>
+            <div id="cc-flexWrap" class="chips"></div>
+
+            <div class="fieldlabel">justify-content <span class="text-slate-400 normal-case">— distribute along the MAIN axis</span></div>
+            <div id="cc-justifyContent" class="chips"></div>
+
+            <div class="fieldlabel">align-items <span class="text-slate-400 normal-case">— align on the CROSS axis (one line)</span></div>
+            <div id="cc-alignItems" class="chips"></div>
+
+            <div class="fieldlabel">align-content <span class="text-slate-400 normal-case">— space the LINES (needs wrap + &gt;1 line)</span></div>
+            <div id="cc-alignContent" class="chips"></div>
+
+            <div class="fieldlabel">gap <span class="text-slate-400 normal-case">— <span id="gapVal" class="mono">10px</span></span></div>
+            <input id="gap" type="range" min="0" max="48" value="10">
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Item boxes <span class="text-slate-400 normal-case">— <span id="itemCount" class="mono">4</span> in the container</span></div>
+              <div class="flex gap-2">
+                <button id="addItem" class="mini px-3 py-1 rounded-lg font-semibold text-xs">+ Add box</button>
+                <button id="delItem" class="mini px-3 py-1 rounded-lg font-semibold text-xs">− Remove</button>
+              </div>
+            </div>
+            <div class="text-xs text-slate-400 mt-2">Click any box in the preview to <strong>select</strong> it, then edit its item properties below. Selected box has a dark outline.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Selected item <span class="text-slate-400 normal-case">— editing <span id="selName" class="mono">Box 1</span></span></div>
+
+            <div class="fieldlabel">order <span class="text-slate-400 normal-case">— visual position only, DOM order unchanged · <span id="orderVal" class="mono">0</span></span></div>
+            <input id="order" type="range" min="-5" max="5" value="0">
+
+            <div class="fieldlabel">flex-grow <span class="text-slate-400 normal-case">— share of LEFTOVER space · <span id="growVal" class="mono">0</span></span></div>
+            <input id="grow" type="range" min="0" max="6" value="0">
+
+            <div class="fieldlabel">flex-shrink <span class="text-slate-400 normal-case">— how much it gives up when tight · <span id="shrinkVal" class="mono">1</span></span></div>
+            <input id="shrink" type="range" min="0" max="6" value="1">
+
+            <div class="fieldlabel">flex-basis <span class="text-slate-400 normal-case">— starting size before grow/shrink · <span id="basisVal" class="mono">auto</span></span></div>
+            <div class="flex gap-2 items-center">
+              <button id="basisAuto" class="chip">auto</button>
+              <input id="basis" type="range" min="0" max="360" value="0" class="flex-1">
+            </div>
+
+            <div class="fieldlabel">align-self <span class="text-slate-400 normal-case">— override align-items for THIS box</span></div>
+            <div id="ic-alignSelf" class="chips"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Presets <span class="text-slate-400 normal-case">— each is just a canned state object</span></div>
+            <div id="presets"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: live preview + axis guide -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live preview <span class="text-slate-400 normal-case">— the real thing, laid out by your browser</span></div>
+              <button id="reset" class="chip">↺ reset</button>
+            </div>
+            <div id="flexbox"></div>
+            <div class="axisbar mt-3" id="axisGuide"></div>
+            <div class="text-xs text-slate-400 mt-2">Grid + dashed border show the container box. The selected box has a dark outline; a small <span class="mono">ord</span> tag appears when its <code>order</code> is non-zero.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Generated CSS <span class="text-slate-400 normal-case">— container + the selected item</span></div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <pre id="cssOut" style="white-space:pre;margin:0;max-height:360px"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. <code>justify-content</code> and <code>align-items</code> are NOT "horizontal" and "vertical".</strong> <code>justify-content</code> always works on the <em>main</em> axis and <code>align-items</code> on the <em>cross</em> axis. Switch <code>flex-direction</code> to <code>column</code> and the two swap meaning — <code>justify-content</code> now moves boxes up/down. Learn the axes, not the directions. <strong>2. <code>align-content</code> does nothing on a single line.</strong> It distributes <em>lines</em>, so you need <code>flex-wrap:wrap</code> and enough items to actually wrap before it has any effect — the number-one "why isn't this working?" for align-content. <strong>3. <code>flex-basis</code> beats <code>width</code>.</strong> On a flex item, <code>flex-basis</code> sets the starting size along the main axis and overrides <code>width</code> (in a row). <code>flex:1</code> is shorthand for <code>1 1 0</code> — grow, shrink, and a zero basis, which is why <code>flex:1</code> items end up equal width regardless of content. <strong>4. <code>order</code> is visual only.</strong> It reorders how boxes are painted but not the DOM — so keyboard and screen-reader users still traverse the source order. Great for responsive tweaks, dangerous if you use it to fix real reading order. <strong>5. <code>margin:auto</code> is a flex superpower.</strong> On a flex item, an <code>auto</code> margin eats all free space on that side — <code>margin-left:auto</code> on one item pushes it (and everything after) to the far end, the cleanest way to build a nav bar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How flexbox actually lays out</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CSS FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A flexbox playground has almost no logic — the browser does the layout. The whole tool is <strong>one state object applied as inline styles, plus a serialiser that prints it back as CSS</strong>. Everything you see rearranging is just the browser reflowing when you change a property; your job is to give it a nice set of toggles and to turn the state into a copy-pasteable rule. The only real concept you must hold in your head is <strong>which properties live on the container and which on the item, and that <code>justify</code>/<code>align</code> follow the main/cross axes set by <code>flex-direction</code></strong>. There is <strong>no library</strong>.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The state is a container object + an items array</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You store the <strong>source of truth</strong> once: one object for the six container properties, one array of item objects (five properties each), and which item is selected. The preview and the CSS are both just <em>views</em> of this state.</p>
+        <div class="relative"><pre>let container = {
+  flexDirection: "row",  flexWrap: "nowrap",
+  justifyContent: "flex-start", alignItems: "stretch",
+  alignContent: "stretch", gap: 10
+};
+const box = () =&gt; ({ grow:0, shrink:1, basis:"auto", alignSelf:"auto", order:0 });
+let items = [ box(), box(), box(), box() ];
+let selected = 0;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The preview IS the CSS — apply the container props</h3></div>
+        <p class="text-sm text-slate-600 mb-3">There is no rendering engine to write — you copy each container property straight onto the flex parent's <code>style</code>. Change the state, re-apply, and the browser reflows. That is the entire "live preview".</p>
+        <div class="relative"><pre>function applyContainer(){
+  const f = document.getElementById("flexbox");
+  f.style.display        = "flex";
+  f.style.flexDirection  = container.flexDirection;
+  f.style.flexWrap       = container.flexWrap;
+  f.style.justifyContent = container.justifyContent;
+  f.style.alignItems     = container.alignItems;
+  f.style.alignContent   = container.alignContent;
+  f.style.gap            = container.gap + "px";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Render the boxes — apply the item props</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Rebuild the children from the array, dropping each item's five properties onto its inline style. Wire a click to select a box so its properties become editable. The selected box just gets an outline class.</p>
+        <div class="relative"><pre>function renderItems(){
+  const f = document.getElementById("flexbox");
+  f.innerHTML = "";
+  items.forEach((it, i) =&gt; {
+    const b = document.createElement("div");
+    b.className = "flexitem" + (i === selected ? " sel" : "");
+    b.style.flexGrow   = it.grow;
+    b.style.flexShrink = it.shrink;
+    b.style.flexBasis  = it.basis;
+    b.style.alignSelf  = it.alignSelf;
+    b.style.order      = it.order;
+    b.textContent = i + 1;
+    b.onclick = () =&gt; { selected = i; render(); };
+    f.appendChild(b);
+  });
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Enum properties → data-driven toggle chips</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Most flex properties are a fixed list of keywords, so build each control from data: one chip per allowed value, each writing that value into state and re-rendering. One tiny function generates every keyword control in the app.</p>
+        <div class="relative"><pre>function chipGroup(hostId, key, values){
+  const host = document.getElementById(hostId);
+  values.forEach(v =&gt; {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = v;
+    b.dataset.key = key; b.dataset.val = v;
+    b.onclick = () =&gt; { container[key] = v; render(); };
+    host.appendChild(b);
+  });
+}
+chipGroup("cc-justifyContent", "justifyContent",
+  ["flex-start","flex-end","center","space-between","space-around","space-evenly"]);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Main axis vs cross axis — the one idea to hold</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>flex-direction</code> sets the <strong>main</strong> axis; the <strong>cross</strong> axis is perpendicular to it. <code>justify-content</code> always distributes along the main axis, <code>align-items</code> along the cross axis — so you never hard-code left / right / top / bottom, and a single flip of direction rotates the whole layout.</p>
+        <div class="relative"><pre>// flex-direction: row     -&gt; main = horizontal, cross = vertical
+// flex-direction: column  -&gt; main = vertical,   cross = horizontal
+//
+//   justify-content  ==&gt; MAIN axis   (start / center / space-between …)
+//   align-items      ==&gt; CROSS axis  (stretch / center / baseline …)
+//
+// Flip the direction and the two swap meaning automatically.</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">The flex shorthand: grow · shrink · basis</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Three item properties decide sizing along the main axis. <code>flex-basis</code> is the starting size; then any <em>leftover</em> space is shared out in proportion to <code>flex-grow</code>, and any <em>overflow</em> is removed in proportion to <code>flex-shrink</code>. The playground drives them with three sliders.</p>
+        <div class="relative"><pre>grow.oninput   = () =&gt; { items[selected].grow   = +grow.value;   render(); };
+shrink.oninput = () =&gt; { items[selected].shrink = +shrink.value; render(); };
+basis.oninput  = () =&gt; { items[selected].basis  = basis.value + "px"; render(); };
+// the CSS shorthand rolls all three into one:
+//   flex: 1 1 0     // grow  shrink  basis   (== flex:1, equal columns)
+//   flex: 0 0 200px // fixed 200px, never grows or shrinks</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Per-item escape hatches: align-self &amp; order</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Two item properties override the container. <code>align-self</code> lets one box ignore the container's <code>align-items</code>; <code>order</code> moves a box earlier or later <em>visually</em> without touching the DOM (so it stays in source order for keyboards and screen readers).</p>
+        <div class="relative"><pre>b.style.alignSelf = it.alignSelf;  // "auto" = inherit align-items
+b.style.order     = it.order;      // lower renders first; default 0
+// order is a VISUAL reorder only — the DOM/tab order is unchanged,
+// so never use it to fix genuine reading order.</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Wrap makes lines; align-content spaces them</h3></div>
+        <p class="text-sm text-slate-600 mb-3">By default a flex container is a single line and items shrink to fit. Turn on <code>flex-wrap:wrap</code> and overflowing items flow onto new lines — and only <em>now</em> does <code>align-content</code> have anything to do: it distributes those lines across the cross axis, exactly like <code>justify-content</code> does for items.</p>
+        <div class="relative"><pre>f.style.flexWrap     = "wrap";           // allow multiple lines
+f.style.alignContent = "space-between";  // distribute the LINES
+// with nowrap (one line) align-content is a no-op — this is the
+// single most common "align-content does nothing" gotcha.</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Serialise the state into a CSS rule — the deliverable</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The export is the whole point: print the container object as a <code>.container</code> rule and the selected item as an <code>.item-N</code> rule. It is pure string-building — the same values you applied inline, formatted as CSS.</p>
+        <div class="relative"><pre>function toCss(){
+  const c = container, it = items[selected];
+  return `.container {
+  display: flex;
+  flex-direction: ${c.flexDirection};
+  flex-wrap: ${c.flexWrap};
+  justify-content: ${c.justifyContent};
+  align-items: ${c.alignItems};
+  align-content: ${c.alignContent};
+  gap: ${c.gap}px;
+}
+
+.item-${selected + 1} {
+  order: ${it.order};
+  flex: ${it.grow} ${it.shrink} ${it.basis};
+  align-self: ${it.alignSelf};
+}`;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Copy to clipboard · presets are canned state</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Copy is one call; the render loop keeps everything in sync. And a "preset" needs no special code — it is just a state object you drop in and re-render, so centering, a nav bar and a card row are three lines of data, not three features.</p>
+        <div class="relative"><pre>copyBtn.onclick = () =&gt; navigator.clipboard.writeText(toCss());
+
+const PRESETS = {
+  "Centering":  { container:{ justifyContent:"center", alignItems:"center" },
+                  items:[ box() ] },
+  "Nav bar":    { container:{ alignItems:"center" },        // item 1 gets flex-grow:1
+                  items:[ box(), grow(1), box(), box() ] },
+  "Card row":   { container:{ flexWrap:"wrap", gap:16 },    // each card flex:1 1 200px
+                  items:[ card(), card(), card(), card(), card(), card() ] }
+};
+function applyPreset(p){ Object.assign(container, p.container); items = p.items; selected = 0; render(); }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 40 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real Flexbox Playground with <strong>no library</strong>: a state of one <code>container</code> object plus an <code>items</code> array; a preview that <em>is</em> the CSS (each property copied straight onto the element's inline style); data-driven toggle chips for the keyword properties and sliders for the numeric ones; per-item escape hatches (<code>align-self</code>, <code>order</code>) layered over the container defaults; and a serialiser that turns the whole state back into a copy-pasteable <code>.container</code> + <code>.item-N</code> rule. The lesson underneath: <strong>flexbox is not a bag of magic keywords — it is two axes set by <code>flex-direction</code>, with <code>justify-content</code> working the main axis, <code>align-*</code> the cross axis, and <code>grow</code>/<code>shrink</code>/<code>basis</code> deciding how each item sizes; learn the axes and the rest is just naming.</strong> <strong>👉 Tomorrow — Day 41:</strong> a <strong>Media-Query / Responsive Breakpoint Previewer</strong> — drag a live viewport, watch which <code>@media</code> breakpoints fire, and copy the media queries.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==FLEX-ENGINE-START== (state -> inline styles -> CSS string; no library)
+// Flexbox is CSS's 1-D layout engine. A CONTAINER (display:flex) lays its direct
+// children (ITEMS) along a MAIN axis set by flex-direction; the CROSS axis is
+// perpendicular. Container props decide the axes & group distribution; item props
+// let one box grow/shrink/reorder. This whole tool = a state object applied as
+// inline styles + a serialiser (toCss) that prints it back as copy-pasteable CSS.
+const box  = (o={}) => Object.assign({ grow:0, shrink:1, basis:"auto", alignSelf:"auto", order:0, label:null }, o);
+
+let container = {
+  flexDirection: "row",
+  flexWrap: "nowrap",
+  justifyContent: "flex-start",
+  alignItems: "stretch",
+  alignContent: "stretch",
+  gap: 10
+};
+let items = [ box(), box(), box(), box() ];
+let selected = 0;
+
+function toCss(){
+  const c = container;
+  let css = ".container {\n  display: flex;\n";
+  css += "  flex-direction: " + c.flexDirection + ";\n";
+  css += "  flex-wrap: " + c.flexWrap + ";\n";
+  css += "  justify-content: " + c.justifyContent + ";\n";
+  css += "  align-items: " + c.alignItems + ";\n";
+  css += "  align-content: " + c.alignContent + ";\n";
+  css += "  gap: " + c.gap + "px;\n}";
+  const it = items[selected];
+  if (it){
+    css += "\n\n.item-" + (selected + 1) + " {   /* the box you selected */\n";
+    css += "  order: " + it.order + ";\n";
+    css += "  flex-grow: " + it.grow + ";\n";
+    css += "  flex-shrink: " + it.shrink + ";\n";
+    css += "  flex-basis: " + it.basis + ";\n";
+    css += "  align-self: " + it.alignSelf + ";\n}";
+  }
+  return css;
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { box, toCss };
+// ==FLEX-ENGINE-END==
+
+// ---- option data ----
+const CONTAINER_OPTS = {
+  flexDirection:  ["row","row-reverse","column","column-reverse"],
+  flexWrap:       ["nowrap","wrap","wrap-reverse"],
+  justifyContent: ["flex-start","flex-end","center","space-between","space-around","space-evenly"],
+  alignItems:     ["stretch","flex-start","flex-end","center","baseline"],
+  alignContent:   ["stretch","flex-start","flex-end","center","space-between","space-around"]
+};
+const ITEM_OPTS = {
+  alignSelf: ["auto","stretch","flex-start","flex-end","center","baseline"]
+};
+
+// ---- build chip groups (data-driven) ----
+function chipGroup(hostId, key, values, scope){
+  const host = document.getElementById(hostId);
+  values.forEach(v => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = v;
+    b.dataset.key = key; b.dataset.val = v; b.dataset.scope = scope;
+    b.onclick = () => {
+      if (scope === "c") container[key] = v;
+      else if (items[selected]) items[selected][key] = v;
+      render();
+    };
+    host.appendChild(b);
+  });
+}
+Object.keys(CONTAINER_OPTS).forEach(k => chipGroup("cc-" + k, k, CONTAINER_OPTS[k], "c"));
+Object.keys(ITEM_OPTS).forEach(k => chipGroup("ic-" + k, k, ITEM_OPTS[k], "i"));
+
+// ---- element refs ----
+const flexbox   = document.getElementById("flexbox");
+const cssOut    = document.getElementById("cssOut");
+const axisGuide = document.getElementById("axisGuide");
+const gap = document.getElementById("gap"), gapVal = document.getElementById("gapVal");
+const order = document.getElementById("order"), orderVal = document.getElementById("orderVal");
+const grow = document.getElementById("grow"), growVal = document.getElementById("growVal");
+const shrink = document.getElementById("shrink"), shrinkVal = document.getElementById("shrinkVal");
+const basis = document.getElementById("basis"), basisVal = document.getElementById("basisVal");
+const basisAuto = document.getElementById("basisAuto");
+const selName = document.getElementById("selName");
+const itemCount = document.getElementById("itemCount");
+
+// ---- slider wiring ----
+gap.oninput = () => { container.gap = +gap.value; render(); };
+order.oninput  = () => { if (items[selected]) { items[selected].order  = +order.value;  render(); } };
+grow.oninput   = () => { if (items[selected]) { items[selected].grow   = +grow.value;   render(); } };
+shrink.oninput = () => { if (items[selected]) { items[selected].shrink = +shrink.value; render(); } };
+basis.oninput  = () => { if (items[selected]) { items[selected].basis  = basis.value + "px"; render(); } };
+basisAuto.onclick = () => { if (items[selected]) { items[selected].basis = "auto"; render(); } };
+
+// ---- add / remove / reset / select ----
+function renumber(){ // keep numeric labels 1..N tidy after structural changes
+  if (items.every(it => it.label == null)) return; // pure-numeric (label==null shows index+1)
+}
+document.getElementById("addItem").onclick = () => {
+  if (items.length >= 10) return;
+  items.push(box());
+  selected = items.length - 1;
+  render();
+};
+document.getElementById("delItem").onclick = () => {
+  if (items.length <= 1) return;
+  items.splice(selected, 1);
+  if (selected >= items.length) selected = items.length - 1;
+  render();
+};
+document.getElementById("reset").onclick = () => {
+  container = { flexDirection:"row", flexWrap:"nowrap", justifyContent:"flex-start", alignItems:"stretch", alignContent:"stretch", gap:10 };
+  items = [ box(), box(), box(), box() ];
+  selected = 0;
+  render();
+};
+
+// ---- render ----
+function render(){
+  // container inline styles
+  flexbox.style.flexDirection  = container.flexDirection;
+  flexbox.style.flexWrap       = container.flexWrap;
+  flexbox.style.justifyContent = container.justifyContent;
+  flexbox.style.alignItems     = container.alignItems;
+  flexbox.style.alignContent   = container.alignContent;
+  flexbox.style.gap            = container.gap + "px";
+
+  // items
+  flexbox.innerHTML = "";
+  items.forEach((it, i) => {
+    const b = document.createElement("div");
+    b.className = "flexitem" + (i === selected ? " sel" : "");
+    b.style.flexGrow   = it.grow;
+    b.style.flexShrink = it.shrink;
+    b.style.flexBasis  = it.basis;
+    b.style.alignSelf  = it.alignSelf;
+    b.style.order      = it.order;
+    const label = it.label != null ? it.label : (i + 1);
+    b.innerHTML = "<span>" + label + "</span>" + (it.order !== 0 ? '<sup>ord ' + it.order + "</sup>" : "");
+    b.title = "Box " + (i + 1) + " — click to select";
+    b.onclick = () => { selected = i; render(); };
+    flexbox.appendChild(b);
+  });
+
+  // gap display
+  gapVal.textContent = container.gap + "px";
+  itemCount.textContent = items.length;
+
+  // selected-item control values
+  const it = items[selected];
+  if (it){
+    selName.textContent = "Box " + (selected + 1);
+    order.value  = it.order;  orderVal.textContent  = it.order;
+    grow.value   = it.grow;   growVal.textContent   = it.grow;
+    shrink.value = it.shrink; shrinkVal.textContent = it.shrink;
+    const auto = it.basis === "auto";
+    basisAuto.classList.toggle("on", auto);
+    basis.value = auto ? 0 : (parseInt(it.basis, 10) || 0);
+    basisVal.textContent = it.basis;
+  }
+
+  // active chips
+  document.querySelectorAll(".chip[data-scope]").forEach(bn => {
+    const cur = bn.dataset.scope === "c"
+      ? container[bn.dataset.key]
+      : (items[selected] ? items[selected][bn.dataset.key] : null);
+    bn.classList.toggle("on", cur === bn.dataset.val);
+  });
+
+  // axis guide
+  const isCol = container.flexDirection.indexOf("column") === 0;
+  const rev = container.flexDirection.indexOf("reverse") !== -1;
+  axisGuide.innerHTML = isCol
+    ? 'Main axis <b>↓ vertical</b>' + (rev ? ' (reversed ↑)' : '') + ' &nbsp;·&nbsp; Cross axis <b>→ horizontal</b> &nbsp;— <span class="mono">justify-content</span> moves boxes up/down here'
+    : 'Main axis <b>→ horizontal</b>' + (rev ? ' (reversed ←)' : '') + ' &nbsp;·&nbsp; Cross axis <b>↓ vertical</b> &nbsp;— <span class="mono">justify-content</span> moves boxes left/right here';
+
+  // CSS output
+  cssOut.textContent = toCss();
+}
+
+// ---- copy ----
+document.getElementById("copyCss").onclick = () => {
+  const b = document.getElementById("copyCss");
+  navigator.clipboard && navigator.clipboard.writeText(toCss());
+  const o = b.textContent; b.textContent = "✓ Copied!";
+  setTimeout(() => b.textContent = o, 1200);
+};
+
+// ---- presets (pure data) ----
+const PRESETS = {
+  "Centering": {
+    container: { flexDirection:"row", flexWrap:"nowrap", justifyContent:"center", alignItems:"center", alignContent:"stretch", gap:10 },
+    items: [ box({ label:"Centered" }) ],
+    selected: 0
+  },
+  "Holy-grail nav": {
+    container: { flexDirection:"row", flexWrap:"nowrap", justifyContent:"flex-start", alignItems:"center", alignContent:"stretch", gap:12 },
+    items: [
+      box({ label:"Logo" }),
+      box({ label:"↔ spacer", grow:1, basis:"0px" }),
+      box({ label:"Home" }),
+      box({ label:"About" }),
+      box({ label:"Sign in" })
+    ],
+    selected: 1
+  },
+  "Card row (wrap + grow)": {
+    container: { flexDirection:"row", flexWrap:"wrap", justifyContent:"flex-start", alignItems:"stretch", alignContent:"flex-start", gap:16 },
+    items: [
+      box({ label:"Card 1", grow:1, basis:"200px" }),
+      box({ label:"Card 2", grow:1, basis:"200px" }),
+      box({ label:"Card 3", grow:1, basis:"200px" }),
+      box({ label:"Card 4", grow:1, basis:"200px" }),
+      box({ label:"Card 5", grow:1, basis:"200px" }),
+      box({ label:"Card 6", grow:1, basis:"200px" })
+    ],
+    selected: 0
+  },
+  "Sidebar + main": {
+    container: { flexDirection:"row", flexWrap:"nowrap", justifyContent:"flex-start", alignItems:"stretch", alignContent:"stretch", gap:12 },
+    items: [
+      box({ label:"Sidebar", grow:0, shrink:0, basis:"200px" }),
+      box({ label:"Main content", grow:1, basis:"0px" })
+    ],
+    selected: 1
+  },
+  "order demo": {
+    container: { flexDirection:"row", flexWrap:"nowrap", justifyContent:"space-between", alignItems:"center", alignContent:"stretch", gap:10 },
+    items: [
+      box({ label:"1" }),
+      box({ label:"2", order:-1 }),
+      box({ label:"3", order:2 }),
+      box({ label:"4", order:-2 })
+    ],
+    selected: 1
+  }
+};
+const presetsEl = document.getElementById("presets");
+Object.keys(PRESETS).forEach((key, i) => {
+  const b = document.createElement("button");
+  b.className = "chip" + (i === 0 ? " on" : "");
+  b.textContent = key;
+  b.onclick = () => {
+    presetsEl.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    const p = PRESETS[key];
+    container = Object.assign({}, p.container);
+    items = p.items.map(it => box(it));
+    selected = p.selected || 0;
+    render();
+  };
+  presetsEl.appendChild(b);
+});
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. display:flex makes a flex container",
+   why:"Flexbox starts the moment you put display:flex (or inline-flex) on an element. That element becomes the flex CONTAINER and every DIRECT child becomes a flex ITEM laid out on one line. Grandchildren are unaffected — flex only reaches one level deep. Text nodes between elements also become anonymous items, which is why stray whitespace sometimes seems to 'push' things. Everything else in flexbox is just tuning how that container arranges its items.",
+   concept:`<div class="text-center space-y-2"><div class="dcont" style="justify-content:center">${'<div class="dbox">item</div>'.repeat(3)}</div><div class="text-xs text-slate-400">display:flex → each DIRECT child becomes a flex item</div></div>`,
+   code:`.container { display: flex; }
+/* every DIRECT child is now a flex item */
+/* grandchildren are NOT affected */` },
+ { title:"2. Two axes: main & cross (flex-direction)",
+   why:"This is the mental model everything hangs on. flex-direction sets the MAIN axis: row (the default) runs it left-to-right, column runs it top-to-bottom. The CROSS axis is always perpendicular. Crucially, the alignment properties are described relative to these axes, not to the screen — so 'justify along the main axis' means horizontal in a row but vertical in a column. Get comfortable thinking in main/cross and flexbox stops being a guessing game.",
+   concept:`<div class="space-y-3 text-center"><div class="demorow justify-center"><span class="pill main">MAIN →</span><span class="text-slate-400 text-xs">flex-direction: row</span></div><div class="demorow justify-center"><span class="pill cross">CROSS ↓</span><span class="text-slate-400 text-xs">perpendicular to main</span></div></div>`,
+   code:`flex-direction: row;             /* main = horizontal → */
+flex-direction: column;          /* main = vertical   ↓ */
+flex-direction: row-reverse;     /* main runs the other way */` },
+ { title:"3. justify-content — along the MAIN axis",
+   why:"justify-content distributes the items along the main axis. flex-start / center / flex-end bunch them to one end or the middle; space-between puts the first and last against the edges with equal gaps inside; space-around gives each item equal space on both sides (so edge gaps are half the inner gaps); space-evenly makes every gap — including the edges — identical. Because it works on the main axis, switching to a column makes it control vertical position.",
+   concept:`<div class="space-y-2"><div class="text-xs text-slate-500">justify-content: center</div><div class="dcont" style="justify-content:center">${'<div class="dbox">1</div><div class="dbox">2</div><div class="dbox">3</div>'}</div><div class="text-xs text-slate-500 mt-1">justify-content: space-between</div><div class="dcont" style="justify-content:space-between">${'<div class="dbox">1</div><div class="dbox">2</div><div class="dbox">3</div>'}</div></div>`,
+   code:`.container {
+  justify-content: space-between;  /* along MAIN axis */
+  /* flex-start | flex-end | center |
+     space-between | space-around | space-evenly */
+}` },
+ { title:"4. align-items — along the CROSS axis",
+   why:"align-items positions items on the cross axis for a SINGLE line. The default is stretch: with no fixed cross-size, items stretch to fill the container's height (in a row). flex-start / center / flex-end pin them to the top, middle or bottom; baseline lines up the text baselines regardless of box size. This is the property people reach for to vertically-centre things in a row — align-items:center.",
+   concept:`<div class="space-y-2"><div class="text-xs text-slate-500">align-items: center &nbsp;(container is tall)</div><div class="dcont" style="align-items:center;height:84px">${'<div class="dbox">1</div><div class="dbox" style="padding:16px 11px">2</div><div class="dbox">3</div>'}</div></div>`,
+   code:`.container {
+  align-items: center;   /* along CROSS axis, one line */
+  /* stretch | flex-start | flex-end | center | baseline */
+}` },
+ { title:"5. flex-wrap — one line or many",
+   why:"By default a flex container never wraps: it forces every item onto one line, shrinking them if needed (that's flex-shrink at work). Set flex-wrap:wrap and items that don't fit flow onto new lines instead, each line as tall as its tallest item. wrap-reverse stacks the new lines in the opposite cross direction. Wrapping is what turns a flex row into a responsive grid of cards that reflow as the container narrows.",
+   concept:`<div class="space-y-1"><div class="text-xs text-slate-500">flex-wrap: wrap &nbsp;(narrow container)</div><div class="dcont" style="flex-wrap:wrap;width:190px">${'<div class="dbox" style="flex:0 0 80px">1</div><div class="dbox" style="flex:0 0 80px">2</div><div class="dbox" style="flex:0 0 80px">3</div>'}</div></div>`,
+   code:`.container {
+  flex-wrap: wrap;   /* allow multiple lines */
+  /* nowrap (default) | wrap | wrap-reverse */
+}` },
+ { title:"6. align-content — spacing the LINES",
+   why:"Here's the property everyone gets wrong. align-content distributes the LINES within the container along the cross axis — but it only does anything when there is more than one line, which means you need flex-wrap:wrap AND enough items to actually wrap. On a single line it is completely ignored. When it does apply, its values mirror justify-content (start / center / space-between …) but for whole rows of items rather than individual items.",
+   concept:`<div class="space-y-1"><div class="text-xs text-slate-500">wrap + align-content: space-between (tall)</div><div class="dcont" style="flex-wrap:wrap;align-content:space-between;width:190px;height:110px">${'<div class="dbox" style="flex:0 0 80px">1</div><div class="dbox" style="flex:0 0 80px">2</div><div class="dbox" style="flex:0 0 80px">3</div>'}</div></div>`,
+   code:`.container {
+  flex-wrap: wrap;                /* REQUIRED — needs >1 line */
+  align-content: space-between;   /* distributes the LINES */
+}
+/* on a single line, align-content does nothing */` },
+ { title:"7. flex-grow / shrink / basis (the flex shorthand)",
+   why:"These three ITEM properties decide sizing along the main axis. flex-basis is the item's starting size (auto = use its content/width). Then flex-grow shares out any LEFTOVER space in proportion to its value (grow:2 takes twice the extra of grow:1). flex-shrink does the reverse when there isn't enough room. The shorthand flex:1 means 1 1 0 — grow, shrink, zero basis — which is why flex:1 items always come out equal width, ignoring content.",
+   concept:`<div class="space-y-1"><div class="text-xs text-slate-500">middle box: flex-grow: 1</div><div class="dcont">${'<div class="dbox">1</div><div class="dbox" style="flex-grow:1">grow:1</div><div class="dbox">3</div>'}</div></div>`,
+   code:`.item { flex-grow: 1; }    /* share of leftover space   */
+.item { flex-shrink: 0; }  /* refuse to shrink          */
+.item { flex-basis: 200px; }  /* starting size          */
+.item { flex: 1 1 0; }     /* shorthand: grow shrink basis */` },
+ { title:"8. align-self — one item breaks rank",
+   why:"align-self is align-items for a single item. The container sets a default with align-items; any item can override it with align-self and position itself differently on the cross axis — top while the rest centre, or stretch while the rest sit at the start. auto (the default) means 'just inherit align-items'. It's the clean way to, say, push one nav button to the bottom of a taller bar without wrapping it in extra markup.",
+   concept:`<div class="space-y-1"><div class="text-xs text-slate-500">align-items: flex-start · box 2 align-self: flex-end</div><div class="dcont" style="align-items:flex-start;height:84px">${'<div class="dbox">1</div><div class="dbox" style="align-self:flex-end">2</div><div class="dbox">3</div>'}</div></div>`,
+   code:`.container { align-items: flex-start; }
+.item-2   { align-self: flex-end; }   /* this box only */
+/* align-self: auto = inherit align-items */` },
+ { title:"9. order — reshuffle without touching the DOM",
+   why:"Every item has an order of 0 by default and is laid out in source order. Give an item a lower order and it renders earlier; higher, later; negative values jump it before everything. The catch: order is purely VISUAL. The DOM, the tab sequence and screen-reader reading order stay in source order — so order is perfect for responsive re-layouts but must never be used to fix genuine content order, or keyboard users get a scrambled experience.",
+   concept:`<div class="space-y-1"><div class="text-xs text-slate-500">source is 1,2,3 — box 3 has order:-1</div><div class="dcont">${'<div class="dbox">1</div><div class="dbox">2</div><div class="dbox" style="order:-1">3<sup style="font-size:8px">ord -1</sup></div>'}</div></div>`,
+   code:`.item-3 { order: -1; }   /* renders FIRST, DOM unchanged */
+/* default order: 0 · lower = earlier · negatives allowed */
+/* visual only — tab & screen-reader order stay in source */` },
+ { title:"10. gap — clean spacing between items & lines",
+   why:"gap sets the space between flex items (and between wrapped lines) without the old margin hacks — no more :last-child { margin:0 } or negative-margin wrappers. row-gap and column-gap can be set separately, or gap does both. It applies only BETWEEN items, never on the outer edges, which is exactly what you want most of the time. Pair gap with justify-content for the spacing and you rarely need item margins at all.",
+   concept:`<div class="space-y-2"><div class="text-xs text-slate-500">gap: 4px</div><div class="dcont" style="gap:4px">${'<div class="dbox">1</div><div class="dbox">2</div><div class="dbox">3</div>'}</div><div class="text-xs text-slate-500">gap: 20px</div><div class="dcont" style="gap:20px">${'<div class="dbox">1</div><div class="dbox">2</div><div class="dbox">3</div>'}</div></div>`,
+   code:`.container { gap: 16px; }            /* rows + columns */
+.container { row-gap: 8px; column-gap: 24px; }
+/* only BETWEEN items — never adds outer-edge spacing */` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+render();
+</script>
+</body>
+</html>
