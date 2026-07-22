@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 41 — Responsive Breakpoint Previewer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .copy-btn:hover { background:#1e293b; }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip.on { background:#f59e0b; color:#fff; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  /* ---- editor textareas ---- */
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; margin-top:8px; }
+  textarea.code-in { width:100%; min-height:150px; resize:vertical; background:#0f172a; color:#e2e8f0;
+      border:none; border-radius:10px; padding:12px; font:12px/1.55 ui-monospace,"SF Mono",Menlo,monospace;
+      tab-size:2; outline:none; }
+  textarea.code-in:focus { box-shadow:0 0 0 3px rgba(245,158,11,.4); }
+  input[type=range] { width:100%; accent-color:#f59e0b; }
+
+  /* ---- device preset buttons ---- */
+  .devbtn { display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:8px 14px; border-radius:12px;
+      background:#f1f5f9; color:#334155; font-weight:800; font-size:12px; cursor:pointer; border:2px solid transparent;
+      font-family:ui-monospace,Menlo,monospace; }
+  .devbtn:hover { background:#fde68a; color:#92400e; }
+  .devbtn.on { background:#0f172a; color:#fff; border-color:#f59e0b; }
+  .devbtn .ico { font-size:20px; }
+  .devbtn .w  { opacity:.8; font-size:10px; }
+
+  /* ---- width readout ---- */
+  .wbig { font:900 42px/1 ui-monospace,Menlo,monospace; color:#0f172a; font-variant-numeric:tabular-nums; }
+  .wbig sub { font-size:15px; color:#94a3b8; font-weight:800; vertical-align:baseline; margin-left:3px; }
+
+  /* ---- preview stage ---- */
+  .stage { overflow-x:auto; overflow-y:hidden; padding:14px; border-radius:14px; background:
+      linear-gradient(90deg,rgba(148,163,184,.10) 1px,transparent 1px) 0 0/24px 24px,
+      linear-gradient(0deg,rgba(148,163,184,.10) 1px,transparent 1px) 0 0/24px 24px, #f8fafc;
+      border:2px dashed #cbd5e1; }
+  #frame { position:relative; width:768px; height:470px; background:#fff; border-radius:12px;
+      box-shadow:0 10px 30px rgba(15,23,42,.16); flex:0 0 auto; transition:width .09s ease-out; }
+  #pv { width:100%; height:100%; border:0; border-radius:12px; display:block; background:#fff; }
+  .dev-handle { position:absolute; top:0; right:-11px; width:22px; height:100%; cursor:ew-resize;
+      display:flex; align-items:center; justify-content:center; touch-action:none; }
+  .dev-handle::before { content:""; width:6px; height:52px; border-radius:6px; background:#f59e0b; box-shadow:0 2px 6px rgba(217,119,6,.5); }
+  .dev-handle:hover::before { background:#d97706; }
+  .frame-cap { position:absolute; top:-24px; left:0; font:700 11px ui-monospace,Menlo,monospace; color:#94a3b8; }
+
+  /* ---- ruler ---- */
+  #ruler { position:relative; height:46px; margin-top:6px; user-select:none; touch-action:none; }
+  .rtrack { position:absolute; left:0; right:0; top:26px; height:9px; background:#e2e8f0; border-radius:6px; cursor:pointer; }
+  #rfill  { position:absolute; left:0; top:26px; height:9px; background:linear-gradient(90deg,#fbbf24,#d97706); border-radius:6px; pointer-events:none; }
+  #rmarker { position:absolute; top:19px; width:3px; height:23px; background:#0f172a; border-radius:2px; transform:translateX(-50%); pointer-events:none; }
+  .rtick { position:absolute; top:0; transform:translateX(-50%); pointer-events:none; text-align:center; }
+  .rtick i { display:block; width:1px; height:16px; background:#cbd5e1; margin:0 auto; }
+  .rtick span { font:700 9px ui-monospace,Menlo,monospace; color:#94a3b8; white-space:nowrap; }
+
+  /* ---- breakpoint panel ---- */
+  .bp-row { display:flex; align-items:center; gap:8px; padding:9px 11px; border-radius:10px; background:#f8fafc;
+      border:1px solid #e2e8f0; margin-bottom:6px; font-family:ui-monospace,Menlo,monospace; }
+  .bp-row.active { background:linear-gradient(135deg,#fffbeb,#fef3c7); border-color:#f59e0b; }
+  .bp-name { font-weight:900; font-size:14px; color:#334155; width:34px; }
+  .bp-row.active .bp-name { color:#b45309; }
+  .bp-min  { font-size:11px; color:#94a3b8; flex:1; }
+  .bp-stat { font-size:10px; font-weight:900; letter-spacing:.05em; padding:2px 8px; border-radius:999px; background:#e2e8f0; color:#94a3b8; }
+  .bp-row.active .bp-stat { background:#f59e0b; color:#fff; }
+
+  /* ---- user @media list ---- */
+  .mq-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:9px; background:#f8fafc;
+      border:1px solid #e2e8f0; margin-bottom:5px; }
+  .mq-item.fires { background:#ecfdf5; border-color:#10b981; }
+  .mq-dot { width:9px; height:9px; border-radius:50%; background:#cbd5e1; flex:0 0 auto; }
+  .mq-item.fires .mq-dot { background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.25); }
+  .mq-item code { background:transparent; font-size:11px; color:#475569; flex:1; padding:0; }
+  .mq-stat { font-size:9px; font-weight:900; letter-spacing:.05em; color:#94a3b8; }
+  .mq-item.fires .mq-stat { color:#059669; }
+  .mq-empty { font-size:12px; color:#94a3b8; padding:8px 4px; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .miniframe { border:2px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; }
+  .mbar { height:22px; background:#0f172a; display:flex; align-items:center; gap:5px; padding:0 8px; }
+  .mdot { width:7px; height:7px; border-radius:50%; background:#f59e0b; }
+  .cardline { display:grid; gap:6px; padding:8px; }
+  .cc { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:6px; padding:10px; text-align:center; font:800 11px ui-monospace,Menlo,monospace; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 41</div>
+      <h1 class="text-xl font-bold">📐 Responsive Breakpoint Previewer — paste HTML+CSS, drag a live viewport, watch which <code>@media</code> breakpoints fire</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Drag the width, pick a device, and watch the layout reflow as each breakpoint lights up.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A responsive page has no single "size" — it renders differently at every viewport width, and the switches happen at <strong>breakpoints</strong>: widths where a <code>@media</code> query flips a chunk of CSS on or off. The hard part of building responsive layouts is that you can only see <em>one</em> width at a time in a normal browser, so you resize the whole window and squint. This tool fixes that by rendering your HTML+CSS inside an <strong>isolated <code>&lt;iframe&gt;</code></strong> whose width you control independently of the page. Because a media query is evaluated against <em>its own document's</em> viewport, shrinking the iframe to 390px makes the preview behave exactly as it would on an iPhone — <code>@media (min-width:768px)</code> stays off, the mobile layout shows — while the real page around it is still 1400px wide. Drag the handle (or the ruler, or the slider) and you scrub through every width continuously; the panel on the right shows which of the common Tailwind-style breakpoints (<code>sm</code> 640 · <code>md</code> 768 · <code>lg</code> 1024 · <code>xl</code> 1280) are active, and which of <em>your own</em> <code>@media</code> rules are currently firing. No library — just <code>iframe.srcdoc</code>, a width in pixels, and a little arithmetic comparing the width to each breakpoint.</p>
+      </div>
+
+      <!-- CONTROL BAR -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+        <div class="grid lg:grid-cols-3 gap-5 items-center">
+          <div>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Current viewport</div>
+            <div class="wbig"><span id="wReadout">768</span><sub>px</sub></div>
+            <div class="text-sm text-slate-500 mt-1"><span id="presetLabel" class="font-bold text-slate-700">📲 iPad</span> · top breakpoint <span id="bpLabel" class="chip on" style="padding:2px 10px;margin:0">md</span></div>
+          </div>
+          <div class="lg:col-span-2">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Device presets <span class="text-slate-400 normal-case">— each is just a canned pixel width</span></div>
+            <div id="presetRow" class="flex flex-wrap gap-2"></div>
+            <div class="fieldlabel">width slider <span class="text-slate-400 normal-case">— <span class="mono">320</span> … <span class="mono">1600</span> px</span></div>
+            <input id="wSlider" type="range" min="320" max="1600" value="768">
+          </div>
+        </div>
+        <div class="fieldlabel">width ruler <span class="text-slate-400 normal-case">— click or drag anywhere; ticks mark the common breakpoints</span></div>
+        <div id="ruler">
+          <div id="rtrack" class="rtrack"></div>
+          <div id="rfill"></div>
+          <div id="rticks"></div>
+          <div id="rmarker"></div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-5">
+        <!-- PREVIEW STAGE -->
+        <div class="lg:col-span-2 space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live preview <span class="text-slate-400 normal-case">— rendered in an isolated iframe with its own viewport</span></div>
+              <button id="resetBtn" class="chip">↺ reset demo</button>
+            </div>
+            <div class="stage" id="stage" style="display:flex;">
+              <div id="frame">
+                <div class="frame-cap"><span id="capW">768</span>px viewport</div>
+                <iframe id="pv" title="preview"></iframe>
+                <div class="dev-handle" id="devHandle" title="drag to resize"></div>
+              </div>
+            </div>
+            <div class="text-xs text-slate-400 mt-2">Grab the orange bar on the right edge and drag, or use the slider / ruler / device buttons above. The dashed area is the desktop; the white box is the "device" — its width is the viewport your media queries see.</div>
+          </div>
+
+          <!-- EDITOR -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Edit the snippet <span class="text-slate-400 normal-case">— HTML markup + CSS; the preview rebuilds as you type</span></div>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <div class="fieldlabel">HTML</div>
+                <textarea id="htmlTa" class="code-in" spellcheck="false"></textarea>
+              </div>
+              <div>
+                <div class="fieldlabel">CSS <span class="text-slate-400 normal-case">— try changing a <code>min-width</code></span></div>
+                <textarea id="cssTa" class="code-in" spellcheck="false"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BREAKPOINT SIDEBAR -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Common breakpoints <span class="text-slate-400 normal-case">— mobile-first (min-width)</span></div>
+              <button id="copyBp" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy CSS</button>
+            </div>
+            <div id="bpList"></div>
+            <div class="text-xs text-slate-400 mt-2">A <code>min-width</code> breakpoint is <strong>active</strong> once the viewport is that wide or wider — so at 1024px, <code>sm</code>, <code>md</code> and <code>lg</code> are all on and stacked in the cascade.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Your <code>@media</code> rules <span class="text-slate-400 normal-case">— parsed from your CSS</span></div>
+            <div id="mqList"></div>
+            <div class="text-xs text-slate-400 mt-2">Parsed straight from the CSS box on the left. Drag the width and watch each rule flip between <span class="text-emerald-600 font-bold">FIRES</span> and idle at the exact pixel it crosses.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-5">
+        <div class="font-bold text-amber-900 mb-1">Five things that surprise people</div>
+        <p class="text-sm text-amber-800"><strong>1. The iframe has its own viewport.</strong> Media queries inside <code>srcdoc</code> are measured against the iframe's width, not the browser window — that is the whole trick that lets a 390px "phone" live inside a 1400px page. Without the iframe you'd have to resize the actual window. <strong>2. <code>min-width</code> is mobile-first, <code>max-width</code> is desktop-first.</strong> <code>@media (min-width:768px)</code> adds styles as you grow <em>past</em> 768; <code>@media (max-width:767px)</code> adds them as you shrink <em>below</em> 768. Mixing the two families in one stylesheet is the classic source of "why are both rules applying?" — because at some widths both can be true. <strong>3. Breakpoints stack.</strong> At 1300px every one of <code>sm</code>/<code>md</code>/<code>lg</code>/<code>xl</code> min-width query is <em>simultaneously</em> matched; the one that wins is simply the last in source order (or the most specific), not "the biggest". Order your media queries small-to-large. <strong>4. The famous off-by-one.</strong> If you write <code>max-width:768px</code> and <code>min-width:768px</code>, both fire at <em>exactly</em> 768. Pick <code>max-width:767.98px</code> (or 767px) so the ranges don't overlap — this is why frameworks use those odd <code>.98</code> values. <strong>5. Breakpoints are content, not devices.</strong> 640/768/1024/1280 are conventions, not phone sizes; the right place for a breakpoint is wherever <em>your</em> layout starts to look bad. Drag the ruler until it breaks, and put the query there.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How responsive breakpoints actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A breakpoint previewer looks fancy but has almost no logic — the browser does all the layout, twice: once for your page and once, independently, inside the iframe. The whole tool is <strong>an <code>iframe.srcdoc</code> holding the user's HTML+CSS, a single number (the frame's width in pixels), and three ways to change that number</strong> (buttons, a slider, a drag handle). Everything on the right is just arithmetic: compare the current width to each breakpoint value, and to each <code>min/max-width</code> you scraped out of the CSS with a regex. The one real idea to internalise is <strong>iframe isolation</strong> — a media query is evaluated against its own document's viewport, so an iframe you can resize is a device you can hold in your hand. There is <strong>no library</strong>.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The state is tiny: source strings + one width</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The <strong>source of truth</strong> is three values: the HTML the user typed, the CSS they typed, and the current viewport width. The list of breakpoints is fixed data. Everything the UI shows is derived from these.</p>
+        <div class="relative"><pre>let html  = DEFAULT_HTML;   // markup in the textarea
+let css   = DEFAULT_CSS;    // styles in the textarea
+let curW  = 768;            // the iframe's width, in px
+
+const BREAKPOINTS = [
+  { name:"sm", w:640 }, { name:"md", w:768 },
+  { name:"lg", w:1024 }, { name:"xl", w:1280 }
+];
+const PRESETS = [
+  { name:"iPhone", w:390 },  { name:"iPad", w:768 },
+  { name:"Laptop", w:1024 }, { name:"Desktop", w:1440 }
+];</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Render into an isolated iframe with srcdoc</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Wrap the user's markup + CSS into a full mini-document and hand it to the iframe's <code>srcdoc</code> attribute. The iframe now has its <em>own</em> viewport, so its media queries respond to <em>its</em> width — not the page's. That is the isolation trick the whole tool rests on.</p>
+        <div class="relative"><pre>function buildDoc(html, css){
+  return '&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset="utf-8"&gt;'
+       + '&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;'
+       + '&lt;style&gt;' + css + '&lt;/style&gt;&lt;/head&gt;&lt;body&gt;'
+       + html + '&lt;/body&gt;&lt;/html&gt;';
+}
+// srcdoc = a document string; no server, no file, no cross-origin fetch
+pv.srcdoc = buildDoc(html, css);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Width is just a CSS pixel value on the frame</h3></div>
+        <p class="text-sm text-slate-600 mb-3">There is no "resize" API. You set the wrapper's <code>style.width</code> in pixels; the iframe fills it at 100%, so changing the number literally changes the viewport the preview sees. Clamp it to sane bounds and re-derive the panels.</p>
+        <div class="relative"><pre>const MINW = 320, MAXW = 1600;
+function setWidth(w){
+  curW = Math.round(Math.min(MAXW, Math.max(MINW, w)));
+  frame.style.width = curW + "px";   // iframe is width:100% inside
+  refresh();                         // update readout + panels
+}
+// no iframe rebuild here — resizing is instant &amp; smooth</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Three inputs, one setter — presets & slider</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every control just calls <code>setWidth</code>. A preset is a canned number, so the buttons are pure data; the slider passes its value through directly. One function is the single funnel that keeps the readout, ruler and panels in sync no matter which control moved.</p>
+        <div class="relative"><pre>PRESETS.forEach(p =&gt; {
+  const b = document.createElement("button");
+  b.textContent = p.name; b.dataset.w = p.w;
+  b.onclick = () =&gt; setWidth(p.w);   // a preset is just a width
+  presetRow.appendChild(b);
+});
+slider.oninput = () =&gt; setWidth(+slider.value);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">The drag handle — pointer events + capture</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The tactile control is a bar on the frame's right edge. On <code>pointerdown</code> record the start X and start width; on <code>pointermove</code> add the delta. <code>setPointerCapture</code> means the drag keeps working even when the cursor leaves the little handle — the difference between a janky and a solid resizer.</p>
+        <div class="relative"><pre>let startX, startW, dragging = false;
+handle.addEventListener("pointerdown", e =&gt; {
+  dragging = true; startX = e.clientX; startW = curW;
+  handle.setPointerCapture(e.pointerId);   // keep events while dragging
+});
+handle.addEventListener("pointermove", e =&gt; {
+  if (dragging) setWidth(startW + (e.clientX - startX));
+});
+handle.addEventListener("pointerup", () =&gt; { dragging = false; });</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Which common breakpoints are active?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Mobile-first breakpoints are trivial to evaluate: a breakpoint is active when the width is greater-than-or-equal to its value. The "top" breakpoint — the one whose styles win — is simply the largest active one. This is the entire breakpoint panel.</p>
+        <div class="relative"><pre>function activeAt(w){
+  return BREAKPOINTS.filter(b =&gt; w &gt;= b.w);   // min-width semantics
+}
+function topBreakpoint(w){
+  let t = null;
+  BREAKPOINTS.forEach(b =&gt; { if (w &gt;= b.w) t = b; });
+  return t;   // largest active — last to apply in the cascade
+}
+// at 1024 → active: sm, md, lg   ·   top: lg</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Scrape the user's @media rules with a regex</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To show which of <em>their</em> queries fire, read every <code>@media</code> header out of the CSS and pull each <code>min/max-width</code> feature. You don't need a real CSS parser — a regex over the at-rule headers is plenty for width queries, which are 99% of what people write.</p>
+        <div class="relative"><pre>function parseMedia(css){
+  const out = [], head = /@media([^{]+)\{/g; let m;
+  while ((m = head.exec(css))) {
+    const feats = [], f = /(min|max)-width\s*:\s*(\d+)\s*px/g; let x;
+    while ((x = f.exec(m[1]))) feats.push({ kind:x[1], value:+x[2] });
+    if (feats.length) out.push({ cond:m[1].trim(), feats });
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Does a rule fire at this width?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A media block fires when <strong>all</strong> its features are satisfied (they're AND-ed). <code>min-width</code> passes when the width is at least the value; <code>max-width</code> passes when it's at most the value. This one predicate drives the FIRES / idle badge for every parsed rule.</p>
+        <div class="relative"><pre>function mediaFires(item, w){
+  return item.feats.every(f =&gt;
+    f.kind === "min" ? w &gt;= f.value    // grow past it
+                     : w &lt;= f.value);  // shrink below it
+}
+// (min-width:640px) and (max-width:1023px) → a RANGE:
+// fires only when 640 &lt;= w &lt;= 1023</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">The ruler — map width to a percentage</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The ruler is a bar where position encodes width. Map the width range <code>[MINW, MAXW]</code> onto <code>[0%, 100%]</code>; place a tick for each breakpoint at its percentage and a marker at the current width. Clicking the bar inverts the map to set the width from the click position.</p>
+        <div class="relative"><pre>const RANGE = MAXW - MINW;
+const pct = w =&gt; (w - MINW) / RANGE * 100;         // width → %
+function widthFromX(clientX){                       // % → width
+  const r = ruler.getBoundingClientRect();
+  const p = (clientX - r.left) / r.width;
+  return MINW + Math.min(1, Math.max(0, p)) * RANGE;
+}
+ruler.addEventListener("pointerdown",
+  e =&gt; setWidth(widthFromX(e.clientX)));</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Two loops: rebuild (typing) vs refresh (resizing)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Split the work. <code>refresh()</code> (cheap, no reload) updates readout + ruler + panels every time the width changes — that's why dragging is buttery. <code>rebuild()</code> re-writes the iframe and re-parses the CSS, and only runs when the user <em>types</em>, debounced so a burst of keystrokes reloads the frame once.</p>
+        <div class="relative"><pre>function rebuild(){                    // on TYPING (debounced)
+  pv.srcdoc  = buildDoc(html, css);
+  userMedia  = parseMedia(css);
+  refresh();
+}
+const debounce = (fn, ms) =&gt; { let t; return () =&gt; {
+  clearTimeout(t); t = setTimeout(fn, ms); }; };
+[htmlTa, cssTa].forEach(t =&gt; t.oninput = () =&gt; {
+  html = htmlTa.value; css = cssTa.value; deb();   // deb = debounce(rebuild,300)
+});</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 41 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real Responsive Breakpoint Previewer with <strong>no library</strong>: an <code>iframe.srcdoc</code> holding the user's HTML+CSS gives you a viewport you can resize independently of the page; a single <code>curW</code> pixel value, driven by device presets, a slider, a draggable handle and a click-anywhere ruler, all funnelled through one <code>setWidth</code>; a breakpoint panel that is nothing but <code>width &gt;= breakpoint</code> comparisons for the mobile-first scale; and a regex that scrapes the user's own <code>@media</code> headers so you can light up exactly which of their rules fire at the current pixel. The lesson underneath: <strong>a breakpoint is not magic — it is a width at which a media query flips, a media query is evaluated against its document's own viewport, and an iframe is simply a document whose viewport you get to hold in your hand.</strong> <strong>👉 Tomorrow — Day 42:</strong> a <strong>CSS <code>clamp()</code> / Fluid-Type Scale generator</strong> — dial min/max sizes and a viewport range, watch text scale smoothly between breakpoints, and copy the <code>clamp()</code> and <code>--fluid</code> custom properties.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==BREAKPOINT-ENGINE-START== (srcdoc iframe + width -> derived panels; no library)
+// A responsive page renders differently at every viewport WIDTH; the switches
+// happen at BREAKPOINTS, widths where an @media query flips CSS on/off. We render
+// the user's HTML+CSS inside an ISOLATED iframe (srcdoc) whose width we control,
+// so media queries evaluate against ITS viewport, not the page's. Everything the
+// panels show is arithmetic: compare the width to each breakpoint, and to each
+// min/max-width scraped from the CSS. This block is the pure, testable core.
+const BREAKPOINTS = [
+  { name:"sm", w:640 }, { name:"md", w:768 },
+  { name:"lg", w:1024 }, { name:"xl", w:1280 }
+];
+const PRESETS = [
+  { name:"iPhone",  w:390,  icon:"📱" },
+  { name:"iPad",    w:768,  icon:"📲" },
+  { name:"Laptop",  w:1024, icon:"💻" },
+  { name:"Desktop", w:1440, icon:"🖥️" }
+];
+
+// wrap markup + styles into a standalone document for iframe.srcdoc
+function buildDoc(html, css){
+  return '<!doctype html><html><head><meta charset="utf-8">'
+       + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+       + '<style>' + css + '</style></head><body>'
+       + html + '</body></html>';
+}
+// min-width semantics: active once viewport is that wide or wider
+function activeAt(w){ return BREAKPOINTS.filter(b => w >= b.w); }
+function topBreakpoint(w){ let t = null; BREAKPOINTS.forEach(b => { if (w >= b.w) t = b; }); return t; }
+function matchPreset(w){ return PRESETS.find(p => p.w === w) || null; }
+
+// scrape every @media header, pull each min/max-width feature
+function parseMedia(css){
+  const out = [], head = /@media([^{]+)\{/g; let m;
+  while ((m = head.exec(css))) {
+    const feats = [], f = /(min|max)-width\s*:\s*(\d+)\s*px/g; let x;
+    while ((x = f.exec(m[1]))) feats.push({ kind:x[1], value:+x[2] });
+    if (feats.length) out.push({ cond:m[1].trim(), feats });
+  }
+  return out;
+}
+// a block fires when ALL its features pass (they are AND-ed)
+function mediaFires(item, w){
+  return item.feats.every(f => f.kind === "min" ? w >= f.value : w <= f.value);
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { BREAKPOINTS, PRESETS, buildDoc, activeAt, topBreakpoint, matchPreset, parseMedia, mediaFires };
+// ==BREAKPOINT-ENGINE-END==
+
+// ---- default snippet: a mobile-first card grid + nav that reflows at every bp ----
+const DEFAULT_HTML =
+`<div class="wrap">
+  <header>
+    <div class="logo">◆ Acme</div>
+    <nav>
+      <a>Home</a><a>Docs</a><a>Pricing</a><a>About</a>
+    </nav>
+  </header>
+
+  <p class="badge">active breakpoint: base</p>
+
+  <div class="grid">
+    <div class="card">1</div>
+    <div class="card">2</div>
+    <div class="card">3</div>
+    <div class="card">4</div>
+    <div class="card">5</div>
+    <div class="card">6</div>
+  </div>
+</div>`;
+
+const DEFAULT_CSS =
+`* { box-sizing:border-box; margin:0; font-family:system-ui,-apple-system,sans-serif; }
+body { padding:16px; background:#f8fafc; color:#0f172a; }
+
+header { display:flex; flex-direction:column; gap:10px;
+         background:#0f172a; color:#fff; padding:14px 16px; border-radius:14px; }
+.logo { font-weight:800; font-size:18px; }
+nav { display:flex; flex-direction:column; gap:6px; }
+nav a { color:#cbd5e1; text-decoration:none; font-weight:600; }
+
+.badge { display:inline-block; margin:16px 0; padding:8px 14px; border-radius:999px;
+         background:#e2e8f0; color:#334155; font-weight:800; font-size:13px; }
+
+.grid { display:grid; grid-template-columns:1fr; gap:12px; }
+.card { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff;
+        border-radius:14px; padding:30px; text-align:center;
+        font-weight:800; font-size:22px; }
+
+/* sm — 640px and up */
+@media (min-width:640px){
+  body   { background:#eff6ff; }
+  .grid  { grid-template-columns:repeat(2,1fr); }
+  .badge::after { content:" → sm"; }
+}
+/* md — 768px and up */
+@media (min-width:768px){
+  header { flex-direction:row; justify-content:space-between; align-items:center; }
+  nav    { flex-direction:row; gap:18px; }
+  .badge::after { content:" → md"; }
+}
+/* lg — 1024px and up */
+@media (min-width:1024px){
+  body   { background:#f0fdf4; }
+  .grid  { grid-template-columns:repeat(3,1fr); }
+  .badge::after { content:" → lg"; }
+}
+/* xl — 1280px and up */
+@media (min-width:1280px){
+  .grid  { grid-template-columns:repeat(4,1fr); }
+  .badge::after { content:" → xl"; }
+}`;
+
+// ---- element refs ----
+const pv        = document.getElementById("pv");
+const frame     = document.getElementById("frame");
+const stage     = document.getElementById("stage");
+const handle    = document.getElementById("devHandle");
+const slider    = document.getElementById("wSlider");
+const presetRow = document.getElementById("presetRow");
+const wReadout  = document.getElementById("wReadout");
+const capW      = document.getElementById("capW");
+const presetLabel = document.getElementById("presetLabel");
+const bpLabel   = document.getElementById("bpLabel");
+const bpList    = document.getElementById("bpList");
+const mqList    = document.getElementById("mqList");
+const htmlTa    = document.getElementById("htmlTa");
+const cssTa     = document.getElementById("cssTa");
+const ruler     = document.getElementById("ruler");
+const rfill     = document.getElementById("rfill");
+const rmarker   = document.getElementById("rmarker");
+const rticks    = document.getElementById("rticks");
+
+const MINW = 320, MAXW = 1600, RANGE = MAXW - MINW;
+const pct = w => (w - MINW) / RANGE * 100;
+let curW = 768;
+let userMedia = [];
+
+function esc(s){ return s.replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c])); }
+
+// ---- build device preset buttons (pure data) ----
+PRESETS.forEach(p => {
+  const b = document.createElement("button");
+  b.className = "devbtn";
+  b.dataset.w = p.w;
+  b.innerHTML = '<span class="ico">' + p.icon + '</span><span>' + p.name + '</span><span class="w">' + p.w + 'px</span>';
+  b.onclick = () => setWidth(p.w);
+  presetRow.appendChild(b);
+});
+
+// ---- build ruler ticks for each breakpoint ----
+BREAKPOINTS.forEach(b => {
+  const t = document.createElement("div");
+  t.className = "rtick";
+  t.style.left = pct(b.w) + "%";
+  t.innerHTML = '<i></i><span>' + b.name + '·' + b.w + '</span>';
+  rticks.appendChild(t);
+});
+
+// ---- the single width setter every control funnels through ----
+function setWidth(w){
+  curW = Math.round(Math.min(MAXW, Math.max(MINW, w)));
+  frame.style.width = curW + "px";
+  slider.value = curW;
+  refresh();
+}
+
+// ---- cheap update: readout + ruler + panels (no iframe reload) ----
+function refresh(){
+  const w = curW;
+  wReadout.textContent = w;
+  capW.textContent = w;
+
+  const pre = matchPreset(w);
+  presetLabel.innerHTML = pre ? (pre.icon + " " + pre.name) : "✎ Custom width";
+
+  const tb = topBreakpoint(w);
+  bpLabel.textContent = tb ? tb.name : "base";
+
+  // common breakpoint rows
+  bpList.innerHTML = BREAKPOINTS.map(b => {
+    const on = w >= b.w;
+    return '<div class="bp-row' + (on ? " active" : "") + '">' +
+             '<span class="bp-name">' + b.name + '</span>' +
+             '<span class="bp-min">min-width: ' + b.w + 'px</span>' +
+             '<span class="bp-stat">' + (on ? "ACTIVE" : "idle") + '</span>' +
+           '</div>';
+  }).join("");
+
+  // the user's own @media rules
+  if (!userMedia.length) {
+    mqList.innerHTML = '<div class="mq-empty">No <code>@media</code> width rules found in your CSS.</div>';
+  } else {
+    mqList.innerHTML = userMedia.map(it => {
+      const fires = mediaFires(it, w);
+      return '<div class="mq-item' + (fires ? " fires" : "") + '">' +
+               '<span class="mq-dot"></span>' +
+               '<code>@media ' + esc(it.cond) + '</code>' +
+               '<span class="mq-stat">' + (fires ? "FIRES" : "idle") + '</span>' +
+             '</div>';
+    }).join("");
+  }
+
+  // ruler fill + marker
+  rfill.style.width = pct(w) + "%";
+  rmarker.style.left = pct(w) + "%";
+
+  // active preset button
+  presetRow.querySelectorAll(".devbtn").forEach(b => b.classList.toggle("on", +b.dataset.w === w));
+}
+
+// ---- expensive update: rebuild iframe + reparse CSS (on typing) ----
+function rebuild(){
+  pv.srcdoc = buildDoc(htmlTa.value, cssTa.value);
+  userMedia = parseMedia(cssTa.value);
+  refresh();
+}
+
+// ---- controls ----
+slider.oninput = () => setWidth(+slider.value);
+
+// drag handle on the frame's right edge
+let startX = 0, startW = 0, dragging = false;
+handle.addEventListener("pointerdown", e => {
+  e.preventDefault(); dragging = true; startX = e.clientX; startW = curW;
+  handle.setPointerCapture(e.pointerId);
+});
+handle.addEventListener("pointermove", e => { if (dragging) setWidth(startW + (e.clientX - startX)); });
+handle.addEventListener("pointerup",   e => { dragging = false; try { handle.releasePointerCapture(e.pointerId); } catch(_){} });
+
+// click / drag anywhere on the ruler
+function widthFromX(clientX){
+  const r = ruler.getBoundingClientRect();
+  const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  return MINW + p * RANGE;
+}
+let rdrag = false;
+ruler.addEventListener("pointerdown", e => { rdrag = true; ruler.setPointerCapture(e.pointerId); setWidth(widthFromX(e.clientX)); });
+ruler.addEventListener("pointermove", e => { if (rdrag) setWidth(widthFromX(e.clientX)); });
+ruler.addEventListener("pointerup",   e => { rdrag = false; try { ruler.releasePointerCapture(e.pointerId); } catch(_){} });
+
+// typing rebuilds the iframe, debounced
+const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+const deb = debounce(rebuild, 300);
+htmlTa.oninput = deb;
+cssTa.oninput  = deb;
+
+// reset the demo
+document.getElementById("resetBtn").onclick = () => {
+  htmlTa.value = DEFAULT_HTML; cssTa.value = DEFAULT_CSS;
+  rebuild(); setWidth(768);
+};
+
+// copy the standard mobile-first breakpoint CSS
+document.getElementById("copyBp").onclick = () => {
+  const b = document.getElementById("copyBp");
+  const css = BREAKPOINTS.map(bp =>
+    "/* " + bp.name + " */\n@media (min-width: " + bp.w + "px) {\n  \n}").join("\n\n");
+  navigator.clipboard && navigator.clipboard.writeText(css);
+  const o = b.textContent; b.textContent = "✓ Copied!"; setTimeout(() => b.textContent = o, 1200);
+};
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. The viewport — the width everything reacts to",
+   why:"Responsive design starts with one measurement: the viewport width — the width of the area your page is painted into. On a phone that's ~390px, on a laptop ~1280px. Your CSS can ask 'how wide is the viewport right now?' and apply different rules accordingly. The meta viewport tag (width=device-width) tells mobile browsers to use the real device width instead of pretending to be a 980px desktop, which is why a page without it looks zoomed-out on phones. Everything else in responsive CSS is reacting to this single number.",
+   concept:`<div class="text-center space-y-2"><div class="wbig" style="font-size:30px">390<sub>px</sub> · 768<sub>px</sub> · 1280<sub>px</sub></div><div class="text-xs text-slate-400">the viewport width is the number your media queries test</div></div>`,
+   code:`<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+/* without this, phones fake a ~980px viewport and
+   your media queries never fire as intended */` },
+ { title:"2. A breakpoint is just a width where CSS flips",
+   why:"A 'breakpoint' sounds architectural but it is nothing more than a width value at which you decide the layout should change — one column below it, two above it. You express that decision with an @media query. There is no fixed list handed down by the browser; sm/md/lg/xl (640/768/1024/1280) are conventions popularised by frameworks like Tailwind and Bootstrap so teams share a vocabulary. The browser just evaluates the width you wrote.",
+   concept:`<div class="space-y-2"><div class="miniframe"><div class="cardline" style="grid-template-columns:1fr"><div class="cc">1 col · narrow</div></div></div><div class="text-center text-slate-400 text-xs">↓ cross 640px ↓</div><div class="miniframe"><div class="cardline" style="grid-template-columns:1fr 1fr"><div class="cc">1</div><div class="cc">2</div></div></div></div>`,
+   code:`@media (min-width: 640px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+}
+/* 640 here is a CHOICE, not a rule from the browser */` },
+ { title:"3. min-width (mobile-first) vs max-width (desktop-first)",
+   why:"There are two ways to phrase a breakpoint and they are mirror images. min-width builds UP: you write the phone layout as the default, then ADD styles as the viewport grows past each threshold — this is 'mobile-first' and it's the modern default. max-width builds DOWN: you write the desktop layout, then override it as the viewport SHRINKS below thresholds. Both work; the danger is mixing them, because at a given width you can have both a min- and a max- query true at once and then cascade order decides the winner.",
+   concept:`<div class="space-y-2 text-center"><div><span class="pill a">min-width: 768px</span> <span class="text-xs text-slate-400">fires when w ≥ 768 (growing)</span></div><div><span class="pill b">max-width: 767px</span> <span class="text-xs text-slate-400">fires when w ≤ 767 (shrinking)</span></div></div>`,
+   code:`/* mobile-first: base = phone, add as it grows */
+.col { width: 100%; }
+@media (min-width: 768px){ .col { width: 50%; } }
+
+/* desktop-first: base = desktop, override shrinking */
+.col { width: 50%; }
+@media (max-width: 767px){ .col { width: 100%; } }` },
+ { title:"4. Breakpoints stack — the cascade decides",
+   why:"With mobile-first min-width queries, wider viewports match MORE queries at once, not just one. At 1300px the sm, md, lg AND xl blocks are all simultaneously true. So which grid-template-columns wins? Not 'the biggest breakpoint' — the normal CSS cascade: the last matching rule of equal specificity in source order. That's why you must write media queries small-to-large; if you put xl before sm, the sm block would override it at 1300px and your widest layout would silently break.",
+   concept:`<div class="space-y-1"><div class="bp-row active"><span class="bp-name">sm</span><span class="bp-min">min-width:640</span><span class="bp-stat">ON</span></div><div class="bp-row active"><span class="bp-name">md</span><span class="bp-min">min-width:768</span><span class="bp-stat">ON</span></div><div class="bp-row active"><span class="bp-name">lg</span><span class="bp-min">min-width:1024</span><span class="bp-stat">ON</span></div><div class="text-center text-xs text-slate-400">at 1300px all three are active — last in source wins</div></div>`,
+   code:`/* order small → large so the widest wins */
+@media (min-width: 640px)  { .grid { --cols: 2; } }
+@media (min-width: 1024px) { .grid { --cols: 3; } }
+@media (min-width: 1280px) { .grid { --cols: 4; } }
+/* reverse this order and 4-col never shows */` },
+ { title:"5. The famous off-by-one at the boundary",
+   why:"If you pair min-width:768px with max-width:768px, both are true at EXACTLY 768 — the boundary belongs to both ranges and you get a one-pixel flicker where both rule sets apply. Frameworks solve this by ending the lower range just short: max-width:767.98px. The .98 (rather than 767) dodges rounding issues on high-DPI screens where the viewport can be a fractional CSS pixel. It looks superstitious until you hit the bug; then it's gospel.",
+   concept:`<div class="text-center space-y-2"><div class="text-sm text-slate-600">at exactly <b>768px</b>:</div><div><span class="pill b">max-width:768</span> ✓ &nbsp; <span class="pill a">min-width:768</span> ✓</div><div class="text-xs text-red-500">both fire — overlap!</div><div class="text-xs text-emerald-600">fix → max-width: 767.98px</div></div>`,
+   code:`/* BAD — 768 is in both ranges */
+@media (max-width: 768px){ ... }
+@media (min-width: 768px){ ... }
+
+/* GOOD — ranges don't overlap */
+@media (max-width: 767.98px){ ... }
+@media (min-width: 768px){ ... }` },
+ { title:"6. iframe isolation — a viewport in a box",
+   why:"Here's the trick that makes a previewer possible. Normally a media query is measured against the browser window, so to test 390px you'd resize the whole window. But an <iframe> is a completely separate document with its OWN viewport equal to the iframe's rendered width. Put the user's HTML+CSS inside one via srcdoc, set the iframe to 390px, and its media queries behave as if on a phone — while the surrounding page stays full-width. You're holding a device viewport inside your desktop.",
+   concept:`<div class="text-center space-y-2"><div class="miniframe" style="max-width:210px;margin:0 auto"><div class="mbar"><span class="mdot"></span><span style="color:#94a3b8;font:700 9px monospace">iframe · 390px viewport</span></div><div class="cardline" style="grid-template-columns:1fr"><div class="cc">phone layout</div></div></div><div class="text-xs text-slate-400">…living inside a 1400px page</div></div>`,
+   code:`const doc = '<style>' + userCss + '</style>' + userHtml;
+iframe.srcdoc = doc;          // isolated document
+iframe.style.width = '390px'; // its viewport = 390px
+/* media queries inside test 390, not window.innerWidth */` },
+ { title:"7. Detecting the active breakpoint in JS",
+   why:"You often want JavaScript to know the breakpoint too — to swap a component, lazy-load a heavy desktop widget, or (here) light up a panel. Two ways: compare a width number to your thresholds (what this tool does, since the width is a value we own), or ask the browser directly with matchMedia, which returns a live MediaQueryList you can even subscribe to for change events. matchMedia is the canonical API and stays in sync with the CSS automatically.",
+   concept:`<div class="space-y-1"><div class="demorow" style="font-family:monospace;font-size:12px">width 900 → <span class="pill a">md active</span></div><div class="demorow" style="font-family:monospace;font-size:12px">width 1200 → <span class="pill a">lg active</span></div></div>`,
+   code:`// option A — compare the number you control
+const active = BPS.filter(b => width >= b.w);
+
+// option B — ask the browser (live, auto-updating)
+const mq = window.matchMedia("(min-width: 768px)");
+mq.matches;                       // true / false right now
+mq.addEventListener("change", e => update(e.matches));` },
+ { title:"8. Parsing @media rules out of raw CSS",
+   why:"To show which of the USER's queries fire, you must read their CSS. A full CSS parser is overkill for width queries: a regex that grabs each @media header, then pulls every (min|max)-width: Npx feature from it, covers virtually all real stylesheets. You store each rule's features and, given a width, test them. The browser also exposes this structurally via document.styleSheets → CSSMediaRule.conditionText, but for a textarea of source, regex is simplest.",
+   concept:`<div class="mq-item fires"><span class="mq-dot"></span><code>@media (min-width:768px)</code><span class="mq-stat">FIRES</span></div><div class="mq-item"><span class="mq-dot"></span><code>@media (min-width:1280px)</code><span class="mq-stat">idle</span></div>`,
+   code:`const head = /@media([^{]+)\\{/g;          // each at-rule header
+const feat = /(min|max)-width\\s*:\\s*(\\d+)px/g;// each width feature
+// -> [{ cond:"(min-width:768px)", feats:[{kind:"min",value:768}] }]` },
+ { title:"9. Evaluating a query at a given width",
+   why:"Once parsed, 'does this fire at width W?' is pure logic. A media block ANDs its features, so it fires only if every feature passes: min-width passes when W is at least the value, max-width when W is at most it. A range query like (min-width:640px) and (max-width:1023px) therefore fires only inside [640,1023]. This same predicate powers the FIRES/idle badges and would let you highlight, in the CSS box, exactly which rules are live.",
+   concept:`<div class="text-center space-y-1 text-sm"><div class="mono">(min:640) and (max:1023)</div><div class="text-xs text-slate-400">fires only when 640 ≤ width ≤ 1023</div><div><span class="pill b">920px → FIRES</span> <span class="pill a">1200px → idle</span></div></div>`,
+   code:`function fires(rule, w){
+  return rule.feats.every(f =>
+    f.kind === "min" ? w >= f.value : w <= f.value);
+}
+// AND of all features → ranges just work` },
+ { title:"10. Container queries — the next evolution",
+   why:"Media queries ask about the VIEWPORT, which is global — a card can't know how much room IT has, only how wide the window is. Container queries (@container) fix exactly this: an element responds to the size of its nearest containing block, so the same card component lays out one way in a narrow sidebar and another in a wide main area, regardless of window width. It's the componentised successor to the media query — and a natural place to take this previewer next.",
+   concept:`<div class="text-center space-y-2"><div class="text-xs text-slate-500">same card, two containers</div><div style="display:flex;gap:8px;justify-content:center"><div class="miniframe" style="width:90px"><div class="cardline"><div class="cc" style="font-size:9px">stacked</div></div></div><div class="miniframe" style="width:150px"><div class="cardline" style="grid-template-columns:1fr 1fr"><div class="cc" style="font-size:9px">a</div><div class="cc" style="font-size:9px">b</div></div></div></div></div>`,
+   code:`.panel { container-type: inline-size; }
+@container (min-width: 400px){
+  .card { display: grid; grid-template-columns: 1fr 1fr; }
+}
+/* responds to the CONTAINER's width, not the viewport */` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// ===== init LOOK =====
+htmlTa.value = DEFAULT_HTML;
+cssTa.value  = DEFAULT_CSS;
+rebuild();
+setWidth(768);
+</script>
+</body>
+</html>
