@@ -48,6 +48,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 39 — Meta-Tag / Open-Graph Previewer](https://dev48v.infy.uk/solve/day39-og-previewer.html) — `day39-og-previewer.html`
 - [SolveFromZero · Day 40 — Flexbox Playground](https://dev48v.infy.uk/solve/day40-flexbox-playground.html) — `day40-flexbox-playground.html`
 - [SolveFromZero · Day 41 — Responsive Breakpoint Previewer](https://dev48v.infy.uk/solve/day41-breakpoint-previewer.html) — `day41-breakpoint-previewer.html`
+- [SolveFromZero · Day 42 — Image → Data URI (base64)](https://dev48v.infy.uk/solve/day42-image-to-datauri.html) — `day42-image-to-datauri.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

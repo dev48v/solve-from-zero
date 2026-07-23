@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 42 — Image → Data URI (base64)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+
+  /* ---- drop zone ---- */
+  .drop { border:3px dashed #cbd5e1; border-radius:18px; background:
+      linear-gradient(90deg,rgba(148,163,184,.08) 1px,transparent 1px) 0 0/22px 22px,
+      linear-gradient(0deg,rgba(148,163,184,.08) 1px,transparent 1px) 0 0/22px 22px, #f8fafc;
+      padding:38px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background-color .15s; }
+  .drop:hover { border-color:#f59e0b; }
+  .drop.over { border-color:#f59e0b; background:#fffbeb; box-shadow:0 0 0 4px rgba(245,158,11,.18) inset; }
+  .drop .big { font-size:40px; line-height:1; }
+
+  /* ---- preview ---- */
+  .pv-wrap { background:
+      linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%) 0 0/18px 18px,
+      linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%) 9px 9px/18px 18px, #fff;
+      border:1px solid #e2e8f0; border-radius:14px; padding:14px; display:flex; align-items:center; justify-content:center; min-height:180px; }
+  .pv-wrap img { max-width:100%; max-height:260px; border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.14); }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .stat .s { font-size:11px; color:#64748b; margin-top:2px; }
+  .stat.hot .v { color:#b45309; }
+
+  textarea.out { width:100%; min-height:120px; resize:vertical; background:#0f172a; color:#86efac;
+      border:none; border-radius:10px; padding:12px; font:11px/1.5 ui-monospace,"SF Mono",Menlo,monospace;
+      outline:none; word-break:break-all; }
+  textarea.out:focus { box-shadow:0 0 0 3px rgba(245,158,11,.4); }
+
+  .verdict { border-radius:12px; padding:12px 16px; font-weight:700; font-size:14px; display:flex; align-items:center; gap:10px; }
+  .verdict.good { background:#ecfdf5; color:#047857; border:1px solid #6ee7b7; }
+  .verdict.meh  { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
+  .verdict.bad  { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; margin-top:10px; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .anat { font:800 14px ui-monospace,Menlo,monospace; word-break:break-all; text-align:center; }
+  .anat .p1 { background:#dbeafe; color:#1d4ed8; padding:3px 5px; border-radius:5px; }
+  .anat .p2 { background:#fef3c7; color:#92400e; padding:3px 5px; border-radius:5px; }
+  .anat .p3 { background:#fde68a; color:#78350f; padding:3px 5px; border-radius:5px; }
+  .anat .p4 { background:#dcfce7; color:#166534; padding:3px 5px; border-radius:5px; }
+  .bar3 { display:flex; height:34px; border-radius:8px; overflow:hidden; font:800 12px ui-monospace,Menlo,monospace; }
+  .bar3 .orig { background:#22c55e; color:#fff; display:flex; align-items:center; justify-content:center; }
+  .bar3 .over { background:#f59e0b; color:#fff; display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 42</div>
+      <h1 class="text-xl font-bold">🖼️ Image → Data URI — drop an image, get a <code>data:</code> URI you can paste straight into CSS or HTML, with the real byte cost shown</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Turn an image file into text you can paste anywhere — and see exactly what it costs.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A browser can render an image straight from a string instead of a URL: a <strong><code>data:</code> URI</strong> like <code class="mono">data:image/png;base64,iVBORw0KGgo…</code> carries the whole file inline as base64 text. Paste it into <code>background-image: url(…)</code> or an <code>&lt;img src&gt;</code> and there is <strong>no separate network request</strong> — the bytes travel with your CSS or HTML. This is the classic trick for tiny icons and SVGs where a round-trip to the server would cost more than the pixels. The catch: base64 turns every <strong>3 bytes into 4 characters</strong>, so the text is about <strong>33% bigger</strong> than the file — great for a 400-byte icon, terrible for a 2 MB photo. Drop an image below (or pick one, or try the sample). Everything runs <strong>in your browser via <code>FileReader</code></strong> — nothing is uploaded — and you'll get a live preview, the full data URI, a copy button, the real original → base64 → overhead byte math, and a ready-to-paste CSS snippet.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- LEFT: input + preview -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Pick an image <span class="text-slate-400 normal-case">— stays 100% client-side</span></div>
+              <button id="sampleBtn" class="chip">✨ Try a sample icon</button>
+            </div>
+            <div id="drop" class="drop">
+              <div class="big">🖼️</div>
+              <div class="font-bold text-slate-700 mt-2">Drag &amp; drop an image here</div>
+              <div class="text-sm text-slate-400">or click to browse · PNG · JPG · GIF · SVG · WebP</div>
+              <input id="fileInput" type="file" accept="image/*" hidden>
+            </div>
+            <div id="errBox" class="hidden mt-3 text-sm font-semibold text-red-600"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Preview <span class="text-slate-400 normal-case">— rendered from the data URI itself</span></div>
+            <div class="pv-wrap" id="pvWrap">
+              <div class="text-slate-400 text-sm" id="pvEmpty">No image yet — drop one on the left.</div>
+              <img id="pvImg" class="hidden" alt="preview">
+            </div>
+            <div class="text-xs text-slate-500 mt-2 mono" id="fileMeta">—</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: stats + output -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">The byte cost <span class="text-slate-400 normal-case">— base64 is ~33% bigger</span></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="stat"><div class="k">Original file</div><div class="v" id="stOrig">—</div><div class="s" id="stOrigB">raw bytes</div></div>
+              <div class="stat hot"><div class="k">Base64 payload</div><div class="v" id="stB64">—</div><div class="s" id="stB64B">encoded bytes</div></div>
+              <div class="stat"><div class="k">Overhead</div><div class="v" id="stOver">—</div><div class="s">extra vs the file</div></div>
+              <div class="stat"><div class="k">Full data URI</div><div class="v" id="stFull">—</div><div class="s" id="stMime">incl. header</div></div>
+            </div>
+            <div class="mt-3"><div class="bar3" id="bar3"><div class="orig" style="width:75%">file 75%</div><div class="over" style="width:25%">+33%</div></div></div>
+            <div class="verdict meh mt-3" id="verdict"><span>💡</span><span>Drop an image to see whether inlining it is a good idea.</span></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Data URI <span class="text-slate-400 normal-case">— the whole file as text</span></div>
+              <button id="copyUri" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="out" class="out" spellcheck="false" readonly placeholder="data:image/…;base64,…"></textarea>
+
+            <div class="flex items-center justify-between mb-1">
+              <div class="fieldlabel">Ready-to-paste CSS</div>
+              <button id="copyCss" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="cssOut" class="out" style="min-height:90px;color:#e2e8f0" spellcheck="false" readonly placeholder=".icon { background-image: url('data:…'); }"></textarea>
+
+            <div class="flex items-center justify-between mb-1">
+              <div class="fieldlabel">Ready-to-paste HTML</div>
+              <button id="copyHtml" class="mini px-3 py-1 rounded-lg font-semibold text-xs">Copy</button>
+            </div>
+            <textarea id="htmlOut" class="out" style="min-height:60px;color:#e2e8f0" spellcheck="false" readonly placeholder="&lt;img src='data:…'&gt;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about data URIs</div>
+        <p class="text-sm text-amber-800"><strong>1. Base64 is encoding, not compression.</strong> It makes the payload <em>bigger</em> (≈+33%), never smaller — it exists so binary bytes survive in text-only places like a CSS file or a JSON field. If you want smaller, compress the image first, then encode. <strong>2. Inlined images can't be cached on their own.</strong> A normal <code>&lt;img src="logo.png"&gt;</code> is fetched once and reused across pages from the browser cache; a data URI is re-sent inside every document that contains it, so inlining a big shared asset makes every page heavier. <strong>3. Small wins, big loses.</strong> Under ~2–4 KB (icons, sprite bullets, tiny SVGs) inlining saves a whole request and usually wins; a hero photo turns into hundreds of KB of text that blocks CSS/HTML parsing. <strong>4. The MIME type matters.</strong> <code>data:image/png;base64,…</code> tells the browser how to decode the bytes — get it wrong and the image won't render. <code>FileReader</code> fills it in from the file for you. <strong>5. It's still just bytes.</strong> A data URI is not private or encrypted — anyone can copy the string and decode it straight back to the original file.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How turning a file into a data URI actually works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">An image-to-data-URI tool sounds like it needs an encoder — it doesn't. The browser hands you the whole thing in one call: <code>FileReader.readAsDataURL(file)</code> returns a finished <code>data:&lt;mime&gt;;base64,&lt;payload&gt;</code> string, MIME sniffed and base64 done. Everything else is <strong>string slicing and one division</strong>: split the string at the comma to separate the header from the payload, read <code>file.size</code> for the original bytes, take <code>payload.length</code> for the encoded bytes, and the overhead is just <code>(encoded − original) / original</code>. There is <strong>no library, no upload, no server</strong> — the file never leaves the page. Below is the whole tool, one honest step at a time.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Get a File — from a drop or a picker</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Both a <code>&lt;input type="file"&gt;</code> and a drag-and-drop give you the same thing: a <code>File</code> object (a <code>Blob</code> with a name, type and size). Funnel both into one handler so the rest of the code never cares where the file came from. Guard against non-images early.</p>
+        <div class="relative"><pre>const drop = document.getElementById("drop");
+const input = document.getElementById("fileInput");
+
+drop.onclick = () =&gt; input.click();
+input.onchange = () =&gt; handleFile(input.files[0]);
+
+drop.addEventListener("dragover", e =&gt; { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () =&gt; drop.classList.remove("over"));
+drop.addEventListener("drop", e =&gt; {
+  e.preventDefault(); drop.classList.remove("over");
+  handleFile(e.dataTransfer.files[0]);   // same entry point
+});</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">FileReader.readAsDataURL — the one real call</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the whole engine. <code>FileReader</code> reads the file's bytes <em>in the browser</em> and, because we asked for <code>readAsDataURL</code>, hands back a complete <code>data:</code> URI — MIME type detected, bytes base64-encoded — on the async <code>onload</code>. Nothing is uploaded.</p>
+        <div class="relative"><pre>function handleFile(file){
+  if (!file || !file.type.startsWith("image/"))
+    return showError("That's not an image file.");
+
+  const reader = new FileReader();
+  reader.onload  = e =&gt; render(file, e.target.result); // result = the data URI
+  reader.onerror = () =&gt; showError("Could not read the file.");
+  reader.readAsDataURL(file);   // async → onload fires with the string
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Split the URI: header vs payload</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A data URI is <code>data:&lt;mediatype&gt;[;base64],&lt;data&gt;</code>. Everything before the first comma is the header (scheme + MIME + encoding flag); everything after is the base64 payload. One <code>indexOf(",")</code> and two <code>slice</code>s split it — no parser needed.</p>
+        <div class="relative"><pre>function parseDataURI(uri){
+  const comma   = uri.indexOf(",");
+  const header  = uri.slice(0, comma);     // "data:image/png;base64"
+  const payload = uri.slice(comma + 1);    // "iVBORw0KGgoAAAANS..."
+  const mime    = header.slice(5, header.indexOf(";")); // "image/png"
+  return { header, payload, mime };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The byte math — original vs base64</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The original size is just <code>file.size</code>. The base64 payload is ASCII, so one character = one byte, and <code>payload.length</code> <em>is</em> the encoded byte count. Base64 emits 4 characters per 3 input bytes, so the theoretical size is <code>4 · ⌈n/3⌉</code> — the overhead is that ratio minus one, ≈ 33%.</p>
+        <div class="relative"><pre>function byteStats(file, payload){
+  const orig  = file.size;               // raw bytes
+  const b64   = payload.length;          // 1 ASCII char = 1 byte
+  const theory = 4 * Math.ceil(orig / 3);// 3 bytes -&gt; 4 chars
+  const overheadPct = (b64 - orig) / orig * 100;
+  return { orig, b64, theory, overheadPct };
+}
+// e.g. 900 B image -&gt; 1200 B base64 -&gt; +33.3%</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Human-readable bytes</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Raw byte counts are hard to read past a few thousand. A tiny formatter turns them into B / KB / MB. Keep the raw number around too — you show both ("1.2 KB · 1,200 bytes") so the exact figure is never lost.</p>
+        <div class="relative"><pre>function human(n){
+  if (n &lt; 1024)        return n + " B";
+  if (n &lt; 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1048576).toFixed(2) + " MB";
+}
+const commas = n =&gt; n.toLocaleString();   // 1200 -&gt; "1,200"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Preview straight from the URI</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You don't need <code>URL.createObjectURL</code> for the preview — the data URI <em>is</em> a valid image source. Assign it to <code>img.src</code> and the browser decodes and paints it, proving the string is correct end to end.</p>
+        <div class="relative"><pre>function render(file, uri){
+  const { mime, payload } = parseDataURI(uri);
+  document.getElementById("pvImg").src = uri;   // the URI renders itself
+  out.value     = uri;                          // full string in the textarea
+  cssOut.value  = `.icon {\n  background-image: url("${uri}");\n}`;
+  htmlOut.value = `&lt;img src="${uri}" alt=""&gt;`;
+  showStats(byteStats(file, payload), mime);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">A verdict: should you inline this?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole point of the tool is judgment, not just conversion. Encode a threshold: under a few KB it's a good candidate (saves a request); into the tens of KB it's borderline; past that, inlining bloats your CSS/HTML and kills caching. Turn the number into advice.</p>
+        <div class="relative"><pre>function verdict(orig){
+  if (orig &lt;= 4 * 1024)  return ["good", "Great inline candidate — smaller than a round-trip."];
+  if (orig &lt;= 40 * 1024) return ["meh",  "Borderline — inline only if it's used on one page."];
+  return ["bad", "Too big to inline — link it as a file so it can be cached."];
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Copy to clipboard</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The output is only useful if you can grab it. <code>navigator.clipboard.writeText</code> copies the full string — data URI, CSS snippet, or <code>&lt;img&gt;</code> tag — and a quick "Copied!" flash confirms it, since a giant base64 blob gives no other visual feedback.</p>
+        <div class="relative"><pre>function wireCopy(btn, getText){
+  btn.onclick = () =&gt; {
+    navigator.clipboard.writeText(getText());
+    const old = btn.textContent;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() =&gt; btn.textContent = old, 1200);
+  };
+}
+wireCopy(copyUri,  () =&gt; out.value);
+wireCopy(copyCss,  () =&gt; cssOut.value);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 42 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real Image → Data URI converter with <strong>no library and no server</strong>: one <code>FileReader.readAsDataURL</code> call turns a dropped <code>File</code> into a finished <code>data:&lt;mime&gt;;base64,&lt;payload&gt;</code> string entirely in the browser; a single <code>indexOf(",")</code> splits header from payload; the byte cost is nothing but <code>file.size</code> vs <code>payload.length</code> and one division that lands on the famous <strong>~33% base64 overhead</strong> (4 characters per 3 bytes); and the data URI renders itself straight into an <code>&lt;img&gt;</code> to prove it round-trips. The judgment lives in the verdict: <strong>inline tiny assets to kill a request, link big ones so they can be cached</strong>. The lesson underneath — a data URI is just a file that learned to travel as text, and text is 33% heavier than the bytes it carries. <strong>👉 Tomorrow — Day 43:</strong> a <strong>Favicon / App-Icon generator</strong> — drop one image, get every size (16/32/180/512) plus the <code>&lt;link rel="icon"&gt;</code> and web-manifest snippet, all resized on a canvas in the browser.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==DATAURI-ENGINE-START== (FileReader.readAsDataURL + string-slice + byte math; no library)
+// A data: URI carries a whole file inline as base64 TEXT — data:<mime>;base64,<payload>.
+// The browser does the hard part: readAsDataURL reads the bytes client-side and returns the
+// finished URI with the MIME sniffed and base64 done. Everything else is arithmetic:
+// original bytes = file.size, encoded bytes = payload.length (ASCII → 1 byte/char), and the
+// ~33% overhead is (encoded - original)/original, because base64 emits 4 chars per 3 bytes.
+
+// split a data URI into header / payload / mime with one indexOf + slices
+function parseDataURI(uri){
+  const comma = uri.indexOf(",");
+  const header = uri.slice(0, comma);          // "data:image/png;base64"
+  const payload = uri.slice(comma + 1);        // base64 chars only
+  const semi = header.indexOf(";");
+  const mime = header.slice(5, semi === -1 ? header.length : semi); // between "data:" and ";"
+  return { header, payload, mime };
+}
+// original bytes vs base64 bytes → overhead %
+function byteStats(origBytes, payload){
+  const b64 = payload.length;                  // 1 ASCII char = 1 byte
+  const theory = 4 * Math.ceil(origBytes / 3); // 3 bytes → 4 chars (with = padding)
+  const overheadPct = origBytes ? (b64 - origBytes) / origBytes * 100 : 0;
+  return { orig: origBytes, b64, theory, overheadPct };
+}
+function human(n){
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1048576).toFixed(2) + " MB";
+}
+const commas = n => n.toLocaleString();
+function inlineVerdict(orig){
+  if (orig <= 4 * 1024)  return ["good", "✅ Great inline candidate — smaller than the request it would save."];
+  if (orig <= 40 * 1024) return ["meh",  "⚠️ Borderline — inline only if it's used on a single page."];
+  return ["bad", "🛑 Too big to inline — link it as a file so the browser can cache it."];
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { parseDataURI, byteStats, human, inlineVerdict };
+// ==DATAURI-ENGINE-END==
+
+// ---- element refs ----
+const drop      = document.getElementById("drop");
+const fileInput = document.getElementById("fileInput");
+const pvImg     = document.getElementById("pvImg");
+const pvEmpty   = document.getElementById("pvEmpty");
+const fileMeta  = document.getElementById("fileMeta");
+const errBox    = document.getElementById("errBox");
+const out       = document.getElementById("out");
+const cssOut    = document.getElementById("cssOut");
+const htmlOut   = document.getElementById("htmlOut");
+const bar3      = document.getElementById("bar3");
+const verdictEl = document.getElementById("verdict");
+
+const stOrig = document.getElementById("stOrig"), stOrigB = document.getElementById("stOrigB");
+const stB64  = document.getElementById("stB64"),  stB64B  = document.getElementById("stB64B");
+const stOver = document.getElementById("stOver");
+const stFull = document.getElementById("stFull"), stMime = document.getElementById("stMime");
+
+function showError(msg){
+  errBox.textContent = "⚠️ " + msg;
+  errBox.classList.remove("hidden");
+}
+function clearError(){ errBox.classList.add("hidden"); }
+
+// ---- the one real call: File -> data URI, entirely in the browser ----
+function handleFile(file){
+  clearError();
+  if (!file) return;
+  if (!file.type.startsWith("image/")) return showError("That's not an image file (" + (file.type || "unknown type") + ").");
+  const reader = new FileReader();
+  reader.onload  = e => render(file, e.target.result);   // result = the data URI string
+  reader.onerror = () => showError("Could not read the file.");
+  reader.readAsDataURL(file);
+}
+
+function render(file, uri){
+  const { mime, payload } = parseDataURI(uri);
+  const s = byteStats(file.size, payload);
+
+  // preview renders straight from the data URI
+  pvImg.src = uri;
+  pvImg.classList.remove("hidden");
+  pvEmpty.classList.add("hidden");
+  fileMeta.textContent = (file.name || "image") + " · " + (mime || file.type);
+
+  // outputs
+  out.value     = uri;
+  cssOut.value  = ".icon {\n  background-image: url(\"" + uri + "\");\n}";
+  htmlOut.value = "<img src=\"" + uri + "\" alt=\"\">";
+
+  // stats
+  stOrig.textContent = human(s.orig);
+  stOrigB.textContent = commas(s.orig) + " bytes";
+  stB64.textContent  = human(s.b64);
+  stB64B.textContent = commas(s.b64) + " bytes";
+  stOver.textContent = "+" + s.overheadPct.toFixed(1) + "%";
+  stFull.textContent = human(uri.length);
+  stMime.textContent = mime || "unknown";
+
+  // bar: original share vs overhead share of the base64 size
+  const origShare = Math.max(1, Math.round(s.orig / s.b64 * 100));
+  bar3.innerHTML =
+    '<div class="orig" style="width:' + origShare + '%">file ' + origShare + '%</div>' +
+    '<div class="over" style="width:' + (100 - origShare) + '%">+' + s.overheadPct.toFixed(0) + '%</div>';
+
+  // verdict
+  const [cls, txt] = inlineVerdict(s.orig);
+  verdictEl.className = "verdict " + cls + " mt-3";
+  verdictEl.innerHTML = "<span>" + txt + "</span>";
+}
+
+// ---- inputs: drop + picker funnel into handleFile ----
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); };
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+// ---- copy buttons ----
+function wireCopy(id, getText){
+  const b = document.getElementById(id);
+  b.onclick = () => {
+    const txt = getText();
+    if (!txt) return;
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    const old = b.textContent; b.textContent = "✓ Copied!";
+    setTimeout(() => b.textContent = old, 1200);
+  };
+}
+wireCopy("copyUri",  () => out.value);
+wireCopy("copyCss",  () => cssOut.value);
+wireCopy("copyHtml", () => htmlOut.value);
+
+// ---- sample: draw an icon on a canvas -> real PNG File -> same pipeline ----
+document.getElementById("sampleBtn").onclick = () => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 96;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, 96, 96);
+  g.addColorStop(0, "#f59e0b"); g.addColorStop(1, "#d97706");
+  // rounded square
+  const r = 20;
+  x.beginPath();
+  x.moveTo(r, 0); x.arcTo(96, 0, 96, 96, r); x.arcTo(96, 96, 0, 96, r);
+  x.arcTo(0, 96, 0, 0, r); x.arcTo(0, 0, 96, 0, r); x.closePath();
+  x.fillStyle = g; x.fill();
+  x.fillStyle = "#fff"; x.font = "bold 52px system-ui, sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText("◆", 48, 52);
+  c.toBlob(b => {
+    const f = new File([b], "sample-icon.png", { type: "image/png" });
+    handleFile(f);   // exact same FileReader path as a dropped file
+  }, "image/png");
+};
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. A data: URI is a file that travels as text",
+   why:"Normally you point the browser at a file with a URL — src=\"logo.png\" — and it fetches the bytes over the network. A data: URI flips that around: instead of an address, you hand the browser the file's contents directly, inline, encoded as text. The shape is data:<mediatype>;base64,<payload> — a scheme, a MIME type, the word base64, a comma, then the encoded bytes. Because it's plain text it can live anywhere text can: inside a CSS file, an HTML attribute, a JSON field, a JS string. It is the whole file, just written out as characters.",
+   concept:`<div class="space-y-3 text-center"><div class="anat"><span class="p1">data:</span><span class="p2">image/png</span><span class="p3">;base64,</span><span class="p4">iVBORw0KGgoAAAANSUhEUg…</span></div><div class="flex justify-center gap-2 flex-wrap text-xs"><span class="pill b">scheme</span><span class="pill a">MIME type</span><span class="pill" style="background:#fde68a;color:#78350f">encoding</span><span class="pill g">payload = the bytes</span></div></div>`,
+   code:`<!-- a URL: fetched over the network -->
+<img src="logo.png">
+
+<!-- a data URI: the bytes ARE the src, no request -->
+<img src="data:image/png;base64,iVBORw0KGgo...">` },
+ { title:"2. Why embed an image at all",
+   why:"Every separate file a page needs is a separate network request, and each request has fixed overhead — DNS, connection, headers, latency — that can dwarf a tiny file's actual bytes. A 300-byte icon might cost far more in round-trip than in payload. Inlining it as a data URI folds those bytes into a file you were already downloading (your CSS or HTML), so it arrives for free with no extra request. It also makes a chunk of markup or a stylesheet fully self-contained: one file, no missing-asset 404s, easy to email or paste into a sandbox.",
+   concept:`<div class="space-y-2"><div class="text-xs text-slate-500">6 tiny icons, two ways to ship them</div><div class="text-sm"><span class="pill a">separate files</span> → 6 requests 🐌</div><div class="text-sm"><span class="pill g">inlined data URIs</span> → 0 extra requests ⚡</div></div>`,
+   code:`/* inline the icon right in the stylesheet */
+.badge {
+  background-image: url("data:image/svg+xml;base64,PHN2Zy...");
+}
+/* no separate .svg request when the CSS loads */` },
+ { title:"3. FileReader.readAsDataURL — reading a file in the browser",
+   why:"The browser can read a file the user picked without ever uploading it. FileReader is the API: give it a File (from an <input> or a drag-drop) and call readAsDataURL. It reads the bytes locally and, asynchronously, fires onload with a finished data: URI in reader.result — MIME type already filled in, bytes already base64-encoded. This is the single call the whole tool is built on. Because it runs client-side, private images never leave the machine, which is exactly why this converter needs no server.",
+   concept:`<div class="text-center space-y-2"><div class="text-sm text-slate-600">File on disk 📄 → <span class="mono">readAsDataURL</span> → <span class="pill g">data:image/png;base64,…</span></div><div class="text-xs text-slate-400">all in the browser — nothing uploaded</div></div>`,
+   code:`const reader = new FileReader();
+reader.onload = e => {
+  const uri = e.target.result;   // "data:image/png;base64,..."
+  img.src = uri;                 // it renders itself
+};
+reader.readAsDataURL(file);      // async: onload fires when done` },
+ { title:"4. Base64 — turning bytes into safe text",
+   why:"Image bytes are arbitrary 0–255 values, many of which are control characters or quotes that would break a CSS or HTML string. Base64 solves this by regrouping the bits: it takes 3 bytes (24 bits) at a time and re-splits them into 4 groups of 6 bits, mapping each 6-bit group to one of 64 safe characters (A–Z, a–z, 0–9, + and /). The result uses only characters that are legal everywhere text is. If the byte count isn't a multiple of 3, one or two = characters pad the end. It's a reversible encoding — decode it and you get the exact original bytes back.",
+   concept:`<div class="text-center space-y-2 text-sm"><div class="mono">3 bytes <span style="color:#94a3b8">(24 bits)</span> → 4 chars <span style="color:#94a3b8">(4 × 6 bits)</span></div><div><span class="pill b">01001101 01100001 01101110</span></div><div>↓</div><div><span class="pill g">T &nbsp; W &nbsp; F &nbsp; u</span> <span class="text-xs text-slate-400">= "Man"</span></div></div>`,
+   code:`// 3 bytes  -> 4 base64 chars, always
+// "Man" (0x4D 0x61 0x6E) -> "TWFu"
+btoa("Man");            // "TWFu"
+atob("TWFu");           // "Man"  (decode back)
+// FileReader does this for the whole file for you` },
+ { title:"5. The ~33% overhead — 4 chars for every 3 bytes",
+   why:"Because base64 always emits 4 characters for every 3 input bytes, and each character is 1 byte of text, the encoded size is 4/3 of the original — about 33% bigger. That is the number this tool exists to make visible. There's a little extra on top: the data: header, and padding = for lengths not divisible by 3. So a 900-byte image becomes ~1,200 bytes of base64 plus ~22 header bytes. Crucially this is growth, not shrinkage — base64 is not compression. You pay 33% in size to buy the ability to live inside text and skip a request.",
+   concept:`<div class="space-y-2"><div class="bar3"><div class="orig" style="width:75%">original 3</div><div class="over" style="width:25%">+1</div></div><div class="text-center text-xs text-slate-500">3 bytes in → 4 bytes out = +33.3%</div></div>`,
+   code:`base64Bytes = 4 * Math.ceil(originalBytes / 3);
+overhead    = base64Bytes / originalBytes - 1;   // ≈ 0.333
+// 900 B  -> 1200 B  (+33%)
+// 1 MB   -> ~1.37 MB of text (why photos are a bad idea)` },
+ { title:"6. Reading the pieces: MIME type and payload",
+   why:"To show anything useful you split the URI at the first comma. The left side is the header — data:, the MIME type (image/png, image/svg+xml, …), and ;base64. The right side is the raw payload. The MIME type is not decoration: it tells the browser how to interpret the bytes, so a wrong type means a broken image. readAsDataURL sniffs it from the file for you, but when you hand-write a data URI you must get it right. The payload's length, in characters, is exactly the encoded byte count you display.",
+   concept:`<div class="anat"><span class="p1">data:</span><span class="p2">image/svg+xml</span><span class="p3">;base64,</span><span class="p4">PHN2ZyB4bWxucz0…</span></div><div class="text-center text-xs text-slate-400 mt-2">split at the first comma → header | payload</div>`,
+   code:`const comma   = uri.indexOf(",");
+const header  = uri.slice(0, comma);   // "data:image/svg+xml;base64"
+const payload = uri.slice(comma + 1);  // the base64 text
+const mime    = header.slice(5, header.indexOf(";"));
+// payload.length === encoded byte count` },
+ { title:"7. Using it: in CSS and in HTML",
+   why:"A data URI is a drop-in replacement for any place a URL goes. In CSS it slots into url(): background-image: url(\"data:image/png;base64,…\"). In HTML it's the src of an <img>, or the href of a link, or the source of a mask. Wherever the browser expected to fetch a file, it now just decodes the string in place. That's why the tool outputs both a CSS block and an <img> tag — you copy whichever matches where the asset lives. Quote the URL in CSS so special characters in the payload don't end the value early.",
+   concept:`<div class="space-y-2 text-left text-xs mono"><div class="p-2 rounded bg-slate-900 text-emerald-300">.logo { background: url("data:image/png;base64,…"); }</div><div class="p-2 rounded bg-slate-900 text-sky-300">&lt;img src="data:image/png;base64,…"&gt;</div></div>`,
+   code:`/* CSS */
+.logo { background-image: url("data:image/png;base64,iVBOR..."); }
+
+<!-- HTML -->
+<img src="data:image/png;base64,iVBOR..." alt="logo">
+
+<!-- SVG inline is even smaller as image/svg+xml (not base64) -->` },
+ { title:"8. When inlining helps — and when it hurts",
+   why:"Inlining is a trade, not a free win. It helps for small, single-use assets: icons, bullets, tiny SVGs, a sprite under a few KB — you save a whole request and the 33% tax is trivial in absolute terms. It hurts for anything big or shared. A data URI can't be cached on its own, so an inlined logo re-downloads inside every page instead of once; and a large base64 blob bloats your CSS/HTML and delays parsing, because the browser can't render until it has read past the giant string. Rule of thumb: inline under a few KB, link everything else.",
+   concept:`<div class="space-y-2 text-sm"><div><span class="pill g">≤ 4 KB icon</span> → inline it, save a request ✅</div><div><span class="pill a">tens of KB</span> → borderline, single-page only ⚠️</div><div><span class="pill" style="background:#fecaca;color:#991b1b">a hero photo</span> → link it, keep caching 🛑</div></div>`,
+   code:`function shouldInline(bytes){
+  if (bytes <= 4 * 1024)  return "yes — kills a request";
+  if (bytes <= 40 * 1024) return "maybe — single page only";
+  return "no — link it so it can be cached";
+}` },
+ { title:"9. Caching, and why big data URIs are costly",
+   why:"A linked file (logo.png) is fetched once; the browser caches it and every other page reuses it instantly, and a CDN can serve it. A data URI has no URL of its own, so it is not a cacheable resource — it is part of whatever document embeds it, and it ships again, in full, with every copy of that document. Inline a 50 KB image used across ten pages and you've shipped ~500 KB where a cached file would have shipped ~50 KB. Worse, the base64 sits in the critical path: the browser must parse past it before it finishes the stylesheet or the HTML. Small assets make this negligible; big ones make it painful.",
+   concept:`<div class="space-y-2 text-sm text-center"><div><span class="pill b">logo.png</span> → downloaded once, reused everywhere 💾</div><div><span class="pill a">inline data URI</span> → re-sent with every page it's on ♻️</div></div>`,
+   code:`// linked:  1 download, then served from cache
+<link rel="stylesheet" href="app.css">   /* references logo.png once */
+
+// inlined: the bytes ride along in every document
+// (no shared cache entry — that's the cost of no request)` },
+ { title:"10. It's an encoding, not a lockbox",
+   why:"Base64 looks scrambled, so people assume it's hidden or secure — it isn't. It's a public, reversible encoding: anyone can copy the string, run atob() (or paste it into a decoder), and get the exact original file back. Never treat a data URI as private, and never use base64 as a substitute for encryption. There are also practical limits — very long URLs can hit browser or server caps, a Content-Security-Policy may block data: sources, and older environments capped data URI length. Encode for convenience and request-saving, not for secrecy.",
+   concept:`<div class="text-center space-y-2 text-sm"><div class="mono p-2 rounded bg-slate-900 text-amber-300 break-all">iVBORw0KGgoAAAANSUhEUg…</div><div>↕ <span class="text-xs text-slate-400">atob / btoa — fully reversible</span></div><div><span class="pill" style="background:#fecaca;color:#991b1b">not encryption</span> <span class="pill g">just text</span></div></div>`,
+   code:`// base64 is trivially reversible — NOT security
+const original = atob(payload);   // bytes right back
+// gotchas: URL length caps, CSP 'img-src data:',
+//          and no, it isn't compressed or hidden` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+</script>
+</body>
+</html>
