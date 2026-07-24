@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 43 — .htaccess Redirect Tester</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .mini { background:#f59e0b; color:#fff; box-shadow:0 3px 0 #d97706; }
+  .mini:hover { background:#d97706; }
+
+  /* ---- editors / inputs ---- */
+  textarea.code-in { width:100%; min-height:196px; resize:vertical; background:#0f172a; color:#e2e8f0;
+      border:none; border-radius:10px; padding:12px; font:12px/1.6 ui-monospace,"SF Mono",Menlo,monospace;
+      outline:none; }
+  textarea.code-in:focus { box-shadow:0 0 0 3px rgba(245,158,11,.4); }
+  .field-in { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px;
+      font:13px ui-monospace,Menlo,monospace; outline:none; background:#fff; }
+  .field-in:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.25); }
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; margin-top:10px; }
+  .togg { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#334155; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; cursor:pointer; }
+  .togg input { accent-color:#f59e0b; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 20px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .stat.hot .v { color:#b45309; }
+
+  /* ---- verdict ---- */
+  .verdict { border-radius:12px; padding:12px 16px; font-weight:700; font-size:14px; display:flex; align-items:flex-start; gap:10px; }
+  .verdict.rewrite  { background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; }
+  .verdict.redirect { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
+  .verdict.forbidden,.verdict.gone { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+  .verdict.none { background:#f8fafc; color:#475569; border:1px solid #e2e8f0; }
+
+  /* ---- trace ---- */
+  .trace { display:flex; flex-direction:column; gap:8px; }
+  .tr { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:13px; }
+  .tr.fired { border-color:#6ee7b7; background:#ecfdf5; }
+  .tr.cond-failed { border-color:#fcd34d; background:#fffbeb; }
+  .tr.no-match { background:#f8fafc; }
+  .tr.after-L { opacity:.5; }
+  .tr.error { border-color:#fca5a5; background:#fef2f2; }
+  .tr .hd { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  .badge-st { font-size:10px; font-weight:900; padding:2px 8px; border-radius:999px; white-space:nowrap; letter-spacing:.03em; }
+  .b-fired { background:#10b981; color:#fff; }
+  .b-cond  { background:#f59e0b; color:#fff; }
+  .b-nomatch { background:#e2e8f0; color:#475569; }
+  .b-afterl { background:#cbd5e1; color:#334155; }
+  .b-err   { background:#ef4444; color:#fff; }
+  .b-skip  { background:#e2e8f0; color:#475569; }
+  .rline { font:12px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-all; }
+  .grp { font:12px ui-monospace,Menlo,monospace; border-collapse:collapse; width:100%; margin-top:6px; }
+  .grp td { padding:2px 8px; border-bottom:1px solid #eef2f7; }
+  .grp td.key { color:#b45309; font-weight:800; width:52px; }
+  .warnchip { display:inline-block; margin-top:6px; font-size:11px; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; padding:2px 8px; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .anat { font:800 14px ui-monospace,Menlo,monospace; word-break:break-all; text-align:center; line-height:2.1; }
+  .anat .d  { background:#e2e8f0; color:#334155; padding:3px 5px; border-radius:5px; }
+  .anat .p1 { background:#dbeafe; color:#1d4ed8; padding:3px 5px; border-radius:5px; }
+  .anat .p2 { background:#fef3c7; color:#92400e; padding:3px 5px; border-radius:5px; }
+  .anat .p3 { background:#dcfce7; color:#166534; padding:3px 5px; border-radius:5px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 43</div>
+      <h1 class="text-xl font-bold">🔀 .htaccess Redirect Tester — paste Apache rewrite rules + a URL, see <em>which rule wins</em>, the captured groups, the target, and redirect-vs-rewrite — with real <code>RegExp</code></h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Stop guessing what your <code>.htaccess</code> does. Watch it run.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">An Apache <code>.htaccess</code> file rewrites and redirects URLs with rules like <code class="mono">RewriteRule ^products/([0-9]+)$ product.php?id=$1 [L]</code>. Each <strong>pattern is a real regular expression</strong> matched against the requested path, top to bottom, until one matches — and the flags decide whether the browser is quietly served different content (an <strong>internal rewrite</strong>) or bounced to a new address (a <strong>301/302 redirect</strong>). Get the order or a <code>[L]</code> wrong and requests fall through to the wrong rule. This tester parses your rules, matches the URL with the browser's own <code>RegExp</code> engine — <strong>nothing faked, nothing uploaded</strong> — and shows you the winning rule, the captured <code>$1…</code> groups, the substituted target, and exactly what the browser would see.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- LEFT: inputs -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Apache rules <span class="text-slate-400 normal-case">— paste your <code>.htaccess</code></span></div>
+            </div>
+            <div class="mb-2" id="presets">
+              <button class="chip" data-preset="frontctrl">✨ Front controller + HTTPS</button>
+              <button class="chip" data-preset="pretty">Pretty URLs</button>
+              <button class="chip" data-preset="oldnew">Old → new (301)</button>
+              <button class="chip" data-preset="www">Force www + HTTPS</button>
+            </div>
+            <textarea id="rulesInput" class="code-in" spellcheck="false"></textarea>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Test request</div>
+            <div class="fieldlabel">Requested URL path</div>
+            <input id="pathInput" class="field-in" spellcheck="false" placeholder="/products/42">
+            <div class="grid grid-cols-2 gap-3">
+              <div><div class="fieldlabel">Host <span class="text-slate-400 normal-case">(%{HTTP_HOST})</span></div><input id="hostInput" class="field-in" spellcheck="false" placeholder="example.com"></div>
+              <div><div class="fieldlabel">Query <span class="text-slate-400 normal-case">(%{QUERY_STRING})</span></div><input id="queryInput" class="field-in" spellcheck="false" placeholder="ref=home"></div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <label class="togg"><input type="checkbox" id="httpsToggle" checked> HTTPS on</label>
+              <label class="togg"><input type="checkbox" id="fileToggle"> file exists <span class="text-slate-400">(-f)</span></label>
+              <label class="togg"><input type="checkbox" id="dirToggle"> dir exists <span class="text-slate-400">(-d)</span></label>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">Filesystem checks (<code>-f</code>/<code>-d</code>) can't be probed in a browser, so toggle what the server would find.</p>
+          </div>
+        </div>
+
+        <!-- RIGHT: results -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">What the browser gets</div>
+            <div class="grid grid-cols-4 gap-2 mb-3">
+              <div class="stat"><div class="k">Rules</div><div class="v" id="stRules">0</div></div>
+              <div class="stat"><div class="k">Conds</div><div class="v" id="stConds">0</div></div>
+              <div class="stat hot"><div class="k">Winner</div><div class="v" id="stMatch">—</div></div>
+              <div class="stat"><div class="k">Status</div><div class="v" id="stStatus">—</div></div>
+            </div>
+            <div class="verdict none" id="verdict"><span>💡</span><span>Paste rules and a path — the first rule that matches wins.</span></div>
+            <div class="mt-3">
+              <div class="fieldlabel">Resulting target</div>
+              <div class="rline p-2 rounded-lg bg-slate-900 text-emerald-300" id="targetOut" style="min-height:20px">—</div>
+            </div>
+            <div id="groupsWrap" class="mt-3 hidden">
+              <div class="fieldlabel">Captured groups</div>
+              <table class="grp" id="groupsTbl"></table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Rule trace <span class="text-slate-400 normal-case">— every rule, in order</span></div>
+            <div class="trace" id="trace"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about .htaccess rewrites</div>
+        <p class="text-sm text-amber-800"><strong>1. The pattern doesn't see the leading slash.</strong> In a per-directory <code>.htaccess</code>, Apache strips the leading <code>/</code> before matching, so <code>^/products</code> almost never matches — write <code>^products</code>. This tester matches against the slash-stripped path and warns you if a pattern starts with <code>^/</code>. <strong>2. Order + <code>[L]</code> decide everything.</strong> Rules run top to bottom; the first match wins, and <code>[L]</code> stops further processing. Put your specific rules above your catch-all, or the catch-all eats them. <strong>3. Rewrite ≠ redirect.</strong> No <code>[R]</code> flag = an <em>internal</em> rewrite (the address bar never changes, the server just serves different content). Add <code>[R=301]</code> — or make the target an absolute <code>http(s)://</code> URL — and the browser is actually redirected. <strong>4. <code>RewriteCond</code> only guards the very next <code>RewriteRule</code>.</strong> Conditions don't stack onto later rules; a blank line or another rule ends the group. <strong>5. <code>Redirect</code> is prefix, <code>RedirectMatch</code> is regex.</strong> <code>Redirect /old /new</code> catches <code>/old</code> and everything under it; use <code>RedirectMatch</code> when you need a pattern with <code>$1</code> backreferences.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How an .htaccess rule actually decides your URL</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A redirect tester sounds like it needs an Apache server — it doesn't. Every <code>RewriteRule</code> pattern is an ordinary regular expression, and your browser already ships a world-class regex engine: <code>RegExp</code>. So the whole tool is <strong>parse the rules into structs, then replay them against a path in order</strong>. Split the file into lines, tokenize each rule's arguments (respecting quotes), read the <code>[flags]</code>, attach any <code>RewriteCond</code> guards to the rule that follows, then match with <code>new RegExp(pattern)</code>, splice the <code>$1…</code> captures into the substitution, and classify the outcome as an internal rewrite or a real redirect. <code>[L]</code> just means "stop the loop." No server, no upload — here's the whole engine, one honest step at a time.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Read the file line by line</h3></div>
+        <p class="text-sm text-slate-600 mb-3">An <code>.htaccess</code> is just text. Split on newlines, drop blank lines and <code>#</code> comments, and look at the first word of each line to route it: <code>RewriteCond</code>, <code>RewriteRule</code>, <code>Redirect</code>, <code>RedirectMatch</code>. Directives we don't simulate (<code>RewriteEngine</code>, <code>RewriteBase</code>, <code>Options</code>) are skipped so they don't pollute the trace.</p>
+        <div class="relative"><pre>function parseRules(text){
+  const rules = [];
+  let pendingConds = [];
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if (!line || line[0] === "#") continue;
+    if (/^(RewriteEngine|RewriteBase|Options|Header|Order|Allow|Deny)\b/i.test(line)) continue;
+
+    let m;
+    if ((m = line.match(/^RewriteCond\s+(.+)/i))) { pendingConds.push(parseCond(m[1])); continue; }
+    if ((m = line.match(/^RewriteRule\s+(.+)/i))) { rules.push(parseRewriteRule(m[1], pendingConds)); pendingConds = []; continue; }
+    if ((m = line.match(/^Redirect(Match)?\s+(.+)/i))) { rules.push(parseRedirect(!!m[1], m[2])); pendingConds = []; continue; }
+  }
+  return rules;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Tokenize the arguments (quotes matter)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A rule's arguments are space-separated, but a pattern or substitution can be wrapped in quotes to protect literal spaces. A tiny regex tokenizer pulls out double-quoted, single-quoted, or bare tokens — so <code>"^my page$"</code> stays one token.</p>
+        <div class="relative"><pre>function tokenize(str){
+  const out = [], re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let m;
+  while ((m = re.exec(str)) !== null)
+    out.push(m[1] ?? m[2] ?? m[3]);   // whichever group matched
+  return out;
+}
+// 'RewriteRule ^products/([0-9]+)$ product.php?id=$1 [L,QSA]'
+//   -> ['^products/([0-9]+)$', 'product.php?id=$1', '[L,QSA]']</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Parse the <code>[flags]</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">The bracketed tail is a comma list. Strip the brackets, split on commas, and store each flag — some are bare (<code>L</code>, <code>QSA</code>, <code>NC</code>) and some carry a value (<code>R=301</code>). Keeping both a name→value map and a raw list makes them easy to test and to display.</p>
+        <div class="relative"><pre>function parseFlags(str){
+  const f = { list: [] };
+  if (!str) return f;
+  for (let tok of str.replace(/^\[|\]$/g, "").split(",")){
+    tok = tok.trim(); if (!tok) continue;
+    f.list.push(tok);
+    const eq = tok.indexOf("=");
+    const name = (eq === -1 ? tok : tok.slice(0, eq)).toUpperCase();
+    f[name] = eq === -1 ? true : tok.slice(eq + 1);   // R -> true, R=301 -> "301"
+  }
+  return f;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Match with real <code>RegExp</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the heart of it — and it's genuine. In a per-directory context Apache strips the leading slash, so match against <code>path.replace(/^\//,"")</code>. The <code>[NC]</code> flag becomes the JS <code>i</code> flag. Wrap <code>new RegExp</code> in a try/catch so a bad pattern reports an error instead of throwing.</p>
+        <div class="relative"><pre>function matchRule(pattern, flags, path){
+  const subject = path.replace(/^\//, "");        // per-directory: no leading slash
+  let regex;
+  try { regex = new RegExp(pattern, flags.NC ? "i" : ""); }
+  catch (e) { return { error: e.message }; }
+  return { subject, regex, match: subject.match(regex) };  // match[0], match[1]=$1 ...
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Substitute the backreferences</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The substitution string carries <code>$1…$9</code> (captures from the rule's pattern) and <code>%1…%9</code> (captures from the last matched <code>RewriteCond</code>), plus <code>%{VARS}</code> like <code>%{HTTP_HOST}</code>. Three <code>.replace</code> calls with the match arrays turn the template into the real target.</p>
+        <div class="relative"><pre>function applySub(sub, ruleMatch, condMatch, ctx){
+  if (sub === "-") return null;                    // "-" means: change nothing
+  return sub
+    .replace(/\$(\d)/g, (_, d) => ruleMatch?.[+d] ?? "")   // $1 from the RewriteRule
+    .replace(/%(\d)/g,  (_, d) => condMatch?.[+d] ?? "")   // %1 from the RewriteCond
+    .replace(/%\{([^}]+)\}/g, (_, v) => resolveVar(v, ctx));
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Evaluate the <code>RewriteCond</code> guards</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Before a rule can fire, its conditions must pass. Interpolate the test string (<code>%{HTTPS}</code> → "on"/"off"), then regex-test it — honoring a leading <code>!</code> negation — or handle the filesystem checks <code>-f</code>/<code>-d</code>. Multiple conds AND together unless a cond carries <code>[OR]</code>.</p>
+        <div class="relative"><pre>function evalCond(cond, ctx, prevMatch){
+  const test = interpolate(cond.testString, ctx, prevMatch);
+  let p = cond.condPattern, negate = false;
+  if (p[0] === "!") { negate = true; p = p.slice(1); }
+
+  let result, groups = null;
+  if (p === "-f") result = ctx.fileExists;          // browser can't stat — you toggle it
+  else if (p === "-d") result = ctx.dirExists;
+  else { const m = test.match(new RegExp(p, cond.flags.NC ? "i" : "")); result = !!m; groups = m; }
+
+  return { test, result: negate ? !result : result, groups };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Redirect or rewrite?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The single most important classification. A <code>Redirect</code>/<code>RedirectMatch</code> is always external. A <code>RewriteRule</code> is an <em>internal rewrite</em> — unless it has an <code>[R]</code> flag, or its target is an absolute <code>http(s)://</code> URL, in which case Apache forces a browser redirect. <code>[F]</code> and <code>[G]</code> short-circuit to 403/410.</p>
+        <div class="relative"><pre>function classify(rule, target){
+  if (rule.flags.F) return "forbidden";              // 403
+  if (rule.flags.G) return "gone";                   // 410
+  if (rule.type !== "rewrite") return "redirect";    // Redirect / RedirectMatch
+  if (rule.flags.R) return "redirect";               // [R] or [R=301]
+  if (/^https?:\/\//i.test(target)) return "redirect"; // absolute URL forces it
+  return "rewrite";                                  // the default: browser URL unchanged
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Run the ruleset in order — honor <code>[L]</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">Now replay: walk the rules top to bottom. Skip a rule if its conds fail or its pattern misses. When one fires, record the outcome; a redirect ends processing immediately, and an <code>[L]</code> flag stops the loop too. Everything after a stop is marked "skipped" — which is exactly how a misplaced catch-all reveals itself.</p>
+        <div class="relative"><pre>function execute(rules, ctx){
+  let path = ctx.path, stopped = false, first = -1, trace = [];
+  rules.forEach((rule, i) => {
+    if (stopped) return trace.push({ i, rule, state: "after-L" });
+    const c = evalConds(rule.conds, ctx);
+    if (!c.passed) return trace.push({ i, rule, state: "cond-failed" });
+    const r = matchRule(rule.pattern, rule.flags, path);
+    if (!r.match) return trace.push({ i, rule, state: "no-match" });
+
+    const target = applySub(rule.substitution, r.match, c.lastMatch, ctx);
+    const kind = classify(rule, target);
+    if (first === -1) first = i;
+    trace.push({ i, rule, state: "fired", target, kind, groups: r.match });
+    if (kind === "redirect" || rule.flags.L) stopped = true;  // [L] = last
+  });
+  return { trace, first };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Render the verdict + the trace</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The output is judgment, not just a match. Headline the first rule that fired — its number, its captured groups, the substituted target — and translate the <em>kind</em> into plain English: a rewrite keeps the address bar and serves other content; a 301 tells the browser to change URL permanently. Then list every rule with a status badge so the <em>order</em> is visible at a glance.</p>
+        <div class="relative"><pre>function verdictText(kind, status, target){
+  if (kind === "rewrite")   return `Internal rewrite → server serves "${target}", URL stays put`;
+  if (kind === "redirect")  return `${status} redirect → browser navigates to "${target}"`;
+  if (kind === "forbidden") return "403 Forbidden — request blocked";
+  if (kind === "gone")      return "410 Gone — resource intentionally removed";
+  return "No rule matched — request passes through unchanged";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 43 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real <code>.htaccess</code> redirect tester with <strong>no server and no library</strong>: a line parser routes each directive, a quote-aware tokenizer splits the arguments, the <code>[flags]</code> become a map, and — the honest core — every pattern is matched with the browser's own <code>new RegExp</code> against the slash-stripped path, with <code>$1</code> and <code>%1</code> spliced back into the substitution. Running the set top to bottom, stopping on a redirect or <code>[L]</code>, makes the two invisible things visible: <strong>rule order</strong> (why a catch-all placed too high eats everything below it) and <strong>redirect vs internal rewrite</strong> (a 301 changes the address bar; a plain rewrite never does). The lesson underneath — mod_rewrite isn't magic, it's a regex loop with early exit, and once you can replay that loop by hand the file stops being scary. <strong>👉 Tomorrow — Day 44:</strong> a <strong>robots.txt tester</strong> — paste your <code>robots.txt</code> and a URL, pick a crawler user-agent, and see which <code>Allow</code>/<code>Disallow</code> rule (longest-match wins) decides whether the bot is let in.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==HTACCESS-ENGINE-START== (real RegExp; no server, no library)
+// Every RewriteRule pattern is an ordinary regular expression matched, top to bottom,
+// against the requested path (leading slash stripped in per-directory context). $1.. come
+// from the rule's captures, %1.. from the last RewriteCond, and the flags decide whether the
+// browser is quietly served other content (internal rewrite) or bounced to a new URL (301/302).
+const STATUS_TEXT = {200:"OK",301:"Moved Permanently",302:"Found",303:"See Other",307:"Temporary Redirect",308:"Permanent Redirect",403:"Forbidden",410:"Gone"};
+
+function tokenize(str){
+  const out = [], re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let m; while ((m = re.exec(str)) !== null) out.push(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3]);
+  return out;
+}
+function parseFlags(str){
+  const f = { list: [] };
+  if (!str) return f;
+  str.replace(/^\[|\]$/g, "").split(",").forEach(t => {
+    t = t.trim(); if (!t) return;
+    f.list.push(t);
+    const eq = t.indexOf("=");
+    const name = (eq === -1 ? t : t.slice(0, eq)).toUpperCase();
+    f[name] = eq === -1 ? true : t.slice(eq + 1);
+  });
+  return f;
+}
+function parseCond(argstr){
+  const toks = tokenize(argstr);
+  const testString = toks[0] || "";
+  const condPattern = toks[1] || "";
+  const flags = (toks[2] && toks[2].startsWith("[")) ? parseFlags(toks[2]) : { list: [] };
+  return { testString, condPattern, flags, raw: "RewriteCond " + argstr };
+}
+function parseRewriteRule(argstr, conds){
+  const toks = tokenize(argstr);
+  const pattern = toks[0] || "";
+  const substitution = toks[1] || "";
+  const flags = (toks[2] && toks[2].startsWith("[")) ? parseFlags(toks[2]) : { list: [] };
+  return { type: "rewrite", pattern, substitution, flags, conds, raw: "RewriteRule " + argstr };
+}
+function parseRedirect(isMatch, argstr){
+  const toks = tokenize(argstr);
+  const statusMap = { permanent: 301, temp: 302, seeother: 303, gone: 410 };
+  let i = 0, status = 302;
+  if (/^\d+$/.test(toks[0] || "")) { status = +toks[0]; i = 1; }
+  else if (statusMap[(toks[0] || "").toLowerCase()]) { status = statusMap[toks[0].toLowerCase()]; i = 1; }
+  return { type: isMatch ? "redirectmatch" : "redirect", status, from: toks[i] || "", to: toks[i + 1] || "", flags: { list: [] }, raw: (isMatch ? "RedirectMatch " : "Redirect ") + argstr };
+}
+function parseRules(text){
+  const rules = [];
+  let pendingConds = [];
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if (!line || line[0] === "#") continue;
+    if (/^(RewriteEngine|RewriteBase|Options|Header|Order|Allow|Deny|<)/i.test(line)) continue;
+    let m;
+    if ((m = line.match(/^RewriteCond\s+(.+)/i)))            { pendingConds.push(parseCond(m[1])); continue; }
+    if ((m = line.match(/^RewriteRule\s+(.+)/i)))            { rules.push(parseRewriteRule(m[1], pendingConds)); pendingConds = []; continue; }
+    if ((m = line.match(/^Redirect(Match)?\s+(.+)/i)))       { rules.push(parseRedirect(!!m[1], m[2])); pendingConds = []; continue; }
+    rules.push({ type: "unknown", raw: line, flags: { list: [] } });
+  }
+  return rules;
+}
+
+function resolveVar(v, ctx){
+  switch (v.toUpperCase()){
+    case "HTTP_HOST": case "SERVER_NAME": return ctx.host || "";
+    case "HTTPS": return ctx.https ? "on" : "off";
+    case "QUERY_STRING": return ctx.query || "";
+    case "REQUEST_URI": case "REQUEST_FILENAME": case "SCRIPT_FILENAME": return ctx.path || "";
+    case "REQUEST_METHOD": return "GET";
+    default: return "";
+  }
+}
+function interpolate(str, ctx, prevMatch){
+  return str
+    .replace(/%\{([^}]+)\}/g, (_, v) => resolveVar(v, ctx))
+    .replace(/%(\d)/g, (_, d) => (prevMatch && prevMatch[+d] != null) ? prevMatch[+d] : "");
+}
+function applySub(sub, ruleMatch, condMatch, ctx){
+  if (sub === "-") return null;
+  return sub
+    .replace(/\$(\d)/g, (_, d) => (ruleMatch && ruleMatch[+d] != null) ? ruleMatch[+d] : "")
+    .replace(/%(\d)/g, (_, d) => (condMatch && condMatch[+d] != null) ? condMatch[+d] : "")
+    .replace(/%\{([^}]+)\}/g, (_, v) => resolveVar(v, ctx));
+}
+function evalCond(cond, ctx, prevMatch){
+  const test = interpolate(cond.testString, ctx, prevMatch);
+  let p = cond.condPattern, negate = false;
+  if (p[0] === "!") { negate = true; p = p.slice(1); }
+  let result = false, groups = null, error = null, kind = "regex";
+  if (p === "-f" || p === "-s" || p === "-F") { kind = "fs"; result = !!ctx.fileExists; }
+  else if (p === "-d") { kind = "fs"; result = !!ctx.dirExists; }
+  else if (p === "-l") { kind = "fs"; result = false; }
+  else if (/^[<>=]/.test(p)) {
+    kind = "cmp"; const op = p[0], rhs = p.slice(1);
+    if (op === "=") result = test === rhs;
+    else if (op === ">") result = (isFinite(+test) && isFinite(+rhs)) ? +test > +rhs : test > rhs;
+    else result = (isFinite(+test) && isFinite(+rhs)) ? +test < +rhs : test < rhs;
+  } else {
+    try { const re = new RegExp(p, cond.flags.NC ? "i" : ""); const mm = test.match(re); result = !!mm; groups = mm; }
+    catch (e) { error = e.message; }
+  }
+  if (negate) result = !result;
+  return { test, result: !!result, groups, error, kind, negate, pattern: p, cond };
+}
+function evalConds(conds, ctx){
+  if (!conds || !conds.length) return { passed: true, lastMatch: null, details: [] };
+  const details = [];
+  let acc = null, lastMatch = null;
+  for (let i = 0; i < conds.length; i++){
+    const ev = evalCond(conds[i], ctx, lastMatch);
+    details.push(ev);
+    if (ev.groups) lastMatch = ev.groups;
+    if (acc === null) acc = ev.result;
+    else { const prevOr = conds[i - 1].flags && conds[i - 1].flags.OR; acc = prevOr ? (acc || ev.result) : (acc && ev.result); }
+  }
+  return { passed: !!acc, lastMatch, details };
+}
+function classify(rule, target){
+  if (rule.flags && rule.flags.F) return "forbidden";
+  if (rule.flags && rule.flags.G) return "gone";
+  if (rule.type !== "rewrite") return "redirect";
+  if (rule.flags && rule.flags.R) return "redirect";
+  if (/^(https?:)?\/\//i.test(target || "")) return "redirect";
+  return "rewrite";
+}
+function redirectStatus(rule){
+  if (rule.type === "redirect" || rule.type === "redirectmatch") return rule.status;
+  const R = rule.flags.R;
+  if (typeof R === "string" && /^\d+$/.test(R)) return +R;
+  if (rule.flags.F) return 403;
+  if (rule.flags.G) return 410;
+  return 302; // bare [R]
+}
+function matchRedirect(rule, path){
+  if (rule.type === "redirectmatch"){
+    let re; try { re = new RegExp(rule.from); } catch (e) { return { error: e.message }; }
+    const m = path.match(re);
+    if (!m) return { match: null, regex: re };
+    const target = rule.to.replace(/\$(\d)/g, (_, d) => m[+d] != null ? m[+d] : "");
+    return { match: m, regex: re, target };
+  }
+  // Redirect = prefix match on the path
+  if (rule.from && path.startsWith(rule.from)){
+    return { match: [path], target: rule.to + path.slice(rule.from.length), prefix: true };
+  }
+  return { match: null };
+}
+
+// replay the ruleset against a request, top to bottom, honoring [L] + redirects
+function execute(rules, ctx){
+  let currentPath = ctx.path, stopped = false, firedIndex = -1, final = null;
+  const trace = [];
+  for (let i = 0; i < rules.length; i++){
+    const rule = rules[i];
+    const e = { index: i, rule };
+    if (stopped) { e.state = "after-L"; trace.push(e); continue; }
+    if (rule.type === "unknown") { e.state = "unknown"; trace.push(e); continue; }
+
+    if (rule.type === "rewrite"){
+      const cr = evalConds(rule.conds, { ...ctx, path: currentPath });
+      e.condRes = cr;
+      if (!cr.passed) { e.state = "cond-failed"; trace.push(e); continue; }
+      const subject = currentPath.replace(/^\//, "");
+      e.subject = subject;
+      if (/^\^\//.test(rule.pattern)) e.warn = "Pattern starts with ^/ — but the leading slash is stripped in .htaccess, so this usually never matches.";
+      let re, err = null;
+      try { re = new RegExp(rule.pattern, rule.flags.NC ? "i" : ""); } catch (ex) { err = ex.message; }
+      if (err) { e.state = "error"; e.regexError = err; trace.push(e); continue; }
+      e.regex = re;
+      const m = subject.match(re);
+      e.match = m;
+      if (!m) { e.state = "no-match"; trace.push(e); continue; }
+      // fired
+      let target = applySub(rule.substitution, m, cr.lastMatch, { ...ctx, path: currentPath });
+      const isPass = rule.substitution === "-" || target === null;
+      if (isPass) target = currentPath;
+      const kind = classify(rule, target);
+      if (rule.flags.QSA && ctx.query) target += (target.includes("?") ? "&" : "?") + ctx.query;
+      e.state = "fired"; e.kind = kind; e.target = target; e.status = redirectStatus(rule);
+      if (firedIndex === -1) firedIndex = i;
+      if (!isPass && kind === "rewrite") currentPath = "/" + String(target).replace(/^\//, "").split("?")[0];
+      final = { kind, target, status: e.status, ruleIndex: i };
+      if (kind === "redirect" || kind === "forbidden" || kind === "gone") { stopped = true; }
+      else if (rule.flags.L) { stopped = true; }
+      trace.push(e); continue;
+    }
+
+    if (rule.type === "redirect" || rule.type === "redirectmatch"){
+      const r = matchRedirect(rule, currentPath);
+      e.subject = currentPath; e.regex = r.regex;
+      if (r.error) { e.state = "error"; e.regexError = r.error; trace.push(e); continue; }
+      if (!r.match) { e.state = "no-match"; trace.push(e); continue; }
+      e.state = "fired"; e.kind = "redirect"; e.target = r.target; e.status = rule.status; e.match = r.match;
+      if (firedIndex === -1) firedIndex = i;
+      final = { kind: "redirect", target: r.target, status: rule.status, ruleIndex: i };
+      stopped = true; trace.push(e); continue;
+    }
+  }
+  return { trace, firedIndex, final };
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { parseRules, tokenize, parseFlags, applySub, evalCond, classify, execute };
+// ==HTACCESS-ENGINE-END==
+
+// ---------- UI ----------
+const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const rulesInput = document.getElementById("rulesInput");
+const pathInput = document.getElementById("pathInput");
+const hostInput = document.getElementById("hostInput");
+const queryInput = document.getElementById("queryInput");
+const httpsToggle = document.getElementById("httpsToggle");
+const fileToggle = document.getElementById("fileToggle");
+const dirToggle = document.getElementById("dirToggle");
+const verdictEl = document.getElementById("verdict");
+const targetOut = document.getElementById("targetOut");
+const groupsWrap = document.getElementById("groupsWrap");
+const groupsTbl = document.getElementById("groupsTbl");
+const traceEl = document.getElementById("trace");
+const stRules = document.getElementById("stRules"), stConds = document.getElementById("stConds");
+const stMatch = document.getElementById("stMatch"), stStatus = document.getElementById("stStatus");
+
+const PRESETS = {
+  frontctrl: {
+    rules: `RewriteEngine On
+
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# Pretty product URLs
+RewriteRule ^products/([0-9]+)/?$ product.php?id=$1 [L,QSA]
+
+# Front controller: send anything that isn't a real file/dir to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?route=$1 [L,QSA]`,
+    path: "/products/42", host: "example.com", query: "ref=home", https: true, file: false, dir: false
+  },
+  pretty: {
+    rules: `RewriteEngine On
+RewriteRule ^category/([\\w-]+)/([0-9]+)/?$ category.php?slug=$1&page=$2 [L,QSA]
+RewriteRule ^product/([0-9]+)$ product.php?id=$1 [L]
+RewriteRule ^([a-z-]+)\\.html$ page.php?name=$1 [L]`,
+    path: "/category/shoes/3", host: "shop.example.com", query: "sort=price", https: true, file: false, dir: false
+  },
+  oldnew: {
+    rules: `# Simple prefix redirect (mod_alias)
+Redirect 301 /about-us /about
+
+# Regex redirect with a backreference
+RedirectMatch 301 ^/blog/([0-9]{4})/(.*)$ /news/$2
+
+# Redirect via mod_rewrite (needs the R flag)
+RewriteRule ^team/?$ /about#team [R=301,L]`,
+    path: "/blog/2021/hello-world", host: "example.com", query: "", https: true, file: false, dir: false
+  },
+  www: {
+    rules: `RewriteEngine On
+
+# Add www if it is missing
+RewriteCond %{HTTP_HOST} !^www\\. [NC]
+RewriteRule ^(.*)$ https://www.%{HTTP_HOST}/$1 [R=301,L]
+
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]`,
+    path: "/pricing", host: "example.com", query: "", https: false, file: false, dir: false
+  }
+};
+
+function loadPreset(key){
+  const p = PRESETS[key]; if (!p) return;
+  rulesInput.value = p.rules;
+  pathInput.value = p.path;
+  hostInput.value = p.host;
+  queryInput.value = p.query;
+  httpsToggle.checked = p.https;
+  fileToggle.checked = p.file;
+  dirToggle.checked = p.dir;
+  runAll();
+}
+document.querySelectorAll("#presets [data-preset]").forEach(b => b.onclick = () => loadPreset(b.dataset.preset));
+
+const STATE_BADGE = {
+  "fired":       ["b-fired",   "✅ FIRED"],
+  "cond-failed": ["b-cond",    "🚫 COND FAILED"],
+  "no-match":    ["b-nomatch", "⬜ NO MATCH"],
+  "after-L":     ["b-afterl",  "⛔ SKIPPED"],
+  "error":       ["b-err",     "⚠️ REGEX ERROR"],
+  "unknown":     ["b-skip",    "· not simulated"]
+};
+
+function directiveLabel(rule){
+  if (rule.type === "rewrite") return "RewriteRule";
+  if (rule.type === "redirect") return "Redirect";
+  if (rule.type === "redirectmatch") return "RedirectMatch";
+  return "line";
+}
+
+function runAll(){
+  const rules = parseRules(rulesInput.value);
+  let path = (pathInput.value || "/").trim();
+  if (!path.startsWith("/")) path = "/" + path;
+  const ctx = {
+    path,
+    host: hostInput.value.trim(),
+    query: queryInput.value.trim(),
+    https: httpsToggle.checked,
+    fileExists: fileToggle.checked,
+    dirExists: dirToggle.checked
+  };
+  const res = execute(rules, ctx);
+
+  // stats
+  const nRules = rules.filter(r => r.type !== "unknown").length;
+  const nConds = rules.reduce((a, r) => a + (r.conds ? r.conds.length : 0), 0);
+  stRules.textContent = nRules;
+  stConds.textContent = nConds;
+
+  const winner = res.firedIndex >= 0 ? res.trace.find(t => t.index === res.firedIndex) : null;
+  const final = res.final;
+
+  if (!winner){
+    stMatch.textContent = "—";
+    stStatus.textContent = "200";
+    verdictEl.className = "verdict none";
+    verdictEl.innerHTML = "<span>➡️</span><span>No rule matched — the request passes through unchanged, served as <code>" + esc(ctx.path) + "</code>.</span>";
+    targetOut.textContent = ctx.path + "  (unchanged)";
+    groupsWrap.classList.add("hidden");
+  } else {
+    stMatch.textContent = "#" + (winner.index + 1);
+    const kind = winner.kind;
+    let status = (kind === "rewrite") ? 200 : winner.status;
+    stStatus.textContent = status;
+
+    const kindClass = { rewrite: "rewrite", redirect: "redirect", forbidden: "forbidden", gone: "gone" }[kind] || "none";
+    verdictEl.className = "verdict " + kindClass;
+    let icon = { rewrite: "♻️", redirect: "↪️", forbidden: "⛔", gone: "🗑️" }[kind] || "➡️";
+    let msg;
+    if (kind === "rewrite")
+      msg = "<strong>Internal rewrite.</strong> The address bar stays at <code>" + esc(ctx.path) + "</code>; the server internally serves <code>" + esc(winner.target) + "</code>. No 3xx, the visitor sees no change.";
+    else if (kind === "redirect")
+      msg = "<strong>" + status + " " + (STATUS_TEXT[status] || "Redirect") + ".</strong> The browser is told to go to <code>" + esc(winner.target) + "</code> — the address bar changes.";
+    else if (kind === "forbidden")
+      msg = "<strong>403 Forbidden.</strong> The <code>[F]</code> flag blocks this request outright.";
+    else if (kind === "gone")
+      msg = "<strong>410 Gone.</strong> The <code>[G]</code> flag reports the resource as permanently removed.";
+    verdictEl.innerHTML = "<span>" + icon + "</span><span>Rule <b>#" + (winner.index + 1) + "</b> wins. " + msg + "</span>";
+
+    targetOut.textContent = (kind === "forbidden" || kind === "gone") ? "— (no target)" : winner.target;
+
+    // groups
+    const rows = [];
+    if (winner.match){
+      winner.match.forEach((g, gi) => {
+        rows.push('<tr><td class="key">' + (gi === 0 ? "$0" : "$" + gi) + '</td><td>' + esc(g == null ? "(unset)" : g) + (gi === 0 ? '  <span style="color:#94a3b8">full match</span>' : '') + '</td></tr>');
+      });
+    }
+    if (winner.condRes && winner.condRes.lastMatch){
+      winner.condRes.lastMatch.forEach((g, gi) => { if (gi === 0) return;
+        rows.push('<tr><td class="key">%' + gi + '</td><td>' + esc(g == null ? "(unset)" : g) + '  <span style="color:#94a3b8">from RewriteCond</span></td></tr>');
+      });
+    }
+    if (rows.length){ groupsTbl.innerHTML = rows.join(""); groupsWrap.classList.remove("hidden"); }
+    else groupsWrap.classList.add("hidden");
+  }
+
+  // trace
+  traceEl.innerHTML = "";
+  if (!res.trace.length){ traceEl.innerHTML = '<div class="text-sm text-slate-400">No rules parsed yet.</div>'; return; }
+  res.trace.forEach(e => {
+    const [bcls, blabel] = STATE_BADGE[e.state] || ["b-skip", e.state];
+    let body = "";
+    const rule = e.rule;
+    if (rule.type === "rewrite"){
+      body += '<div class="rline mt-1"><span style="color:#64748b">RewriteRule</span> <b style="color:#1d4ed8">' + esc(rule.pattern) + '</b> <span style="color:#166534">' + esc(rule.substitution) + '</span> ' + (rule.flags.list.length ? '<span style="color:#b45309">[' + esc(rule.flags.list.join(",")) + ']</span>' : '') + '</div>';
+      if (rule.conds && rule.conds.length && e.condRes){
+        e.condRes.details.forEach((d, di) => {
+          const ok = d.result ? '<span style="color:#16a34a">✓</span>' : '<span style="color:#dc2626">✗</span>';
+          body += '<div class="rline" style="color:#64748b;font-size:11px">' + ok + ' Cond: ' + esc(rule.conds[di].testString) + ' → "' + esc(d.test) + '" vs ' + esc(rule.conds[di].condPattern) + '</div>';
+        });
+      }
+      if (e.subject != null && (e.state === "no-match" || e.state === "fired" || e.state === "error"))
+        body += '<div class="rline" style="color:#94a3b8;font-size:11px">matched against: <b>' + esc(e.subject) + '</b></div>';
+    } else if (rule.type === "redirect" || rule.type === "redirectmatch"){
+      body += '<div class="rline mt-1"><span style="color:#64748b">' + directiveLabel(rule) + ' ' + rule.status + '</span> <b style="color:#1d4ed8">' + esc(rule.from) + '</b> → <span style="color:#166534">' + esc(rule.to) + '</span></div>';
+    } else {
+      body += '<div class="rline mt-1" style="color:#94a3b8">' + esc(rule.raw) + '</div>';
+    }
+    if (e.regexError) body += '<div class="warnchip">regex error: ' + esc(e.regexError) + '</div>';
+    if (e.warn) body += '<div class="warnchip">⚠️ ' + esc(e.warn) + '</div>';
+    if (e.state === "fired"){
+      const k = e.kind === "rewrite" ? "internal rewrite" : e.kind === "redirect" ? (e.status + " redirect") : e.kind;
+      body += '<div class="rline mt-1" style="color:#0f172a">→ <b>' + esc(e.target || "—") + '</b> <span style="color:#b45309;font-weight:800">(' + k + ')</span></div>';
+    }
+    const div = document.createElement("div");
+    div.className = "tr " + e.state;
+    div.innerHTML = '<div class="hd"><div style="font-weight:800;color:#334155">Rule #' + (e.index + 1) + '</div><span class="badge-st ' + bcls + '">' + blabel + '</span></div>' + body;
+    traceEl.appendChild(div);
+  });
+}
+
+[rulesInput, pathInput, hostInput, queryInput].forEach(el => el.addEventListener("input", runAll));
+[httpsToggle, fileToggle, dirToggle].forEach(el => el.addEventListener("change", runAll));
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. .htaccess — a config file that rewrites URLs",
+   why:"On an Apache web server, a file named .htaccess placed in a folder lets you change how requests to that folder are handled — without touching the main server config. Its most famous job is URL rewriting via the mod_rewrite module: turning a pretty public URL like /products/42 into the real script that runs it (product.php?id=42), or bouncing an old address to a new one. The rules are read top to bottom on every matching request. Nothing here is Apache-specific magic once you see it: each rule is a pattern, a target, and some flags. This tester replays that logic in your browser so you can see the decision a real server would make.",
+   concept:`<div class="text-center space-y-3"><div class="text-sm text-slate-500">The public URL the visitor typed…</div><div><span class="pill b">/products/42</span></div><div class="text-2xl">↓ &nbsp;<span class="text-xs text-slate-400 align-middle">.htaccess rewrites it</span></div><div><span class="pill g">product.php?id=42</span></div><div class="text-xs text-slate-400">…the real script the server runs</div></div>`,
+   code:`# a .htaccess in your site root
+RewriteEngine On
+RewriteRule ^products/([0-9]+)$ product.php?id=$1 [L]
+# request /products/42  ->  runs product.php?id=42` },
+ { title:"2. RewriteRule anatomy: pattern · substitution · flags",
+   why:"Every RewriteRule has exactly three parts separated by spaces. The first is a regular-expression pattern tested against the requested path. The second is the substitution — what to replace the path with when the pattern matches, which can pull pieces out of the match with $1, $2… backreferences. The third, optional, is a bracketed list of flags that modify behaviour ([L], [R=301], [QSA], [NC]). Reading a rule is just reading those three columns. Once you can point at each part, the scariest-looking .htaccess becomes a table of pattern → target → flags.",
+   concept:`<div class="anat"><span class="d">RewriteRule</span> <span class="p1">^products/([0-9]+)$</span> <span class="p2">product.php?id=$1</span> <span class="p3">[L,QSA]</span></div><div class="flex justify-center gap-2 flex-wrap text-xs mt-3"><span class="pill" style="background:#e2e8f0;color:#334155">directive</span><span class="pill b">pattern (regex)</span><span class="pill a">substitution</span><span class="pill g">flags</span></div>`,
+   code:`RewriteRule   ^products/([0-9]+)$   product.php?id=$1   [L,QSA]
+#  directive     pattern (a regex)     substitution         flags` },
+ { title:"3. The pattern is a real regex — matched against the path",
+   why:"The pattern is a genuine regular expression, the same kind JavaScript's RegExp understands. Apache matches it against the requested URL path — but here is the number-one gotcha: in a per-directory .htaccess, Apache strips the leading slash first. So the path /products/42 is matched as products/42, which is why patterns are written ^products/… and not ^/products/…. Anchors matter: ^ ties to the start, $ to the end; a group like ([0-9]+) both matches and captures. This tester matches with new RegExp against the slash-stripped path, exactly as the server would.",
+   concept:`<div class="text-center space-y-2 text-sm"><div>request path <span class="pill b">/products/42</span></div><div class="text-xs text-slate-400">strip leading slash →</div><div>subject <span class="pill a">products/42</span></div><div class="text-xs text-slate-400">tested against</div><div><span class="pill g">^products/([0-9]+)$</span> ✓</div></div>`,
+   code:`const subject = path.replace(/^\\//, "");   // "/products/42" -> "products/42"
+const re = new RegExp("^products/([0-9]+)$");
+subject.match(re);   // ["products/42", "42"]  — index 1 is $1` },
+ { title:"4. Substitution & backreferences ($1 and %1)",
+   why:"When a pattern matches, its capture groups are available in the substitution as $1, $2, … in order — so ([0-9]+) becomes $1. That is how /products/42 turns into product.php?id=42. There is a second set: %1, %2 refer to captures from the last matched RewriteCond (covered next), and %{VARS} like %{HTTP_HOST} inject server variables. Everything else in the substitution is copied literally. Building the target is nothing more than a few string replacements against the match arrays — no template engine required.",
+   concept:`<div class="text-center space-y-2 text-sm"><div><span class="pill g">^products/([0-9]+)$</span></div><div class="text-xs text-slate-400">capture group 1 = "42"</div><div>↓</div><div><span class="pill a">product.php?id=$1</span> → <span class="pill" style="background:#dcfce7;color:#166534">product.php?id=42</span></div></div>`,
+   code:`target = substitution
+  .replace(/\\$(\\d)/g, (_, d) => ruleMatch[d] ?? "")   // $1 from the rule
+  .replace(/%(\\d)/g,  (_, d) => condMatch[d] ?? "")    // %1 from a RewriteCond
+  .replace(/%\\{([^}]+)\\}/g, (_, v) => vars[v]);        // %{HTTP_HOST} etc.` },
+ { title:"5. RewriteCond — guards for the next rule",
+   why:"A RewriteRule fires only if the path matches. RewriteCond adds extra conditions that must ALSO be true — but only for the single RewriteRule immediately after it. Each cond has a test string (often a server variable like %{HTTPS} or %{HTTP_HOST}) and a pattern to match it against. A leading ! negates it. Special tests -f and -d ask 'does this path exist as a file / directory?' — the classic way to say 'only rewrite if there isn't already a real file here' (the front-controller pattern). Multiple conds AND together; add [OR] to make two alternatives.",
+   concept:`<div class="space-y-2 text-sm"><div class="text-xs text-slate-500">Only send to index.php if it is NOT a real file or dir:</div><div class="rline p-2 rounded bg-slate-900 text-emerald-300">RewriteCond %{REQUEST_FILENAME} !-f</div><div class="rline p-2 rounded bg-slate-900 text-emerald-300">RewriteCond %{REQUEST_FILENAME} !-d</div><div class="rline p-2 rounded bg-slate-900 text-sky-300">RewriteRule ^(.*)$ index.php?route=$1 [L]</div></div>`,
+   code:`RewriteCond %{HTTPS} off          # test string vs pattern
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# the cond guards ONLY the rule on the very next line` },
+ { title:"6. Flags — the behaviour switches in [ ]",
+   why:"Flags in square brackets change what a matching rule does. The big four: [L] = 'last', stop processing more rules (crucial for order). [R=301] = send an external redirect with that HTTP status (301 permanent, 302 temporary). [QSA] = 'query string append', keep the original ?query on the new URL. [NC] = 'no case', match case-insensitively (the JS i flag). Others include [F] (403 forbidden), [G] (410 gone), and [OR] on conds. Flags are the difference between a rule that quietly rewrites and one that redirects the browser — read them carefully.",
+   concept:`<div class="space-y-2 text-sm"><div><span class="pill" style="background:#fde68a;color:#78350f">[L]</span> stop here — last rule</div><div><span class="pill" style="background:#fde68a;color:#78350f">[R=301]</span> external 301 redirect</div><div><span class="pill" style="background:#fde68a;color:#78350f">[QSA]</span> keep the ?query string</div><div><span class="pill" style="background:#fde68a;color:#78350f">[NC]</span> case-insensitive match</div></div>`,
+   code:`// R -> true (302), R=301 -> "301"
+flags.NC ? "i" : ""          // NC becomes the RegExp i flag
+if (flags.L) stopped = true; // L halts the ruleset
+if (flags.QSA && query) target += "?" + query;` },
+ { title:"7. Order + [L]: first match wins, then stop",
+   why:"mod_rewrite reads rules from top to bottom. It tests each in turn; the first whose conditions and pattern match gets applied. Without [L], processing continues and later rules operate on the already-rewritten path — which can chain, or clobber. With [L], the server stops as soon as that rule fires. This is why order is everything: a broad catch-all like ^(.*)$ placed above your specific rules will match first and swallow every request, so the specific rules below never run. Put specific rules first, catch-alls last, and [L] your terminal rules.",
+   concept:`<div class="space-y-2 text-sm"><div class="text-xs text-slate-500">Wrong order — the catch-all eats everything:</div><div class="rline p-2 rounded bg-red-50 border border-red-200">RewriteRule ^(.*)$ index.php [L] &nbsp;← fires first 🛑</div><div class="rline p-2 rounded bg-slate-100">RewriteRule ^products/([0-9]+)$ product.php?id=$1 [L] &nbsp;← never reached</div></div>`,
+   code:`// top to bottom; stop on the first [L] (or a redirect)
+for (const rule of rules){
+  if (matches(rule, path)){
+    apply(rule);
+    if (rule.flags.L) break;   // <- order + [L] decide the outcome
+  }
+}` },
+ { title:"8. Redirect vs internal rewrite — the crucial difference",
+   why:"This is the concept people miss most. A plain RewriteRule does an INTERNAL rewrite: the browser's address bar never changes; Apache just quietly serves different content behind the same URL. The visitor never knows product.php ran. Add an [R] flag — or make the target an absolute http(s):// URL — and it becomes an EXTERNAL redirect: Apache sends a 3xx response, the browser makes a new request, and the address bar changes to the new URL. Same-looking rule, completely different visitor experience and SEO impact. When in doubt: no R and a relative target = rewrite; R or an absolute URL = redirect.",
+   concept:`<div class="space-y-3 text-sm text-center"><div><span class="pill b">no [R], relative target</span> → <b>internal rewrite</b> 🔒 URL stays</div><div><span class="pill a">[R=301] or http(s):// target</span> → <b>redirect</b> ↪️ URL changes</div></div>`,
+   code:`RewriteRule ^p/([0-9]+)$ product.php?id=$1 [L]        // rewrite: bar stays /p/42
+RewriteRule ^p/([0-9]+)$ product.php?id=$1 [R=301,L]  // redirect: bar -> product.php?id=42
+RewriteRule ^go$ https://other.com/ [R=302,L]         // redirect: absolute URL always is` },
+ { title:"9. Redirect & RedirectMatch — the simpler mod_alias way",
+   why:"Not every redirect needs mod_rewrite. The mod_alias module offers two simpler directives. Redirect does a prefix match: Redirect 301 /old /new sends /old and everything under it to /new. RedirectMatch uses a regular expression and supports $1 backreferences, like RedirectMatch 301 ^/blog/(.*)$ /news/$1. Both always produce a real external redirect (default 302 if you omit the status). They're cleaner for straightforward old→new moves. One caveat: mod_alias and mod_rewrite run in different phases, so mixing them can surprise you — when both could act, behaviour depends on server internals.",
+   concept:`<div class="space-y-2 text-sm"><div><span class="pill b">Redirect 301 /about-us /about</span><div class="text-xs text-slate-400 ml-1">prefix match — /about-us/team → /about/team too</div></div><div><span class="pill a">RedirectMatch 301 ^/blog/(.*)$ /news/$1</span><div class="text-xs text-slate-400 ml-1">regex match — $1 backreference</div></div></div>`,
+   code:`Redirect 301 /about-us /about              # prefix, always external
+RedirectMatch 301 ^/blog/(.*)$ /news/$1    # regex + $1
+# no status given -> defaults to 302 Found` },
+ { title:"10. It's a regex loop with early exit — not magic",
+   why:"Put it together and mod_rewrite is demystified: parse the rules, then loop over them against the requested path, testing each pattern with a regular expression, applying the first match's substitution, and stopping on a redirect or an [L] flag. Everything you find hard about .htaccess reduces to two visible things this tester surfaces — the ORDER rules run in, and whether each one REDIRECTS or silently REWRITES. Test your rules against real paths before you deploy them; a single misplaced catch-all or a forgotten [L] can take a whole site down, and a wrong 301 gets cached by browsers for a very long time.",
+   concept:`<div class="text-center space-y-2 text-sm"><div class="mono">parse → loop rules → match(regex) → substitute → classify</div><div class="text-xs text-slate-400">stop on redirect or [L]</div><div class="mt-2"><span class="pill g">order</span> + <span class="pill a">redirect vs rewrite</span> <span class="text-slate-400">= the whole game</span></div></div>`,
+   code:`function execute(rules, ctx){
+  let path = ctx.path, stopped = false;
+  for (const rule of rules){
+    if (stopped) continue;
+    if (!condsPass(rule, ctx)) continue;
+    const m = matchRule(rule, path); if (!m) continue;
+    const target = substitute(rule, m), kind = classify(rule, target);
+    if (kind === "redirect" || rule.flags.L) stopped = true;   // early exit
+  }
+}` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s,i)=>{ const bn=document.createElement("button"); bn.className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML=`<div class="font-semibold">${s.title}</div>`; bn.onclick=()=>show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep=i; const s=STEPS[i];
+  document.getElementById("concept").innerHTML=`<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML=`<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent=s.code;
+  stepsEl.querySelectorAll("button").forEach((bn,idx)=>{ bn.className = idx===i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick=()=>show(Math.max(0,curStep-1)); nextB.onclick=()=>show(Math.min(STEPS.length-1,curStep+1));
+let tm=null; autoB.onclick=()=>{ if(tm){clearInterval(tm);tm=null;autoB.textContent="▶ Auto-play";return;} autoB.textContent="⏸ Pause"; show(0); tm=setInterval(()=>{ if(curStep>=STEPS.length-1){clearInterval(tm);tm=null;autoB.textContent="▶ Replay";return;} show(curStep+1); },4600); };
+show(0);
+
+function copy(btn){ const pre=btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o=btn.textContent; btn.textContent="✓ Copied!"; setTimeout(()=>btn.textContent=o,1500); }
+
+// boot with the front-controller preset
+loadPreset("frontctrl");
+</script>
+</body>
+</html>
