@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 44 — CHMOD Permissions Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip small { font-weight:600; opacity:.7; }
+
+  /* ---- editors / inputs ---- */
+  .field-in { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px;
+      font:16px ui-monospace,Menlo,monospace; letter-spacing:.06em; outline:none; background:#fff; }
+  .field-in:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.25); }
+  .field-in.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.25); }
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; margin-top:10px; }
+  .togg { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#334155; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; cursor:pointer; }
+  .togg input { accent-color:#f59e0b; }
+
+  /* ---- permission grid ---- */
+  .perm-grid { width:100%; border-collapse:separate; border-spacing:0; }
+  .perm-grid th, .perm-grid td { padding:9px 6px; text-align:center; }
+  .perm-grid th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:800; }
+  .perm-grid th small { display:block; font-weight:700; color:#b45309; font-family:ui-monospace,Menlo,monospace; }
+  .perm-grid td.rowlab { text-align:left; font-weight:800; color:#334155; white-space:nowrap; }
+  .perm-grid td.rowlab small { display:block; font-size:10px; font-weight:600; color:#94a3b8; text-transform:none; letter-spacing:0; }
+  .perm-grid tbody tr:nth-child(even) { background:#f8fafc; }
+  .perm-chk { width:22px; height:22px; accent-color:#f59e0b; cursor:pointer; }
+  .digit-badge { font:900 20px ui-monospace,Menlo,monospace; color:#b45309; font-variant-numeric:tabular-nums; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; font-variant-numeric:tabular-nums; margin-top:4px; word-break:break-all; }
+  .stat.hot .v { color:#b45309; }
+
+  /* ---- output boxes ---- */
+  .cmdbox { background:#0f172a; border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:10px; }
+  .cmdbox .prompt { color:#64748b; font:14px ui-monospace,Menlo,monospace; }
+  .cmdbox .cmd { color:#6ee7b7; font:800 18px ui-monospace,Menlo,monospace; word-break:break-all; }
+  .lsbox { background:#0f172a; border-radius:12px; padding:12px 16px; }
+  .lsbox .perm { color:#fbbf24; font:800 20px ui-monospace,Menlo,monospace; letter-spacing:.12em; }
+  .lsbox .rest { color:#94a3b8; font:13px ui-monospace,Menlo,monospace; }
+
+  /* ---- breakdown table ---- */
+  .brk { font:13px ui-monospace,Menlo,monospace; border-collapse:collapse; width:100%; }
+  .brk th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; padding:4px 8px; border-bottom:1px solid #e2e8f0; }
+  .brk td { padding:5px 8px; border-bottom:1px solid #eef2f7; }
+  .brk td.cls { font-weight:800; color:#334155; }
+  .brk td.sym { color:#1d4ed8; letter-spacing:.12em; }
+  .brk td.bin { color:#64748b; }
+  .brk td.dig { color:#b45309; font-weight:900; text-align:right; }
+  .whoc { font-size:13px; color:#334155; line-height:1.7; }
+  .whoc b { color:#b45309; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .anat { font:800 18px ui-monospace,Menlo,monospace; word-break:break-all; text-align:center; line-height:2.1; }
+  .anat .u { background:#dbeafe; color:#1d4ed8; padding:3px 5px; border-radius:5px; }
+  .anat .g { background:#fef3c7; color:#92400e; padding:3px 5px; border-radius:5px; }
+  .anat .o { background:#dcfce7; color:#166534; padding:3px 5px; border-radius:5px; }
+  .bitcell { display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:6px 10px; border-radius:8px; background:#f1f5f9; font-family:ui-monospace,Menlo,monospace; }
+  .bitcell .t { font-size:11px; color:#64748b; font-weight:700; }
+  .bitcell .n { font-size:16px; font-weight:900; color:#b45309; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 44</div>
+      <h1 class="text-xl font-bold">🔐 CHMOD Permissions Calculator — tick a 3×3 grid and watch the <code>755</code>, the <code>rwxr-xr-x</code>, and the <code>chmod</code> command move together — <em>every</em> field two-way synced with real bit math</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Stop guessing what <code>chmod 755</code> means. Tick the boxes and watch.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">Every file on a Unix system carries nine permission bits — <strong>read, write, execute</strong> for the <strong>owner</strong>, the <strong>group</strong>, and <strong>everyone else</strong> — plus three special bits. People memorise magic numbers like <code class="mono">644</code> and <code class="mono">755</code> without ever seeing that the digit is just <strong>4 + 2 + 1</strong>. This calculator makes all four representations one thing: tick a box in the grid and the octal, the <code class="mono">rwxr-xr-x</code> symbolic string, the <code class="mono">chmod</code> command and the <code class="mono">ls -l</code> line all update instantly — and it works <strong>backwards too</strong>: type <code class="mono">750</code> or paste <code class="mono">rwxr-x---</code> and the grid ticks itself. All of it is <strong>real bit arithmetic in the browser</strong> — nothing faked, nothing uploaded.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- LEFT: inputs -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Common presets</div>
+            <div id="presets">
+              <button class="chip" data-preset="644">644 <small>files</small></button>
+              <button class="chip" data-preset="755">755 <small>scripts/dirs</small></button>
+              <button class="chip" data-preset="700">700 <small>private</small></button>
+              <button class="chip" data-preset="600">600 <small>keys</small></button>
+              <button class="chip" data-preset="775">775 <small>group-writable</small></button>
+              <button class="chip" data-preset="777">777 <small>wide open</small></button>
+              <button class="chip" data-preset="4755">4755 <small>setuid</small></button>
+              <button class="chip" data-preset="2775">2775 <small>setgid</small></button>
+              <button class="chip" data-preset="1777">1777 <small>/tmp sticky</small></button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Permission grid <span class="text-slate-400 normal-case">— tick what each class may do</span></div>
+            <table class="perm-grid">
+              <thead>
+                <tr>
+                  <th class="rowlab"></th>
+                  <th>Read<small>4</small></th>
+                  <th>Write<small>2</small></th>
+                  <th>Exec<small>1</small></th>
+                  <th>=</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="rowlab">👤 User<small>the owner</small></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="u" data-b="r"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="u" data-b="w"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="u" data-b="x"></td>
+                  <td><span class="digit-badge" id="dig-u">0</span></td>
+                </tr>
+                <tr>
+                  <td class="rowlab">👥 Group<small>owning group</small></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="g" data-b="r"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="g" data-b="w"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="g" data-b="x"></td>
+                  <td><span class="digit-badge" id="dig-g">0</span></td>
+                </tr>
+                <tr>
+                  <td class="rowlab">🌍 Other<small>everyone else</small></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="o" data-b="r"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="o" data-b="w"></td>
+                  <td><input type="checkbox" class="perm-chk" data-c="o" data-b="x"></td>
+                  <td><span class="digit-badge" id="dig-o">0</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="mt-4 pt-3 border-t border-slate-100">
+              <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Special bits <span class="text-slate-400 normal-case">— the 4th, leading octal digit</span></div>
+              <div class="flex flex-wrap gap-2">
+                <label class="togg"><input type="checkbox" id="sp-setuid"> setuid <span class="text-slate-400">(4)</span></label>
+                <label class="togg"><input type="checkbox" id="sp-setgid"> setgid <span class="text-slate-400">(2)</span></label>
+                <label class="togg"><input type="checkbox" id="sp-sticky"> sticky <span class="text-slate-400">(1)</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <div class="fieldlabel" style="margin-top:0">Octal — type it</div>
+                <input id="octalInput" class="field-in" spellcheck="false" placeholder="755" maxlength="4">
+                <p class="text-xs text-slate-400 mt-1">3 or 4 digits, each 0–7</p>
+              </div>
+              <div>
+                <div class="fieldlabel" style="margin-top:0">Symbolic — type it</div>
+                <input id="symbolicInput" class="field-in" spellcheck="false" placeholder="rwxr-xr-x" maxlength="10">
+                <p class="text-xs text-slate-400 mt-1">9 chars <code>rwx</code>·<code>rwx</code>·<code>rwx</code></p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-4">
+              <label class="togg"><input type="radio" name="ftype" value="file" checked> 📄 file</label>
+              <label class="togg"><input type="radio" name="ftype" value="dir"> 📁 directory</label>
+              <div class="flex-1"></div>
+              <div class="flex items-center gap-2 text-xs text-slate-500">name <input id="fnameInput" class="field-in" style="width:120px;font-size:13px;padding:5px 8px" value="file.sh"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: results -->
+        <div class="space-y-5">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="grid grid-cols-4 gap-2 mb-4">
+              <div class="stat hot"><div class="k">Octal</div><div class="v" id="stOctal">—</div></div>
+              <div class="stat"><div class="k">Symbolic</div><div class="v" id="stSym" style="font-size:15px">—</div></div>
+              <div class="stat"><div class="k">Decimal</div><div class="v" id="stDec">—</div></div>
+              <div class="stat"><div class="k">Special</div><div class="v" id="stSpecial" style="font-size:15px">none</div></div>
+            </div>
+            <div class="fieldlabel" style="margin-top:0">The command</div>
+            <div class="cmdbox mb-3"><span class="prompt">$</span><span class="cmd" id="cmdOut">chmod 755 file.sh</span></div>
+            <div class="fieldlabel">What <code>ls -l</code> shows</div>
+            <div class="lsbox"><span class="perm" id="lsPerm">-rwxr-xr-x</span> <span class="rest" id="lsRest">1 owner group  &nbsp; file.sh</span></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Bit breakdown <span class="text-slate-400 normal-case">— 4 + 2 + 1, per class</span></div>
+            <table class="brk">
+              <thead><tr><th>Class</th><th>rwx</th><th>binary</th><th style="text-align:right">4·2·1</th></tr></thead>
+              <tbody id="brkBody"></tbody>
+            </table>
+            <div class="mt-4 pt-3 border-t border-slate-100">
+              <div class="fieldlabel" style="margin-top:0">Who can do what</div>
+              <div class="whoc" id="whoOut"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about chmod</div>
+        <p class="text-sm text-amber-800"><strong>1. The digit is just 4 + 2 + 1.</strong> There is no lookup table to memorise: read is 4, write is 2, execute is 1, and you add the ones that are on. <code>7</code> = 4+2+1 (all), <code>5</code> = 4+1 (read+exec), <code>6</code> = 4+2 (read+write). <strong>2. <code>777</code> is almost never what you want.</strong> It lets <em>anyone</em> on the machine write to the file. Web files are usually <code>644</code>, directories and scripts <code>755</code>; private keys need <code>600</code>. <strong>3. Execute on a directory ≠ execute on a file.</strong> On a file, execute means "run it as a program". On a directory it means "you may enter/traverse it" — a dir with read but no execute lists names but lets you open nothing. <strong>4. The leading 4th digit is the special bits.</strong> <code>4755</code> sets setuid, <code>2755</code> setgid, <code>1777</code> the sticky bit — and they show up as <code>s</code>/<code>t</code> in the execute slot of the symbolic string (upper-case <code>S</code>/<code>T</code> when the underlying execute bit is off). <strong>5. Symbolic mode is relative, numeric is absolute.</strong> <code>chmod 644 f</code> sets the mode exactly; <code>chmod u+x f</code> only adds one bit to whatever is already there. This calculator always shows the absolute result.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How nine bits describe every file on Unix</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A permissions calculator feels like it should be a big lookup table — it isn't. A Unix mode is just <strong>bits</strong>, and every representation (the octal <code>755</code>, the symbolic <code>rwxr-xr-x</code>, the ticked checkboxes) is a different <em>view</em> of the same bits. So the whole tool is: keep one <strong>source-of-truth mode</strong>, and write pure functions that <em>compose</em> bits into a number/string and <em>parse</em> a number/string back into bits. Read is 4, write is 2, execute is 1; OR them together to make a digit, AND against them to read a digit apart. Get those two directions right and the two-way sync is almost free — change any input, rebuild the mode, re-render everything from it. Here is the entire engine, one honest step at a time — real bit arithmetic, no library.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Model the mode as bits</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A file mode has three permission classes — user, group, other — and each is three booleans: read, write, execute. Plus three special bits (setuid, setgid, sticky). That's the entire state. One plain object is the single source of truth; every display is derived from it, and every input rewrites it.</p>
+        <div class="relative"><pre>// the whole state of a file's permissions
+const mode = {
+  special: { setuid:false, setgid:false, sticky:false },
+  u: { r:true,  w:true,  x:true  },   // owner
+  g: { r:true,  w:false, x:true  },   // group
+  o: { r:true,  w:false, x:true  },   // everyone else
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">One class → one octal digit (4·2·1)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The magic numbers are just weighted sums. Read is worth 4, write 2, execute 1 — because they're the three bits of a single octal digit (binary <code>100</code>, <code>010</code>, <code>001</code>). Bitwise-OR the ones that are on and you get 0–7. <code>rwx</code> → 4|2|1 = 7; <code>r-x</code> → 4|1 = 5.</p>
+        <div class="relative"><pre>function classToDigit(c){
+  return (c.r ? 4 : 0) | (c.w ? 2 : 0) | (c.x ? 1 : 0);
+}
+classToDigit({r:true, w:true,  x:true })  // 7  (rwx)
+classToDigit({r:true, w:false, x:true })  // 5  (r-x)
+classToDigit({r:true, w:true,  x:false}) // 6  (rw-)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Compose the full octal string</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Do the same for the special bits (setuid 4, setgid 2, sticky 1) to get a leading digit, then concatenate: special · user · group · other. Show the 4th digit only when a special bit is set — <code>755</code> stays three digits, <code>4755</code> becomes four.</p>
+        <div class="relative"><pre>function specialToDigit(s){
+  return (s.setuid ? 4 : 0) | (s.setgid ? 2 : 0) | (s.sticky ? 1 : 0);
+}
+function toOctal(mode){
+  const sp = specialToDigit(mode.special);
+  const three = `${classToDigit(mode.u)}${classToDigit(mode.g)}${classToDigit(mode.o)}`;
+  return sp ? `${sp}${three}` : three;   // 755  or  4755
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Compose the symbolic string</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The <code>rwxr-xr-x</code> form is three triads glued together. For a plain class each slot is its letter or a dash. The execute slot is special: when a special bit applies to that class it shows <code>s</code> (setuid/setgid) or <code>t</code> (sticky) instead of <code>x</code> — and an upper-case <code>S</code>/<code>T</code> if the execute bit underneath is actually <em>off</em>.</p>
+        <div class="relative"><pre>function triad(c, special){          // special: 's' | 't' | null
+  const set   = special === 't' ? 't' : 's';
+  const unset = special === 't' ? 'T' : 'S';
+  const x = special ? (c.x ? set : unset) : (c.x ? 'x' : '-');
+  return (c.r ? 'r' : '-') + (c.w ? 'w' : '-') + x;
+}
+function toSymbolic(m){
+  return triad(m.u, m.special.setuid ? 's' : null)
+       + triad(m.g, m.special.setgid ? 's' : null)
+       + triad(m.o, m.special.sticky ? 't' : null);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Parse an octal string back to bits</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The reverse direction is where "real bit math" earns its keep. Validate 3–4 octal digits, peel off the optional leading special digit, then AND each digit against 4/2/1 to recover the three booleans. <code>7 &amp; 4</code> is truthy → read is on; <code>5 &amp; 2</code> is 0 → write is off.</p>
+        <div class="relative"><pre>function digitToClass(d){
+  return { r: !!(d & 4), w: !!(d & 2), x: !!(d & 1) };
+}
+function parseOctal(str){
+  str = str.trim();
+  if (!/^[0-7]{3,4}$/.test(str)) return null;       // reject garbage
+  const sp = str.length === 4 ? +str[0] : 0;
+  const [u, g, o] = str.slice(-3).split('').map(Number);
+  return {
+    special: { setuid:!!(sp&4), setgid:!!(sp&2), sticky:!!(sp&1) },
+    u: digitToClass(u), g: digitToClass(g), o: digitToClass(o),
+  };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Parse a symbolic string back to bits</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Accept the 9-char form (or 10 with a leading file-type char, as <code>ls -l</code> prints). Split into three triads; read/write are their letter-or-dash, and the execute slot decodes both the execute bit <em>and</em> whether the class carries a special bit: <code>x</code>→exec on, <code>s</code>/<code>t</code>→exec on + special, <code>S</code>/<code>T</code>→exec off + special.</p>
+        <div class="relative"><pre>function parseTriad(t, setChar, unsetChar){
+  const r = t[0] === 'r', w = t[1] === 'w', c = t[2];
+  if (c === 'x')        return { r, w, x:true,  special:false };
+  if (c === '-')        return { r, w, x:false, special:false };
+  if (c === setChar)    return { r, w, x:true,  special:true  };  // s or t
+  if (c === unsetChar)  return { r, w, x:false, special:true  };  // S or T
+  return null;                                                    // invalid
+}
+function parseSymbolic(str){
+  str = str.trim();
+  if (str.length === 10) str = str.slice(1);        // drop the -/d type char
+  if (!/^[rwxsStT-]{9}$/.test(str)) return null;
+  const U = parseTriad(str.slice(0,3), 's', 'S');
+  const G = parseTriad(str.slice(3,6), 's', 'S');
+  const O = parseTriad(str.slice(6,9), 't', 'T');
+  if (!U || !G || !O) return null;
+  return {
+    special: { setuid:U.special, setgid:G.special, sticky:O.special },
+    u:{r:U.r,w:U.w,x:U.x}, g:{r:G.r,w:G.w,x:G.x}, o:{r:O.r,w:O.w,x:O.x},
+  };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Wire the two-way sync</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One <code>mode</code> is the truth; one <code>render()</code> paints every field from it. Each input handler rebuilds <code>mode</code> from its own value, then re-renders — skipping the field the user is actively typing in so the cursor doesn't jump. Because compose and parse are exact inverses, the grid, the octal box and the symbolic box can never disagree.</p>
+        <div class="relative"><pre>function render(skip){
+  if (skip !== 'checks')  writeCheckboxes(mode);
+  if (skip !== 'octal')   octalInput.value    = toOctal(mode);
+  if (skip !== 'symbolic')symbolicInput.value = toSymbolic(mode);
+  paintCommand(mode); paintLsLine(mode); paintBreakdown(mode);
+}
+octalInput.oninput = () => {
+  const m = parseOctal(octalInput.value);
+  if (m) { mode = m; render('octal'); octalInput.classList.remove('bad'); }
+  else   octalInput.classList.add('bad');
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Render the command, the <code>ls -l</code> line & the decimal</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The last mile is presentation. The command is literally <code>chmod</code> + the octal + the filename. The <code>ls -l</code> line prefixes the symbolic string with a file-type char (<code>-</code> for a file, <code>d</code> for a directory). And the "decimal" is a nice reminder that the octal really is a number — <code>parseInt("755", 8)</code> is 493.</p>
+        <div class="relative"><pre>const octal = toOctal(mode);                     // "755"
+cmdOut.textContent  = `chmod ${octal} ${filename}`;      // chmod 755 file.sh
+lsPerm.textContent  = (isDir ? 'd' : '-') + toSymbolic(mode);  // -rwxr-xr-x
+stDec.textContent   = parseInt(octal, 8);        // 493  (base-8 → base-10)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 44 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real chmod calculator with <strong>no library and no lookup table</strong> — just bits. A file mode is three classes of three permissions plus three special bits, and the "magic numbers" everyone half-remembers are nothing more than <strong>4 + 2 + 1</strong> per class OR-ed together. Composing runs one way (<code>classToDigit</code> with <code>|</code>, then concatenate the triads), parsing runs the other (<code>&amp; 4</code>, <code>&amp; 2</code>, <code>&amp; 1</code> to pull each bit back out), and because the two are exact inverses, a single source-of-truth <code>mode</code> plus a <code>render()</code> keeps the grid, the octal, the symbolic string and the <code>chmod</code> command in perfect agreement — type into any one and the rest follow. The lesson underneath: <code>755</code> was never a code to memorise, it was arithmetic you can now do in your head. <strong>👉 Tomorrow — Day 45:</strong> a <strong>crontab expression builder</strong> — pick minutes/hours/days with real toggles and get the <code>* * * * *</code> line plus the next few run times.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==CHMOD-ENGINE-START== (real bit arithmetic; no library)
+// A Unix mode is nine permission bits (read/write/execute for user/group/other) plus three
+// special bits (setuid 4, setgid 2, sticky 1). read=4, write=2, execute=1 are the three bits of
+// one octal digit; OR them to compose a digit, AND against 4/2/1 to take one apart. Every view —
+// the octal 755, the symbolic rwxr-xr-x, the ticked grid — is the same bits, so compose + parse
+// are exact inverses and a single source-of-truth `mode` keeps them all in sync.
+function classToDigit(c){ return (c.r ? 4 : 0) | (c.w ? 2 : 0) | (c.x ? 1 : 0); }
+function specialToDigit(s){ return (s.setuid ? 4 : 0) | (s.setgid ? 2 : 0) | (s.sticky ? 1 : 0); }
+function digitToClass(d){ return { r: !!(d & 4), w: !!(d & 2), x: !!(d & 1) }; }
+
+function toOctal(m){
+  const sp = specialToDigit(m.special);
+  const three = "" + classToDigit(m.u) + classToDigit(m.g) + classToDigit(m.o);
+  return sp ? ("" + sp + three) : three;
+}
+function toOctal4(m){   // always 4 digits, for the decimal + special displays
+  return "" + specialToDigit(m.special) + classToDigit(m.u) + classToDigit(m.g) + classToDigit(m.o);
+}
+function triad(c, special){            // special: 's' | 't' | null
+  const set   = special === "t" ? "t" : "s";
+  const unset = special === "t" ? "T" : "S";
+  const x = special ? (c.x ? set : unset) : (c.x ? "x" : "-");
+  return (c.r ? "r" : "-") + (c.w ? "w" : "-") + x;
+}
+function toSymbolic(m){
+  return triad(m.u, m.special.setuid ? "s" : null)
+       + triad(m.g, m.special.setgid ? "s" : null)
+       + triad(m.o, m.special.sticky ? "t" : null);
+}
+function parseOctal(str){
+  str = str.trim();
+  if (!/^[0-7]{3,4}$/.test(str)) return null;
+  const sp = str.length === 4 ? +str[0] : 0;
+  const last3 = str.slice(-3).split("").map(Number);
+  return {
+    special: { setuid: !!(sp & 4), setgid: !!(sp & 2), sticky: !!(sp & 1) },
+    u: digitToClass(last3[0]), g: digitToClass(last3[1]), o: digitToClass(last3[2])
+  };
+}
+function parseTriad(t, setChar, unsetChar){
+  const r = t[0] === "r", w = t[1] === "w", c = t[2];
+  if (t[0] !== "r" && t[0] !== "-") return null;
+  if (t[1] !== "w" && t[1] !== "-") return null;
+  if (c === "x") return { r, w, x: true,  special: false };
+  if (c === "-") return { r, w, x: false, special: false };
+  if (c === setChar)   return { r, w, x: true,  special: true };
+  if (c === unsetChar) return { r, w, x: false, special: true };
+  return null;
+}
+function parseSymbolic(str){
+  str = str.trim();
+  if (str.length === 10) str = str.slice(1);        // drop leading file-type char
+  if (!/^[rwxsStT-]{9}$/.test(str)) return null;
+  const U = parseTriad(str.slice(0, 3), "s", "S");
+  const G = parseTriad(str.slice(3, 6), "s", "S");
+  const O = parseTriad(str.slice(6, 9), "t", "T");
+  if (!U || !G || !O) return null;
+  return {
+    special: { setuid: U.special, setgid: G.special, sticky: O.special },
+    u: { r: U.r, w: U.w, x: U.x }, g: { r: G.r, w: G.w, x: G.x }, o: { r: O.r, w: O.w, x: O.x }
+  };
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { classToDigit, specialToDigit, digitToClass, toOctal, toSymbolic, parseOctal, parseSymbolic };
+// ==CHMOD-ENGINE-END==
+
+// ---------- UI ----------
+let mode = {
+  special: { setuid: false, setgid: false, sticky: false },
+  u: { r: true, w: true, x: true },
+  g: { r: true, w: false, x: true },
+  o: { r: true, w: false, x: true }
+};
+
+const octalInput = document.getElementById("octalInput");
+const symbolicInput = document.getElementById("symbolicInput");
+const fnameInput = document.getElementById("fnameInput");
+const checks = Array.from(document.querySelectorAll(".perm-chk"));
+const spBoxes = { setuid: document.getElementById("sp-setuid"), setgid: document.getElementById("sp-setgid"), sticky: document.getElementById("sp-sticky") };
+const digEls = { u: document.getElementById("dig-u"), g: document.getElementById("dig-g"), o: document.getElementById("dig-o") };
+const stOctal = document.getElementById("stOctal"), stSym = document.getElementById("stSym"), stDec = document.getElementById("stDec"), stSpecial = document.getElementById("stSpecial");
+const cmdOut = document.getElementById("cmdOut"), lsPerm = document.getElementById("lsPerm"), lsRest = document.getElementById("lsRest");
+const brkBody = document.getElementById("brkBody"), whoOut = document.getElementById("whoOut");
+
+function isDir(){ const r = document.querySelector('input[name="ftype"]:checked'); return r && r.value === "dir"; }
+
+function writeCheckboxes(m){
+  checks.forEach(chk => { chk.checked = !!m[chk.dataset.c][chk.dataset.b]; });
+  spBoxes.setuid.checked = m.special.setuid;
+  spBoxes.setgid.checked = m.special.setgid;
+  spBoxes.sticky.checked = m.special.sticky;
+}
+function modeFromCheckboxes(){
+  const blank = () => ({ r: false, w: false, x: false });
+  const m = { special: { setuid: spBoxes.setuid.checked, setgid: spBoxes.setgid.checked, sticky: spBoxes.sticky.checked }, u: blank(), g: blank(), o: blank() };
+  checks.forEach(chk => { m[chk.dataset.c][chk.dataset.b] = chk.checked; });
+  return m;
+}
+
+const bin3 = c => (c.r ? "1" : "0") + (c.w ? "1" : "0") + (c.x ? "1" : "0");
+const SPECIAL_LABEL = { setuid: "setuid", setgid: "setgid", sticky: "sticky" };
+
+function classSentence(name, c, dir){
+  const can = [];
+  if (c.r) can.push("read");
+  if (c.w) can.push("write");
+  if (c.x) can.push(dir ? "enter" : "execute");
+  if (!can.length) return "<b>" + name + "</b> has no access.";
+  let list = can.length === 1 ? can[0] : can.slice(0, -1).join(", ") + " and " + can[can.length - 1];
+  return "<b>" + name + "</b> can " + list + ".";
+}
+
+function render(skip){
+  if (skip !== "checks") writeCheckboxes(mode);
+
+  // per-row digit badges
+  digEls.u.textContent = classToDigit(mode.u);
+  digEls.g.textContent = classToDigit(mode.g);
+  digEls.o.textContent = classToDigit(mode.o);
+
+  const octal = toOctal(mode);
+  const sym = toSymbolic(mode);
+
+  if (skip !== "octal") octalInput.value = octal;
+  if (skip !== "symbolic") symbolicInput.value = sym;
+
+  // stat tiles
+  stOctal.textContent = octal;
+  stSym.textContent = sym;
+  stDec.textContent = parseInt(toOctal4(mode), 8);   // base-8 -> base-10
+  const spNames = Object.keys(SPECIAL_LABEL).filter(k => mode.special[k]).map(k => SPECIAL_LABEL[k]);
+  stSpecial.textContent = spNames.length ? spNames.join(" + ") : "none";
+
+  // command + ls -l
+  const fname = (fnameInput.value || "file").trim() || "file";
+  cmdOut.textContent = "chmod " + octal + " " + fname;
+  lsPerm.textContent = (isDir() ? "d" : "-") + sym;
+  lsRest.innerHTML = "1 owner group &nbsp; " + esc(fname);
+
+  // breakdown table
+  const dir = isDir();
+  const rows = [
+    ["User (owner)", mode.u],
+    ["Group", mode.g],
+    ["Other", mode.o]
+  ];
+  let html = "";
+  rows.forEach(([label, c]) => {
+    html += "<tr><td class='cls'>" + label + "</td><td class='sym'>" + triad(c, null) +
+            "</td><td class='bin'>" + bin3(c) + "</td><td class='dig'>" + classToDigit(c) + "</td></tr>";
+  });
+  if (specialToDigit(mode.special)) {
+    const parts = [];
+    if (mode.special.setuid) parts.push("setuid(4)");
+    if (mode.special.setgid) parts.push("setgid(2)");
+    if (mode.special.sticky) parts.push("sticky(1)");
+    html += "<tr><td class='cls' style='color:#b45309'>Special</td><td class='sym' colspan='2' style='color:#92400e'>" +
+            parts.join(" · ") + "</td><td class='dig'>" + specialToDigit(mode.special) + "</td></tr>";
+  }
+  brkBody.innerHTML = html;
+
+  // who-can-do-what
+  whoOut.innerHTML =
+    classSentence("Owner", mode.u, dir) + "<br>" +
+    classSentence("Group members", mode.g, dir) + "<br>" +
+    classSentence("Everyone else", mode.o, dir);
+}
+
+const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// ---- input wiring ----
+checks.forEach(chk => chk.addEventListener("change", () => { mode = modeFromCheckboxes(); render("checks"); }));
+Object.values(spBoxes).forEach(b => b.addEventListener("change", () => { mode = modeFromCheckboxes(); render("checks"); }));
+
+octalInput.addEventListener("input", () => {
+  const m = parseOctal(octalInput.value);
+  if (m) { mode = m; octalInput.classList.remove("bad"); render("octal"); }
+  else octalInput.classList.add("bad");
+});
+symbolicInput.addEventListener("input", () => {
+  const m = parseSymbolic(symbolicInput.value);
+  if (m) { mode = m; symbolicInput.classList.remove("bad"); render("symbolic"); }
+  else symbolicInput.classList.add("bad");
+});
+fnameInput.addEventListener("input", () => render());
+document.querySelectorAll('input[name="ftype"]').forEach(r => r.addEventListener("change", () => render()));
+
+// presets
+document.querySelectorAll("#presets [data-preset]").forEach(b => b.onclick = () => {
+  const m = parseOctal(b.dataset.preset);
+  if (m) { mode = m; octalInput.classList.remove("bad"); symbolicInput.classList.remove("bad"); render(); }
+});
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Every file has three audiences",
+   why:"On a Unix or Linux system, each file and directory remembers who is allowed to touch it — and it splits the whole world into exactly three audiences: the file's owner (called the user), the members of the file's group, and everyone else (other). The kernel checks these in order: if you're the owner it uses the owner bits, else if you're in the group it uses the group bits, else the other bits. That's why a file can be fully open to its owner, read-only to teammates, and invisible to strangers — all at once. Permissions are the foundation of Unix security, and they all come down to what these three audiences may do.",
+   concept:`<div class="text-center space-y-3"><div class="flex justify-center gap-3"><span class="pill b">👤 user<br><small>the owner</small></span><span class="pill a">👥 group<br><small>owning group</small></span><span class="pill g">🌍 other<br><small>everyone else</small></span></div><div class="text-xs text-slate-400 mt-2">the kernel checks them in this order, first match wins</div></div>`,
+   code:`$ ls -l script.sh
+-rwxr-xr-x 1 alice devs 812 Jul 25 script.sh
+#  |__|__|__ user / group / other  (owner=alice, group=devs)` },
+ { title:"2. Each audience gets read, write, execute",
+   why:"For each of the three audiences there are exactly three permissions: read (r) = may view the contents, write (w) = may change or delete the contents, and execute (x) = may run it as a program. Nine bits total: three permissions × three audiences. Reading a mode is always the same shape — user's rwx, then group's rwx, then other's rwx. Once you see it as a 3×3 grid, there is nothing left to memorise; you're just ticking boxes.",
+   concept:`<div class="text-center"><div class="anat"><span class="u">rwx</span> <span class="g">r-x</span> <span class="o">r-x</span></div><div class="flex justify-center gap-2 flex-wrap text-xs mt-3"><span class="pill b">user rwx</span><span class="pill a">group r-x</span><span class="pill g">other r-x</span></div><div class="text-xs text-slate-400 mt-2">9 bits = 3 permissions × 3 audiences</div></div>`,
+   code:`         user   group  other
+         r w x  r w x  r w x
+         -----  -----  -----
+script:  x x x  x . x  x . x     // . = the permission is off` },
+ { title:"3. What r, w, x actually let you do",
+   why:"The meaning of each letter is concrete. On a file: read lets you open and view it, write lets you modify or overwrite it, execute lets you run it as a command. On a directory the same letters mean subtly different things: read lets you list the names inside, write lets you create/rename/delete entries, and execute lets you enter (traverse) the directory to reach what's inside. That directory twist trips people up constantly — a directory you can read but not execute shows you a list of names you cannot actually open.",
+   concept:`<div class="grid grid-cols-2 gap-3 text-sm"><div class="bg-slate-50 rounded-lg p-3"><div class="font-bold mb-1">📄 On a file</div><div><span class="pill s">r</span> view contents</div><div><span class="pill s">w</span> change / delete</div><div><span class="pill s">x</span> run as a program</div></div><div class="bg-slate-50 rounded-lg p-3"><div class="font-bold mb-1">📁 On a directory</div><div><span class="pill s">r</span> list the names</div><div><span class="pill s">w</span> add / remove entries</div><div><span class="pill s">x</span> enter / traverse</div></div></div>`,
+   code:`# a directory you can read but NOT execute:
+$ ls mydir     # works — you see the names
+foo.txt bar.txt
+$ cat mydir/foo.txt
+cat: mydir/foo.txt: Permission denied   # x missing, can't traverse` },
+ { title:"4. Each permission is a bit worth 4, 2 or 1",
+   why:"Here's the trick that turns permissions into arithmetic. The three permissions of one audience are the three bits of a single octal digit: read is the 4s bit (binary 100), write the 2s bit (010), execute the 1s bit (001). So any combination is just a sum. rwx = 4+2+1 = 7. r-x = 4+0+1 = 5. rw- = 4+2+0 = 6. r-- = 4. There is no table to learn — you add up the ones that are on, and you get a number from 0 to 7.",
+   concept:`<div class="text-center space-y-3"><div class="flex justify-center gap-2"><span class="bitcell"><span class="t">read</span><span class="n">4</span><span class="text-xs text-slate-400">100</span></span><span class="bitcell"><span class="t">write</span><span class="n">2</span><span class="text-xs text-slate-400">010</span></span><span class="bitcell"><span class="t">exec</span><span class="n">1</span><span class="text-xs text-slate-400">001</span></span></div><div class="text-sm">rwx = 4+2+1 = <span class="pill a">7</span> &nbsp; r-x = 4+1 = <span class="pill a">5</span> &nbsp; rw- = 4+2 = <span class="pill a">6</span></div></div>`,
+   code:`const R = 4, W = 2, X = 1;   // the three bits of one octal digit
+// "rwx" -> R | W | X === 7
+// "r-x" -> R |     X === 5
+// "rw-" -> R | W     === 6` },
+ { title:"5. One octal digit per audience → 755",
+   why:"Do that sum for each audience and line up the three digits: user, then group, then other. That three-digit number IS the permission mode. rwxr-xr-x becomes 7 5 5 → 755. rw-r--r-- becomes 6 4 4 → 644. The famous numbers aren't codes handed down from on high; they're just three little sums written side by side. 755 = owner does everything, group and others may read and run but not change. 644 = owner may read+write, everyone else read-only.",
+   concept:`<div class="text-center space-y-2"><div class="anat"><span class="u">rwx</span> <span class="g">r-x</span> <span class="o">r-x</span></div><div class="text-2xl">↓</div><div><span class="pill b">7</span> <span class="pill a">5</span> <span class="pill g">5</span> = <span class="pill" style="background:#fde68a;color:#78350f;font-size:15px">755</span></div></div>`,
+   code:`function toOctal(m){
+  return "" + classToDigit(m.u) + classToDigit(m.g) + classToDigit(m.o);
+}
+// rwxr-xr-x -> "755"   rw-r--r-- -> "644"   rwx------ -> "700"` },
+ { title:"6. The symbolic string is the same bits, spelled out",
+   why:"The rwxr-xr-x form that ls -l prints is exactly the same information as 755 — just written as letters instead of summed into digits. Nine characters: three for the user, three for the group, three for other. A letter means the permission is on, a dash means off. ls -l puts one extra character in front to say what kind of thing it is: - for a normal file, d for a directory, l for a symlink. Strip that leading character and you have the pure nine-bit mode.",
+   concept:`<div class="text-center space-y-2"><div class="mono text-lg"><span style="color:#94a3b8">-</span><span class="u" style="padding:2px 4px;border-radius:4px">rwx</span><span class="g" style="padding:2px 4px;border-radius:4px">r-x</span><span class="o" style="padding:2px 4px;border-radius:4px">r-x</span></div><div class="text-xs text-slate-400">type · user · group · other</div><div class="text-sm mt-1"><span class="pill s">-</span> file &nbsp; <span class="pill s">d</span> directory &nbsp; <span class="pill s">l</span> symlink</div></div>`,
+   code:`-rwxr-xr-x   // a file,      mode 755
+drwxr-xr-x   // a directory,  mode 755
+-rw-r--r--   // a file,      mode 644
+lrwxrwxrwx   // a symlink (its own bits are usually ignored)` },
+ { title:"7. chmod: numeric is absolute, symbolic is relative",
+   why:"chmod (change mode) is the command that sets these bits. It takes two styles. Numeric/absolute: chmod 755 file sets the mode to exactly that, replacing whatever was there. Symbolic/relative: chmod u+x file adds one bit (give the user execute) without disturbing the rest; g-w removes group write; o= clears all of other's bits. Numeric is great when you know the full mode you want; symbolic is great for a surgical tweak. This calculator always shows the absolute result, so you can see exactly what any change lands on.",
+   concept:`<div class="space-y-2 text-sm"><div><span class="pill a">chmod 755 file</span> <span class="text-slate-500">→ set the whole mode to 755</span></div><div><span class="pill b">chmod u+x file</span> <span class="text-slate-500">→ just add execute for the owner</span></div><div><span class="pill g">chmod go-w file</span> <span class="text-slate-500">→ remove write from group + other</span></div></div>`,
+   code:`chmod 644 file          # absolute: exactly rw-r--r--
+chmod u+x file          # relative: add execute for the user only
+chmod go=r file         # set group & other to exactly r--
+chmod -R 755 mydir      # -R = recurse into a whole tree` },
+ { title:"8. Special bits: the fourth, leading digit",
+   why:"Beyond the nine ordinary bits there are three special bits, written as a fourth digit in front: setuid (4), setgid (2), and the sticky bit (1). setuid on an executable makes it run as its owner instead of you (that's how passwd can edit a root-owned file). setgid on a directory makes new files inside inherit the directory's group — handy for shared project folders. The sticky bit on a world-writable directory (classically /tmp) stops users deleting each other's files. So 4755, 2755, 1777 are just an ordinary mode with one of these switched on.",
+   concept:`<div class="space-y-2 text-sm"><div><span class="pill a">setuid = 4</span> run as the file's <b>owner</b></div><div><span class="pill a">setgid = 2</span> run as / inherit the file's <b>group</b></div><div><span class="pill a">sticky = 1</span> only the owner may delete (e.g. <code>/tmp</code>)</div><div class="text-xs text-slate-400 mt-1">written as a leading digit: <span class="pill" style="background:#fde68a;color:#78350f">1</span>777 · <span class="pill" style="background:#fde68a;color:#78350f">4</span>755</div></div>`,
+   code:`chmod 4755 /usr/bin/passwd   # setuid: runs as root (its owner)
+chmod 2775 /srv/project      # setgid dir: new files inherit the group
+chmod 1777 /tmp              # sticky: everyone writes, only owner deletes` },
+ { title:"9. How special bits show in the symbolic string",
+   why:"The special bits don't get their own column — they hijack the execute slot of the relevant audience. setuid rides the user's execute position, setgid the group's, sticky the other's. When the underlying execute bit is ON, the x becomes a lower-case s (setuid/setgid) or t (sticky). When execute is OFF, it becomes an upper-case S or T — a signal that the special bit is set but 'dangling' without execute under it. So rwsr-xr-x is 4755, and rwxr-xr-t is 1755. Reading the case tells you whether execute is really there.",
+   concept:`<div class="space-y-2 text-sm text-center"><div><span class="mono">rw<span style="color:#b45309;font-weight:800">s</span>r-xr-x</span> = <span class="pill a">4755</span> <span class="text-xs text-slate-400">setuid, exec on</span></div><div><span class="mono">rw<span style="color:#b45309;font-weight:800">S</span>r--r--</span> = <span class="pill a">4644</span> <span class="text-xs text-slate-400">setuid, exec OFF</span></div><div><span class="mono">rwxr-xr<span style="color:#b45309;font-weight:800">t</span></span> = <span class="pill a">1755</span> <span class="text-xs text-slate-400">sticky, exec on</span></div></div>`,
+   code:`// execute slot encodes BOTH exec and the special bit:
+//   x  -> exec on,  no special
+//   s/t-> exec on,  special set   (lower-case)
+//   S/T-> exec OFF, special set   (upper-case)
+//   -  -> exec off, no special` },
+ { title:"10. It's arithmetic, both directions — not memorisation",
+   why:"Put it together and chmod is demystified. A mode is nine bits plus three special bits; read/write/execute are worth 4/2/1; you OR them per audience to compose a digit and AND against 4/2/1 to pull one apart. Composing gives you 755 and rwxr-xr-x from the ticked grid; parsing turns a typed 750 or a pasted rwxr-x--- back into ticks — and because the two are exact inverses, every representation always agrees. The moment you internalise 4+2+1, the magic numbers stop being magic: you can read and write any Unix permission by hand.",
+   concept:`<div class="text-center space-y-2 text-sm"><div class="mono">grid ⇄ 4·2·1 ⇄ octal ⇄ symbolic</div><div class="text-xs text-slate-400">compose with <b>|</b>, parse with <b>&amp;</b> — exact inverses</div><div class="mt-2"><span class="pill g">bits</span> + <span class="pill a">4·2·1</span> <span class="text-slate-400">= the whole game</span></div></div>`,
+   code:`// compose: bits -> digit
+digit = (r?4:0) | (w?2:0) | (x?1:0);
+// parse:   digit -> bits
+r = !!(digit & 4); w = !!(digit & 2); x = !!(digit & 1);
+// same bits, four views, always in sync` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = `<div class="font-semibold">${s.title}</div>`; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 4600); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// boot with 755
+render();
+</script>
+</body>
+</html>

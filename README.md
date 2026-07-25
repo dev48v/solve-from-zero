@@ -50,6 +50,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 41 — Responsive Breakpoint Previewer](https://dev48v.infy.uk/solve/day41-breakpoint-previewer.html) — `day41-breakpoint-previewer.html`
 - [SolveFromZero · Day 42 — Image → Data URI (base64)](https://dev48v.infy.uk/solve/day42-image-to-datauri.html) — `day42-image-to-datauri.html`
 - [SolveFromZero · Day 43 — .htaccess Redirect Tester](https://dev48v.infy.uk/solve/day43-htaccess-redirect-tester.html) — `day43-htaccess-redirect-tester.html`
+- [SolveFromZero · Day 44 — CHMOD Permissions Calculator](https://dev48v.infy.uk/solve/day44-chmod-calculator.html) — `day44-chmod-calculator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
