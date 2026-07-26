@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 45 — CSS Specificity Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 13px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip small { font-weight:600; opacity:.7; }
+
+  /* ---- editors / inputs ---- */
+  .field-in { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:11px 13px;
+      font:16px ui-monospace,Menlo,monospace; letter-spacing:.02em; outline:none; background:#fff; }
+  .field-in:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.25); }
+  .field-in.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.25); }
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+  .togg { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#334155; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; padding:5px 10px; cursor:pointer; }
+  .togg input { accent-color:#f59e0b; }
+
+  /* ---- specificity triple ---- */
+  .spec-trip { display:flex; align-items:center; justify-content:center; gap:10px; }
+  .spec-trip .paren { font:900 30px ui-monospace,Menlo,monospace; color:#cbd5e1; }
+  .spec-trip .comma { font:900 30px ui-monospace,Menlo,monospace; color:#cbd5e1; align-self:flex-start; margin-top:2px; }
+  .spec-cell { display:flex; flex-direction:column; align-items:center; min-width:52px; }
+  .spec-cell .num { font:900 40px/1 ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; }
+  .spec-cell .lab { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin-top:6px; }
+  .spec-cell.a .num, .spec-cell.a .lab { color:#b45309; }
+  .spec-cell.b .num, .spec-cell.b .lab { color:#1d4ed8; }
+  .spec-cell.c .num, .spec-cell.c .lab { color:#166534; }
+
+  /* ---- breakdown table ---- */
+  .brk { font:13px ui-monospace,Menlo,monospace; border-collapse:collapse; width:100%; margin-top:4px; }
+  .brk th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; padding:4px 8px; border-bottom:1px solid #e2e8f0; }
+  .brk td { padding:5px 8px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+  .brk td.tok { font-weight:800; color:#0f172a; word-break:break-all; }
+  .brk td.note { color:#64748b; font-family:-apple-system,"Inter",sans-serif; font-size:12px; }
+  .brk td.dig-a { color:#b45309; font-weight:900; text-align:right; white-space:nowrap; }
+  .brk td.dig-b { color:#1d4ed8; font-weight:900; text-align:right; white-space:nowrap; }
+  .brk td.dig-c { color:#166534; font-weight:900; text-align:right; white-space:nowrap; }
+  .brk td.dig-0 { color:#94a3b8; font-weight:800; text-align:right; white-space:nowrap; }
+  .brk tr.subrow td { border-bottom:1px solid #eef2f7; background:#f8fafc; }
+  .brk tr.subrow td.tok { color:#b45309; font-weight:700; padding-left:16px; }
+  .brk-part { font:800 13px ui-monospace,Menlo,monospace; color:#334155; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:5px 9px; margin:10px 0 4px; word-break:break-all; }
+
+  /* ---- verdict ---- */
+  .verdict { border-radius:14px; padding:18px 20px; }
+  .verdict.winA { background:#eff6ff; border:1px solid #bfdbfe; }
+  .verdict.winB { background:#ecfdf5; border:1px solid #a7f3d0; }
+  .verdict.tie  { background:#fffbeb; border:1px solid #fde68a; }
+  .verdict.idle { background:#f8fafc; border:1px solid #e2e8f0; }
+  .verdict .who { font:900 22px/1.15 -apple-system,"Inter",sans-serif; }
+  .cmp { width:100%; border-collapse:collapse; font:13px ui-monospace,Menlo,monospace; margin-top:12px; }
+  .cmp th, .cmp td { padding:7px 10px; text-align:center; border-bottom:1px solid #e2e8f0; }
+  .cmp th { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; }
+  .cmp td.lab { text-align:left; font-weight:800; color:#334155; }
+  .cmp tr.decide { background:#fef3c7; }
+  .cmp tr.decide td.lab { color:#92400e; }
+  .cmp .mark { font-weight:900; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; word-break:break-all; }
+
+  /* ---- UNDERSTAND demo bits ---- */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .bitcell { display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:6px 12px; border-radius:8px; background:#f1f5f9; font-family:ui-monospace,Menlo,monospace; }
+  .bitcell .t { font-size:11px; color:#64748b; font-weight:700; }
+  .bitcell .n { font-size:20px; font-weight:900; }
+  .anat { font:800 20px ui-monospace,Menlo,monospace; word-break:break-all; text-align:center; line-height:2; }
+  .anat .id  { background:#fef3c7; color:#92400e; padding:2px 5px; border-radius:5px; }
+  .anat .cls { background:#dbeafe; color:#1d4ed8; padding:2px 5px; border-radius:5px; }
+  .anat .el  { background:#dcfce7; color:#166534; padding:2px 5px; border-radius:5px; }
+  .anat .zero{ background:#e2e8f0; color:#64748b; padding:2px 5px; border-radius:5px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 45</div>
+      <h1 class="text-xl font-bold">🎯 CSS Specificity Calculator — type a selector, watch it tokenize into the <code>(a,b,c)</code> triple, then pit two selectors against each other and see <em>which one wins</em> and exactly why — real selector parsing, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Two CSS rules fight over one element. Who wins? Stop guessing.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">When two CSS rules both target the same element, the browser doesn't pick the last one blindly — it scores each selector's <strong>specificity</strong> and the higher score wins. That score is a triple <code class="mono">(a, b, c)</code>: <strong>a</strong> counts <code class="mono">#id</code> selectors, <strong>b</strong> counts classes, <code class="mono">[attributes]</code> and <code class="mono">:pseudo-classes</code>, and <strong>c</strong> counts elements and <code class="mono">::pseudo-elements</code>. The universal <code class="mono">*</code> and combinators (<code class="mono">&gt; + ~</code> space) count nothing. Type any selector below and this tool <strong>really tokenizes it</strong> — walks it character by character — to compute the triple and show what each token contributed. Then it compares your two selectors column-by-column and declares the winner. All of it runs in your browser; nothing is faked.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Try an example <span class="text-slate-400 normal-case">— loads into Selector A</span></div>
+        <div id="examples">
+          <button class="chip" data-ex="#header">#header</button>
+          <button class="chip" data-ex=".btn.primary">.btn.primary</button>
+          <button class="chip" data-ex="nav ul li a">nav ul li a</button>
+          <button class="chip" data-ex="#main .list li a:hover">#main .list li a:hover</button>
+          <button class="chip" data-ex='a[href^="https"]'>a[href^="https"]</button>
+          <button class="chip" data-ex="ul#nav li.active::before">ul#nav li.active::before</button>
+          <button class="chip" data-ex=":is(.card, #hero) .title">:is(.card, #hero) .title</button>
+          <button class="chip" data-ex=":not(.disabled):hover">:not(.disabled):hover</button>
+          <button class="chip" data-ex="div.container > p.lead">div.container &gt; p.lead</button>
+          <button class="chip" data-ex="*">* <small>universal</small></button>
+        </div>
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-4">Load a matchup <span class="text-slate-400 normal-case">— fills A vs B</span></div>
+        <div id="matchups">
+          <button class="chip" data-a="#nav a" data-b="nav ul li a.link">#nav a <small>vs</small> nav ul li a.link</button>
+          <button class="chip" data-a=".btn.primary" data-b="button[type=submit]">.btn.primary <small>vs</small> button[type=submit]</button>
+          <button class="chip" data-a="li:first-child" data-b="ul li">li:first-child <small>vs</small> ul li</button>
+          <button class="chip" data-a="#id" data-b=".a.b.c.d.e.f.g.h.i.j.k">#id <small>vs</small> 11 classes</button>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- SELECTOR A -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel" style="margin:0;color:#1d4ed8">Selector A</div>
+            <div class="flex gap-2">
+              <label class="togg"><input type="checkbox" id="inlineA"> inline</label>
+              <label class="togg"><input type="checkbox" id="impA"> !important</label>
+            </div>
+          </div>
+          <input id="selA" class="field-in" spellcheck="false" placeholder="#main .list li a:hover" value="#main .list li a:hover">
+          <div class="mt-4 mb-3 py-3 rounded-xl" style="background:#f8fafc;border:1px solid #eef2f7">
+            <div id="tripA"></div>
+          </div>
+          <div class="fieldlabel">Token breakdown <span class="text-slate-400 normal-case">— what each part added</span></div>
+          <div id="brkA"></div>
+        </div>
+
+        <!-- SELECTOR B -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel" style="margin:0;color:#166534">Selector B</div>
+            <div class="flex gap-2">
+              <label class="togg"><input type="checkbox" id="inlineB"> inline</label>
+              <label class="togg"><input type="checkbox" id="impB"> !important</label>
+            </div>
+          </div>
+          <input id="selB" class="field-in" spellcheck="false" placeholder="nav ul li a.link" value="nav ul li a.link">
+          <div class="mt-4 mb-3 py-3 rounded-xl" style="background:#f8fafc;border:1px solid #eef2f7">
+            <div id="tripB"></div>
+          </div>
+          <div class="fieldlabel">Token breakdown <span class="text-slate-400 normal-case">— what each part added</span></div>
+          <div id="brkB"></div>
+        </div>
+      </div>
+
+      <!-- VERDICT -->
+      <div class="mt-6" id="verdictWrap"></div>
+
+      <!-- GOTCHAS -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about specificity</div>
+        <p class="text-sm text-amber-800"><strong>1. It is NOT a base-10 number.</strong> <code class="mono">(0,1,0)</code> beats <code class="mono">(0,0,11)</code> — one class outranks eleven elements. You compare column by column: a first, then b, then c. A bigger later column can never overtake a smaller earlier one. <strong>2. The universal <code class="mono">*</code> and combinators add nothing.</strong> <code class="mono">* &gt; body ~ .x + p</code> scores the same as <code class="mono">body .x p</code> — the <code class="mono">*</code>, <code class="mono">&gt;</code>, <code class="mono">~</code>, <code class="mono">+</code> and descendant spaces are all zero; only the actual simple selectors count. <strong>3. <code class="mono">:not()</code>, <code class="mono">:is()</code> and <code class="mono">:has()</code> are transparent.</strong> The pseudo-class itself adds nothing; it contributes the specificity of its <em>most specific argument</em>. So <code class="mono">:is(#a, .b)</code> is worth <code class="mono">(1,0,0)</code> — the <code class="mono">#a</code>. <code class="mono">:where()</code> is the exception: it is <em>always</em> zero. <strong>4. Inline styles and <code class="mono">!important</code> live above the game.</strong> A <code class="mono">style=""</code> attribute behaves like <code class="mono">(1,0,0,0)</code> — a fourth, higher column that beats any selector. And <code class="mono">!important</code> jumps the whole cascade: a low-specificity <code class="mono">!important</code> rule still wins. <strong>5. A tie is broken by source order.</strong> When two selectors compute to the exact same triple, the one written <em>last</em> in the CSS wins — specificity only decides when the scores differ.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the browser scores a selector</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A specificity calculator sounds like it needs a real CSS parser — it doesn't. Specificity is just <strong>three counters</strong>: how many IDs, how many classes/attributes/pseudo-classes, how many elements/pseudo-elements. So the whole engine is a small <strong>tokenizer</strong> that walks the selector left-to-right, recognises each kind of simple selector, and bumps the right counter. Combinators and <code>*</code> bump nothing. The only genuinely clever bits are the functional pseudo-classes — <code>:is()</code>, <code>:not()</code>, <code>:has()</code> take the specificity of their most specific argument (so you recurse), and <code>:where()</code> is always zero. Get the tokenizer right and the <code>(a,b,c)</code> triple falls out, the comparison is three <code>if</code>s, and the whole thing is maybe 60 lines of honest code — no library, no regex-only hacks that break on <code>[href="a>b"]</code>. Here is the entire engine, one step at a time.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Specificity is three counters, not one number</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole state is a triple <code>{a, b, c}</code>. <code>a</code> = ID selectors, <code>b</code> = classes + attribute selectors + pseudo-classes, <code>c</code> = type (element) selectors + pseudo-elements. Everything the tokenizer does is decide which counter a token bumps. Comparing later is column-first: a, then b, then c.</p>
+        <div class="relative"><pre>// the entire "score" of a selector
+const spec = { a: 0, b: 0, c: 0 };
+//   a = #id
+//   b = .class  [attr]  :pseudo-class
+//   c = element  ::pseudo-element
+//   *  and combinators (> + ~ space) bump nothing</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Walk the selector character by character</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A regex like <code>/\.[\w-]+/g</code> looks tempting but breaks the moment an attribute value contains a dot or a bracket (<code>[data-x=".foo]"]</code>). A tiny hand-written scanner is both simpler and correct: look at the first character of each token to know its kind, then consume to the end of that token. An identifier is letters, digits, <code>-</code> and <code>_</code>.</p>
+        <div class="relative"><pre>const isIdent = ch => /[\w-]/.test(ch);   // \w = [A-Za-z0-9_]
+
+function tokenize(sel){
+  const out = [];            // {text, bucket}  bucket: 'a'|'b'|'c'|'0'|'fn'
+  let i = 0;
+  while (i &lt; sel.length){
+    const ch = sel[i];
+    // ...one branch per token kind (next steps)...
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">IDs → a, classes → b, types → c</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The three easy cases. A <code>#</code> starts an ID (bucket a). A <code>.</code> starts a class (bucket b). A bare identifier is a type/element selector (bucket c). In each case, consume the leading sigil then the run of identifier characters that names it.</p>
+        <div class="relative"><pre>if (ch === '#'){                       // #id  -> a
+  let j = i+1; while (isIdent(sel[j])) j++;
+  out.push({ text: sel.slice(i,j), bucket:'a' });  i = j; continue;
+}
+if (ch === '.'){                       // .class -> b
+  let j = i+1; while (isIdent(sel[j])) j++;
+  out.push({ text: sel.slice(i,j), bucket:'b' });  i = j; continue;
+}
+if (isIdent(ch)){                      // div, a, h1 -> c
+  let j = i; while (isIdent(sel[j])) j++;
+  out.push({ text: sel.slice(i,j), bucket:'c' });  i = j; continue;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Attributes → b, universal & combinators → 0</h3></div>
+        <p class="text-sm text-slate-600 mb-3">An attribute selector <code>[...]</code> counts as b — but you must read to the matching <code>]</code> while respecting quotes, so <code>[href="a]b"]</code> doesn't fool you. The universal <code>*</code>, the combinators <code>&gt; + ~</code> and the descendant space are all real tokens that contribute <em>zero</em> — record them so the breakdown can show them, but they bump no counter.</p>
+        <div class="relative"><pre>if (ch === '['){                       // [attr] -> b  (respect quotes)
+  let j = i+1, q = null;
+  while (j &lt; sel.length){
+    const c = sel[j];
+    if (q){ if (c === q &amp;&amp; sel[j-1] !== '\\') q = null; }
+    else if (c === '"' || c === "'") q = c;
+    else if (c === ']') break;
+    j++;
+  }
+  out.push({ text: sel.slice(i, j+1), bucket:'b' });  i = j+1; continue;
+}
+if (ch === '*'){ out.push({text:'*', bucket:'0'}); i++; continue; }          // universal
+if ('>+~'.includes(ch)){ out.push({text:ch, bucket:'0'}); i++; continue; }   // combinator
+if (/\s/.test(ch)){ out.push({text:'␣', bucket:'0'}); i++; continue; }       // descendant</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Pseudo-classes → b, pseudo-elements → c</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A single colon is a pseudo-<em>class</em> (<code>:hover</code>, <code>:first-child</code>) → b. A double colon is a pseudo-<em>element</em> (<code>::before</code>) → c. Four legacy names — <code>:before :after :first-line :first-letter</code> — are pseudo-elements even with one colon, so special-case them to c. If the pseudo is functional (<code>name(...)</code>), read its balanced parentheses too.</p>
+        <div class="relative"><pre>const LEGACY_PE = ['before','after','first-line','first-letter'];
+
+if (ch === ':'){
+  const dbl = sel[i+1] === ':';
+  let k = i + (dbl ? 2 : 1), s = k;
+  while (isIdent(sel[k])) k++;
+  const name = sel.slice(s, k).toLowerCase();
+  let arg = null;
+  if (sel[k] === '('){ const r = readParens(sel, k); arg = r.inner; k = r.end; }
+  const text = sel.slice(i, k);
+
+  if (dbl || LEGACY_PE.includes(name))  out.push({text, bucket:'c'});   // ::el -> c
+  else if (name === 'where')            out.push({text, bucket:'0'});   // :where() -> 0
+  else if (['is','not','has'].includes(name))
+       out.push({text, bucket:'fn', add: mostSpecific(arg)});          // step 6
+  else out.push({text, bucket:'b'});                                    // :hover, :nth-child ...
+  i = k; continue;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg"><code>:is()</code> / <code>:not()</code> / <code>:has()</code> — recurse for the most specific argument</h3></div>
+        <p class="text-sm text-slate-600 mb-3">These three are "transparent": the pseudo-class adds nothing of its own, it contributes the specificity of its <em>most specific</em> argument. Split the argument on top-level commas, score each argument selector with the very same engine, and keep the max. That recursion is why the tokenizer returns a callable <code>score()</code>.</p>
+        <div class="relative"><pre>function score(sel){                    // tokenize + sum
+  let a=0,b=0,c=0;
+  for (const t of tokenize(sel)){
+    if (t.bucket==='a') a++;
+    else if (t.bucket==='b') b++;
+    else if (t.bucket==='c') c++;
+    else if (t.bucket==='fn'){ a+=t.add.a; b+=t.add.b; c+=t.add.c; }
+  }
+  return { a, b, c };
+}
+function mostSpecific(argList){          // ":is(#a, .b, c)" -> {1,0,0}
+  let best = { a:0, b:0, c:0 };
+  for (const part of splitTopComma(argList))
+    if (cmp(score(part), best) > 0) best = score(part);
+  return best;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Compare column by column — a, then b, then c</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the step everyone gets wrong by treating the triple as a number. You compare <code>a</code> first; only if the a's tie do you look at <code>b</code>; only then <code>c</code>. So <code>(0,1,0)</code> beats <code>(0,0,99)</code>. A positive result means the first selector wins; zero is a tie, broken later by source order.</p>
+        <div class="relative"><pre>function cmp(x, y){
+  if (x.a !== y.a) return x.a > y.a ? 1 : -1;   // IDs decide first
+  if (x.b !== y.b) return x.b > y.b ? 1 : -1;   // then classes/attrs/pseudo-classes
+  if (x.c !== y.c) return x.c > y.c ? 1 : -1;   // then elements
+  return 0;                                     // exact tie -> source order wins
+}
+cmp(score('#id'), score('.a.b.c.d.e.f'));  //  1  -> #id wins, one ID > six classes</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The two things that sit ABOVE specificity</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Specificity only decides among normal, selector-based declarations. Two rungs sit above it. An <strong>inline</strong> <code>style=""</code> attribute behaves like a fourth, higher column — think <code>(1,0,0,0)</code> — beating any selector. And <strong><code>!important</code></strong> lifts a declaration out of the normal cascade entirely: an <code>!important</code> rule beats a non-important one no matter how low its specificity. So the real precedence is: <code>!important</code> → inline → specificity <code>(a,b,c)</code> → source order.</p>
+        <div class="relative"><pre>function wins(A, B){                      // full author-cascade precedence
+  if (A.important !== B.important) return A.important ? 'A' : 'B';  // 1. !important
+  if (A.inline    !== B.inline)    return A.inline    ? 'A' : 'B';  // 2. inline (1,0,0,0)
+  const c = cmp(A.spec, B.spec);                                    // 3. specificity
+  if (c !== 0) return c > 0 ? 'A' : 'B';
+  return 'source-order';                                           // 4. later wins
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 45 of SolveFromZero done.</h3><p class="text-sm text-amber-700 mt-2">You built a real CSS specificity calculator with <strong>no library and no cheating regex</strong> — just a small hand-written tokenizer. Specificity was never a mysterious ranking: it is three counters, <code>(a,b,c)</code> = IDs, then classes/attributes/pseudo-classes, then elements/pseudo-elements, with the universal <code>*</code> and every combinator worth zero. Walk the selector one token at a time, bump the right counter, recurse into <code>:is()/:not()/:has()</code> for their most specific argument (and skip <code>:where()</code> entirely), and the triple falls out. Comparison is three <code>if</code>s done column-first — which is why <code>(0,1,0)</code> beats <code>(0,0,11)</code> and why one <code>#id</code> outranks a wall of classes. Above it all sit inline styles (a fourth <code>1,0,0,0</code> column) and <code>!important</code> (a jump past the whole game), with source order breaking exact ties. The lesson underneath: when your CSS "won't apply", you now have a mechanical way to prove exactly which rule is winning and why — no more shotgunning <code>!important</code>. <strong>👉 Tomorrow — Day 46:</strong> a <strong>CSS units converter</strong> — px ⇄ rem ⇄ em ⇄ % with a live root-font-size and a real cascade of parent contexts.</p></div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+});
+
+// ==SPECIFICITY-ENGINE-START== (real selector tokenizing; no library)
+// Specificity is a triple (a,b,c): a = #id count, b = .class + [attr] + :pseudo-class count,
+// c = element + ::pseudo-element count. The universal * and combinators (> + ~ space) count 0.
+// :not()/:is()/:has() contribute the specificity of their MOST SPECIFIC argument (recurse);
+// :where() is always 0. We hand-walk the selector so quoted attribute values and nested parens
+// never fool us, unlike a naive regex.
+const isIdent = ch => ch != null && /[\w-]/.test(ch);
+const LEGACY_PE = ["before", "after", "first-line", "first-letter"];
+
+function readParens(sel, openIdx){        // openIdx points at '('; returns {inner, end}
+  let depth = 0, q = null, p = openIdx;
+  for (; p < sel.length; p++){
+    const c = sel[p];
+    if (q){ if (c === q && sel[p-1] !== "\\") q = null; }
+    else if (c === '"' || c === "'") q = c;
+    else if (c === "(") depth++;
+    else if (c === ")"){ depth--; if (depth === 0){ p++; break; } }
+  }
+  return { inner: sel.slice(openIdx + 1, p - 1), end: p };
+}
+
+function splitTopComma(str){              // split on commas NOT inside () or [] or quotes
+  const out = []; let depth = 0, q = null, cur = "";
+  for (let i = 0; i < str.length; i++){
+    const c = str[i];
+    if (q){ cur += c; if (c === q && str[i-1] !== "\\") q = null; continue; }
+    if (c === '"' || c === "'"){ q = c; cur += c; continue; }
+    if (c === "(" || c === "["){ depth++; cur += c; continue; }
+    if (c === ")" || c === "]"){ depth--; cur += c; continue; }
+    if (c === "," && depth === 0){ out.push(cur); cur = ""; continue; }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// tokenize ONE complex selector (no top-level commas) -> array of {text, bucket, note, add?, sub?}
+function tokenize(sel){
+  const out = []; let i = 0; const n = sel.length;
+  while (i < n){
+    const ch = sel[i];
+    if (/\s/.test(ch)){ let j = i; while (j < n && /\s/.test(sel[j])) j++; out.push({ text: "␣", bucket: "0", note: "descendant combinator" }); i = j; continue; }
+    if (ch === ">" || ch === "+" || ch === "~"){ out.push({ text: ch, bucket: "0", note: "combinator" }); i++; continue; }
+    if (ch === "*"){ out.push({ text: "*", bucket: "0", note: "universal selector" }); i++; continue; }
+    if (ch === "#"){ let j = i + 1; while (j < n && isIdent(sel[j])) j++; out.push({ text: sel.slice(i, j), bucket: "a", note: "ID selector" }); i = j; continue; }
+    if (ch === "."){ let j = i + 1; while (j < n && isIdent(sel[j])) j++; out.push({ text: sel.slice(i, j), bucket: "b", note: "class selector" }); i = j; continue; }
+    if (ch === "["){
+      let j = i + 1, q = null;
+      while (j < n){ const c = sel[j]; if (q){ if (c === q && sel[j-1] !== "\\") q = null; } else if (c === '"' || c === "'") q = c; else if (c === "]") break; j++; }
+      out.push({ text: sel.slice(i, Math.min(j + 1, n)), bucket: "b", note: "attribute selector" }); i = Math.min(j + 1, n); continue;
+    }
+    if (ch === ":"){
+      const dbl = sel[i + 1] === ":";
+      let k = i + (dbl ? 2 : 1), s = k;
+      while (k < n && isIdent(sel[k])) k++;
+      const name = sel.slice(s, k).toLowerCase();
+      let arg = null;
+      if (sel[k] === "("){ const r = readParens(sel, k); arg = r.inner; k = r.end; }
+      const text = sel.slice(i, k);
+      if (dbl || LEGACY_PE.includes(name)){
+        out.push({ text, bucket: "c", note: dbl ? "pseudo-element" : "pseudo-element (legacy single-colon)" });
+      } else if (name === "where"){
+        out.push({ text, bucket: "0", note: ":where() — always contributes 0" });
+      } else if (name === "is" || name === "not" || name === "has"){
+        const best = mostSpecific(arg || "");
+        out.push({ text, bucket: "fn", note: ":" + name + "() — takes its most specific argument", add: { a: best.a, b: best.b, c: best.c }, sub: best.part });
+      } else {
+        out.push({ text, bucket: "b", note: "pseudo-class" });
+      }
+      i = k; continue;
+    }
+    if (isIdent(ch) || ch === "-" || ch === "\\"){ let j = i; while (j < n && isIdent(sel[j])) j++; if (j === i) j = i + 1; out.push({ text: sel.slice(i, j), bucket: "c", note: "type (element) selector" }); i = j; continue; }
+    i++; // unknown char, skip
+  }
+  return out;
+}
+
+function sumTokens(tokens){
+  let a = 0, b = 0, c = 0;
+  for (const t of tokens){
+    if (t.bucket === "a") a++;
+    else if (t.bucket === "b") b++;
+    else if (t.bucket === "c") c++;
+    else if (t.bucket === "fn" && t.add){ a += t.add.a; b += t.add.b; c += t.add.c; }
+  }
+  return { a, b, c };
+}
+function score(sel){ return sumTokens(tokenize(sel)); }   // one complex selector -> {a,b,c}
+
+function cmp(x, y){
+  if (x.a !== y.a) return x.a > y.a ? 1 : -1;
+  if (x.b !== y.b) return x.b > y.b ? 1 : -1;
+  if (x.c !== y.c) return x.c > y.c ? 1 : -1;
+  return 0;
+}
+function mostSpecific(argList){           // ":is(#a, .b, c)" -> {a,b,c,part}
+  const parts = splitTopComma(argList).filter(p => p.trim() !== "");
+  let best = { a: 0, b: 0, c: 0, part: "" }, started = false;
+  for (const p of parts){
+    const r = score(p); const cand = { a: r.a, b: r.b, c: r.c, part: p.trim() };
+    if (!started || cmp(cand, best) > 0){ best = cand; started = true; }
+  }
+  return best;
+}
+
+// analyze a full selector (may be a comma-separated list) -> per-part results + representative spec
+function analyze(sel){
+  const parts = splitTopComma(sel).filter(p => p.trim() !== "");
+  if (parts.length === 0) return { empty: true };
+  const partResults = parts.map(p => { const tokens = tokenize(p); return { sel: p.trim(), tokens, spec: sumTokens(tokens) }; });
+  let rep = partResults[0].spec;
+  for (const pr of partResults) if (cmp(pr.spec, rep) > 0) rep = pr.spec;
+  return { parts: partResults, spec: rep, isList: partResults.length > 1 };
+}
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { tokenize, score, cmp, mostSpecific, analyze, splitTopComma };
+// ==SPECIFICITY-ENGINE-END==
+
+// ---------- UI ----------
+const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const selA = document.getElementById("selA"), selB = document.getElementById("selB");
+const tripA = document.getElementById("tripA"), tripB = document.getElementById("tripB");
+const brkA = document.getElementById("brkA"), brkB = document.getElementById("brkB");
+const inlineA = document.getElementById("inlineA"), inlineB = document.getElementById("inlineB");
+const impA = document.getElementById("impA"), impB = document.getElementById("impB");
+const verdictWrap = document.getElementById("verdictWrap");
+const STATE = { A: { spec: { a: 0, b: 0, c: 0 }, valid: false }, B: { spec: { a: 0, b: 0, c: 0 }, valid: false } };
+
+function tripleHTML(spec, isList){
+  const cell = (v, k, lab) => `<div class="spec-cell ${k}"><div class="num">${v}</div><div class="lab">${lab}</div></div>`;
+  return `<div class="spec-trip"><span class="paren">(</span>${cell(spec.a, "a", "IDs · a")}<span class="comma">,</span>${cell(spec.b, "b", "cls/attr · b")}<span class="comma">,</span>${cell(spec.c, "c", "elem · c")}<span class="paren">)</span></div>`
+    + (isList ? `<div class="text-center text-xs text-slate-400 mt-2">selector list — each comma-part has its own score; showing the most specific</div>` : "");
+}
+function dashTriple(){ return `<div class="spec-trip"><span class="paren">(</span><div class="spec-cell a"><div class="num">–</div><div class="lab">IDs · a</div></div><span class="comma">,</span><div class="spec-cell b"><div class="num">–</div><div class="lab">cls/attr · b</div></div><span class="comma">,</span><div class="spec-cell c"><div class="num">–</div><div class="lab">elem · c</div></div><span class="paren">)</span></div>`; }
+
+function breakdownHTML(res){
+  let html = "";
+  res.parts.forEach(pr => {
+    if (res.isList) html += `<div class="brk-part">${esc(pr.sel)} &nbsp;→&nbsp; (${pr.spec.a}, ${pr.spec.b}, ${pr.spec.c})</div>`;
+    if (pr.tokens.length === 0){ html += `<div class="text-slate-400 text-sm py-2">no simple selectors — nothing to count</div>`; return; }
+    html += `<table class="brk"><thead><tr><th>token</th><th>what it is</th><th style="text-align:right">adds</th></tr></thead><tbody>`;
+    pr.tokens.forEach(t => {
+      let add, cls;
+      if (t.bucket === "a"){ add = "(1, 0, 0)"; cls = "dig-a"; }
+      else if (t.bucket === "b"){ add = "(0, 1, 0)"; cls = "dig-b"; }
+      else if (t.bucket === "c"){ add = "(0, 0, 1)"; cls = "dig-c"; }
+      else if (t.bucket === "fn"){ add = `(${t.add.a}, ${t.add.b}, ${t.add.c})`; cls = t.add.a ? "dig-a" : t.add.b ? "dig-b" : t.add.c ? "dig-c" : "dig-0"; }
+      else { add = "(0, 0, 0)"; cls = "dig-0"; }
+      html += `<tr><td class="tok">${esc(t.text)}</td><td class="note">${esc(t.note)}</td><td class="${cls}">${add}</td></tr>`;
+      if (t.bucket === "fn"){
+        html += `<tr class="subrow"><td class="tok">↳ ${t.sub ? esc(t.sub) : "(no argument)"}</td><td class="note">most-specific argument</td><td class="${cls}">(${t.add.a}, ${t.add.b}, ${t.add.c})</td></tr>`;
+      }
+    });
+    html += `</tbody></table>`;
+  });
+  return html;
+}
+
+function renderSide(which){
+  const input = which === "A" ? selA : selB;
+  const tripEl = which === "A" ? tripA : tripB;
+  const brkEl = which === "A" ? brkA : brkB;
+  const res = analyze(input.value);
+  input.classList.remove("bad");
+  if (res.empty){
+    tripEl.innerHTML = dashTriple();
+    brkEl.innerHTML = `<div class="text-slate-400 text-sm py-2">Type a selector above.</div>`;
+    STATE[which].valid = false; STATE[which].spec = { a: 0, b: 0, c: 0 };
+    renderVerdict(); return;
+  }
+  tripEl.innerHTML = tripleHTML(res.spec, res.isList);
+  brkEl.innerHTML = breakdownHTML(res);
+  STATE[which].valid = true; STATE[which].spec = res.spec;
+  renderVerdict();
+}
+
+function bucketReason(w, l){
+  if (w.a !== l.a) return `the ID column (a): ${w.a} vs ${l.a}. A single #id outranks any number of classes, attributes or elements.`;
+  if (w.b !== l.b) return `the class column (b): ${w.b} vs ${l.b} (ID column tied at ${w.a}). Classes, attributes and pseudo-classes decide it.`;
+  return `the element column (c): ${w.c} vs ${l.c} (a and b tied at ${w.a}, ${w.b}). Types and pseudo-elements break the tie.`;
+}
+function decide(A, B){
+  if (A.important !== B.important){ const w = A.important ? "A" : "B"; return { winner: w, by: "important", reason: `Selector ${w} carries <code>!important</code>, which jumps above the normal cascade — it wins regardless of specificity.` }; }
+  if (A.inline !== B.inline){ const w = A.inline ? "A" : "B"; return { winner: w, by: "inline", reason: `Selector ${w} is applied as an inline <code>style=""</code> attribute — treated like <code>(1,0,0,0)</code>, it outranks any selector-based rule.` }; }
+  const c = cmp(A.spec, B.spec);
+  if (c === 0) return { winner: "tie", by: "order", reason: `Both compute to <code>(${A.spec.a}, ${A.spec.b}, ${A.spec.c})</code>. Specificity is tied, so the cascade falls back to <b>source order</b> — whichever rule appears last in the CSS wins.` };
+  const w = c > 0 ? "A" : "B"; const hi = c > 0 ? A.spec : B.spec, lo = c > 0 ? B.spec : A.spec;
+  const by = hi.a !== lo.a ? "a" : hi.b !== lo.b ? "b" : "c";
+  return { winner: w, by, reason: `Selector <b>${w}</b> wins on ${bucketReason(hi, lo)}` };
+}
+
+function renderVerdict(){
+  if (!STATE.A.valid || !STATE.B.valid){
+    verdictWrap.innerHTML = `<div class="verdict idle text-center text-slate-400 text-sm">Enter a selector in both A and B to see which one wins.</div>`;
+    return;
+  }
+  const A = { spec: STATE.A.spec, inline: inlineA.checked, important: impA.checked };
+  const B = { spec: STATE.B.spec, inline: inlineB.checked, important: impB.checked };
+  const d = decide(A, B);
+  const cls = d.winner === "A" ? "winA" : d.winner === "B" ? "winB" : "tie";
+  const title = d.winner === "tie"
+    ? `🤝 It's a tie — source order decides`
+    : `🏆 Selector ${d.winner} wins`;
+  const titleColor = d.winner === "A" ? "#1d4ed8" : d.winner === "B" ? "#166534" : "#92400e";
+
+  // comparison table
+  const rowImp = (A.important || B.important) ? `<tr class="${d.by === "important" ? "decide" : ""}"><td class="lab">!important</td><td>${A.important ? "✓" : "—"}</td><td>${B.important ? "✓" : "—"}</td><td>${d.by === "important" ? "<span class='mark'>decides</span>" : ""}</td></tr>` : "";
+  const rowInline = (A.inline || B.inline) ? `<tr class="${d.by === "inline" ? "decide" : ""}"><td class="lab">inline (1,0,0,0)</td><td>${A.inline ? "✓" : "—"}</td><td>${B.inline ? "✓" : "—"}</td><td>${d.by === "inline" ? "<span class='mark'>decides</span>" : ""}</td></tr>` : "";
+  const specRow = (k, av, bv) => `<tr class="${d.by === k ? "decide" : ""}"><td class="lab">${k === "a" ? "a — IDs" : k === "b" ? "b — classes/attrs/pseudo-classes" : "c — elements/pseudo-elements"}</td><td>${av}</td><td>${bv}</td><td>${d.by === k ? "<span class='mark'>" + (av > bv ? "A ►" : bv > av ? "◄ B" : "tie") + "</span>" : (av === bv ? "tie" : "")}</td></tr>`;
+
+  verdictWrap.innerHTML = `
+    <div class="verdict ${cls}">
+      <div class="who" style="color:${titleColor}">${title}</div>
+      <p class="text-sm text-slate-700 mt-2">${d.reason}</p>
+      <table class="cmp">
+        <thead><tr><th style="text-align:left">column</th><th>A <span class="mono">(${A.spec.a},${A.spec.b},${A.spec.c})</span></th><th>B <span class="mono">(${B.spec.a},${B.spec.b},${B.spec.c})</span></th><th></th></tr></thead>
+        <tbody>
+          ${rowImp}${rowInline}
+          ${specRow("a", A.spec.a, B.spec.a)}
+          ${specRow("b", A.spec.b, B.spec.b)}
+          ${specRow("c", A.spec.c, B.spec.c)}
+        </tbody>
+      </table>
+      <p class="text-xs text-slate-400 mt-2">Precedence order: <b>!important</b> → <b>inline</b> → specificity <b>(a, b, c)</b> compared column-first → <b>source order</b>.</p>
+    </div>`;
+}
+
+// ---- wiring ----
+[selA, selB].forEach(el => el.addEventListener("input", () => { renderSide(el === selA ? "A" : "B"); }));
+[inlineA, impA].forEach(el => el.addEventListener("change", renderVerdict));
+[inlineB, impB].forEach(el => el.addEventListener("change", renderVerdict));
+
+document.querySelectorAll("#examples [data-ex]").forEach(b => b.onclick = () => { selA.value = b.dataset.ex; renderSide("A"); selA.focus(); });
+document.querySelectorAll("#matchups [data-a]").forEach(b => b.onclick = () => { selA.value = b.dataset.a; selB.value = b.dataset.b; renderSide("A"); renderSide("B"); });
+
+// ===== UNDERSTAND step engine =====
+const STEPS = [
+ { title:"1. Why specificity exists at all",
+   why:"CSS is a cascade: many rules can target the same element, and they often disagree — one says the link is blue, another says red. The browser needs a deterministic tiebreaker, and 'whichever comes last' is not enough, because a tiny targeted rule (a:hover on one link) should usually beat a broad one (a) even if the broad one is written later. Specificity is that tiebreaker: it measures how precisely a selector points at an element. A more precise selector — more IDs, more classes, more of everything — wins over a vaguer one, and only when two selectors are equally precise does source order step in. Understanding it is the single biggest cure for 'why won't my CSS apply?'.",
+   concept:`<div class="text-center space-y-3"><div class="text-sm text-slate-500">two rules, same element — who wins?</div><div class="space-y-2 text-left inline-block"><div class="mono text-sm"><span class="pill b">a</span> { color: blue; }</div><div class="mono text-sm"><span class="pill a">#nav a</span> { color: red; }</div></div><div class="text-sm mt-2">→ the link is <b style="color:#dc2626">red</b> — <span class="pill a">#nav a</span> is more specific</div></div>`,
+   code:`a       { color: blue; }   /* (0,0,1) */
+#nav a  { color: red;  }   /* (1,0,1)  <- wins, more specific */
+/* source order does NOT save 'blue' here */` },
+ { title:"2. The score is a triple, not a number",
+   why:"Specificity is written as three numbers (a, b, c) — sometimes shown as 1-0-1 or 0,2,1. The a is the ID count, b is the class/attribute/pseudo-class count, c is the element/pseudo-element count. Crucially it is NOT the decimal number 'abc'; it is three separate columns compared left to right. That distinction is the whole reason (0,1,0) beats (0,0,11): the class column outranks any number of elements. Think of it like comparing version numbers — 1.0.0 is newer than 0.99.99 — not like comparing 100 vs 09999.",
+   concept:`<div class="text-center space-y-2"><div class="spec-trip" style="justify-content:center"><span class="paren">(</span><div class="spec-cell a"><div class="num">1</div><div class="lab">IDs · a</div></div><span class="comma">,</span><div class="spec-cell b"><div class="num">2</div><div class="lab">cls/attr · b</div></div><span class="comma">,</span><div class="spec-cell c"><div class="num">1</div><div class="lab">elem · c</div></div><span class="paren">)</span></div><div class="text-xs text-slate-400 mt-2">three columns — compared a, then b, then c (never as the number 121)</div></div>`,
+   code:`// (0,1,0) vs (0,0,11)
+//   a: 0 == 0  -> tie, look at b
+//   b: 1 >  0  -> (0,1,0) WINS
+// one class beats eleven elements. it is NOT base-10.` },
+ { title:"3. Bucket a — every #id",
+   why:"The a column counts ID selectors: anything written with a leading hash, like #header or #main-nav. IDs are the strongest ordinary selector because an id is meant to be unique on the page, so targeting one is the most precise thing you can do short of an inline style. A single ID in the a column beats any amount of classes and elements stacked in b and c. This is exactly why over-using IDs in CSS makes stylesheets hard to override, and why many teams avoid styling by ID at all.",
+   concept:`<div class="text-center space-y-2"><div class="anat"><span class="id">#header</span></div><div><span class="pill a">a = 1</span> <span class="pill b">b = 0</span> <span class="pill g">c = 0</span></div><div class="text-xs text-slate-400">one #id → (1, 0, 0) — beats any pile of classes</div></div>`,
+   code:`#header          -> (1, 0, 0)
+#main #side      -> (2, 0, 0)   // two IDs
+ul li #header    -> (1, 0, 2)   // one ID + two elements` },
+ { title:"4. Bucket b — classes, attributes, pseudo-classes",
+   why:"The b column is the busiest. It counts class selectors (.btn), attribute selectors ([type=\"text\"], [disabled], [href^=\"https\"]), and pseudo-classes (:hover, :focus, :first-child, :nth-child(2n), :not() counts here as a wrapper but see step 7). All three of these weigh the same — a class, an attribute match and a pseudo-class each add exactly one to b. This is the column you'll grow most often, because good CSS leans on classes. Stacking classes (.card.card--active) is the healthy way to raise specificity without reaching for IDs or !important.",
+   concept:`<div class="text-center space-y-2"><div class="anat"><span class="cls">.btn</span><span class="cls">.primary</span> <span class="cls">:hover</span></div><div><span class="pill a">a = 0</span> <span class="pill b">b = 3</span> <span class="pill g">c = 0</span></div><div class="text-xs text-slate-400">class + class + pseudo-class → (0, 3, 0)</div></div>`,
+   code:`.btn                 -> (0, 1, 0)
+.btn.primary         -> (0, 2, 0)   // two classes
+input[type="text"]   -> (0, 1, 1)   // attribute(b) + element(c)
+a:hover              -> (0, 1, 1)   // pseudo-class(b) + element(c)` },
+ { title:"5. Bucket c — elements and pseudo-elements",
+   why:"The c column counts type selectors (the plain element names: div, a, h1, ul, li) and pseudo-elements (::before, ::after, ::first-line, ::selection). These are the weakest contributors — an element selector is the least precise way to target something, since a page has hundreds of divs. Note the pseudo-ELEMENT (double colon, ::before) lands in c, while the pseudo-CLASS (single colon, :hover) lands in b — a one-character difference in the CSS moves it between columns. The four legacy pseudo-elements (:before, :after, :first-line, :first-letter) still count as c even with one colon, for historical reasons.",
+   concept:`<div class="text-center space-y-2"><div class="anat"><span class="el">ul</span> <span class="el">li</span> <span class="el">a</span><span class="el">::before</span></div><div><span class="pill a">a = 0</span> <span class="pill b">b = 0</span> <span class="pill g">c = 4</span></div><div class="text-xs text-slate-400">three elements + one pseudo-element → (0, 0, 4)</div></div>`,
+   code:`div              -> (0, 0, 1)
+ul li a          -> (0, 0, 3)
+a::before        -> (0, 0, 2)   // element(c) + pseudo-element(c)
+p:hover::after   -> (0, 1, 2)   // :hover is b, ::after is c` },
+ { title:"6. Zero-weight: the universal star and combinators",
+   why:"Not everything in a selector adds to the score. The universal selector * matches anything and contributes nothing — it is a placeholder, not a precise target. The combinators that join simple selectors — the child >, the adjacent sibling +, the general sibling ~, and the plain space that means 'descendant' — are structural glue and also contribute nothing. So '* > body .x + p' scores exactly the same as 'body .x p': (0,1,2). This trips people up: a long, complicated-looking selector full of > and ~ can still be very low specificity, because only the actual simple selectors between the combinators count.",
+   concept:`<div class="text-center space-y-2"><div class="anat"><span class="zero">*</span> <span class="zero">&gt;</span> <span class="el">body</span> <span class="cls">.x</span> <span class="zero">+</span> <span class="el">p</span></div><div><span class="pill a">a = 0</span> <span class="pill b">b = 1</span> <span class="pill g">c = 2</span></div><div class="text-xs text-slate-400">*, &gt; and + all count 0 → (0, 1, 2)</div></div>`,
+   code:`*                    -> (0, 0, 0)   // universal: zero
+* > body .x + p      -> (0, 1, 2)   // same as 'body .x p'
+//   *  >  +  ~  and the descendant space all add nothing` },
+ { title:"7. :not(), :is(), :has() take their most specific argument",
+   why:"Three functional pseudo-classes are special: :is(), :not() and :has() do not add any specificity of their own — instead they contribute the specificity of the MOST SPECIFIC selector inside their parentheses. So :is(#a, .b, c) is worth (1,0,0), because #a is the most specific of its arguments. :not(.foo) is worth (0,1,0), the .foo. This is why :is() is powerful but sneaky — one high-specificity argument raises the whole thing. The exception is :where(): it is identical to :is() in matching but its specificity is ALWAYS zero, which makes it the tool of choice for low-specificity, easily-overridable base styles.",
+   concept:`<div class="text-center space-y-2 text-sm"><div><span class="mono">:is(<span class="pill a" style="padding:1px 5px">#a</span>, <span class="pill b" style="padding:1px 5px">.b</span>, <span class="pill g" style="padding:1px 5px">c</span>)</span> → takes <span class="pill a" style="padding:1px 5px">#a</span> → <b>(1,0,0)</b></div><div><span class="mono">:not(.disabled)</span> → <b>(0,1,0)</b></div><div><span class="mono">:where(#a, .b)</span> → <b>(0,0,0)</b> <span class="text-xs text-slate-400">always zero</span></div></div>`,
+   code:`:is(#a, .b, c)      -> (1,0,0)   // most specific arg = #a
+:not(.foo.bar)      -> (0,2,0)   // arg .foo.bar
+button:not(:hover)  -> (0,1,1)   // element + :not(:hover)->(0,1,0)
+:where(#a, .b)      -> (0,0,0)   // :where() is ALWAYS zero` },
+ { title:"8. Comparing two selectors — column by column",
+   why:"To decide which of two rules wins, compare the triples from the left: look at a first. If the a's differ, the bigger a wins and you stop — b and c are irrelevant. Only if the a's are equal do you compare b, and only if those tie do you compare c. This left-to-right, first-difference-wins rule is what makes specificity behave like version numbers rather than decimals. It's also why one #id (1,0,0) crushes a selector with ten classes (0,10,0): the a column is decided before b is ever looked at. If all three columns are identical, specificity has nothing left to say, and the later rule in the source wins.",
+   concept:`<div class="text-center space-y-2 text-sm"><table class="cmp" style="max-width:320px;margin:0 auto"><tr><th></th><th>#nav a</th><th>ul li a.link</th></tr><tr class="decide"><td class="lab">a</td><td>1</td><td>0</td><td class="mark">A ►</td></tr><tr><td class="lab">b</td><td>0</td><td>1</td><td></td></tr><tr><td class="lab">c</td><td>1</td><td>3</td><td></td></tr></table><div class="text-xs text-slate-400">a differs first → #nav a wins, ignore b and c</div></div>`,
+   code:`function cmp(x, y){
+  if (x.a !== y.a) return x.a > y.a ? 1 : -1;  // decided here if a differs
+  if (x.b !== y.b) return x.b > y.b ? 1 : -1;
+  if (x.c !== y.c) return x.c > y.c ? 1 : -1;
+  return 0;   // identical -> source order wins
+}` },
+ { title:"9. Inline styles — the fourth, higher column",
+   why:"A style written directly on the element, style=\"color:red\", is not a selector at all, so where does it sit? Above every selector. It behaves as if it had a fourth specificity column in front — you'll often see it drawn as (1,0,0,0), an 'inline' slot that outranks any number of IDs. So an inline color beats even #id #id2 #id3 { color }. There is exactly one thing that can override an inline style: an !important declaration in a stylesheet (next step). This is why inline styles are hard to theme or override and are generally discouraged outside of dynamic, JS-set values.",
+   concept:`<div class="text-center space-y-2 text-sm"><div class="mono">&lt;p <span class="pill a">style="color:red"</span>&gt;</div><div class="text-slate-400">↑ inline ≈ (1,0,0,0)</div><div>beats <span class="mono">#a #b #c</span> = (3,0,0)</div><div class="text-xs text-slate-400 mt-1">only <code>!important</code> can override it</div></div>`,
+   code:`/* stylesheet */  #a #b #c { color: green; }   /* (3,0,0) */
+<!-- element -->  <p style="color:red">        <!-- (1,0,0,0) -->
+/* result: RED — inline outranks even three IDs */` },
+ { title:"10. !important — jumping the whole cascade",
+   why:"!important is the escape hatch that sits above everything discussed so far. A declaration marked !important is lifted out of the normal specificity contest into a higher tier: an !important rule beats any non-important rule, even an inline style, regardless of how low its specificity is. When two !important declarations collide, THEN specificity and source order decide between them, as usual. Because it breaks the normal, predictable ordering, !important is a last resort — reaching for it usually means the real fix was to raise a selector's specificity honestly or restructure the CSS. The full precedence, top to bottom: !important, then inline, then specificity (a,b,c), then source order.",
+   concept:`<div class="text-center space-y-1 text-sm"><div class="pill a" style="display:block;padding:6px">1 · !important — beats everything</div><div class="pill b" style="display:block;padding:6px">2 · inline style (1,0,0,0)</div><div class="pill g" style="display:block;padding:6px">3 · specificity (a, b, c)</div><div class="pill s" style="display:block;padding:6px">4 · source order — last one wins</div></div>`,
+   code:`.link      { color: blue !important; }  /* (0,1,0) but !important */
+#nav a     { color: red; }               /* (1,0,1) — loses */
+/* result: BLUE. !important beats higher specificity.
+   precedence: !important > inline > (a,b,c) > source order */` }
+];
+const stepsEl = document.getElementById("steps");
+const prevB = document.getElementById("prev"), nextB = document.getElementById("next-btn"), autoB = document.getElementById("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = `<div class="font-semibold">${s.title}</div>`; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  document.getElementById("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  document.getElementById("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  document.getElementById("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// boot
+renderSide("A"); renderSide("B");
+</script>
+</body>
+</html>
