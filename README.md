@@ -52,6 +52,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 43 — .htaccess Redirect Tester](https://dev48v.infy.uk/solve/day43-htaccess-redirect-tester.html) — `day43-htaccess-redirect-tester.html`
 - [SolveFromZero · Day 44 — CHMOD Permissions Calculator](https://dev48v.infy.uk/solve/day44-chmod-calculator.html) — `day44-chmod-calculator.html`
 - [SolveFromZero · Day 45 — CSS Specificity Calculator](https://dev48v.infy.uk/solve/day45-css-specificity-calculator.html) — `day45-css-specificity-calculator.html`
+- [SolveFromZero · Day 51 — CSS clamp() Generator (fluid size)](https://dev48v.infy.uk/solve/day51-css-clamp-generator.html) — `day51-css-clamp-generator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

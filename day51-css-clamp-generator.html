@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 51 — CSS clamp() Generator (fluid size)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 11px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip small { font-weight:600; opacity:.7; }
+  .chip.on { background:#0f172a; color:#fde68a; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- sliders + number inputs ---- */
+  .ctl { margin-bottom:14px; }
+  .ctl .row { display:flex; align-items:center; gap:11px; }
+  .ctl label { display:block; font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+  .ctl label .hint { color:#cbd5e1; font-weight:700; text-transform:none; letter-spacing:0; }
+  input[type=range]{ -webkit-appearance:none; appearance:none; height:6px; border-radius:999px; background:#e2e8f0; outline:none; flex:1; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#f59e0b; cursor:pointer; border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+  input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:#f59e0b; cursor:pointer; border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+  .numin{ width:92px; border:1.5px solid #e2e8f0; border-radius:9px; padding:8px 10px; font:700 13px ui-monospace,Menlo,monospace; text-align:right; outline:none; background:#fff; color:#0f172a; }
+  .numin:focus{ border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.16); }
+  .unittag{ font:800 12px ui-monospace,Menlo,monospace; color:#94a3b8; width:30px; }
+
+  .unitbtn { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 14px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .unitbtn.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+
+  /* ---- clamp output ---- */
+  .clampbox { font:800 17px/1.65 ui-monospace,Menlo,monospace; word-break:break-all; background:#0f172a; color:#e2e8f0; border-radius:12px; padding:16px 18px; }
+  .clampbox .fn  { color:#fcd34d; }
+  .clampbox .u   { color:#7dd3fc; }
+  .clampbox .num { color:#86efac; }
+  .usage { font:700 12px ui-monospace,Menlo,monospace; color:#64748b; margin-top:9px; word-break:break-all; }
+
+  /* ---- live preview ---- */
+  .pvouter { overflow-x:auto; border-radius:14px; background:linear-gradient(#f8fafc,#eef2f7); border:1px solid #e2e8f0; padding:18px; }
+  .pvframe { margin:0 auto; background:#fff; border:2px solid #cbd5e1; border-radius:12px; min-height:150px; display:flex; align-items:center; justify-content:center; padding:26px 22px; box-shadow:0 8px 24px rgba(15,23,42,.07); transition:width .04s linear; }
+  .pvtext { font-weight:800; color:#0f172a; line-height:1.14; text-align:center; word-break:break-word; }
+  .pvmeta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:9px; font:700 11px ui-monospace,Menlo,monospace; color:#64748b; }
+  .zonepill { display:inline-block; padding:3px 10px; border-radius:999px; font:800 11px ui-monospace,Menlo,monospace; }
+  .zonepill.min   { background:#e2e8f0; color:#475569; }
+  .zonepill.fluid { background:#fef3c7; color:#92400e; }
+  .zonepill.max   { background:#cbd5e1; color:#334155; }
+
+  /* ---- viewport track ---- */
+  .track { position:relative; height:52px; margin-top:6px; }
+  .trackbar { position:absolute; top:22px; left:0; right:0; height:9px; border-radius:999px; overflow:hidden; display:flex; background:#e2e8f0; }
+  .zmin   { background:#cbd5e1; }
+  .zfluid { background:linear-gradient(90deg,#fcd34d,#f59e0b); }
+  .zmax   { background:#94a3b8; }
+  .tmark  { position:absolute; top:12px; width:2px; height:29px; background:#0f172a; opacity:.55; }
+  .tlabel { position:absolute; top:0; font:800 10px ui-monospace,Menlo,monospace; color:#475569; transform:translateX(-50%); white-space:nowrap; }
+  .thandle{ position:absolute; top:15px; width:17px; height:17px; border-radius:50%; background:#0f172a; border:3px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.35); transform:translateX(-50%); }
+  .thlabel{ position:absolute; top:38px; font:800 10px ui-monospace,Menlo,monospace; color:#0f172a; transform:translateX(-50%); white-space:nowrap; }
+
+  /* ---- math derivation ---- */
+  .math { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; font:700 13px/1.9 ui-monospace,Menlo,monospace; color:#334155; overflow-x:auto; }
+  .math .lbl { color:#94a3b8; font-weight:700; }
+  .math .hl  { color:#b45309; background:#fef3c7; border-radius:4px; padding:0 4px; }
+  .math .res { color:#166534; background:#dcfce7; border-radius:4px; padding:0 4px; }
+  .math b { color:#0f172a; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 20px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; word-break:break-all; }
+  .stat .v small { font-size:11px; color:#94a3b8; font-weight:700; }
+
+  /* reference table */
+  .fits { width:100%; border-collapse:collapse; font-size:12px; }
+  .fits th, .fits td { border:1px solid #e2e8f0; padding:5px 9px; text-align:left; vertical-align:top; }
+  .fits th { background:#f8fafc; font-weight:800; color:#0f172a; }
+  .fits td.mono { font-family:ui-monospace,Menlo,monospace; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 51</div>
+      <h1 class="text-xl font-bold">📐 CSS <code class="mono">clamp()</code> Generator — pick a <strong>min &amp; max size</strong> and the two <strong>viewport widths</strong> they should hit, and it fits a straight line through those two points: <code class="mono">size = slope·100vw + intercept</code>. It emits the full <code class="mono">clamp(MIN, calc(…rem + …vw), MAX)</code> so type &amp; spacing scale <em>smoothly</em> between the breakpoints instead of jumping · drag a simulated viewport slider and watch a live element resize, with the slope / intercept / rem math shown at every step · vanilla JS, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">One value that grows with the screen — no media queries, just a line.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">Fluid sizing replaces a stack of breakpoints with a single rule: pick the size you want on a <strong>small</strong> screen and on a <strong>large</strong> screen, and let the value glide linearly between them. That is exactly a line through two points — <code class="mono">(minVw, minSize)</code> and <code class="mono">(maxVw, maxSize)</code>. Compute its <strong>slope</strong> and where it crosses zero (the <strong>intercept</strong>), express the slope as a <code class="mono">vw</code> amount (1vw = 1% of the viewport, so multiply by 100) and the intercept in <code class="mono">rem</code>, and you get a <code class="mono">calc()</code> that is the fluid <em>preferred</em> value. Wrapping it in <code class="mono">clamp(MIN, PREFERRED, MAX)</code> pins the ends so it never gets smaller than min or bigger than max. Everything below is <strong>computed live</strong>: drag the viewport simulator and the preview element resizes using the real number the browser would pick at that width.</p>
+      </div>
+
+      <!-- presets -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="fieldlabel">Start from a preset <span class="text-slate-400 normal-case">— loads a common type / spacing scale (edit anything after)</span></div>
+        <div id="presets">
+          <button class="chip" data-p="16,20,320,1280,16">body text <small>16→20</small></button>
+          <button class="chip" data-p="18,22,320,1280,16">lead <small>18→22</small></button>
+          <button class="chip" data-p="20,30,360,1280,16">h3 <small>20→30</small></button>
+          <button class="chip" data-p="28,44,360,1440,16">h2 <small>28→44</small></button>
+          <button class="chip" data-p="32,72,360,1440,16">h1 hero <small>32→72</small></button>
+          <button class="chip" data-p="24,80,320,1440,16">section gap <small>spacing 24→80</small></button>
+          <button class="chip" data-p="12,14,320,1280,16">caption <small>12→14</small></button>
+          <button class="chip" data-p="40,40,320,1280,16">fixed <small>40→40 (no scale)</small></button>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- controls -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="fieldlabel mb-0">Inputs <span class="text-slate-400 normal-case">— drag a slider or type a number</span></div>
+            <div class="flex items-center gap-2">
+              <span class="fieldlabel mb-0">bounds unit</span>
+              <button id="unitRem" class="unitbtn on">rem</button>
+              <button id="unitPx"  class="unitbtn">px</button>
+            </div>
+          </div>
+
+          <div class="ctl">
+            <label>Min size <span class="hint">— the size at the small breakpoint</span></label>
+            <div class="row">
+              <input id="minSizeR" type="range" min="4" max="140" step="0.5" value="18">
+              <input id="minSizeN" class="numin" type="number" min="0" step="0.5" value="18">
+              <span class="unittag">px</span>
+            </div>
+          </div>
+          <div class="ctl">
+            <label>Max size <span class="hint">— the size at the large breakpoint</span></label>
+            <div class="row">
+              <input id="maxSizeR" type="range" min="4" max="140" step="0.5" value="32">
+              <input id="maxSizeN" class="numin" type="number" min="0" step="0.5" value="32">
+              <span class="unittag">px</span>
+            </div>
+          </div>
+          <div class="ctl">
+            <label>Min viewport <span class="hint">— below this, value is pinned to min</span></label>
+            <div class="row">
+              <input id="minVwR" type="range" min="200" max="1920" step="10" value="320">
+              <input id="minVwN" class="numin" type="number" min="0" step="10" value="320">
+              <span class="unittag">px</span>
+            </div>
+          </div>
+          <div class="ctl">
+            <label>Max viewport <span class="hint">— above this, value is pinned to max</span></label>
+            <div class="row">
+              <input id="maxVwR" type="range" min="200" max="1920" step="10" value="1280">
+              <input id="maxVwN" class="numin" type="number" min="0" step="10" value="1280">
+              <span class="unittag">px</span>
+            </div>
+          </div>
+          <div class="ctl" style="margin-bottom:0">
+            <label>Root font-size <span class="hint">— what 1rem equals (for the px→rem conversion)</span></label>
+            <div class="row">
+              <input id="rootR" type="range" min="10" max="24" step="1" value="16">
+              <input id="rootN" class="numin" type="number" min="1" step="1" value="16">
+              <span class="unittag">px</span>
+            </div>
+          </div>
+          <div id="warn" class="msg" style="min-height:18px;margin-top:10px;font:700 11px ui-monospace,Menlo,monospace;color:#b45309"></div>
+        </div>
+
+        <!-- preview -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel mb-0">Live preview <span class="text-slate-400 normal-case">— sized by the real computed value</span></div>
+            <span id="zone" class="zonepill fluid">fluid</span>
+          </div>
+          <div class="pvouter">
+            <div id="pvframe" class="pvframe" style="width:768px">
+              <div id="pvtext" class="pvtext">Fluid typography</div>
+            </div>
+          </div>
+          <div class="pvmeta">
+            <span>viewport: <b id="pvVw" style="color:#0f172a">768px</b></span>
+            <span>computed size: <b id="pvSize" style="color:#0f172a">—</b></span>
+          </div>
+
+          <div class="fieldlabel mt-5">Simulate the viewport <span class="text-slate-400 normal-case">— drag to sweep the width; the element resizes live</span></div>
+          <input id="simR" type="range" min="240" max="1920" step="5" value="768" style="width:100%">
+          <div class="track" id="track"></div>
+
+          <div class="ctl mt-4" style="margin-bottom:0">
+            <label>Preview text</label>
+            <div class="row">
+              <input id="pvInput" class="numin" style="width:100%;text-align:left" type="text" value="Fluid typography">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- generated clamp -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="flex items-center justify-between mb-2">
+          <div class="fieldlabel mb-0">Generated <code class="mono">clamp()</code> <span class="text-slate-400 normal-case">— drop this straight into any size property</span></div>
+          <div class="flex gap-2">
+            <button id="copyClamp" class="chip copy-btn" style="margin:0">⧉ copy value</button>
+            <button id="copyDecl"  class="chip copy-btn" style="margin:0">⧉ copy declaration</button>
+          </div>
+        </div>
+        <div id="clampOut" class="clampbox">—</div>
+        <div id="usage" class="usage"></div>
+      </div>
+
+      <!-- math -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">The math <span class="text-slate-400 normal-case">— a line through two points, then rem &amp; vw conversion (all numbers live)</span></div>
+        <div id="mathBlock" class="math"></div>
+      </div>
+
+      <!-- stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+        <div class="stat"><div class="k">Size @ viewport</div><div class="v" id="stSize">—</div></div>
+        <div class="stat"><div class="k">vw coefficient</div><div class="v" id="stVw">—</div></div>
+        <div class="stat"><div class="k">Intercept</div><div class="v" id="stInt">—</div></div>
+        <div class="stat"><div class="k">Grows over range</div><div class="v" id="stGrow">—</div></div>
+      </div>
+
+      <!-- reference -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">Formula reference <span class="text-slate-400 normal-case">— the four numbers a fluid value is built from</span></div>
+        <table class="fits">
+          <tbody>
+            <tr><th>Quantity</th><th>Formula</th><th>Meaning</th></tr>
+            <tr><td class="mono">slope</td><td class="mono">(maxSize − minSize) / (maxVw − minVw)</td><td>px of size gained per px of viewport (the line's steepness)</td></tr>
+            <tr><td class="mono">vw coefficient</td><td class="mono">slope × 100</td><td>the number in front of <code class="mono">vw</code> — because 1vw = viewport / 100</td></tr>
+            <tr><td class="mono">intercept</td><td class="mono">minSize − slope × minVw</td><td>the value the line would have at viewport 0 (the <code class="mono">rem</code> part of calc)</td></tr>
+            <tr><td class="mono">preferred</td><td class="mono">calc(intercept + coefficient·vw)</td><td>the fluid middle argument of <code class="mono">clamp()</code></td></tr>
+            <tr><td class="mono">clamp</td><td class="mono">clamp(min, preferred, max)</td><td>pins the ends so it never leaves the [min, max] band</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about fluid <code class="mono">clamp()</code></div>
+        <p class="text-sm text-amber-800"><strong>1. Sizing in <code class="mono">px</code> can break zoom.</strong> A <code class="mono">clamp()</code> whose MIN and MAX are in <code class="mono">px</code> ignores the user's browser font-size setting; expressing the bounds in <code class="mono">rem</code> keeps text zoomable and is the accessible default — that is why this tool outputs <code class="mono">rem</code> unless you switch it. <strong>2. A pure-<code class="mono">vw</code> font never stops.</strong> <code class="mono">font-size:5vw</code> looks fine at 1280px and is unreadable at 320px or absurd on a 4K monitor. The whole point of <code class="mono">clamp()</code> is the two guards; do not drop them. <strong>3. The <code class="mono">vw</code> unit is 1% of the <em>viewport</em>, not the parent.</strong> The coefficient is <code class="mono">slope × 100</code> precisely because <code class="mono">1vw = viewport/100</code> — mixing that up gives a line 100× too shallow. <strong>4. clamp needs MIN &lt; MAX.</strong> The first argument must be the smaller number; if your "min size" is actually bigger than your "max size" you have to swap them, or the clamp collapses to a constant. <strong>5. Fluid is for a range, not a leap.</strong> Between the two breakpoints the value is a smooth ramp; <em>outside</em> them it is flat. Pick breakpoints that bracket the sizes people actually use, or most viewers sit on a pinned end and never see the fluid part.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a fluid clamp() is derived</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A fluid-size generator is, underneath the sliders, one small piece of coordinate geometry. You are given two points — the size you want at a small viewport and the size at a large viewport — and you fit the straight line through them. That is a <strong>slope</strong> and an <strong>intercept</strong>, nothing more. The only CSS-specific twists are (1) turning the slope into a <code>vw</code> amount by multiplying by 100, because one <code>vw</code> is 1% of the viewport, and (2) writing the intercept in <code>rem</code> so the result respects the user's zoom. Assemble those into <code>calc(intercept·rem + coeff·vw)</code>, wrap it in <code>clamp(min, that, max)</code> with the bounds sorted, and you have a value that ramps smoothly between the breakpoints and is pinned flat outside them. To <em>preview</em> it without actually resizing the window, evaluate the same line in JS at a simulated width and clamp it. Under 100 lines of real logic — here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Model it as two points on a line</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole problem is "what size at what width?". Write the two things you know as coordinates: at the small viewport you want the small size, at the large viewport the large size. Those are two points <code>(x1,y1)</code> and <code>(x2,y2)</code> where x is viewport-px and y is size-px. Every other number falls out of them.</p>
+        <div class="relative"><pre>// x = viewport width (px), y = the size we want (px)
+const p1 = { x: minVw, y: minSize };   // e.g. (320, 18)
+const p2 = { x: maxVw, y: maxSize };   // e.g. (1280, 32)
+// goal: the straight line y = slope*x + intercept through p1 and p2</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Slope = rise over run</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The slope is how many px of size you gain for each px of viewport: the change in size divided by the change in width. Guard the denominator — if the two viewports are equal the line is vertical (there is no fluid range), so treat the slope as 0 and the value becomes a constant.</p>
+        <div class="relative"><pre>const run = maxVw - minVw;                       // change in viewport
+const slope = run === 0 ? 0                       // same breakpoint -> flat
+                        : (maxSize - minSize) / run;   // px per px
+// (32 - 18) / (1280 - 320) = 14 / 960 = 0.014583</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Intercept: where the line hits viewport 0</h3></div>
+        <p class="text-sm text-slate-600 mb-3">With the slope known, solve <code>y = slope·x + b</code> for <code>b</code> using either point. The intercept is the size the line would take at a viewport of 0 — usually a small or even negative number, and that is fine; it is only the constant part of the equation, not a size you ever render on its own.</p>
+        <div class="relative"><pre>const intercept = minSize - slope * minVw;   // b = y - m*x
+// 18 - 0.014583 * 320 = 18 - 4.6667 = 13.3333 px
+// check: at 1280 -> 13.3333 + 0.014583*1280 = 32 ✓</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Turn the slope into a vw amount (×100)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">CSS cannot say "0.0146 px per px of viewport" directly — it says it in <code>vw</code>, and <code>1vw</code> equals 1% of the viewport, i.e. <code>viewport/100</code> px. So a coefficient of <code>k·vw</code> contributes <code>k · viewport/100</code> px. To make that equal <code>slope·viewport</code>, set <code>k = slope · 100</code>. That single multiply is the bridge from geometry to CSS.</p>
+        <div class="relative"><pre>const vwCoeff = slope * 100;     // 0.014583 * 100 = 1.4583  -> "1.4583vw"
+// why: 1.4583vw = 1.4583 * (viewport/100) = 0.014583 * viewport  ✓
+// so the vw term reproduces exactly slope*viewport</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Convert the intercept to rem for accessibility</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Bounds and the intercept go out in <code>rem</code> so the value scales with the user's browser font-size — a pure-<code>px</code> clamp silently overrides someone who set larger text. One <code>rem</code> is the root font-size (16px by default), so divide every px number by it. The <code>vw</code> coefficient stays as-is; it is already relative.</p>
+        <div class="relative"><pre>const root = 16;                        // 1rem = 16px
+const toRem = px => px / root;
+const interceptRem = toRem(intercept);  // 13.3333 / 16 = 0.8333rem
+const minRem = toRem(minSize);          // 18/16 = 1.125rem
+const maxRem = toRem(maxSize);          // 32/16 = 2rem</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Assemble the preferred value with calc()</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The fluid middle argument is the line itself, written in CSS: the constant <code>rem</code> part plus the <code>vw</code> part. <code>calc()</code> is what lets you add two different units. Round for readability, and keep the sign handling clean so a negative intercept reads as a subtraction rather than <code>+ -0.5rem</code>.</p>
+        <div class="relative"><pre>function preferred(interceptRem, vwCoeff){
+  const b = round(interceptRem), k = round(vwCoeff);
+  const sign = b &lt; 0 ? "- " + Math.abs(b) : "+ " + b;   // tidy the sign...
+  return `calc(${k}vw ${b &lt; 0 ? "- "+Math.abs(b) : "+ "+b}rem)`;
+}
+// -> "calc(1.4583vw + 0.8333rem)"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Wrap it in clamp() with sorted bounds</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>clamp(MIN, PREFERRED, MAX)</code> returns PREFERRED but never below MIN or above MAX — the two pins that stop a fluid value from shrinking to nothing or ballooning. The catch: <code>clamp</code> requires <code>MIN ≤ MAX</code>, so sort the two sizes before placing them; whichever is numerically smaller is the floor, regardless of which viewport it belongs to.</p>
+        <div class="relative"><pre>const lo = Math.min(minRem, maxRem);
+const hi = Math.max(minRem, maxRem);
+const css = `clamp(${round(lo)}rem, ${preferred(interceptRem, vwCoeff)}, ${round(hi)}rem)`;
+// clamp(1.125rem, calc(1.4583vw + 0.8333rem), 2rem)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Preview by evaluating the same line in JS</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You cannot resize the real window from a slider, so reproduce what the browser would compute: plug the simulated width into <code>intercept + slope·width</code> and clamp it between the two sizes with plain <code>Math.min/Math.max</code>. Set that as the preview element's <code>font-size</code> in px and it grows and shrinks exactly as the CSS would at that viewport.</p>
+        <div class="relative"><pre>function sizeAt(width){
+  const raw = intercept + slope * width;             // the line, in px
+  return Math.min(Math.max(raw, Math.min(minSize,maxSize)),
+                                Math.max(minSize,maxSize));  // clamp ends
+}
+pvText.style.fontSize = sizeAt(simWidth) + "px";     // live preview</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Which zone is the viewport in?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To label the preview honestly, compare the simulated width to the breakpoints: at or below <code>minVw</code> the value is pinned to the min (flat); at or above <code>maxVw</code> it is pinned to the max; in between it is on the fluid ramp. This is the same three-part shape <code>clamp()</code> produces, and it is what the coloured track under the slider draws.</p>
+        <div class="relative"><pre>function zone(width){
+  if (width &lt;= Math.min(minVw,maxVw)) return "clamped-min";
+  if (width &gt;= Math.max(minVw,maxVw)) return "clamped-max";
+  return "fluid";                                    // on the ramp
+}
+// the track: [min pin] --- [fluid gradient] --- [max pin]</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Wire controls ↔ one state, recompute on every input</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each input (min/max size, min/max viewport, root, the simulator) writes into a single state object and calls one <code>render()</code> that recomputes the line, rebuilds the clamp string, repaints the preview, math and stats. A slider and its number box are two views of the same value — update the counterpart when either changes and everything stays in sync with no special cases.</p>
+        <div class="relative"><pre>const S = { minSize:18, maxSize:32, minVw:320, maxVw:1280, root:16, sim:768 };
+function bindPair(rangeEl, numEl, key){
+  rangeEl.oninput = () => { S[key] = +rangeEl.value; numEl.value = rangeEl.value; render(); };
+  numEl.oninput   = () => { S[key] = +numEl.value;   rangeEl.value = numEl.value;  render(); };
+}
+function render(){ const f = computeFluid(S); paintClamp(f); paintPreview(f); paintMath(f); }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 51 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real fluid-size generator with <strong>no library</strong>, and the core turned out to be one line of algebra: fit <code>y = slope·x + intercept</code> through the two points you actually care about, then translate it into CSS — slope becomes a <code>vw</code> amount by ×100 (because <code>1vw = viewport/100</code>), the intercept becomes <code>rem</code> so zoom still works, and <code>clamp()</code> pins the ends. Preview it by evaluating the very same line in JS at a simulated width, and the whole thing stays honest — the number you see resizing the element is the number the browser would pick. Reach for it whenever you would otherwise write three media queries for the same property.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= CSS clamp() GENERATOR (fluid sizing, no library) =================
+// The engine is one piece of coordinate geometry: fit the straight line y = slope*x + intercept
+// through (minVw,minSize) and (maxVw,maxSize), then express it in CSS —
+//   slope -> vw coefficient (x100, because 1vw = viewport/100),
+//   intercept + bounds -> rem (so zoom still works),
+//   clamp(min, calc(...), max) pins the ends.
+// Preview = evaluate that same line in JS at a simulated width (Math clamp) -> no real resize needed.
+
+const el = id => document.getElementById(id);
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// round to d decimals, strip trailing zeros
+function r(n, d){
+  if (!isFinite(n)) return "0";
+  const f = Number(n.toFixed(d === undefined ? 4 : d));
+  return String(f);
+}
+
+// ================= state =================
+const S = { minSize:18, maxSize:32, minVw:320, maxVw:1280, root:16, unit:"rem", sim:768, text:"Fluid typography" };
+
+// ---------- core math: fit the line, derive every number ----------
+function computeFluid(s){
+  const run   = s.maxVw - s.minVw;
+  const slope = run === 0 ? 0 : (s.maxSize - s.minSize) / run;   // px per px
+  const vwCoeff      = slope * 100;                               // number before "vw"
+  const interceptPx  = s.minSize - slope * s.minVw;              // b = y - m*x  (px)
+  const root         = s.root || 16;
+  const interceptRem = interceptPx / root;
+  const minRem = s.minSize / root, maxRem = s.maxSize / root;
+  const loPx = Math.min(s.minSize, s.maxSize), hiPx = Math.max(s.minSize, s.maxSize);
+  return { slope, vwCoeff, interceptPx, interceptRem, minRem, maxRem, loPx, hiPx, root };
+}
+// evaluate the line at a viewport width, clamped to the [min,max] band
+function sizeAt(s, width){
+  const f = computeFluid(s);
+  const raw = f.interceptPx + f.slope * width;
+  return Math.min(f.hiPx, Math.max(f.loPx, raw));
+}
+
+// ---------- build the clamp() string ----------
+function preferredStr(f, unit){
+  const k = r(f.vwCoeff);
+  if (unit === "px"){
+    const b = f.interceptPx;
+    return "calc(" + k + "vw " + (b < 0 ? "- " + r(Math.abs(b)) : "+ " + r(b)) + "px)";
+  }
+  const b = f.interceptRem;
+  return "calc(" + k + "vw " + (b < 0 ? "- " + r(Math.abs(b)) : "+ " + r(b)) + "rem)";
+}
+function clampStr(s){
+  const f = computeFluid(s);
+  // if there is no fluid range (equal viewports OR equal sizes), a constant is the honest answer
+  const flat = (s.maxVw === s.minVw) || (s.minSize === s.maxSize);
+  if (s.unit === "px"){
+    if (flat) return r(f.loPx) + "px";
+    return "clamp(" + r(f.loPx) + "px, " + preferredStr(f, "px") + ", " + r(f.hiPx) + "px)";
+  }
+  const loR = r(Math.min(f.minRem, f.maxRem)), hiR = r(Math.max(f.minRem, f.maxRem));
+  if (flat) return loR + "rem";
+  return "clamp(" + loR + "rem, " + preferredStr(f, "rem") + ", " + hiR + "rem)";
+}
+
+// colourise the dark clamp box (copy still uses the plain string)
+function colorClamp(str){
+  return esc(str)
+    .replace(/\b(clamp|calc)\b/g, '<span class="fn">$1</span>')
+    .replace(/(-?\d*\.?\d+)(rem|px|vw)/g, '<span class="num">$1</span><span class="u">$2</span>');
+}
+
+// ================= render =================
+let lastClamp = "";
+function render(){
+  const f = computeFluid(S);
+
+  // warnings
+  const w = el("warn");
+  if (S.minVw === S.maxVw)      w.textContent = "⚠ min & max viewport are equal — no fluid range, value is a constant.";
+  else if (S.minVw > S.maxVw)   w.textContent = "⚠ min viewport is larger than max viewport — the slope is inverted; swap them.";
+  else if (S.minSize === S.maxSize) w.textContent = "⚠ min & max size are equal — no scaling, value is a constant.";
+  else                          w.textContent = "";
+
+  // clamp string
+  lastClamp = clampStr(S);
+  el("clampOut").innerHTML = colorClamp(lastClamp);
+  el("usage").textContent = "e.g.  font-size: " + lastClamp + ";";
+
+  // preview
+  const size = sizeAt(S, S.sim);
+  el("pvframe").style.width = S.sim + "px";
+  el("pvtext").style.fontSize = size + "px";
+  el("pvVw").textContent   = S.sim + "px";
+  el("pvSize").textContent = r(size, 2) + "px · " + r(size / f.root, 3) + "rem";
+
+  // zone label
+  const loVw = Math.min(S.minVw, S.maxVw), hiVw = Math.max(S.minVw, S.maxVw);
+  const z = el("zone");
+  if (S.sim <= loVw){ z.className = "zonepill min";   z.textContent = "clamped to MIN"; }
+  else if (S.sim >= hiVw){ z.className = "zonepill max"; z.textContent = "clamped to MAX"; }
+  else { z.className = "zonepill fluid"; z.textContent = "fluid — scaling"; }
+
+  // track
+  paintTrack();
+
+  // math
+  paintMath(f);
+
+  // stats
+  el("stSize").innerHTML = r(size, 2) + '<small> px</small>';
+  el("stVw").innerHTML   = r(f.vwCoeff) + '<small> vw</small>';
+  el("stInt").innerHTML  = r(f.interceptRem) + '<small> rem</small>';
+  const grow = Math.abs(S.maxSize - S.minSize);
+  el("stGrow").innerHTML = r(grow, 1) + 'px<small> / ' + Math.abs(S.maxVw - S.minVw) + 'px</small>';
+}
+
+// ---------- viewport track (zones + marks + handle) ----------
+const TR_LO = 240, TR_HI = 1920;
+function trackPct(x){ return Math.max(0, Math.min(100, (x - TR_LO) / (TR_HI - TR_LO) * 100)); }
+function paintTrack(){
+  const loVw = Math.min(S.minVw, S.maxVw), hiVw = Math.max(S.minVw, S.maxVw);
+  const a = trackPct(loVw), b = trackPct(hiVw), s = trackPct(S.sim);
+  el("track").innerHTML =
+      '<div class="trackbar">'
+    +   '<div class="zmin"   style="width:' + a + '%"></div>'
+    +   '<div class="zfluid" style="width:' + (b - a) + '%"></div>'
+    +   '<div class="zmax"   style="width:' + (100 - b) + '%"></div>'
+    + '</div>'
+    + '<div class="tmark"  style="left:' + a + '%"></div>'
+    + '<div class="tlabel" style="left:' + a + '%">' + loVw + '</div>'
+    + '<div class="tmark"  style="left:' + b + '%"></div>'
+    + '<div class="tlabel" style="left:' + b + '%">' + hiVw + '</div>'
+    + '<div class="thandle" style="left:' + s + '%"></div>'
+    + '<div class="thlabel" style="left:' + s + '%">' + S.sim + 'px</div>';
+}
+
+// ---------- math derivation (live numbers) ----------
+function paintMath(f){
+  const s = S, run = s.maxVw - s.minVw, rise = s.maxSize - s.minSize;
+  el("mathBlock").innerHTML =
+      '<span class="lbl">// two points — (viewport, size):</span><br>'
+    + 'p1 = ( <b>' + s.minVw + '</b>px , <b>' + s.minSize + '</b>px )   <span class="lbl">// small screen → min size</span><br>'
+    + 'p2 = ( <b>' + s.maxVw + '</b>px , <b>' + s.maxSize + '</b>px )   <span class="lbl">// large screen → max size</span><br><br>'
+    + 'slope = (' + s.maxSize + ' − ' + s.minSize + ') / (' + s.maxVw + ' − ' + s.minVw + ')'
+        + ' = ' + r(rise,2) + ' / ' + run + ' = <span class="hl">' + r(f.slope,6) + '</span> px/px<br>'
+    + 'vw coeff = slope × 100 = <span class="hl">' + r(f.vwCoeff) + '</span>vw<br>'
+    + 'intercept = ' + s.minSize + ' − ' + r(f.slope,6) + ' × ' + s.minVw
+        + ' = <span class="hl">' + r(f.interceptPx,3) + '</span>px = <span class="hl">' + r(f.interceptRem) + '</span>rem'
+        + '  <span class="lbl">(÷ ' + f.root + ')</span><br><br>'
+    + 'preferred = <span class="res">' + esc(preferredStr(f, S.unit)) + '</span><br>'
+    + '→ <span class="res">' + esc(lastClamp) + '</span><br><br>'
+    + '<span class="lbl">// at the simulated ' + S.sim + 'px viewport:</span><br>'
+    + 'value = ' + r(f.interceptPx,3) + ' + ' + r(f.slope,6) + '×' + S.sim
+        + ' = ' + r(f.interceptPx + f.slope * S.sim, 2) + 'px'
+        + ' → clamp[' + r(f.loPx,1) + ', ' + r(f.hiPx,1) + '] = <span class="res">' + r(sizeAt(S, S.sim),2) + 'px</span>';
+}
+
+// ================= wiring =================
+function bindPair(rId, nId, key){
+  const R = el(rId), N = el(nId);
+  R.addEventListener("input", () => { const v = parseFloat(R.value); if (!isNaN(v)){ S[key] = v; N.value = v; render(); } });
+  N.addEventListener("input", () => { const v = parseFloat(N.value); if (!isNaN(v)){ S[key] = v; R.value = v; render(); } });
+}
+bindPair("minSizeR", "minSizeN", "minSize");
+bindPair("maxSizeR", "maxSizeN", "maxSize");
+bindPair("minVwR",   "minVwN",   "minVw");
+bindPair("maxVwR",   "maxVwN",   "maxVw");
+bindPair("rootR",    "rootN",    "root");
+
+// simulator slider
+el("simR").addEventListener("input", () => { S.sim = parseFloat(el("simR").value); render(); });
+
+// preview text
+el("pvInput").addEventListener("input", () => {
+  S.text = el("pvInput").value;
+  el("pvtext").textContent = S.text || " ";
+});
+
+// unit toggle
+function setUnit(u){
+  S.unit = u;
+  el("unitRem").classList.toggle("on", u === "rem");
+  el("unitPx").classList.toggle("on", u === "px");
+  render();
+}
+el("unitRem").addEventListener("click", () => setUnit("rem"));
+el("unitPx").addEventListener("click",  () => setUnit("px"));
+
+// presets  (min,max,minVw,maxVw,root)
+document.querySelectorAll("#presets .chip").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#presets .chip").forEach(x => x.classList.remove("on"));
+    btn.classList.add("on");
+    const [a, b, c, d, e] = btn.dataset.p.split(",").map(Number);
+    S.minSize = a; S.maxSize = b; S.minVw = c; S.maxVw = d; S.root = e;
+    // push into both slider + number of each control
+    el("minSizeR").value = a; el("minSizeN").value = a;
+    el("maxSizeR").value = b; el("maxSizeN").value = b;
+    el("minVwR").value   = c; el("minVwN").value   = c;
+    el("maxVwR").value   = d; el("maxVwN").value   = d;
+    el("rootR").value    = e; el("rootN").value    = e;
+    render();
+  });
+});
+
+// copy buttons
+function flashCopy(btn, text){
+  navigator.clipboard.writeText(text);
+  const o = btn.textContent; btn.textContent = "✓ copied"; setTimeout(() => btn.textContent = o, 1200);
+}
+el("copyClamp").addEventListener("click", e => flashCopy(e.target, lastClamp));
+el("copyDecl").addEventListener("click",  e => flashCopy(e.target, "font-size: " + lastClamp + ";"));
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  el(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Fluid sizing = stop stepping at breakpoints",
+   why:"The old way sets a size, then jumps it at each media query — 16px, then 18px at 768, then 20px at 1200 — so the text visibly steps as the window crosses each line. Fluid sizing replaces the whole staircase with a smooth ramp: choose the size at a small screen and at a large screen, and let it glide between. Fewer rules, no jumps, and it looks intentional at every width in between.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="text-slate-400">media queries → a staircase</div><div class="mono"><span class="pill s">16px</span> → <span class="pill s">18px</span> → <span class="pill s">20px</span> <span class="text-xs text-slate-400">(jumps)</span></div><div class="text-2xl text-slate-300">vs</div><div class="text-slate-400">clamp() → a ramp</div><div class="mono"><span class="pill a">16 —— smoothly —— 20</span></div></div>`,
+   code:`/* the staircase you are replacing */
+h2 { font-size: 1rem; }
+@media (min-width: 768px)  { h2 { font-size: 1.125rem; } }
+@media (min-width: 1200px) { h2 { font-size: 1.25rem; } }
+/* becomes ONE line: */
+h2 { font-size: clamp(1rem, calc(...vw + ...rem), 1.25rem); }` },
+ { title:"2. Two points define the line",
+   why:"Everything starts from two facts you already know: the size at a small viewport and the size at a large one. Plot them as (x,y) = (viewport, size) and there is exactly one straight line through the pair. 'Make it fluid' just means 'render that line'. So the inputs to the whole generator are only four numbers — two sizes and two widths.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>( <span class="pill b">320</span> , <span class="pill a">18</span> ) &nbsp; <span class="text-xs text-slate-400">small vw → min size</span></div><div>( <span class="pill b">1280</span> , <span class="pill a">32</span> ) &nbsp; <span class="text-xs text-slate-400">large vw → max size</span></div><div class="text-2xl text-slate-300">↓</div><div>one line through both points</div></div>`,
+   code:`const p1 = { x: minVw, y: minSize };   // (320, 18)
+const p2 = { x: maxVw, y: maxSize };   // (1280, 32)
+// exactly one straight line y = slope*x + intercept passes through both` },
+ { title:"3. Slope = rise ÷ run",
+   why:"The slope is the line's steepness: how much size you gain per px of viewport. It is the change in size divided by the change in width. If the two viewports are equal the run is zero — a vertical line, no fluid range — so you special-case it to a flat value. Everything downstream is scaled by this one number.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>slope = <span class="pill a">Δsize</span> / <span class="pill b">Δviewport</span></div><div>= (32 − 18) / (1280 − 320)</div><div>= 14 / 960 = <span class="pill g">0.014583</span></div></div>`,
+   code:`const run = maxVw - minVw;
+const slope = run === 0 ? 0 : (maxSize - minSize) / run;
+// 14 / 960 = 0.014583  (px of size per px of viewport)` },
+ { title:"4. Intercept: y = slope·x + b",
+   why:"A line needs a second number — where it sits. Solve y = slope·x + b for b using one known point: b = size − slope·viewport. That intercept is the value at viewport 0; it is often small or negative and is never rendered on its own — it is just the constant that anchors the ramp so it passes through your two points.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>b = y − slope·x</div><div>= 18 − 0.014583 × 320</div><div>= 18 − 4.667 = <span class="pill g">13.333px</span></div><div class="text-xs text-slate-400">check @1280 → 13.333 + 0.014583·1280 = 32 ✓</div></div>`,
+   code:`const intercept = minSize - slope * minVw;   // b = y - m*x
+// 18 - 0.014583*320 = 13.333 px  (the constant part of the line)` },
+ { title:"5. 1vw = 1% of the viewport → ×100",
+   why:"CSS expresses 'per px of viewport' using the vw unit, where 1vw equals 1% of the viewport width, i.e. viewport/100 px. So a term of k·vw contributes k·viewport/100 px. To reproduce slope·viewport you need k = slope·100. That single ×100 is the entire bridge between the geometry and the CSS — get it wrong and the ramp is 100× too shallow.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>1vw = viewport / 100</div><div>k·vw = k · viewport/100</div><div>want = slope · viewport</div><div>→ k = slope × 100 = <span class="pill g">1.4583vw</span></div></div>`,
+   code:`const vwCoeff = slope * 100;   // 0.014583 * 100 = 1.4583
+// 1.4583vw = 1.4583 * viewport/100 = 0.014583 * viewport  ✓` },
+ { title:"6. rem, not px — keep it zoomable",
+   why:"Write the bounds and intercept in rem so the value scales with the user's browser font-size; a clamp made of px silently overrides someone who bumped their default text up for readability. One rem is the root font-size (16px by default), so divide the px numbers by it. The vw part stays as-is — it is already relative. This is an accessibility choice, not a cosmetic one.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>18px ÷ 16 = <span class="pill g">1.125rem</span></div><div>32px ÷ 16 = <span class="pill g">2rem</span></div><div>13.333px ÷ 16 = <span class="pill g">0.8333rem</span></div><div class="text-xs text-slate-400">rem respects user zoom · px does not</div></div>`,
+   code:`const root = 16;                 // 1rem
+const interceptRem = intercept / root;   // 0.8333
+const minRem = minSize / root;           // 1.125
+const maxRem = maxSize / root;           // 2` },
+ { title:"7. clamp(MIN, PREFERRED, MAX) pins the ends",
+   why:"clamp returns the middle argument, but never lets it fall below MIN or rise above MAX. That is what makes fluid safe: below the small breakpoint the value rests at MIN, above the large one it rests at MAX, and only in between does it follow the vw ramp. Without the two pins a vw-based size shrinks to nothing on phones and grows absurd on big monitors.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">MIN</span> —— <span class="pill a">PREFERRED (vw ramp)</span> —— <span class="pill s">MAX</span></div><div class="text-2xl text-slate-300">⎡‾‾ / ‾‾⎤</div><div class="text-xs text-slate-400">flat · ramp · flat</div></div>`,
+   code:`// MIN must be <= MAX, so sort the two sizes:
+const lo = Math.min(minRem, maxRem), hi = Math.max(minRem, maxRem);
+font-size: clamp(1.125rem, calc(1.4583vw + 0.8333rem), 2rem);` },
+ { title:"8. Assemble the calc() preferred value",
+   why:"The middle argument is the line written in CSS: the constant rem part plus the vw part, added by calc() because they are different units. Round for readability and tidy the sign so a negative intercept shows as a subtraction. Order does not matter to CSS, but 'vw then rem' reads naturally as 'ramp plus offset'.",
+   concept:`<div class="text-center text-sm mono space-y-2"><div><span class="pill a">1.4583vw</span> + <span class="pill g">0.8333rem</span></div><div class="text-2xl text-slate-300">↓ calc()</div><div><span class="pill p">calc(1.4583vw + 0.8333rem)</span></div></div>`,
+   code:`const b = round(interceptRem);
+const preferred = "calc(" + round(vwCoeff) + "vw "
+  + (b < 0 ? "- " + Math.abs(b) : "+ " + b) + "rem)";` },
+ { title:"9. Preview by evaluating the line in JS",
+   why:"You cannot resize the real window from a slider, so mimic the browser: put the simulated width into intercept + slope·width and clamp it between the two sizes with Math.min/Math.max. Set that as the element's font-size in px and it resizes exactly as the CSS would at that viewport — the preview is not a fake, it is the same arithmetic the engine runs.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>sim = <span class="pill b">768px</span></div><div>raw = 13.333 + 0.014583×768 = 24.53</div><div>clamp[18,32] → <span class="pill g">24.53px</span></div><div class="text-xs text-slate-400">set as font-size → live preview</div></div>`,
+   code:`function sizeAt(width){
+  const raw = intercept + slope * width;
+  return Math.min(Math.max(raw, Math.min(minSize,maxSize)),
+                                Math.max(minSize,maxSize));
+}
+pvText.style.fontSize = sizeAt(sim) + "px";` },
+ { title:"10. When NOT to go fluid",
+   why:"Fluid is a range tool, not a magic wand. If almost all your visitors sit near one width, most never see the ramp — they see a pinned end, so you gained nothing over a fixed size. Pick breakpoints that bracket the sizes people actually use. And never ship a bare vw font: without the clamp guards it is unreadable on phones and grotesque on 4K. The pins are the point.",
+   concept:`<div class="text-center text-sm space-y-2"><div><span class="pill r">font-size: 5vw</span> <span class="text-xs text-slate-400">✗ no floor, no ceiling</span></div><div><span class="pill g">clamp(1rem, 5vw, 2rem)</span> <span class="text-xs text-slate-400">✓ bounded</span></div><div class="text-xs text-slate-400">bracket the real range · keep both pins</div></div>`,
+   code:`/* bad: shrinks to nothing on a phone, huge on 4K */
+h1 { font-size: 6vw; }
+/* good: fluid only between sensible bounds */
+h1 { font-size: clamp(2rem, 6vw, 4.5rem); }` },
+];
+const stepsEl = el("steps");
+const prevB = el("prev"), nextB = el("next-btn"), autoB = el("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = `<div class="font-semibold">${s.title}</div>`; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  el("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  el("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  el("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= boot =================
+render();
+</script>
+</body>
+</html>
