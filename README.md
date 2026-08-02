@@ -53,6 +53,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 44 — CHMOD Permissions Calculator](https://dev48v.infy.uk/solve/day44-chmod-calculator.html) — `day44-chmod-calculator.html`
 - [SolveFromZero · Day 45 — CSS Specificity Calculator](https://dev48v.infy.uk/solve/day45-css-specificity-calculator.html) — `day45-css-specificity-calculator.html`
 - [SolveFromZero · Day 51 — CSS clamp() Generator (fluid size)](https://dev48v.infy.uk/solve/day51-css-clamp-generator.html) — `day51-css-clamp-generator.html`
+- [SolveFromZero · Day 52 — JSON Schema Validator (from scratch)](https://dev48v.infy.uk/solve/day52-json-schema-validator.html) — `day52-json-schema-validator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 52 — JSON Schema Validator (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 11px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip small { font-weight:600; opacity:.7; }
+  .chip.on { background:#0f172a; color:#fde68a; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- JSON textareas ---- */
+  .jsonarea { width:100%; min-height:340px; font:600 12.5px/1.6 ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:12px; padding:12px 14px; outline:none; resize:vertical; background:#0f172a; color:#e2e8f0; tab-size:2; -moz-tab-size:2; white-space:pre; overflow:auto; }
+  .jsonarea:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.16); }
+  .jsonarea.bad { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.18); }
+  .parsemsg { min-height:16px; margin-top:6px; font:700 11px ui-monospace,Menlo,monospace; }
+  .parsemsg.ok  { color:#16a34a; }
+  .parsemsg.err { color:#dc2626; }
+
+  /* ---- verdict banner ---- */
+  .verdict { border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:14px; }
+  .verdict.pass { background:#dcfce7; border:1px solid #86efac; }
+  .verdict.fail { background:#fef2f2; border:1px solid #fecaca; }
+  .verdict .big { font:900 22px/1 ui-monospace,Menlo,monospace; }
+  .verdict.pass .big { color:#166534; }
+  .verdict.fail .big { color:#b91c1c; }
+  .verdict .sub { font:700 12px ui-monospace,Menlo,monospace; color:#475569; }
+
+  /* ---- error rows ---- */
+  .errrow { display:flex; gap:11px; align-items:flex-start; padding:11px 13px; border:1px solid #fecaca; background:#fef2f2; border-radius:11px; margin-bottom:8px; }
+  .errrow .kw { flex:none; }
+  .kwchip { display:inline-block; padding:3px 9px; border-radius:6px; font:800 11px ui-monospace,Menlo,monospace; background:#fee2e2; color:#b91c1c; white-space:nowrap; }
+  .errptr { font:800 12.5px ui-monospace,Menlo,monospace; color:#b45309; word-break:break-all; }
+  .errptr.root { color:#94a3b8; }
+  .errmsg { font-size:13px; color:#7f1d1d; margin-top:2px; }
+  .errval { font:700 11px ui-monospace,Menlo,monospace; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:1px 6px; margin-top:5px; display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; word-break:break-all; }
+  .stat .v small { font-size:11px; color:#94a3b8; font-weight:700; }
+
+  /* reference table */
+  .fits { width:100%; border-collapse:collapse; font-size:12px; }
+  .fits th, .fits td { border:1px solid #e2e8f0; padding:5px 9px; text-align:left; vertical-align:top; }
+  .fits th { background:#f8fafc; font-weight:800; color:#0f172a; }
+  .fits td.mono { font-family:ui-monospace,Menlo,monospace; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 52</div>
+      <h1 class="text-xl font-bold">✅ JSON <code class="mono">Schema</code> Validator — paste a <strong>JSON Schema</strong> and a <strong>JSON document</strong>, and it checks the document against the schema <em>live</em>, from scratch with <strong>no library</strong> · a hand-rolled recursive validator covering <code class="mono">type · required · properties · items · enum · minimum/maximum · minLength/maxLength · pattern · minItems/maxItems · additionalProperties · $ref</code> · every violation is reported with its exact <strong>JSON-pointer path</strong> (<code class="mono">/user/tags/2</code>), the keyword that failed, a plain-English message and the offending value · vanilla JS</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Describe the shape once — then check any document against it, live.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A <strong>JSON Schema</strong> is itself just JSON that describes the <em>shape</em> another JSON value must have: which <code class="mono">type</code> each field is, which properties are <code class="mono">required</code>, the allowed <code class="mono">enum</code> values, string <code class="mono">pattern</code>s, numeric <code class="mono">minimum</code>/<code class="mono">maximum</code>, array bounds, and so on. A validator walks the document and the schema <em>together</em>, recursing into every object property and array element, and records each place the value breaks a rule. Below is a <strong>from-scratch</strong> validator — no <code class="mono">ajv</code>, no dependency — that does exactly that: edit either box and it re-validates as you type, printing <strong>pass / fail</strong> plus a list of violations, each tagged with the failing keyword and the <strong>JSON-pointer path</strong> that points at the exact spot in the document. The default example already fails several rules on purpose; load the valid preset to watch it turn green.</p>
+      </div>
+
+      <!-- presets -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="fieldlabel">Load an example <span class="text-slate-400 normal-case">— a schema + a document (edit anything after)</span></div>
+        <div id="presets"></div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- schema -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel mb-0">JSON Schema <span class="text-slate-400 normal-case">— the rules</span></div>
+            <button id="fmtSchema" class="chip" style="margin:0">⧉ format</button>
+          </div>
+          <textarea id="schemaIn" class="jsonarea" spellcheck="false"></textarea>
+          <div id="schemaMsg" class="parsemsg"></div>
+        </div>
+
+        <!-- document -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel mb-0">JSON document <span class="text-slate-400 normal-case">— the value to check</span></div>
+            <button id="fmtData" class="chip" style="margin:0">⧉ format</button>
+          </div>
+          <textarea id="dataIn" class="jsonarea" spellcheck="false"></textarea>
+          <div id="dataMsg" class="parsemsg"></div>
+        </div>
+      </div>
+
+      <!-- verdict -->
+      <div id="verdict" class="verdict fail mt-6">
+        <div class="text-3xl">⏳</div>
+        <div>
+          <div class="big">—</div>
+          <div class="sub">edit either box above</div>
+        </div>
+      </div>
+
+      <!-- stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        <div class="stat"><div class="k">Result</div><div class="v" id="stResult">—</div></div>
+        <div class="stat"><div class="k">Violations</div><div class="v" id="stCount">—</div></div>
+        <div class="stat"><div class="k">Keywords hit</div><div class="v" id="stKw">—</div></div>
+        <div class="stat"><div class="k">Deepest path</div><div class="v" id="stDepth">—</div></div>
+      </div>
+
+      <!-- errors -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">Violations <span class="text-slate-400 normal-case">— each with keyword · JSON-pointer path · reason · offending value</span></div>
+        <div id="errList"></div>
+      </div>
+
+      <!-- reference -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">Supported keywords <span class="text-slate-400 normal-case">— what this from-scratch validator checks</span></div>
+        <table class="fits">
+          <tbody>
+            <tr><th>Keyword</th><th>Applies to</th><th>Passes when</th></tr>
+            <tr><td class="mono">type</td><td>any</td><td>value is one of <code class="mono">string / number / integer / boolean / object / array / null</code> (or a list)</td></tr>
+            <tr><td class="mono">required</td><td>object</td><td>every named property key is present</td></tr>
+            <tr><td class="mono">properties</td><td>object</td><td>each named property validates against its subschema (recurses)</td></tr>
+            <tr><td class="mono">additionalProperties</td><td>object</td><td><code class="mono">false</code> ⇒ no extra keys; a schema ⇒ extra keys validate against it</td></tr>
+            <tr><td class="mono">items</td><td>array</td><td>every element validates against the items subschema (recurses)</td></tr>
+            <tr><td class="mono">enum</td><td>any</td><td>value deep-equals one of the listed values</td></tr>
+            <tr><td class="mono">minimum / maximum</td><td>number</td><td>value is ≥ minimum and ≤ maximum</td></tr>
+            <tr><td class="mono">minLength / maxLength</td><td>string</td><td>character count is within bounds</td></tr>
+            <tr><td class="mono">pattern</td><td>string</td><td>value matches the regular expression</td></tr>
+            <tr><td class="mono">minItems / maxItems</td><td>array</td><td>element count is within bounds</td></tr>
+            <tr><td class="mono">$ref</td><td>any</td><td>local pointer (<code class="mono">#/definitions/…</code>) resolves and the target subschema passes</td></tr>
+            <tr><td class="mono">const · uniqueItems · anyOf/oneOf/allOf/not</td><td>bonus</td><td>also handled, for completeness</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about JSON Schema validation</div>
+        <p class="text-sm text-amber-800"><strong>1. <code class="mono">integer</code> is not <code class="mono">number</code>.</strong> <code class="mono">3</code> passes both, but <code class="mono">3.5</code> passes <code class="mono">number</code> and fails <code class="mono">integer</code> — the check is "is it a whole number", not "does it look like a digit string". A JSON <code class="mono">"3"</code> (string) fails <em>both</em>. <strong>2. <code class="mono">additionalProperties</code> is off by default being <em>true</em>.</strong> Unless you set it to <code class="mono">false</code> (or a schema), any extra key is allowed — a huge source of "why did my typo validate?". <strong>3. <code class="mono">required</code> does not imply <code class="mono">properties</code>.</strong> Listing a key in <code class="mono">required</code> only asserts it exists; it says nothing about its type. You still need a matching entry under <code class="mono">properties</code> to constrain the value. <strong>4. Paths are JSON Pointers, not dot-paths.</strong> The failing location is <code class="mono">/items/2/sku</code>, with <code class="mono">/</code> separators and array <em>indices</em> as segments — and literal <code class="mono">/</code> or <code class="mono">~</code> in a key are escaped as <code class="mono">~1</code> / <code class="mono">~0</code>. <strong>5. <code class="mono">$ref</code> replaces its siblings.</strong> In draft-07 a schema with <code class="mono">$ref</code> ignores keywords sitting next to it — the reference <em>is</em> the schema at that spot. Put constraints inside the referenced definition, not beside the <code class="mono">$ref</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a JSON Schema validator works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A JSON Schema validator sounds heavy, but the core is a single recursive function. You hand it a <strong>schema node</strong>, a <strong>data value</strong>, and the <strong>path</strong> you took to reach that value; it applies every keyword the schema declares, and for the keywords that descend — <code>properties</code>, <code>items</code>, <code>additionalProperties</code>, <code>$ref</code> — it calls <em>itself</em> on the child with the path extended by one segment. Errors are collected into one shared array as <code>{ path, keyword, message }</code>, so when the walk finishes you have every violation with the exact JSON-pointer that locates it. No parser to write (the browser's <code>JSON.parse</code> gives you plain objects and arrays), no library — under 120 lines of real logic. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Parse both inputs, guard the JSON</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The schema and the document both arrive as text. Run each through <code>JSON.parse</code> inside a <code>try/catch</code>; a malformed schema or document is its own kind of error and should be reported before any validation runs. Once parsed you have ordinary JS objects, arrays, numbers, strings, booleans and <code>null</code> — nothing exotic to walk.</p>
+        <div class="relative"><pre>function parseOrErr(text){
+  try { return { value: JSON.parse(text), error: null }; }
+  catch (e) { return { value: undefined, error: e.message }; }
+}
+const s = parseOrErr(schemaText), d = parseOrErr(docText);
+if (s.error || d.error) return showParseErrors(s.error, d.error);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">A precise JSON type test</h3></div>
+        <p class="text-sm text-slate-600 mb-3">JSON has seven types and JavaScript blurs a few, so write one function that answers "does this value match this schema type?". The traps: <code>typeof null === "object"</code> and arrays are objects too, so screen those out; <code>integer</code> means a whole <code>number</code> (<code>Number.isInteger</code>), and a JSON string of digits is <em>not</em> a number.</p>
+        <div class="relative"><pre>function matchesType(v, t){
+  switch (t){
+    case "string":  return typeof v === "string";
+    case "number":  return typeof v === "number" &amp;&amp; !Number.isNaN(v);
+    case "integer": return typeof v === "number" &amp;&amp; Number.isInteger(v);
+    case "boolean": return typeof v === "boolean";
+    case "array":   return Array.isArray(v);
+    case "object":  return v !== null &amp;&amp; typeof v === "object" &amp;&amp; !Array.isArray(v);
+    case "null":    return v === null;
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">The recursive core: (schema, data, path)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One function does everything. It takes the current schema node, the value at this spot, and the JSON-pointer <code>path</code> that reached it, plus the <code>root</code> schema (for <code>$ref</code>) and the shared <code>errors</code> array. Each keyword that applies pushes a <code>{ path, keyword, message }</code>. Keywords that go deeper call <code>validate</code> again with a longer path. That's the whole architecture.</p>
+        <div class="relative"><pre>function validate(schema, data, path, root, errors){
+  if (schema === true)  return;           // "anything goes"
+  if (schema === false){ errors.push({ path, keyword:"false",
+                          message:"no value is allowed here" }); return; }
+  if (typeof schema !== "object" || schema === null) return;
+  // ...apply type, enum, string/number/array/object keywords, $ref...
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">type &amp; enum — the whole-value checks</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>type</code> may be a single string or an array of allowed types — the value must match at least one. <code>enum</code> restricts the value to a fixed list; because entries can be objects or arrays, compare with a <strong>deep equality</strong>, not <code>===</code>. Both attach to whatever value sits at the current path.</p>
+        <div class="relative"><pre>if (schema.type !== undefined){
+  const types = [].concat(schema.type);
+  if (!types.some(t =&gt; matchesType(data, t)))
+    errors.push({ path, keyword:"type",
+      message:`expected ${types.join(" or ")}, got ${jsonType(data)}` });
+}
+if (schema.enum !== undefined &amp;&amp; !schema.enum.some(e =&gt; deepEqual(e, data)))
+  errors.push({ path, keyword:"enum",
+    message:`must be one of ${schema.enum.map(v =&gt; JSON.stringify(v)).join(", ")}` });</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">String &amp; number constraints</h3></div>
+        <p class="text-sm text-slate-600 mb-3">These only apply when the value is of the right primitive type — if <code>data</code> is not a string, string keywords simply do not fire (the <code>type</code> keyword is what complains about the wrong type). Count characters with the spread form so emoji count as one, and compile <code>pattern</code> as a real <code>RegExp</code>.</p>
+        <div class="relative"><pre>if (typeof data === "string"){
+  const len = [...data].length;
+  if (schema.minLength != null &amp;&amp; len &lt; schema.minLength)
+    push("minLength", `string length ${len} &lt; ${schema.minLength}`);
+  if (schema.maxLength != null &amp;&amp; len &gt; schema.maxLength)
+    push("maxLength", `string length ${len} &gt; ${schema.maxLength}`);
+  if (schema.pattern != null &amp;&amp; !new RegExp(schema.pattern).test(data))
+    push("pattern", `does not match /${schema.pattern}/`);
+}
+if (typeof data === "number"){
+  if (schema.minimum != null &amp;&amp; data &lt; schema.minimum) push("minimum", `${data} &lt; ${schema.minimum}`);
+  if (schema.maximum != null &amp;&amp; data &gt; schema.maximum) push("maximum", `${data} &gt; ${schema.maximum}`);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Arrays — recurse per element, path + "/" + i</h3></div>
+        <p class="text-sm text-slate-600 mb-3">For arrays, check <code>minItems</code>/<code>maxItems</code> on the length, then apply the <code>items</code> subschema to <em>every</em> element — calling <code>validate</code> recursively with the path extended by the index. That index becomes a JSON-pointer segment, which is how an error can say it happened at <code>/tags/2</code>.</p>
+        <div class="relative"><pre>if (Array.isArray(data)){
+  if (schema.minItems != null &amp;&amp; data.length &lt; schema.minItems)
+    push("minItems", `${data.length} items &lt; ${schema.minItems}`);
+  if (schema.maxItems != null &amp;&amp; data.length &gt; schema.maxItems)
+    push("maxItems", `${data.length} items &gt; ${schema.maxItems}`);
+  if (schema.items)
+    data.forEach((el, i) =&gt; validate(schema.items, el, path + "/" + i, root, errors));
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Objects — required + properties recursion</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>required</code> asserts each named key is present (the failing path points at the missing key). <code>properties</code> maps key → subschema; for every key that appears in both the data and <code>properties</code>, recurse. Escape each key into a pointer segment — a literal <code>/</code> becomes <code>~1</code> and <code>~</code> becomes <code>~0</code> so paths stay unambiguous.</p>
+        <div class="relative"><pre>if (isPlainObject(data)){
+  (schema.required || []).forEach(k =&gt; {
+    if (!(k in data)) errors.push({ path: path + "/" + ptr(k),
+      keyword:"required", message:`missing required property "${k}"` });
+  });
+  const props = schema.properties || {};
+  for (const k of Object.keys(data))
+    if (Object.prototype.hasOwnProperty.call(props, k))
+      validate(props[k], data[k], path + "/" + ptr(k), root, errors);
+}
+const ptr = k =&gt; String(k).replace(/~/g,"~0").replace(/\//g,"~1");</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">additionalProperties — close the object</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Any key <em>not</em> named in <code>properties</code> is "additional". If <code>additionalProperties</code> is <code>false</code>, each such key is an error; if it is a schema, validate the extra value against it; if it is absent (the default), extras are allowed. This is what turns an open object into a strict one.</p>
+        <div class="relative"><pre>if (isPlainObject(data) &amp;&amp; schema.additionalProperties !== undefined){
+  const named = schema.properties || {};
+  for (const k of Object.keys(data)){
+    if (Object.prototype.hasOwnProperty.call(named, k)) continue;   // declared
+    if (schema.additionalProperties === false)
+      errors.push({ path: path + "/" + ptr(k), keyword:"additionalProperties",
+        message:`property "${k}" is not allowed` });
+    else if (typeof schema.additionalProperties === "object")
+      validate(schema.additionalProperties, data[k], path + "/" + ptr(k), root, errors);
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">$ref — follow a JSON pointer inside the doc</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A local <code>$ref</code> like <code>#/definitions/address</code> means "validate against the subschema found at this pointer in the root schema". Resolve it by splitting on <code>/</code> and walking the root, un-escaping <code>~1</code>/<code>~0</code>, then validate against the target. Because the target can itself contain <code>$ref</code> back to a definition, this naturally supports <strong>recursive</strong> schemas like trees.</p>
+        <div class="relative"><pre>function resolveRef(ref, root){
+  if (ref === "#") return root;
+  const parts = ref.replace(/^#\//,"").split("/")
+                   .map(p =&gt; p.replace(/~1/g,"/").replace(/~0/g,"~"));
+  return parts.reduce((cur, p) =&gt; (cur == null ? undefined : cur[p]), root);
+}
+if (schema.$ref !== undefined){
+  const target = resolveRef(schema.$ref, root);
+  if (target === undefined) errors.push({ path, keyword:"$ref",
+    message:`cannot resolve $ref "${schema.$ref}"` });
+  else validate(target, data, path, root, errors);
+  return;                        // $ref replaces sibling keywords (draft-07)
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Collect, then report pass / fail</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Kick the whole thing off at the root with an empty path, hand in a fresh <code>errors</code> array, and let the recursion fill it. Zero errors means the document is <strong>valid</strong>; otherwise render each violation — keyword, its JSON-pointer path, the message, and the value at that pointer, which you can pull straight back out of the parsed document.</p>
+        <div class="relative"><pre>function run(schema, data){
+  const errors = [];
+  validate(schema, data, "", schema, errors);   // root path = ""
+  return errors;                                 // [] === valid
+}
+const errors = run(schema, data);
+render(errors.length === 0 ? "VALID" : "INVALID", errors, data);
+// each error → { path:"/role", keyword:"enum", message:"..." }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 52 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real JSON Schema validator with <strong>no library</strong>, and the whole thing collapsed into one recursive function: apply every keyword the schema node declares to the value at the current path, and for the keywords that descend — <code>properties</code>, <code>items</code>, <code>additionalProperties</code>, <code>$ref</code> — call yourself on the child with the path extended by one JSON-pointer segment. Collect <code>{ path, keyword, message }</code> as you go and an empty list at the end means "valid". That same shape scales to the rest of the spec — <code>patternProperties</code>, <code>oneOf</code>, <code>if/then/else</code> — they are just more keywords hanging off the same recursion. Reach for it whenever you need to trust JSON coming from a form, an API, or a config file.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= JSON SCHEMA VALIDATOR (from scratch, no library) =================
+// The engine is one recursive function validate(schema, data, path, root, errors):
+// it applies every keyword the schema node declares to the value at `path`, and for the
+// descending keywords (properties / items / additionalProperties / $ref) it calls itself
+// on the child with the path extended by one JSON-pointer segment. Errors accumulate as
+// { path, keyword, message }; an empty array at the end means the document is valid.
+
+const el = id => document.getElementById(id);
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ---------- helpers ----------
+function isPlainObject(v){ return v !== null && typeof v === "object" && !Array.isArray(v); }
+function jsonType(v){
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  if (typeof v === "number") return Number.isInteger(v) ? "integer" : "number";
+  return typeof v; // string | boolean | object
+}
+function matchesType(v, t){
+  switch (t){
+    case "string":  return typeof v === "string";
+    case "number":  return typeof v === "number" && !Number.isNaN(v);
+    case "integer": return typeof v === "number" && Number.isInteger(v);
+    case "boolean": return typeof v === "boolean";
+    case "array":   return Array.isArray(v);
+    case "object":  return isPlainObject(v);
+    case "null":    return v === null;
+    default:        return false;
+  }
+}
+function deepEqual(a, b){
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a && b && typeof a === "object"){
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)){
+      if (a.length !== b.length) return false;
+      return a.every((x, i) => deepEqual(x, b[i]));
+    }
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    return ka.every(k => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]));
+  }
+  return false;
+}
+// JSON-pointer segment encode/decode (RFC 6901)
+const ptrEnc = k => String(k).replace(/~/g, "~0").replace(/\//g, "~1");
+const ptrDec = k => String(k).replace(/~1/g, "/").replace(/~0/g, "~");
+
+// resolve a local $ref ("#", "#/definitions/x") against the root schema
+function resolveRef(ref, root){
+  if (ref === "#") return root;
+  if (typeof ref !== "string" || ref[0] !== "#") return undefined; // only local refs supported
+  const parts = ref.replace(/^#\/?/, "").split("/").filter(s => s.length).map(ptrDec);
+  let cur = root;
+  for (const p of parts){
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+// read the value at a JSON pointer inside the document (for showing the offending value)
+function getByPointer(root, pointer){
+  if (pointer === "") return root;
+  const parts = pointer.slice(1).split("/").map(ptrDec);
+  let cur = root;
+  for (const p of parts){
+    if (cur == null) return undefined;
+    cur = Array.isArray(cur) ? cur[Number(p)] : cur[p];
+  }
+  return cur;
+}
+
+// ---------- the recursive core ----------
+function validate(schema, data, path, root, errors, depth){
+  depth = depth || 0;
+  if (depth > 300) return;                 // cycle guard for pathological self-refs
+  if (schema === true) return;
+  if (schema === false){ errors.push({ path, keyword: "false", message: "no value is allowed here" }); return; }
+  if (!isPlainObject(schema)) return;
+
+  const push = (keyword, message) => errors.push({ path, keyword, message });
+
+  // $ref replaces sibling keywords (draft-07 semantics)
+  if (schema.$ref !== undefined){
+    const target = resolveRef(schema.$ref, root);
+    if (target === undefined) push("$ref", 'cannot resolve $ref "' + schema.$ref + '"');
+    else validate(target, data, path, root, errors, depth + 1);
+    return;
+  }
+
+  // type
+  if (schema.type !== undefined){
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    if (!types.some(t => matchesType(data, t)))
+      push("type", "expected " + types.join(" or ") + ", got " + jsonType(data));
+  }
+
+  // enum / const
+  if (schema.enum !== undefined && !schema.enum.some(e => deepEqual(e, data)))
+    push("enum", "must be one of " + schema.enum.map(v => JSON.stringify(v)).join(", "));
+  if (schema.const !== undefined && !deepEqual(schema.const, data))
+    push("const", "must equal " + JSON.stringify(schema.const));
+
+  // string constraints
+  if (typeof data === "string"){
+    const len = [...data].length;
+    if (schema.minLength != null && len < schema.minLength) push("minLength", "string length " + len + " < " + schema.minLength);
+    if (schema.maxLength != null && len > schema.maxLength) push("maxLength", "string length " + len + " > " + schema.maxLength);
+    if (schema.pattern != null){
+      let re = null;
+      try { re = new RegExp(schema.pattern); } catch (e){ push("pattern", "invalid pattern /" + schema.pattern + "/"); }
+      if (re && !re.test(data)) push("pattern", 'does not match /' + schema.pattern + '/');
+    }
+  }
+
+  // number constraints
+  if (typeof data === "number" && !Number.isNaN(data)){
+    if (schema.minimum != null && data < schema.minimum) push("minimum", data + " < minimum " + schema.minimum);
+    if (schema.maximum != null && data > schema.maximum) push("maximum", data + " > maximum " + schema.maximum);
+    if (schema.exclusiveMinimum != null && data <= schema.exclusiveMinimum) push("exclusiveMinimum", data + " must be > " + schema.exclusiveMinimum);
+    if (schema.exclusiveMaximum != null && data >= schema.exclusiveMaximum) push("exclusiveMaximum", data + " must be < " + schema.exclusiveMaximum);
+    if (schema.multipleOf != null && schema.multipleOf > 0 && Math.abs(data / schema.multipleOf - Math.round(data / schema.multipleOf)) > 1e-9)
+      push("multipleOf", data + " is not a multiple of " + schema.multipleOf);
+  }
+
+  // array constraints
+  if (Array.isArray(data)){
+    if (schema.minItems != null && data.length < schema.minItems) push("minItems", data.length + " items < minItems " + schema.minItems);
+    if (schema.maxItems != null && data.length > schema.maxItems) push("maxItems", data.length + " items > maxItems " + schema.maxItems);
+    if (schema.uniqueItems === true){
+      for (let i = 0; i < data.length; i++)
+        for (let j = i + 1; j < data.length; j++)
+          if (deepEqual(data[i], data[j])){ push("uniqueItems", "duplicate items at index " + i + " and " + j); i = j = data.length; }
+    }
+    if (schema.items !== undefined){
+      if (Array.isArray(schema.items)){
+        // tuple form: schema per position
+        schema.items.forEach((sub, i) => { if (i < data.length) validate(sub, data[i], path + "/" + i, root, errors, depth + 1); });
+        if (schema.additionalItems !== undefined && data.length > schema.items.length){
+          for (let i = schema.items.length; i < data.length; i++){
+            if (schema.additionalItems === false) errors.push({ path: path + "/" + i, keyword: "additionalItems", message: "extra array item not allowed" });
+            else if (isPlainObject(schema.additionalItems)) validate(schema.additionalItems, data[i], path + "/" + i, root, errors, depth + 1);
+          }
+        }
+      } else {
+        data.forEach((elm, i) => validate(schema.items, elm, path + "/" + i, root, errors, depth + 1));
+      }
+    }
+  }
+
+  // object constraints
+  if (isPlainObject(data)){
+    const keys = Object.keys(data);
+    if (Array.isArray(schema.required))
+      schema.required.forEach(k => { if (!(k in data)) errors.push({ path: path + "/" + ptrEnc(k), keyword: "required", message: 'missing required property "' + k + '"' }); });
+    if (schema.minProperties != null && keys.length < schema.minProperties) push("minProperties", keys.length + " properties < " + schema.minProperties);
+    if (schema.maxProperties != null && keys.length > schema.maxProperties) push("maxProperties", keys.length + " properties > " + schema.maxProperties);
+
+    const props = schema.properties || {};
+    const patternProps = schema.patternProperties || {};
+    const patternKeys = Object.keys(patternProps);
+
+    // properties
+    for (const k of keys)
+      if (Object.prototype.hasOwnProperty.call(props, k))
+        validate(props[k], data[k], path + "/" + ptrEnc(k), root, errors, depth + 1);
+
+    // patternProperties
+    for (const pk of patternKeys){
+      let re = null; try { re = new RegExp(pk); } catch (e){ /* skip bad pattern */ }
+      if (!re) continue;
+      for (const k of keys)
+        if (re.test(k)) validate(patternProps[pk], data[k], path + "/" + ptrEnc(k), root, errors, depth + 1);
+    }
+
+    // additionalProperties
+    if (schema.additionalProperties !== undefined){
+      for (const k of keys){
+        const declared = Object.prototype.hasOwnProperty.call(props, k);
+        const patterned = patternKeys.some(pk => { try { return new RegExp(pk).test(k); } catch (e){ return false; } });
+        if (declared || patterned) continue;
+        if (schema.additionalProperties === false)
+          errors.push({ path: path + "/" + ptrEnc(k), keyword: "additionalProperties", message: 'property "' + k + '" is not allowed' });
+        else if (isPlainObject(schema.additionalProperties))
+          validate(schema.additionalProperties, data[k], path + "/" + ptrEnc(k), root, errors, depth + 1);
+      }
+    }
+  }
+
+  // composition (bonus): allOf / anyOf / oneOf / not
+  const subCount = sub => { const e = []; validate(sub, data, path, root, e, depth + 1); return e.length; };
+  if (Array.isArray(schema.allOf)) schema.allOf.forEach(sub => validate(sub, data, path, root, errors, depth + 1));
+  if (Array.isArray(schema.anyOf) && !schema.anyOf.some(sub => subCount(sub) === 0)) push("anyOf", "value matches none of the anyOf schemas");
+  if (Array.isArray(schema.oneOf)){
+    const n = schema.oneOf.filter(sub => subCount(sub) === 0).length;
+    if (n !== 1) push("oneOf", "value must match exactly one schema (matched " + n + ")");
+  }
+  if (schema.not !== undefined && subCount(schema.not) === 0) push("not", "value must NOT match the 'not' schema");
+}
+
+// public entry
+function runValidation(schema, data){
+  const errors = [];
+  validate(schema, data, "", schema, errors, 0);
+  return errors;
+}
+
+// ================= UI wiring =================
+let debounceTm = null;
+function scheduleRun(){ clearTimeout(debounceTm); debounceTm = setTimeout(run, 140); }
+
+function run(){
+  const schemaText = el("schemaIn").value;
+  const dataText   = el("dataIn").value;
+
+  // parse schema
+  let schema, data, schemaErr = null, dataErr = null;
+  try { schema = JSON.parse(schemaText); } catch (e){ schemaErr = e.message; }
+  try { data   = JSON.parse(dataText);   } catch (e){ dataErr   = e.message; }
+
+  // parse status
+  setParse("schemaIn", "schemaMsg", schemaErr);
+  setParse("dataIn",   "dataMsg",   dataErr);
+
+  if (schemaErr || dataErr){
+    setVerdict(null, [], "fix the JSON above before validating");
+    el("errList").innerHTML = '<div class="text-slate-400 text-sm py-3">Waiting for valid JSON in both boxes…</div>';
+    el("stResult").textContent = "—"; el("stCount").textContent = "—"; el("stKw").textContent = "—"; el("stDepth").textContent = "—";
+    return;
+  }
+
+  const errors = runValidation(schema, data);
+  renderResult(errors, data);
+}
+
+function setParse(areaId, msgId, err){
+  const area = el(areaId), msg = el(msgId);
+  if (err){ area.classList.add("bad"); msg.className = "parsemsg err"; msg.textContent = "✗ JSON parse error: " + err; }
+  else    { area.classList.remove("bad"); msg.className = "parsemsg ok"; msg.textContent = "✓ valid JSON"; }
+}
+
+function setVerdict(pass, errors, subOverride){
+  const v = el("verdict");
+  if (pass === null){
+    v.className = "verdict fail mt-6";
+    v.innerHTML = '<div class="text-3xl">⏳</div><div><div class="big">—</div><div class="sub">' + esc(subOverride || "") + '</div></div>';
+    return;
+  }
+  if (pass){
+    v.className = "verdict pass mt-6";
+    v.innerHTML = '<div class="text-3xl">✅</div><div><div class="big">VALID</div><div class="sub">the document satisfies every rule in the schema</div></div>';
+  } else {
+    const n = errors.length;
+    v.className = "verdict fail mt-6";
+    v.innerHTML = '<div class="text-3xl">❌</div><div><div class="big">INVALID</div><div class="sub">' + n + ' violation' + (n === 1 ? "" : "s") + ' found — see below</div></div>';
+  }
+}
+
+function renderResult(errors, data){
+  const pass = errors.length === 0;
+  setVerdict(pass, errors);
+
+  // stats
+  el("stResult").innerHTML = pass ? '<span style="color:#16a34a">VALID</span>' : '<span style="color:#dc2626">INVALID</span>';
+  el("stCount").textContent = errors.length;
+  el("stKw").textContent = new Set(errors.map(e => e.keyword)).size;
+  const deepest = errors.reduce((m, e) => Math.max(m, e.path === "" ? 0 : e.path.split("/").length - 1), 0);
+  el("stDepth").innerHTML = errors.length ? deepest + '<small> levels</small>' : '—';
+
+  // list
+  const list = el("errList");
+  if (pass){
+    list.innerHTML = '<div class="py-4 text-center"><div class="text-4xl mb-1">🎉</div><div class="font-bold text-green-700">No violations — the document is valid.</div></div>';
+    return;
+  }
+  list.innerHTML = errors.map(e => {
+    const isRoot = e.path === "";
+    const shown = isRoot ? "(root)" : e.path;
+    let valHtml = "";
+    if (e.keyword !== "required"){
+      const v = getByPointer(data, e.path);
+      if (v !== undefined){
+        let s = JSON.stringify(v);
+        if (s && s.length > 80) s = s.slice(0, 77) + "…";
+        valHtml = '<div class="errval">value: ' + esc(s) + '</div>';
+      }
+    }
+    return '<div class="errrow">'
+      + '<div class="kw"><span class="kwchip">' + esc(e.keyword) + '</span></div>'
+      + '<div style="min-width:0">'
+      +   '<div class="errptr ' + (isRoot ? "root" : "") + '">' + esc(shown) + '</div>'
+      +   '<div class="errmsg">' + esc(e.message) + '</div>'
+      +   valHtml
+      + '</div>'
+      + '</div>';
+  }).join("");
+}
+
+// format (pretty-print) a textarea's JSON in place
+function formatArea(id){
+  try { el(id).value = JSON.stringify(JSON.parse(el(id).value), null, 2); run(); }
+  catch (e){ /* leave as-is; parse msg already shows the error */ run(); }
+}
+el("fmtSchema").addEventListener("click", () => formatArea("schemaIn"));
+el("fmtData").addEventListener("click",   () => formatArea("dataIn"));
+el("schemaIn").addEventListener("input", scheduleRun);
+el("dataIn").addEventListener("input",   scheduleRun);
+
+// ================= presets =================
+const PRESETS = [
+  {
+    name: "User · invalid", tag: "type · required · enum · pattern",
+    schema: {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "required": ["id", "name", "email", "role", "country"],
+      "properties": {
+        "id":      { "type": "integer", "minimum": 1 },
+        "name":    { "type": "string", "minLength": 2, "maxLength": 40 },
+        "email":   { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+        "role":    { "type": "string", "enum": ["admin", "editor", "viewer"] },
+        "country": { "type": "string", "enum": ["US", "CA", "IN", "GB"] },
+        "age":     { "type": "integer", "minimum": 0, "maximum": 120 },
+        "tags":    { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 5 }
+      },
+      "additionalProperties": false
+    },
+    data: {
+      "id": "7",
+      "name": "A",
+      "email": "not-an-email",
+      "role": "superuser",
+      "age": 200,
+      "tags": ["x", "x", "x", "x", "x", "x"],
+      "nickname": "ace"
+    }
+  },
+  {
+    name: "User · valid", tag: "same schema, clean doc",
+    schema: {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "required": ["id", "name", "email", "role", "country"],
+      "properties": {
+        "id":      { "type": "integer", "minimum": 1 },
+        "name":    { "type": "string", "minLength": 2, "maxLength": 40 },
+        "email":   { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+        "role":    { "type": "string", "enum": ["admin", "editor", "viewer"] },
+        "country": { "type": "string", "enum": ["US", "CA", "IN", "GB"] },
+        "age":     { "type": "integer", "minimum": 0, "maximum": 120 },
+        "tags":    { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 5 }
+      },
+      "additionalProperties": false
+    },
+    data: {
+      "id": 7,
+      "name": "Ada Lovelace",
+      "email": "ada@example.com",
+      "role": "admin",
+      "country": "GB",
+      "age": 36,
+      "tags": ["math", "computing"]
+    }
+  },
+  {
+    name: "$ref reuse", tag: "one address, referenced twice",
+    schema: {
+      "type": "object",
+      "required": ["billing", "shipping"],
+      "properties": {
+        "billing":  { "$ref": "#/definitions/address" },
+        "shipping": { "$ref": "#/definitions/address" }
+      },
+      "definitions": {
+        "address": {
+          "type": "object",
+          "required": ["street", "city", "zip"],
+          "properties": {
+            "street": { "type": "string", "minLength": 1 },
+            "city":   { "type": "string", "minLength": 1 },
+            "zip":    { "type": "string", "pattern": "^[0-9]{5}$" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    data: {
+      "billing":  { "street": "1 Infinite Loop", "city": "Cupertino", "zip": "95014" },
+      "shipping": { "street": "", "city": "Cupertino", "zip": "ABC" }
+    }
+  },
+  {
+    name: "Array of items", tag: "items · index paths /1/sku",
+    schema: {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["sku", "qty"],
+        "properties": {
+          "sku": { "type": "string", "pattern": "^[A-Z]{3}-[0-9]{4}$" },
+          "qty": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    data: [
+      { "sku": "ABC-1234", "qty": 2 },
+      { "sku": "xy-99", "qty": 0 },
+      { "qty": 5 }
+    ]
+  },
+  {
+    name: "Recursive tree", tag: "$ref self · deep paths",
+    schema: {
+      "$ref": "#/definitions/node",
+      "definitions": {
+        "node": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "children": { "type": "array", "items": { "$ref": "#/definitions/node" } }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    data: {
+      "name": "root",
+      "children": [
+        { "name": "child-a" },
+        { "name": "", "children": [ { "color": "red" } ] }
+      ]
+    }
+  }
+];
+
+const presetsEl = el("presets");
+PRESETS.forEach((p, i) => {
+  const b = document.createElement("button");
+  b.className = "chip" + (i === 0 ? " on" : "");
+  b.innerHTML = p.name + ' <small>' + p.tag + '</small>';
+  b.onclick = () => {
+    document.querySelectorAll("#presets .chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    el("schemaIn").value = JSON.stringify(p.schema, null, 2);
+    el("dataIn").value   = JSON.stringify(p.data, null, 2);
+    run();
+  };
+  presetsEl.appendChild(b);
+});
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  el(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. A schema is JSON that describes JSON",
+   why:"A JSON Schema is not a new language — it is itself a JSON object whose keys are keywords ('type', 'required', 'properties', …) that describe the shape another value must have. That is the whole trick: the rules and the data are both plain JSON, so validating is just walking two trees together and checking one against the other.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="text-slate-400">schema (rules)</div><div class="mono"><span class="pill a">{ "type":"object", "required":["id"] }</span></div><div class="text-2xl text-slate-300">describes ↓</div><div class="text-slate-400">document (value)</div><div class="mono"><span class="pill g">{ "id": 7, "name": "Ada" }</span></div></div>`,
+   code:`// both are ordinary JSON — parse them and you get JS objects
+const schema = JSON.parse(schemaText);   // the rules
+const data   = JSON.parse(docText);      // the value to check
+// validation = walk data, apply the schema's keywords at each spot` },
+ { title:"2. type — the seven JSON types",
+   why:"Every value is one of string, number, integer, boolean, object, array or null. The 'type' keyword names the allowed one (or a list of them). The subtlety: 'integer' is a whole number, not a digit string — 3 passes, 3.5 fails integer but passes number, and \"3\" (a string) fails both. null and arrays are technically objects in JS, so screen them out explicitly.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">"type":"integer"</span></div><div>3 → <span class="pill g">✓</span> &nbsp; 3.5 → <span class="pill r">✗ (number)</span></div><div>"3" → <span class="pill r">✗ (string)</span> &nbsp; null → <span class="pill r">✗</span></div></div>`,
+   code:`function matchesType(v, t){
+  if (t === "integer") return typeof v === "number" && Number.isInteger(v);
+  if (t === "number")  return typeof v === "number";
+  if (t === "object")  return v !== null && typeof v==="object" && !Array.isArray(v);
+  if (t === "array")   return Array.isArray(v);
+  if (t === "null")    return v === null;
+  return typeof v === t;   // string | boolean
+}` },
+ { title:"3. required + properties — object shape",
+   why:"Two keywords describe an object. 'required' is a list of keys that must be present — it says nothing about their values. 'properties' maps each key to a subschema that constrains its value. You need both: required guarantees existence, properties constrains the content, and a key can appear in one without the other.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">required: ["id","email"]</span> <span class="text-xs text-slate-400">must exist</span></div><div><span class="pill b">properties.id = { type:"integer" }</span> <span class="text-xs text-slate-400">must be int</span></div><div class="text-xs text-slate-400">missing email → error at /email · id:"x" → error at /id</div></div>`,
+   code:`(schema.required || []).forEach(k => {
+  if (!(k in data)) error("/" + k, "required", 'missing "' + k + '"');
+});
+for (const k of Object.keys(data))
+  if (schema.properties && k in schema.properties)
+    validate(schema.properties[k], data[k], path + "/" + k);  // recurse` },
+ { title:"4. Constraints — the value-shaping keywords",
+   why:"Beyond type, keywords narrow a value: strings get minLength / maxLength / pattern, numbers get minimum / maximum. They only fire when the value is the right primitive — a pattern check on a number simply does nothing; it is the 'type' keyword's job to complain about the wrong type. Keep each family guarded by a typeof test.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">string</span> → minLength · maxLength · pattern</div><div><span class="pill p">number</span> → minimum · maximum</div><div class="text-xs text-slate-400">"A" vs minLength 2 → ✗ · 200 vs maximum 120 → ✗</div></div>`,
+   code:`if (typeof data === "string"){
+  if ([...data].length < schema.minLength) error(path,"minLength",...);
+  if (schema.pattern && !new RegExp(schema.pattern).test(data))
+    error(path,"pattern","does not match /" + schema.pattern + "/");
+}
+if (typeof data === "number"){
+  if (data < schema.minimum) error(path,"minimum",...);
+  if (data > schema.maximum) error(path,"maximum",...);
+}` },
+ { title:"5. items — one subschema, every element",
+   why:"An array's elements are validated by a single 'items' subschema applied to each one in turn, plus minItems / maxItems on the length. The key move is that each element recurses with the path extended by its index — so an error deep inside an array can name exactly which element (/orders/2/sku) failed.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>items = <span class="pill b">{ type:"string" }</span></div><div>[ "ok", <span class="pill r">42</span>, "ok" ]</div><div class="text-xs text-slate-400">→ error at /1 : expected string, got integer</div></div>`,
+   code:`if (Array.isArray(data)){
+  if (data.length < schema.minItems) error(path,"minItems",...);
+  data.forEach((el, i) =>
+    validate(schema.items, el, path + "/" + i));   // index becomes a path segment
+}` },
+ { title:"6. enum / const — value from a fixed set",
+   why:"'enum' pins a value to one of a listed set; 'const' pins it to exactly one. Because the allowed values can be objects or arrays, you must compare with deep equality, not ===. This is how you express 'role is admin, editor, or viewer' — anything else, like 'superuser', is a violation.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>enum = <span class="pill b">["admin","editor","viewer"]</span></div><div>"editor" → <span class="pill g">✓</span> &nbsp; "superuser" → <span class="pill r">✗</span></div><div class="text-xs text-slate-400">compare by deep-equality (values may be objects)</div></div>`,
+   code:`if (schema.enum && !schema.enum.some(e => deepEqual(e, data)))
+  error(path, "enum",
+    "must be one of " + schema.enum.map(v => JSON.stringify(v)).join(", "));
+if (schema.const !== undefined && !deepEqual(schema.const, data))
+  error(path, "const", "must equal " + JSON.stringify(schema.const));` },
+ { title:"7. additionalProperties — close the object",
+   why:"By default an object is open: unknown keys are allowed, which quietly lets typos through. Setting additionalProperties:false makes every key not named in 'properties' an error; setting it to a schema validates the extras against it. This is the single most useful keyword for catching 'why did my misspelled field validate?'.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>properties = { id, name } · <span class="pill a">additionalProperties:false</span></div><div>{ id, name, <span class="pill r">nickname</span> }</div><div class="text-xs text-slate-400">→ error at /nickname : property not allowed</div></div>`,
+   code:`if (schema.additionalProperties === false){
+  for (const k of Object.keys(data))
+    if (!(schema.properties && k in schema.properties))
+      error(path + "/" + k, "additionalProperties", '"' + k + '" not allowed');
+}` },
+ { title:"8. $ref — reuse a subschema by pointer",
+   why:"Rather than repeat a definition, '$ref' points at a subschema elsewhere in the document via a JSON pointer, like #/definitions/address. Resolve it by walking the root schema along the pointer, then validate against what you find. Because the target can $ref back to itself, this is exactly how recursive shapes — trees, linked lists, comment threads — are described.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>billing → <span class="pill b">{ "$ref": "#/definitions/address" }</span></div><div class="text-2xl text-slate-300">↓ resolve</div><div><span class="pill p">definitions.address = { type:"object", ... }</span></div></div>`,
+   code:`function resolveRef(ref, root){        // "#/definitions/address"
+  return ref.replace(/^#\\//,"").split("/")
+     .reduce((cur, seg) => cur && cur[seg], root);
+}
+if (schema.$ref){
+  validate(resolveRef(schema.$ref, root), data, path);  // and stop here
+}` },
+ { title:"9. Recursion carries the path",
+   why:"There is only one function. It applies the flat keywords here, then for every descending keyword calls itself on the child with the path extended by one segment. That single discipline — extend the path on every descent — is what lets a violation buried five levels deep report its exact JSON-pointer location instead of a vague 'something is wrong'.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>validate(root, data, <span class="pill s">""</span>)</div><div>→ validate(child, data.children, <span class="pill a">"/children"</span>)</div><div>→ validate(node, [1], <span class="pill b">"/children/1"</span>)</div><div>→ error at <span class="pill r">/children/1/name</span></div></div>`,
+   code:`function validate(schema, data, path, root, errors){
+  // ...flat keyword checks push { path, keyword, message }...
+  // ...descending keywords recurse:
+  validate(sub, data[k], path + "/" + encode(k), root, errors);
+}` },
+ { title:"10. JSON-pointer paths (RFC 6901)",
+   why:"Each error carries a JSON pointer: '' is the root, then /segment per level, with array indices as numeric segments. Literal '/' and '~' inside a key are escaped as ~1 and ~0 so the path is never ambiguous. Because a pointer is a real address, you can read the offending value straight back out of the parsed document to show alongside the message.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">""</span> = root · <span class="pill b">/tags/2</span> = 3rd tag</div><div><span class="pill a">/a~1b</span> = key "a/b" · <span class="pill a">/x~0y</span> = key "x~y"</div><div class="text-xs text-slate-400">the pointer both locates AND re-reads the value</div></div>`,
+   code:`const encode = k => String(k).replace(/~/g,"~0").replace(/\\//g,"~1");
+function getByPointer(root, p){
+  if (p === "") return root;
+  return p.slice(1).split("/")
+    .reduce((cur, seg) => cur == null ? undefined
+      : cur[seg.replace(/~1/g,"/").replace(/~0/g,"~")], root);
+}` },
+];
+const stepsEl = el("steps");
+const prevB = el("prev"), nextB = el("next-btn"), autoB = el("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = `<div class="font-semibold">${s.title}</div>`; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  el("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  el("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  el("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= boot =================
+el("schemaIn").value = JSON.stringify(PRESETS[0].schema, null, 2);
+el("dataIn").value   = JSON.stringify(PRESETS[0].data, null, 2);
+run();
+</script>
+</body>
+</html>
