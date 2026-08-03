@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 53 — HTML Entity Encoder / Decoder (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+  .chip { display:inline-block; padding:6px 11px; border-radius:999px; font-size:12px; font-family:ui-monospace, Menlo, monospace; margin:3px; background:#e2e8f0; color:#334155; cursor:pointer; font-weight:700; border:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .chip:hover { background:#fde68a; color:#92400e; }
+  .chip small { font-weight:600; opacity:.7; }
+  .chip.on { background:#0f172a; color:#fde68a; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- segmented controls ---- */
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 13px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* ---- text areas ---- */
+  .ea { width:100%; min-height:300px; font:600 13px/1.6 ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:12px; padding:12px 14px; outline:none; resize:vertical; background:#0f172a; color:#e2e8f0; tab-size:2; -moz-tab-size:2; white-space:pre-wrap; word-break:break-word; overflow:auto; }
+  .ea:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.16); }
+  .ea.active { border-color:#f59e0b; }
+  .parsemsg { min-height:16px; margin-top:6px; font:700 11px ui-monospace,Menlo,monospace; }
+  .parsemsg.ok  { color:#16a34a; }
+  .parsemsg.err { color:#dc2626; }
+
+  /* ---- direction ribbon ---- */
+  .ribbon { display:flex; align-items:center; justify-content:center; gap:12px; font:900 15px ui-monospace,Menlo,monospace; color:#0f172a; }
+  .ribbon .arw { font-size:26px; color:#f59e0b; }
+  .ribbon .side { padding:4px 12px; border-radius:999px; background:#e2e8f0; color:#334155; font-size:12px; }
+  .ribbon .side.src { background:#fde68a; color:#92400e; }
+
+  /* ---- breakdown rows ---- */
+  .maprow { display:flex; gap:11px; align-items:center; padding:9px 12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:11px; margin-bottom:7px; }
+  .glyph { flex:none; min-width:38px; text-align:center; font:800 18px ui-monospace,Menlo,monospace; color:#0f172a; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:4px 6px; }
+  .arwsm { color:#94a3b8; font-weight:800; }
+  .entchip { font:800 12.5px ui-monospace,Menlo,monospace; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:6px; padding:2px 8px; }
+  .cptag { font:700 11px ui-monospace,Menlo,monospace; color:#64748b; margin-left:auto; white-space:nowrap; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.1 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; word-break:break-all; }
+  .stat .v small { font-size:11px; color:#94a3b8; font-weight:700; }
+
+  /* reference table */
+  .fits { width:100%; border-collapse:collapse; font-size:12px; }
+  .fits th, .fits td { border:1px solid #e2e8f0; padding:5px 9px; text-align:left; vertical-align:top; }
+  .fits th { background:#f8fafc; font-weight:800; color:#0f172a; }
+  .fits td.mono { font-family:ui-monospace,Menlo,monospace; }
+  .must { color:#b91c1c; font-weight:800; }
+  .rec  { color:#b45309; font-weight:800; }
+  .ok   { color:#94a3b8; font-weight:800; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 53</div>
+      <h1 class="text-xl font-bold">&amp; HTML <code class="mono">Entity</code> Encoder / Decoder — a genuinely two-way tool: type <strong>raw text</strong> on the left and it escapes the characters that would break HTML into entities on the right (<code class="mono">&amp;amp; &amp;lt; &amp;gt; &amp;quot; &amp;#39;</code>), or paste <strong>entities</strong> on the right and it decodes them back to text on the left · toggle <strong>named vs numeric</strong> references (<code class="mono">&amp;copy;</code> vs <code class="mono">&amp;#169;</code> vs <code class="mono">&amp;#xA9;</code>), <strong>only-unsafe vs encode-everything</strong> (push every non-ASCII character to numeric/named entities for a pure-ASCII payload), and <strong>decimal vs hex</strong> · decoding parses a built-in named table plus numeric <code class="mono">&amp;#nnn;</code> / <code class="mono">&amp;#xhh;</code> by real Unicode code point (emoji included) · live as you type, copy either side · distinct from URL-encoding and Base64 · vanilla JS, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Five characters can hijack your markup — entities defuse them.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">HTML has exactly five characters that mean something to the parser: <code class="mono">&amp;</code> starts a reference, <code class="mono">&lt;</code> and <code class="mono">&gt;</code> delimit tags, and <code class="mono">"</code>/<code class="mono">'</code> delimit attribute values. If any of those appear <em>literally</em> in text you did not intend as markup, the page breaks — or worse, someone injects a <code class="mono">&lt;script&gt;</code>. The fix is a <strong>character reference</strong> (an "entity"): a stand-in that starts with <code class="mono">&amp;</code> and ends with <code class="mono">;</code>, either <strong>named</strong> (<code class="mono">&amp;amp;</code>) or <strong>numeric</strong> by Unicode code point in decimal (<code class="mono">&amp;#38;</code>) or hex (<code class="mono">&amp;#x26;</code>). This tool does both directions <strong>from scratch</strong>, no library: encoding iterates the string <em>by code point</em> (so emoji stay whole) and swaps each character that needs escaping; decoding runs one regular expression that recognises named, decimal and hex references and turns them back into characters via <code class="mono">String.fromCodePoint</code>. Edit either box and the other updates live. This is <strong>not</strong> URL-encoding (<code class="mono">%20</code>) and <strong>not</strong> Base64 — it is specifically the HTML text/attribute escaping layer.</p>
+      </div>
+
+      <!-- presets -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="fieldlabel">Load an example <span class="text-slate-400 normal-case">— fills one side and runs the conversion (edit anything after)</span></div>
+        <div id="presets"></div>
+      </div>
+
+      <!-- options -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <div class="fieldlabel">Direction <span class="text-slate-400 normal-case">— or just start typing in either box</span></div>
+            <div class="flex gap-2">
+              <button id="dirEnc" class="seg on">encode  raw → entities</button>
+              <button id="dirDec" class="seg">entities → raw  decode</button>
+            </div>
+          </div>
+          <div>
+            <div class="fieldlabel">Reference style <span class="text-slate-400 normal-case">— applies to encoding</span></div>
+            <div class="flex gap-2 flex-wrap">
+              <button id="mNamed"   class="seg on">named &amp;copy;</button>
+              <button id="mNumeric" class="seg">numeric &amp;#nnn;</button>
+              <button id="rDec" class="seg">dec</button>
+              <button id="rHex" class="seg">hex</button>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="fieldlabel">Scope <span class="text-slate-400 normal-case">— how much of the text to escape</span></div>
+          <div class="flex gap-2 flex-wrap">
+            <button id="sUnsafe" class="seg on">only the 5 unsafe chars</button>
+            <button id="sAll"    class="seg">encode everything (all non-ASCII → entities, pure-ASCII output)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ribbon -->
+      <div class="ribbon mb-3" id="ribbon">
+        <span class="side src" id="ribRaw">RAW TEXT</span>
+        <span class="arw" id="ribArw">→</span>
+        <span class="side" id="ribEnt">ENTITIES</span>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- raw -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel mb-0">Raw text <span class="text-slate-400 normal-case">— the characters as you mean them</span></div>
+            <button id="copyRaw" class="chip copy-btn" style="margin:0">⧉ copy</button>
+          </div>
+          <textarea id="rawIn" class="ea active" spellcheck="false"></textarea>
+          <div id="rawMsg" class="parsemsg"></div>
+        </div>
+
+        <!-- entities -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="fieldlabel mb-0">HTML entities <span class="text-slate-400 normal-case">— safe to drop into markup</span></div>
+            <button id="copyEnt" class="chip copy-btn" style="margin:0">⧉ copy</button>
+          </div>
+          <textarea id="entIn" class="ea" spellcheck="false"></textarea>
+          <div id="entMsg" class="parsemsg"></div>
+        </div>
+      </div>
+
+      <!-- stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        <div class="stat"><div class="k">Chars in</div><div class="v" id="stIn">—</div></div>
+        <div class="stat"><div class="k">Chars out</div><div class="v" id="stOut">—</div></div>
+        <div class="stat"><div class="k">Entities</div><div class="v" id="stEnt">—</div></div>
+        <div class="stat"><div class="k">Non-ASCII in source</div><div class="v" id="stNon">—</div></div>
+      </div>
+
+      <!-- breakdown -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">What changed <span class="text-slate-400 normal-case">— each distinct character ⇄ its entity, with the Unicode code point</span></div>
+        <div id="mapList"></div>
+      </div>
+
+      <!-- reference -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-6">
+        <div class="fieldlabel">Which characters actually need escaping <span class="text-slate-400 normal-case">— and it depends on the context they sit in</span></div>
+        <table class="fits">
+          <tbody>
+            <tr><th>Character</th><th>In text content</th><th>In "double-quoted" attribute</th><th>In 'single-quoted' attribute</th><th>Entity</th></tr>
+            <tr><td class="mono">&amp;</td><td><span class="must">must</span></td><td><span class="must">must</span></td><td><span class="must">must</span></td><td class="mono">&amp;amp;</td></tr>
+            <tr><td class="mono">&lt;</td><td><span class="must">must</span></td><td><span class="rec">recommended</span></td><td><span class="rec">recommended</span></td><td class="mono">&amp;lt;</td></tr>
+            <tr><td class="mono">&gt;</td><td><span class="rec">recommended</span></td><td><span class="ok">safe</span></td><td><span class="ok">safe</span></td><td class="mono">&amp;gt;</td></tr>
+            <tr><td class="mono">"</td><td><span class="ok">safe</span></td><td><span class="must">must</span></td><td><span class="ok">safe</span></td><td class="mono">&amp;quot;</td></tr>
+            <tr><td class="mono">'</td><td><span class="ok">safe</span></td><td><span class="ok">safe</span></td><td><span class="must">must</span></td><td class="mono">&amp;#39; / &amp;apos;</td></tr>
+            <tr><td class="mono">é ™ € 🚀</td><td colspan="3">optional — legal as UTF-8; encode only for pure-ASCII transport or ancient encodings</td><td class="mono">&amp;eacute; / &amp;#233;</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things people get wrong about HTML entities</div>
+        <p class="text-sm text-amber-800"><strong>1. Escape <code class="mono">&amp;</code> first, or you double-encode.</strong> If you replace <code class="mono">&lt;</code> before <code class="mono">&amp;</code>, then re-run the encoder, an already-escaped <code class="mono">&amp;amp;</code> becomes <code class="mono">&amp;amp;amp;</code>. Iterating character-by-character (as this tool does) sidesteps the ordering trap entirely — each source character is looked at exactly once. <strong>2. <code class="mono">&amp;apos;</code> is HTML5-only.</strong> The named apostrophe was not defined in HTML4, so for maximum compatibility the numeric <code class="mono">&amp;#39;</code> is the safe choice; most real escapers emit <code class="mono">&amp;#39;</code> even in "named" mode. <strong>3. Context decides what is dangerous.</strong> A <code class="mono">"</code> is harmless in text but ends an attribute; a <code class="mono">&gt;</code> is fine inside an attribute but should be escaped in text. Escaping for the wrong context either over-encodes or leaves a hole — which is why frameworks have separate text vs attribute escapers. <strong>4. Entities are not sanitization.</strong> They neutralise markup in an HTML <em>text/attribute</em> context, but they do nothing for a <code class="mono">javascript:</code> URL, an unquoted attribute, or a value interpolated into inline JS/CSS — those need their own escaping or an allow-list. <strong>5. Numeric references are Unicode code points, not bytes.</strong> <code class="mono">&amp;#233;</code> is always <code class="mono">é</code> regardless of the page's charset, and an emoji is one code point (<code class="mono">&amp;#x1F680;</code>) — never two surrogate halves. That is why the encoder walks the string with a code-point iterator, not by <code class="mono">charCodeAt</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How HTML entity coding works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">An HTML-entity codec is two small functions over one shared table. <strong>Encoding</strong> walks the string one code point at a time and, for each character that must (or you chose to) escape, emits either a named reference from a lookup or a numeric <code>&amp;#…;</code>. <strong>Decoding</strong> is a single regular expression that matches <code>&amp;name;</code>, <code>&amp;#123;</code> and <code>&amp;#x1F;</code>, and a replace callback that turns each back into a character — named via the reverse table, numeric via <code>String.fromCodePoint</code>. The only real subtleties are iterating by <em>code point</em> so emoji survive, escaping <code>&amp;</code> implicitly-first by never looking at a character twice, and guarding the numeric range on decode. No parser, no dependency — under 100 lines of logic. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">One table, both directions</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Store the named references once as <code>name → character</code> (that is what decoding needs), then derive the reverse <code>character → name</code> for encoding. Deriving it — instead of hand-writing two tables — guarantees they never drift apart, and "first name wins" keeps the canonical short names (<code>amp</code>, not some alias) for the core characters you list first.</p>
+        <div class="relative"><pre>const NAMED = {                 // name -> character  (decode source of truth)
+  amp:"&amp;", lt:"&lt;", gt:"&gt;", quot:'"', apos:"'",
+  nbsp:" ", copy:"©", reg:"®", trade:"™",
+  eacute:"é", mdash:"—", euro:"€" /* ...~100 more... */
+};
+const TO_NAME = {};             // character -> name  (encode, first wins)
+for (const n in NAMED){ const c = NAMED[n]; if (TO_NAME[c] === undefined) TO_NAME[c] = n; }</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The five characters that must be escaped</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Only five characters carry meaning to the HTML parser. Everything else is optional. Keep them in a set so the encoder can ask, in O(1), "is this one of the dangerous ones?" — that membership test is the whole decision in "only-unsafe" mode.</p>
+        <div class="relative"><pre>// &amp; opens a reference · &lt; &gt; delimit tags · " ' delimit attributes
+const CORE = { "&amp;":1, "&lt;":1, "&gt;":1, '"':1, "'":1 };
+const isUnsafe = ch =&gt; CORE[ch] === 1;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Encode: iterate by code point</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>for (const ch of text)</code> yields whole code points — an emoji comes out as one <code>ch</code>, not two broken surrogate halves. For each one decide whether to escape: always if it is unsafe, and additionally (in "encode everything" mode) if it is non-ASCII (code point &gt; 127). Untouched characters are copied straight through.</p>
+        <div class="relative"><pre>function encode(text, opts){
+  let out = "";
+  for (const ch of text){                     // code-point iteration
+    const cp = ch.codePointAt(0);
+    const escape = isUnsafe(ch) || (opts.scope === "all" &amp;&amp; cp &gt; 0x7F);
+    out += escape ? toEntity(ch, cp, opts) : ch;
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Named vs numeric, decimal vs hex</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Building the entity string is a two-way branch: prefer a named reference if the user chose "named" <em>and</em> one exists for this character; otherwise fall back to a numeric reference in the chosen radix. Hex references are written <code>&amp;#x…;</code> with the code point in base 16; decimal is just the number.</p>
+        <div class="relative"><pre>function toEntity(ch, cp, opts){
+  if (opts.mode === "named" &amp;&amp; TO_NAME[ch] !== undefined)
+    return "&amp;" + TO_NAME[ch] + ";";                 // &amp;copy;
+  return opts.radix === "hex"
+    ? "&amp;#x" + cp.toString(16) + ";"                 // &amp;#xA9;
+    : "&amp;#"  + cp + ";";                             // &amp;#169;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Why &amp; is safe without ordering tricks</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The classic bug is replacing <code>&lt;</code> before <code>&amp;</code> with chained <code>.replace()</code> calls, so a real <code>&amp;</code> in the input gets turned into <code>&amp;amp;</code> and then its own <code>&amp;</code> gets escaped again. Because this encoder reads each source character exactly once and writes its finished entity, the ampersand of an entity it just produced is never re-examined. No ordering, no double-encoding.</p>
+        <div class="relative"><pre>// ❌ the trap: chained replaces re-process the &amp; you just wrote
+s = s.replace(/&lt;/g,"&amp;lt;").replace(/&amp;/g,"&amp;amp;");  // "&lt;" -&gt; "&amp;amp;lt;"  (wrong)
+// ✅ single pass: each input char -&gt; one output token, never revisited
+for (const ch of text) out += isUnsafe(ch) ? toEntity(ch, ...) : ch;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Decode: one regex for all three forms</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A character reference is always <code>&amp;</code>, a body, then <code>;</code>. The body is one of three shapes: <code>#</code> + digits (decimal), <code>#x</code> + hex digits, or letters (a name). One alternation captures the body; a <code>replace</code> callback decides what to do with each match. Anything that does not match the pattern is left exactly as-is.</p>
+        <div class="relative"><pre>//            decimal        hex             named
+const ENT = /&amp;(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
+function decode(text){
+  return text.replace(ENT, (m, body) =&gt; fromEntity(m, body));
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Numeric decode — parse, range-check, fromCodePoint</h3></div>
+        <p class="text-sm text-slate-600 mb-3">If the body starts with <code>#</code>, read the number — base 16 when the next char is <code>x</code>/<code>X</code>, else base 10 — and turn the code point into a character with <code>String.fromCodePoint</code>, which correctly produces astral characters (emoji) as a surrogate pair. Guard the range <code>0…0x10FFFF</code>; an out-of-range or malformed value is left as literal text rather than throwing.</p>
+        <div class="relative"><pre>function fromEntity(m, body){
+  if (body[0] === "#"){
+    const hex = body[1] === "x" || body[1] === "X";
+    const cp  = parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
+    if (!(cp &gt;= 0 &amp;&amp; cp &lt;= 0x10FFFF)) return m;      // invalid -&gt; leave alone
+    try { return String.fromCodePoint(cp); } catch (e){ return m; }
+  }
+  return NAMED[body] !== undefined ? NAMED[body] : m;   // named (next step)
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Named decode — look up, or leave verbatim</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A named body is a straight lookup in the same <code>NAMED</code> table. The important behaviour is the miss: an unknown name like <code>&amp;widget;</code> is <em>not</em> an error and must be returned unchanged — turning it into a "?" would silently corrupt text. Returning the original match <code>m</code> makes decode a safe no-op on anything it does not recognise.</p>
+        <div class="relative"><pre>// inside fromEntity, the non-numeric branch:
+const ch = NAMED[body];
+return ch !== undefined ? ch : m;   // &amp;copy; -&gt; ©   ·   &amp;widget; -&gt; &amp;widget;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Wire it live — two boxes, two events</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Bind an <code>input</code> listener to each textarea. Typing in the raw box encodes into the entities box; typing in the entities box decodes into the raw box. Because each direction reads one box and writes the other, there is no feedback loop — the box you are typing in is never overwritten while you hold focus.</p>
+        <div class="relative"><pre>rawBox.addEventListener("input", () =&gt; { entBox.value = encode(rawBox.value, OPT); });
+entBox.addEventListener("input", () =&gt; { rawBox.value = decode(entBox.value); });
+// changing an encode option just re-runs the encode direction:
+[modeBtns, scopeBtns, radixBtns].forEach(bindOption(() =&gt; {
+  entBox.value = encode(rawBox.value, OPT);
+}));</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">The round-trip guarantee</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A correct codec satisfies <code>decode(encode(x)) === x</code> for every string. It holds here because every entity the encoder can emit — named from <code>TO_NAME</code> or numeric in either radix — is something the decoder recognises and maps back to the same code point. Test it on a deliberately nasty string and you should get the original back, byte for byte.</p>
+        <div class="relative"><pre>const x = '&lt;b&gt;café &amp; "quotes"&lt;/b&gt;';
+const round = decode(encode(x, { mode:"named", scope:"all", radix:"hex" }));
+console.assert(round === x, "round-trip must be lossless");   // ✓</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 53 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real, lossless HTML-entity codec with <strong>no library</strong>. The whole thing rests on two ideas: <strong>encode</strong> by walking the string one code point at a time and swapping each character that needs escaping for a named or numeric reference, and <strong>decode</strong> with a single regex that recognises named, decimal and hex references and maps each back through the same table (or <code>String.fromCodePoint</code>). Because you read each source character exactly once you never double-encode the ampersand, and because you iterate by code point emoji survive intact. That same shape is what <code>textContent</code>-based escapers and framework auto-escapers do under the hood — reach for it any time untrusted text has to land inside HTML.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= HTML ENTITY ENCODER / DECODER (from scratch, no library) =================
+// Encode: iterate the string BY CODE POINT and swap each character that must (or the user chose
+// to) escape for a named reference (from TO_NAME) or a numeric one (&#nnn; / &#xhh;).
+// Decode: one regex recognises named / decimal / hex references; a replace callback maps each
+// back to a character via the NAMED table or String.fromCodePoint. decode(encode(x)) === x.
+
+const el = id => document.getElementById(id);
+function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ---------- the named table: name -> character (single source of truth) ----------
+const NAMED = {
+  // the 5 core (listed first so TO_NAME picks these canonical names)
+  amp:"&", lt:"<", gt:">", quot:'"', apos:"'",
+  // common punctuation / symbols
+  nbsp:" ", copy:"©", reg:"®", trade:"™", euro:"€",
+  pound:"£", yen:"¥", cent:"¢", curren:"¤", sect:"§",
+  para:"¶", middot:"·", deg:"°", plusmn:"±", times:"×",
+  divide:"÷", frac12:"½", frac14:"¼", frac34:"¾",
+  sup1:"¹", sup2:"²", sup3:"³", micro:"µ",
+  hellip:"…", mdash:"—", ndash:"–", bull:"•",
+  lsquo:"‘", rsquo:"’", ldquo:"“", rdquo:"”",
+  laquo:"«", raquo:"»", dagger:"†", Dagger:"‡",
+  prime:"′", Prime:"″", permil:"‰",
+  // maths
+  ne:"≠", le:"≤", ge:"≥", asymp:"≈", equiv:"≡",
+  infin:"∞", sum:"∑", radic:"√", int:"∫",
+  larr:"←", rarr:"→", uarr:"↑", darr:"↓", harr:"↔",
+  // card suits
+  spades:"♠", clubs:"♣", hearts:"♥", diams:"♦",
+  // greek (lower)
+  alpha:"α", beta:"β", gamma:"γ", delta:"δ", theta:"θ",
+  lambda:"λ", mu:"μ", pi:"π", sigma:"σ", omega:"ω",
+  // greek (upper)
+  Alpha:"Α", Beta:"Β", Gamma:"Γ", Delta:"Δ",
+  Pi:"Π", Sigma:"Σ", Omega:"Ω",
+  // accented latin (lower)
+  agrave:"à", aacute:"á", acirc:"â", atilde:"ã", auml:"ä",
+  aring:"å", aelig:"æ", ccedil:"ç", egrave:"è", eacute:"é",
+  ecirc:"ê", euml:"ë", igrave:"ì", iacute:"í", icirc:"î",
+  iuml:"ï", ntilde:"ñ", ograve:"ò", oacute:"ó", ocirc:"ô",
+  otilde:"õ", ouml:"ö", oslash:"ø", ugrave:"ù", uacute:"ú",
+  ucirc:"û", uuml:"ü", yacute:"ý", yuml:"ÿ", szlig:"ß",
+  // accented latin (upper)
+  Agrave:"À", Aacute:"Á", Auml:"Ä", Ccedil:"Ç", Eacute:"É",
+  Iacute:"Í", Ntilde:"Ñ", Ouml:"Ö", Uuml:"Ü"
+};
+// reverse: character -> name (first name wins, so core chars keep canonical names)
+const TO_NAME = {};
+for (const n in NAMED){ const c = NAMED[n]; if (TO_NAME[c] === undefined) TO_NAME[c] = n; }
+
+// the five characters that carry meaning to the HTML parser
+const CORE = { "&":1, "<":1, ">":1, '"':1, "'":1 };
+const isUnsafe = ch => CORE[ch] === 1;
+
+// ---------- ENCODE ----------
+// returns { out, map } where map is Map(entity-line -> {glyph, ent, cp, count})
+function encodeEntities(text, opts){
+  let out = "";
+  const map = new Map();
+  let entCount = 0, nonAscii = 0;
+  for (const ch of text){                         // iterate by CODE POINT
+    const cp = ch.codePointAt(0);
+    if (cp > 0x7F) nonAscii++;
+    const doEscape = isUnsafe(ch) || (opts.scope === "all" && cp > 0x7F);
+    if (!doEscape){ out += ch; continue; }
+    let ent;
+    if (opts.mode === "named" && TO_NAME[ch] !== undefined){
+      ent = "&" + TO_NAME[ch] + ";";
+    } else if (opts.radix === "hex"){
+      ent = "&#x" + cp.toString(16) + ";";
+    } else {
+      ent = "&#" + cp + ";";
+    }
+    out += ent;
+    entCount++;
+    const key = ch + " " + ent;
+    if (map.has(key)) map.get(key).count++;
+    else map.set(key, { glyph: ch, ent: ent, cp: cp, count: 1 });
+  }
+  return { out, map, entCount, nonAscii, inCount: [...text].length };
+}
+
+// ---------- DECODE ----------
+const ENT_RE = /&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
+function decodeEntities(text){
+  const map = new Map();
+  let entCount = 0;
+  const out = text.replace(ENT_RE, (m, body) => {
+    let ch;
+    if (body[0] === "#"){
+      const hex = body[1] === "x" || body[1] === "X";
+      const cp = parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
+      if (!(cp >= 0 && cp <= 0x10FFFF)) return m;         // out of range -> verbatim
+      try { ch = String.fromCodePoint(cp); } catch (e){ return m; }
+    } else {
+      ch = NAMED[body];
+      if (ch === undefined) return m;                     // unknown name -> verbatim
+    }
+    entCount++;
+    const key = m + " " + ch;
+    if (map.has(key)) map.get(key).count++;
+    else map.set(key, { glyph: ch, ent: m, cp: ch.codePointAt(0), count: 1 });
+    return ch;
+  });
+  let nonAscii = 0; for (const c of text){ if (c.codePointAt(0) > 0x7F) nonAscii++; }
+  return { out, map, entCount, nonAscii, inCount: [...text].length };
+}
+
+// ================= state / UI =================
+const OPT = { mode:"named", scope:"unsafe", radix:"dec" };
+let direction = "encode";
+
+const rawIn = el("rawIn"), entIn = el("entIn");
+
+function cpLabel(cp){
+  const hex = cp.toString(16).toUpperCase().padStart(cp > 0xFFFF ? 5 : 4, "0");
+  return "U+" + hex + " · &#" + cp + ";";
+}
+
+function renderStats(res){
+  el("stIn").innerHTML  = res.inCount;
+  el("stOut").innerHTML = (direction === "encode" ? [...entIn.value].length : [...rawIn.value].length);
+  el("stEnt").innerHTML = res.entCount;
+  el("stNon").innerHTML = res.nonAscii;
+}
+
+function renderMap(res){
+  const box = el("mapList");
+  if (res.map.size === 0){
+    box.innerHTML = '<div class="text-slate-400 text-sm py-3">Nothing to convert yet — no character needed a reference' + (direction === "encode" ? ' (try "encode everything" or add a &lt; or &amp;).' : ' (paste some &amp;entities;).') + '</div>';
+    return;
+  }
+  const rows = [...res.map.values()].sort((a,b) => b.count - a.count);
+  box.innerHTML = rows.map(r => {
+    const glyph = r.glyph === " " ? "␠" : (r.cp < 0x20 ? "·" : escHtml(r.glyph));
+    return '<div class="maprow">'
+      + '<div class="glyph">' + glyph + '</div>'
+      + '<div class="arwsm">' + (direction === "encode" ? "→" : "←") + '</div>'
+      + '<div class="entchip">' + escHtml(r.ent) + '</div>'
+      + '<div class="cptag">' + cpLabel(r.cp) + (r.count > 1 ? '  ×' + r.count : '') + '</div>'
+      + '</div>';
+  }).join("");
+}
+
+function setMsg(which){
+  el("rawMsg").className = "parsemsg ok"; el("entMsg").className = "parsemsg ok";
+  if (which === "encode"){
+    el("rawMsg").textContent = "✓ source — editing here encodes →";
+    el("entMsg").textContent = "✓ " + [...entIn.value].length + " chars of entity output";
+  } else {
+    el("entMsg").textContent = "✓ source — editing here decodes ←";
+    el("rawMsg").textContent = "✓ " + [...rawIn.value].length + " chars decoded";
+  }
+}
+
+function runEncode(){
+  direction = "encode";
+  const res = encodeEntities(rawIn.value, OPT);
+  entIn.value = res.out;
+  syncDirUI();
+  renderStats(res); renderMap(res); setMsg("encode");
+}
+function runDecode(){
+  direction = "decode";
+  const res = decodeEntities(entIn.value);
+  rawIn.value = res.out;
+  syncDirUI();
+  renderStats(res); renderMap(res); setMsg("decode");
+}
+
+function syncDirUI(){
+  const enc = direction === "encode";
+  el("dirEnc").classList.toggle("on", enc);
+  el("dirDec").classList.toggle("on", !enc);
+  rawIn.classList.toggle("active", enc);
+  entIn.classList.toggle("active", !enc);
+  el("ribArw").textContent = enc ? "→" : "←";
+  el("ribRaw").classList.toggle("src", enc);
+  el("ribEnt").classList.toggle("src", !enc);
+}
+
+// live two-way binding
+rawIn.addEventListener("input", runEncode);
+entIn.addEventListener("input", runDecode);
+
+// ---------- option controls ----------
+function setMode(m){ OPT.mode = m; el("mNamed").classList.toggle("on", m==="named"); el("mNumeric").classList.toggle("on", m==="numeric"); runEncode(); }
+function setScope(s){ OPT.scope = s; el("sUnsafe").classList.toggle("on", s==="unsafe"); el("sAll").classList.toggle("on", s==="all"); runEncode(); }
+function setRadix(r){ OPT.radix = r; el("rDec").classList.toggle("on", r==="dec"); el("rHex").classList.toggle("on", r==="hex"); runEncode(); }
+el("mNamed").onclick   = () => setMode("named");
+el("mNumeric").onclick = () => setMode("numeric");
+el("sUnsafe").onclick  = () => setScope("unsafe");
+el("sAll").onclick     = () => setScope("all");
+el("rDec").onclick     = () => setRadix("dec");
+el("rHex").onclick     = () => setRadix("hex");
+el("dirEnc").onclick   = () => runEncode();
+el("dirDec").onclick   = () => runDecode();
+
+// radix buttons start reflecting default
+el("rDec").classList.add("on");
+
+// copy buttons
+function flashCopy(btn, text){
+  navigator.clipboard.writeText(text);
+  const o = btn.textContent; btn.textContent = "✓ copied"; setTimeout(() => btn.textContent = o, 1200);
+}
+el("copyRaw").addEventListener("click", e => flashCopy(e.currentTarget, rawIn.value));
+el("copyEnt").addEventListener("click", e => flashCopy(e.currentTarget, entIn.value));
+
+// ================= presets =================
+const PRESETS = [
+  { name:"HTML snippet", tag:"the 5 unsafe chars", side:"raw",
+    opts:{ mode:"named", scope:"unsafe", radix:"dec" },
+    text:'<a href="/search?q=cats&sort=new">Tom & Jerry\'s "big" day</a>' },
+  { name:"Accents & symbols", tag:"encode-everything → named", side:"raw",
+    opts:{ mode:"named", scope:"all", radix:"dec" },
+    text:"café · naïve — €5 © 2026 · 90° ± 2 · ¾ done" },
+  { name:"Emoji & maths", tag:"astral code points → hex", side:"raw",
+    opts:{ mode:"numeric", scope:"all", radix:"hex" },
+    text:"x ≤ 5 → 🚀   ∑ café" },
+  { name:"Decode this", tag:"named + numeric back to text", side:"ent",
+    text:"&lt;b&gt;caf&eacute; &amp; &quot;quotes&quot;&lt;/b&gt; &#8212; &#x1F680;" },
+  { name:"Double-encode trap", tag:"why & goes first", side:"raw",
+    opts:{ mode:"named", scope:"unsafe", radix:"dec" },
+    text:"AT&T &amp; already-escaped" }
+];
+
+const presetsEl = el("presets");
+PRESETS.forEach((p, i) => {
+  const b = document.createElement("button");
+  b.className = "chip" + (i === 0 ? " on" : "");
+  b.innerHTML = escHtml(p.name) + ' <small>' + escHtml(p.tag) + '</small>';
+  b.onclick = () => {
+    document.querySelectorAll("#presets .chip").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    if (p.opts){ OPT.mode = p.opts.mode; OPT.scope = p.opts.scope; OPT.radix = p.opts.radix;
+      el("mNamed").classList.toggle("on", OPT.mode==="named"); el("mNumeric").classList.toggle("on", OPT.mode==="numeric");
+      el("sUnsafe").classList.toggle("on", OPT.scope==="unsafe"); el("sAll").classList.toggle("on", OPT.scope==="all");
+      el("rDec").classList.toggle("on", OPT.radix==="dec"); el("rHex").classList.toggle("on", OPT.radix==="hex");
+    }
+    if (p.side === "raw"){ rawIn.value = p.text; runEncode(); }
+    else { entIn.value = p.text; runDecode(); }
+  };
+  presetsEl.appendChild(b);
+});
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  el(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. An entity is a character reference",
+   why:"An HTML entity is not a special encoding of bytes — it is a reference that stands in for a single character. It always starts with an ampersand and ends with a semicolon, and in between is either a name (amp, copy) or a number (a Unicode code point in decimal or hex). The parser reads the reference and substitutes the character. That is the entire concept.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill a">&amp;</span> <span class="pill b">amp</span> <span class="pill a">;</span> &nbsp;→&nbsp; <span class="pill g">&amp;</span></div><div class="mono"><span class="pill a">&amp;</span> <span class="pill b">#169</span> <span class="pill a">;</span> &nbsp;→&nbsp; <span class="pill g">©</span></div><div class="mono"><span class="pill a">&amp;</span> <span class="pill b">#xA9</span> <span class="pill a">;</span> &nbsp;→&nbsp; <span class="pill g">©</span></div></div>`,
+   code:`// three ways to write the SAME character (©, U+00A9):
+"&copy;"    // named
+"&#169;"    // numeric, decimal
+"&#xA9;"    // numeric, hexadecimal` },
+ { title:"2. Only five characters must be escaped",
+   why:"In HTML text and attributes there are exactly five characters that mean something to the parser: & opens a reference, < and > delimit tags, and \" and ' delimit attribute values. Every other character — letters, digits, é, ™, even emoji — is legal as-is in a UTF-8 document. Escaping is about neutralising those five, not about transforming everything.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">&amp;</span> <span class="pill r">&lt;</span> <span class="pill r">&gt;</span> <span class="pill r">&quot;</span> <span class="pill r">'</span> <span class="text-xs text-slate-400">← the only mandatory ones</span></div><div><span class="pill g">a b 3 é ™ 🚀</span> <span class="text-xs text-slate-400">← legal as-is</span></div></div>`,
+   code:`const CORE = { "&":1, "<":1, ">":1, '"':1, "'":1 };
+const isUnsafe = ch => CORE[ch] === 1;
+// "only-unsafe" mode escapes exactly these; everything else passes through` },
+ { title:"3. Text context vs attribute context",
+   why:"Which of the five matters depends on where the text lands. In element text you must escape & and <; > is convention. Inside a double-quoted attribute you must escape & and the double quote; inside a single-quoted attribute, the single quote. Escaping the full set is always safe, which is why general-purpose encoders just handle all five.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>text: <span class="pill r">&amp; &lt;</span> must</div><div>"attr": <span class="pill r">&amp; &quot;</span> must</div><div>'attr': <span class="pill r">&amp; '</span> must</div><div class="text-xs text-slate-400">escape all five → safe in every context</div></div>`,
+   code:`// same value, different holes if you escape for the wrong context:
+element.textContent  -> escape &, <
+attr="..."           -> escape &, "
+attr='...'           -> escape &, '` },
+ { title:"4. Named vs numeric references",
+   why:"A reference can name the character (&copy;) or number it by Unicode code point (&#169;). Named refs are readable but limited to a fixed list; numeric refs can express any code point at all. This tool prefers a named reference when you ask for one and it exists, and otherwise falls back to numeric — so nothing is ever un-encodable.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>© → <span class="pill b">&amp;copy;</span> <span class="text-xs text-slate-400">(named, readable)</span></div><div>© → <span class="pill p">&amp;#169;</span> <span class="text-xs text-slate-400">(numeric, universal)</span></div><div>🚀 → <span class="pill p">&amp;#128640;</span> <span class="text-xs text-slate-400">(no name → numeric)</span></div></div>`,
+   code:`if (mode === "named" && TO_NAME[ch] !== undefined)
+  return "&" + TO_NAME[ch] + ";";     // &copy;
+return "&#" + cp + ";";               // &#169;  (fallback)` },
+ { title:"5. Decimal, hex, and code points",
+   why:"A numeric reference carries a Unicode code point — the abstract number of the character, independent of how the file is byte-encoded. Decimal (&#169;) and hex (&#xA9;) are two spellings of the same number. You read the current code point with codePointAt and write it back with fromCodePoint; both understand the full range including astral characters.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>"©".codePointAt(0) = <span class="pill g">169</span></div><div>169 → dec <span class="pill b">&amp;#169;</span> · hex <span class="pill p">&amp;#xA9;</span></div><div>String.fromCodePoint(169) = <span class="pill g">©</span></div></div>`,
+   code:`const cp = ch.codePointAt(0);            // 169
+const dec = "&#"  + cp + ";";           // &#169;
+const hex = "&#x" + cp.toString(16) + ";"; // &#xa9;
+String.fromCodePoint(cp);               // "©"` },
+ { title:"6. Only-unsafe vs encode-everything",
+   why:"Two scopes. 'Only unsafe' touches just the five parser characters and leaves readable text (café, ™) intact — the right default for modern UTF-8 pages. 'Encode everything' additionally pushes every non-ASCII code point to an entity, producing pure-ASCII output that survives ancient systems, email headers, or transports that mangle bytes above 127.",
+   concept:`<div class="text-center text-sm mono space-y-2"><div>café &amp; €</div><div class="text-xs text-slate-400">only-unsafe →</div><div><span class="pill g">café &amp;amp; €</span></div><div class="text-xs text-slate-400">encode-everything →</div><div><span class="pill p">caf&amp;eacute; &amp;amp; &amp;euro;</span></div></div>`,
+   code:`const doEscape = isUnsafe(ch)
+  || (scope === "all" && ch.codePointAt(0) > 0x7F);
+// 0x7F = 127; anything above it is non-ASCII` },
+ { title:"7. Iterate by code point (emoji-safe)",
+   why:"JavaScript strings are UTF-16, so an emoji is stored as two 'characters' (a surrogate pair). If you loop with charCodeAt or [i] you can split it and emit garbage. The for…of loop and the spread operator iterate by CODE POINT, handing you the whole emoji as one unit — which is exactly what an entity must reference.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>"🚀".length = <span class="pill r">2</span> <span class="text-xs text-slate-400">(two UTF-16 units)</span></div><div>[..."🚀"].length = <span class="pill g">1</span> <span class="text-xs text-slate-400">(one code point)</span></div><div>→ <span class="pill p">&amp;#x1F680;</span></div></div>`,
+   code:`for (const ch of text){          // code-point iteration
+  const cp = ch.codePointAt(0);  // 0x1F680 for 🚀, not a half
+  ...
+}` },
+ { title:"8. Decode = one regex, three shapes",
+   why:"Decoding recognises a reference as &, a body, then ;. The body is decimal digits, or #x + hex digits, or letters (a name). A single alternation captures all three, and a replace callback dispatches: parse-and-fromCodePoint for numeric, table lookup for named. Text that is not a valid reference simply never matches and is left alone.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">&amp;#38;</span> → decimal 38 → &amp;</div><div><span class="pill a">&amp;#x26;</span> → hex 0x26 → &amp;</div><div><span class="pill a">&amp;amp;</span> → name → &amp;</div></div>`,
+   code:`const ENT = /&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
+text.replace(ENT, (m, body) => body[0] === "#"
+  ? fromNumeric(body)      // parse + String.fromCodePoint
+  : (NAMED[body] ?? m));   // lookup, or leave as-is` },
+ { title:"9. Unknown references stay verbatim",
+   why:"A decoder must be conservative. If it meets &widget; — a name it does not know — or a numeric value outside the legal Unicode range, the safe thing is to return the original text unchanged, not to drop it or emit a replacement box. That way decode never corrupts input it does not understand, and stays a true inverse of encode.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">&amp;copy;</span> → © <span class="text-xs text-slate-400">(known)</span></div><div><span class="pill s">&amp;widget;</span> → &amp;widget; <span class="text-xs text-slate-400">(unknown → kept)</span></div><div><span class="pill r">&amp;#99999999;</span> → kept <span class="text-xs text-slate-400">(out of range)</span></div></div>`,
+   code:`const cp = parseInt(...);
+if (!(cp >= 0 && cp <= 0x10FFFF)) return m;   // range guard
+const ch = NAMED[body];
+return ch !== undefined ? ch : m;             // unknown name -> verbatim` },
+ { title:"10. Lossless round-trip — and NOT sanitization",
+   why:"Because every entity the encoder emits is one the decoder recognises, decode(encode(x)) returns x for any string — a lossless round-trip, which is the correctness test. But note the limit: escaping neutralises markup in an HTML text/attribute context; it is not a security cure-all. javascript: URLs, unquoted attributes and inline script/style each need their own handling.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>x = <span class="pill s">&lt;b&gt;café &amp; "q"&lt;/b&gt;</span></div><div class="text-2xl text-slate-300">encode ↓ &nbsp; ↑ decode</div><div><span class="pill g">decode(encode(x)) === x ✓</span></div></div>`,
+   code:`const x = '<b>café & "quotes"</b>';
+decode(encode(x, {mode:"named",scope:"all",radix:"hex"})) === x; // true
+// entities ≠ sanitizer: still validate URLs, quote attributes, etc.` },
+];
+const stepsEl = el("steps");
+const prevB = el("prev"), nextB = el("next-btn"), autoB = el("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = `<div class="font-semibold">${s.title}</div>`; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  el("concept").innerHTML = `<div class="fade-in w-full flex items-center justify-center">${s.concept}</div>`;
+  el("why").innerHTML = `<span class="fade-in inline-block">${s.why}</span>`;
+  el("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= boot =================
+(function boot(){
+  const p = PRESETS[0];
+  OPT.mode = p.opts.mode; OPT.scope = p.opts.scope; OPT.radix = p.opts.radix;
+  rawIn.value = p.text;
+  runEncode();
+})();
+</script>
+</body>
+</html>
