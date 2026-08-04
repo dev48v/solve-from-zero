@@ -55,6 +55,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 51 — CSS clamp() Generator (fluid size)](https://dev48v.infy.uk/solve/day51-css-clamp-generator.html) — `day51-css-clamp-generator.html`
 - [SolveFromZero · Day 52 — JSON Schema Validator (from scratch)](https://dev48v.infy.uk/solve/day52-json-schema-validator.html) — `day52-json-schema-validator.html`
 - [SolveFromZero · Day 53 — HTML Entity Encoder/Decoder](https://dev48v.infy.uk/solve/day53-html-entity-encoder.html) — `day53-html-entity-encoder.html`
+- [SolveFromZero · Day 54 — ULID Generator (from scratch)](https://dev48v.infy.uk/solve/day54-ulid-generator.html) — `day54-ulid-generator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
