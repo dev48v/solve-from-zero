@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 55 — Colour-Blindness Simulator (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- segmented controls ---- */
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 13px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* ---- drop zone ---- */
+  .dropzone { border:2px dashed #cbd5e1; border-radius:12px; padding:14px; text-align:center; color:#64748b; font:700 12px ui-monospace,Menlo,monospace; cursor:pointer; transition:.15s; }
+  .dropzone:hover, .dropzone.drag { border-color:#f59e0b; background:#fffbeb; color:#b45309; }
+
+  /* ---- simulation panels ---- */
+  .cvd-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+  .cvd-panel { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:10px; }
+  .cvd-panel canvas { width:100%; height:auto; display:block; border-radius:9px; background:#020617; }
+  .cvd-cap { margin-top:9px; }
+  .cvd-cap .nm { font:900 13px ui-monospace,Menlo,monospace; color:#f8fafc; }
+  .cvd-cap .sb { font:700 10.5px ui-monospace,Menlo,monospace; color:#94a3b8; margin-top:2px; }
+  .cvd-cap .tg { display:inline-block; margin-top:6px; font:800 10px ui-monospace,Menlo,monospace; color:#0f172a; background:#fde68a; border-radius:999px; padding:2px 9px; }
+  .cvd-panel.orig { border-color:#f59e0b; }
+
+  /* ---- contrast checker ---- */
+  .cc-in { display:flex; align-items:center; gap:8px; }
+  .cc-in input[type=color] { width:44px; height:38px; border:none; border-radius:9px; background:none; cursor:pointer; padding:0; }
+  .cc-hex { width:110px; font:800 13px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:9px; padding:8px 10px; outline:none; text-transform:uppercase; }
+  .cc-hex:focus { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.16); }
+  .cc-row { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:11px; margin-bottom:7px; }
+  .cc-name { flex:none; width:130px; font:800 12px ui-monospace,Menlo,monospace; color:#334155; }
+  .cc-pair { display:flex; flex:none; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; }
+  .cc-sw { width:52px; height:34px; }
+  .cc-de { flex:none; width:78px; font:800 12px ui-monospace,Menlo,monospace; color:#64748b; text-align:right; }
+  .cc-verdict { margin-left:auto; flex:none; font:800 11px ui-monospace,Menlo,monospace; padding:3px 10px; border-radius:999px; }
+  .cc-verdict.must { color:#166534; background:#dcfce7; }
+  .cc-verdict.warn { color:#92400e; background:#fef3c7; }
+  .cc-verdict.no   { color:#b91c1c; background:#fee2e2; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 20px/1.15 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; }
+  .stat .v small { font-size:11px; color:#94a3b8; font-weight:700; }
+
+  /* reference table */
+  .fits { width:100%; border-collapse:collapse; font-size:12px; }
+  .fits th, .fits td { border:1px solid #e2e8f0; padding:6px 9px; text-align:left; vertical-align:top; }
+  .fits th { background:#f8fafc; font-weight:800; color:#0f172a; }
+  .fits td.mono { font-family:ui-monospace,Menlo,monospace; }
+  .must { color:#166534; font-weight:800; }
+  .no   { color:#b91c1c; font-weight:800; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 55</div>
+      <h1 class="text-xl font-bold">🎨 <code class="mono">Colour-Blindness</code> Simulator — a real, from-scratch <strong>colour-vision-deficiency</strong> renderer: load or drop any image (real <code class="mono">FileReader</code>, <strong>never uploaded</strong>) or use a built-in palette / hue spectrum / UI mockup, and see it re-rendered side-by-side under <strong>protanopia</strong>, <strong>deuteranopia</strong>, <strong>tritanopia</strong> and <strong>achromatopsia</strong> · each pixel travels <code class="mono">sRGB → linear</code> (undo gamma) → <strong>LMS cone response</strong> via a 3×3 matrix, is <strong>projected onto the plane</strong> the missing L/M/S cone can no longer separate, then <code class="mono">LMS → linear → sRGB</code> back — all matrix math done by hand on canvas <code class="mono">ImageData</code>, no library · a <strong>contrast-collapse checker</strong> takes two colours and shows, per deficiency, whether they stay distinguishable (CIE-Lab <span class="mono">ΔE</span>), proving why <strong>red/green pairs merge</strong> into the same murky yellow · distinct from the Day-18 WCAG contrast checker: this simulates colour <em>vision</em>, not luminance ratios · vanilla JS</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Roughly 1 in 12 men can't tell your red from your green.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">Human colour vision runs on <strong>three</strong> kinds of cone — <span class="mono">L</span> (long / red-ish), <span class="mono">M</span> (medium / green-ish) and <span class="mono">S</span> (short / blue-ish). Every colour you see is really just those three numbers. In the most common colour-vision deficiencies one cone type is missing, so a whole dimension of colour <em>collapses</em>: reds and greens fold onto the same murky yellows. This tool simulates that <strong>from scratch</strong>. It converts each pixel out of gamma-encoded <code class="mono">sRGB</code> into <strong>linear light</strong>, multiplies by a 3×3 matrix to get the <strong>LMS cone responses</strong>, <strong>projects</strong> those onto the plane a dichromat can still tell apart, then converts back to <code class="mono">sRGB</code> to display — the standard Viénot/Brettel LMS transform, applied by hand on canvas <code class="mono">ImageData</code> with no library. Load a built-in scene or drop your own image (read locally with <code class="mono">FileReader</code>, never sent anywhere), and use the <strong>contrast-collapse checker</strong> to see which colour pairs survive each deficiency. This is <strong>not</strong> the Day-18 WCAG contrast tool — that measures luminance ratios; this simulates colour <em>vision itself</em>.</p>
+      </div>
+
+      <!-- prevalence strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="stat"><div class="k">Red-green CVD, men</div><div class="v">~8% <small>1 in 12</small></div></div>
+        <div class="stat"><div class="k">Red-green CVD, women</div><div class="v">~0.5% <small>1 in 200</small></div></div>
+        <div class="stat"><div class="k">Cone types</div><div class="v">3 <small>L · M · S</small></div></div>
+        <div class="stat"><div class="k">Matrix math</div><div class="v">by hand <small>no library</small></div></div>
+      </div>
+
+      <!-- source controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <div class="fieldlabel">Built-in scene <span class="text-slate-400 normal-case">— drawn on a canvas, then simulated</span></div>
+            <div class="flex gap-2 flex-wrap">
+              <button data-scene="palette"  class="seg on">colour palette</button>
+              <button data-scene="spectrum" class="seg">hue spectrum</button>
+              <button data-scene="ui"       class="seg">UI mockup</button>
+            </div>
+          </div>
+          <div>
+            <div class="fieldlabel">Your own image <span class="text-slate-400 normal-case">— read locally, nothing is uploaded</span></div>
+            <div id="drop" class="dropzone">⬆ drop an image here, or click to choose a file<input id="file" type="file" accept="image/*" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- simulation grid -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="fieldlabel">The same scene through each kind of colour vision <span class="text-slate-400 normal-case">— original is outlined in amber</span></div>
+        <div class="cvd-grid" id="cvdGrid"></div>
+      </div>
+
+      <!-- contrast collapse checker -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="fieldlabel">Contrast-collapse checker <span class="text-slate-400 normal-case">— pick two colours; does the pair stay distinguishable under each deficiency? (CIE-Lab ΔE)</span></div>
+        <div class="flex flex-wrap items-center gap-6 mb-4">
+          <div class="cc-in"><input type="color" id="ccAcol" value="#b91c1c"><input class="cc-hex" id="ccAhex" value="#B91C1C" spellcheck="false"></div>
+          <div class="text-slate-400 font-bold">vs</div>
+          <div class="cc-in"><input type="color" id="ccBcol" value="#4d7c0f"><input class="cc-hex" id="ccBhex" value="#4D7C0F" spellcheck="false"></div>
+          <div class="flex gap-2 flex-wrap">
+            <button data-cc="b91c1c,4d7c0f" class="seg">red vs green</button>
+            <button data-cc="4d7c0f,7c2d12" class="seg">green vs brown</button>
+            <button data-cc="2563eb,7c3aed" class="seg">blue vs purple</button>
+            <button data-cc="0ea5e9,14b8a6" class="seg">sky vs teal</button>
+          </div>
+        </div>
+        <div class="text-xs text-slate-400 mb-2 mono">left swatch = colour A as seen · right swatch = colour B as seen · ΔE &lt; 5 collapses · 5–15 risky · &gt; 15 distinct</div>
+        <div id="ccOut"></div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about colour-vision deficiency</div>
+        <p class="text-sm text-amber-800"><strong>1. It is almost never "black and white".</strong> Total colour blindness (achromatopsia) is vanishingly rare — about 1 in 33,000. The common forms are <em>dichromacies</em>: you still see colour, just with one axis missing, so reds and greens both read as yellows. <strong>2. Red-green is X-linked, which is why it is mostly men.</strong> The L and M cone genes sit on the X chromosome; men have one X, so a single faulty copy shows, while women usually have a spare — hence ~8% of men versus ~0.5% of women. <strong>3. You must linearise first.</strong> sRGB values are gamma-encoded; averaging or matrix-multiplying them directly gives wrong colours. The transform only makes sense in <em>linear light</em>, so we undo gamma, do the cone math, then re-apply it. <strong>4. The simulation is a projection.</strong> Removing a cone collapses 3-D colour onto a 2-D plane — the plane of colours a dichromat can still tell apart — which is exactly why two very different originals can map to the identical simulated colour. <strong>5. Never encode meaning in colour alone.</strong> The contrast-collapse checker shows red/green status dots merging under deuteranopia; that is why good UI adds an icon, a label or a shape, not just a hue.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How the simulation works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A colour-blindness simulator is really just a chain of small, exact steps applied to every pixel: undo the sRGB gamma to get <em>linear light</em>, multiply by a 3×3 matrix to reach the three <strong>cone responses</strong> (LMS), multiply again by a projection matrix that models the missing cone, then run the two conversions in reverse to get a displayable colour. The only libraries in play are <code>Uint8ClampedArray</code> and the 2-D canvas you already have. Achromatopsia is even simpler — collapse to luminance. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Two colour spaces: sRGB and linear</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The 0–255 values in an image are <em>gamma-encoded</em> sRGB — perceptually spaced, not proportional to light. All the cone math must happen in <strong>linear</strong> light, so we need to undo the gamma going in and re-apply it coming out. A 256-entry lookup table makes the forward direction free.</p>
+        <div class="relative"><pre>function srgbToLinear(c){           // 0..255 -&gt; 0..1 linear
+  c /= 255;
+  return c &lt;= 0.04045 ? c / 12.92
+                      : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+function linearToSrgb(c){           // 0..1 linear -&gt; 0..255
+  const v = c &lt;= 0.0031308 ? c * 12.92
+                           : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(v * 255)));
+}
+const S2L = new Float64Array(256);            // fast forward LUT
+for (let i = 0; i &lt; 256; i++) S2L[i] = srgbToLinear(i);</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Linear RGB → LMS cone responses</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A 3×3 matrix maps linear R, G, B to how strongly each cone type fires: <strong>L</strong> (long / reddish), <strong>M</strong> (medium / greenish), <strong>S</strong> (short / bluish). This is the space colour vision actually lives in, and the space where a missing cone is a clean, removable dimension.</p>
+        <div class="relative"><pre>const RGB_TO_LMS = [
+  [0.31399022, 0.63951294, 0.04649755],   // L
+  [0.15537241, 0.75789446, 0.08670142],   // M
+  [0.01775239, 0.10944209, 0.87256922],   // S
+];</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">The dichromat projection matrices</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each deficiency is a matrix that <em>rebuilds</em> the missing cone's signal from the two that remain — projecting 3-D colour onto the plane the dichromat can still separate. Protanopia has no L cone, deuteranopia no M, tritanopia no S. (Normal vision is the identity matrix, so it returns the pixel unchanged.)</p>
+        <div class="relative"><pre>const SIM = {
+  normal:       [[1,0,0], [0,1,0], [0,0,1]],
+  protanopia:   [[0, 1.05118294, -0.05116099], [0,1,0], [0,0,1]],
+  deuteranopia: [[1,0,0], [0.9513092, 0, 0.04866992], [0,0,1]],
+  tritanopia:   [[1,0,0], [0,1,0], [-0.86744736, 1.86727089, 0]],
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">LMS → back to linear RGB</h3></div>
+        <p class="text-sm text-slate-600 mb-3">To display the simulated colour we invert step 2: the inverse matrix takes the projected LMS back to linear RGB, which step 1's <code>linearToSrgb</code> then turns into a paintable 0–255 value.</p>
+        <div class="relative"><pre>const LMS_TO_RGB = [
+  [ 5.47221206, -4.64196010,  0.16963708],
+  [-1.12524190,  2.29317094, -0.16789520],
+  [ 0.02980165, -0.19318073,  1.16364789],
+];
+const dot = (row, x, y, z) =&gt; row[0]*x + row[1]*y + row[2]*z;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">One pixel, end to end</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Chain it together: linearise, project to LMS, apply the deficiency matrix, come back to RGB, re-gamma. Normal vision short-circuits to an exact copy so the "original" panel is bit-for-bit identical.</p>
+        <div class="relative"><pre>function simRGB(r, g, b, type){
+  if (type === "normal") return [r, g, b];                 // identity
+  const lr = S2L[r], lg = S2L[g], lb = S2L[b];             // 1. linear
+  const M = RGB_TO_LMS;
+  const L = dot(M[0], lr, lg, lb),
+        Q = dot(M[1], lr, lg, lb),
+        S = dot(M[2], lr, lg, lb);                          // 2. LMS
+  const P = SIM[type];
+  const L2 = dot(P[0], L, Q, S),
+        Q2 = dot(P[1], L, Q, S),
+        S2 = dot(P[2], L, Q, S);                            // 3. project
+  const N = LMS_TO_RGB;
+  return [                                                  // 4. + 5.
+    linearToSrgb(dot(N[0], L2, Q2, S2)),
+    linearToSrgb(dot(N[1], L2, Q2, S2)),
+    linearToSrgb(dot(N[2], L2, Q2, S2)),
+  ];
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Achromatopsia = luminance only</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Total colour blindness needs no cone matrix — there is no colour left, only brightness. Compute the Rec.709 <em>linear</em> luminance and paint it into all three channels. Weighting in linear light (not on the raw bytes) is what keeps the greys perceptually right.</p>
+        <div class="relative"><pre>function achromatopsia(r, g, b){
+  const y = 0.2126*S2L[r] + 0.7152*S2L[g] + 0.0722*S2L[b]; // luminance
+  const v = linearToSrgb(y);
+  return [v, v, v];                                         // grey
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Run it over a whole image</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Pull the pixels out of the canvas with <code>getImageData</code>, walk the flat <code>Uint8ClampedArray</code> four bytes at a time (R,G,B,A), simulate each pixel, and write into a fresh output buffer — alpha copied straight through. Then <code>putImageData</code> onto the target canvas.</p>
+        <div class="relative"><pre>function simulateInto(src, dst, type){
+  for (let i = 0; i &lt; src.length; i += 4){
+    const [r, g, b] = type === "achromatopsia"
+      ? achromatopsia(src[i], src[i+1], src[i+2])
+      : simRGB(src[i], src[i+1], src[i+2], type);
+    dst[i] = r; dst[i+1] = g; dst[i+2] = b;
+    dst[i+3] = src[i+3];                        // keep alpha
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Load an image — with no upload</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>FileReader.readAsDataURL</code> turns the dropped file into a <code>data:</code> URI entirely in the browser — nothing is sent to a server. Draw the decoded image onto the source canvas (scaled to a sane width) and re-run every simulation.</p>
+        <div class="relative"><pre>function loadFile(file){
+  const reader = new FileReader();             // local only, no network
+  reader.onload = () =&gt; {
+    const img = new Image();
+    img.onload = () =&gt; { drawToSource(img); renderAll(); };
+    img.src = reader.result;                    // the data: URI
+  };
+  reader.readAsDataURL(file);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Contrast collapse — do two colours survive?</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Simulate both colours under a deficiency, convert each to CIE-Lab, and take the CIE76 <span class="mono">ΔE</span> distance between them. A large ΔE means they stay distinct; a tiny ΔE means the deficiency has merged them. This is what turns "red/green is bad" into a number.</p>
+        <div class="relative"><pre>function collapse(rgbA, rgbB, type){
+  const a = type === "achromatopsia" ? achromatopsia(...rgbA) : simRGB(...rgbA, type);
+  const b = type === "achromatopsia" ? achromatopsia(...rgbB) : simRGB(...rgbB, type);
+  return deltaE(labOf(a), labOf(b));           // CIE76 distance
+}
+// ΔE &lt; 5 -&gt; collapses · 5..15 -&gt; risky · &gt; 15 -&gt; distinct</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Prove it: pure red, and the identity</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Two checks pin the math down. Normal vision must return the input untouched. And pure red, run through deuteranopia, must shift toward a dark yellow — because a green-blind eye rebuilds the missing M signal and red slides onto the yellow axis. If red still looks pure red, the matrices are wrong.</p>
+        <div class="relative"><pre>console.assert(
+  simRGB(200, 50, 90, "normal").join() === "200,50,90",
+  "normal vision is the identity");                              // ✓
+
+const red = simRGB(255, 0, 0, "deuteranopia");   // -&gt; ~[156,156,0]
+console.assert(red[1] &gt; 100 &amp;&amp; red[2] &lt; 40,
+  "pure red collapses toward yellow for a green-blind eye");     // ✓</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 55 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real colour-blindness simulator with <strong>no library</strong>. It rests on one pipeline repeated per pixel: <strong>undo the sRGB gamma</strong> into linear light, a <strong>3×3 matrix</strong> into the three <strong>LMS cone responses</strong>, a <strong>projection matrix</strong> that rebuilds the missing cone and collapses a dimension of colour, then the two conversions in reverse to a paintable pixel. Achromatopsia is the degenerate case — luminance only. And because a deficiency literally projects colour onto a plane, two very different colours can land on the same spot, which the CIE-Lab <span class="mono">ΔE</span> checker turns into a hard verdict: never carry meaning in hue alone.</p></div>
+  </div>
+</section>
+
+<script>
+// ============ COLOUR-BLINDNESS SIMULATOR (from scratch, no library) ============
+// Per pixel: sRGB -> linear (undo gamma) -> LMS cone responses (3x3 matrix)
+//   -> project onto the plane the missing cone can still separate (deficiency matrix)
+//   -> LMS -> linear RGB -> sRGB (re-gamma). Achromatopsia = luminance only.
+// Standard Vienot/Brettel LMS transform, matched RGB<->LMS pair. All on canvas ImageData.
+
+const el = id => document.getElementById(id);
+
+// ---------- gamma (sRGB <-> linear) ----------
+function srgbToLinear(c){
+  c /= 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+function linearToSrgb(c){
+  const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(v * 255)));
+}
+const S2L = new Float64Array(256);            // forward gamma lookup table
+for (let i = 0; i < 256; i++) S2L[i] = srgbToLinear(i);
+
+// ---------- matrices ----------
+const RGB_TO_LMS = [
+  [0.31399022, 0.63951294, 0.04649755],   // L (long / red)
+  [0.15537241, 0.75789446, 0.08670142],   // M (medium / green)
+  [0.01775239, 0.10944209, 0.87256922],   // S (short / blue)
+];
+const LMS_TO_RGB = [
+  [ 5.47221206, -4.64196010,  0.16963708],
+  [-1.12524190,  2.29317094, -0.16789520],
+  [ 0.02980165, -0.19318073,  1.16364789],
+];
+// dichromat projections (matched to the LMS pair above)
+const SIM = {
+  normal:       [[1,0,0], [0,1,0], [0,0,1]],
+  protanopia:   [[0, 1.05118294, -0.05116099], [0,1,0], [0,0,1]],
+  deuteranopia: [[1,0,0], [0.9513092, 0, 0.04866992], [0,0,1]],
+  tritanopia:   [[1,0,0], [0,1,0], [-0.86744736, 1.86727089, 0]],
+};
+const dot = (row, x, y, z) => row[0]*x + row[1]*y + row[2]*z;
+
+// ---------- per-pixel simulation ----------
+function simRGB(r, g, b, type){
+  if (type === "normal") return [r, g, b];                    // identity
+  const lr = S2L[r], lg = S2L[g], lb = S2L[b];                // linear
+  const M = RGB_TO_LMS;
+  const L = dot(M[0], lr, lg, lb),
+        Q = dot(M[1], lr, lg, lb),
+        S = dot(M[2], lr, lg, lb);                            // LMS
+  const P = SIM[type];
+  const L2 = dot(P[0], L, Q, S),
+        Q2 = dot(P[1], L, Q, S),
+        S2 = dot(P[2], L, Q, S);                              // project
+  const N = LMS_TO_RGB;
+  return [
+    linearToSrgb(dot(N[0], L2, Q2, S2)),
+    linearToSrgb(dot(N[1], L2, Q2, S2)),
+    linearToSrgb(dot(N[2], L2, Q2, S2)),
+  ];
+}
+function achromatopsia(r, g, b){
+  const y = 0.2126*S2L[r] + 0.7152*S2L[g] + 0.0722*S2L[b];    // Rec.709 luminance
+  const v = linearToSrgb(y);
+  return [v, v, v];
+}
+function simulateInto(src, dst, type){
+  for (let i = 0; i < src.length; i += 4){
+    const px = type === "achromatopsia"
+      ? achromatopsia(src[i], src[i+1], src[i+2])
+      : simRGB(src[i], src[i+1], src[i+2], type);
+    dst[i] = px[0]; dst[i+1] = px[1]; dst[i+2] = px[2];
+    dst[i+3] = src[i+3];                          // keep alpha
+  }
+}
+
+// ---------- CIE-Lab + CIE76 deltaE (for the contrast checker) ----------
+function labOf(rgb){
+  const R = srgbToLinear(rgb[0]), G = srgbToLinear(rgb[1]), B = srgbToLinear(rgb[2]);
+  const X = R*0.4124564 + G*0.3575761 + B*0.1804375;
+  const Y = R*0.2126729 + G*0.7151522 + B*0.0721750;
+  const Z = R*0.0193339 + G*0.1191920 + B*0.9503041;
+  const f = t => t > 0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  const fx = f(X / 0.95047), fy = f(Y / 1), fz = f(Z / 1.08883);
+  return [116*fy - 16, 500*(fx - fy), 200*(fy - fz)];
+}
+function deltaE(a, b){ return Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]); }
+
+// ---------- colour helpers ----------
+function hexToRgb(hex){
+  const h = hex.replace(/[^0-9a-f]/gi, "");
+  if (h.length !== 6) return null;
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbCss(rgb){ return "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")"; }
+
+// ================= scenes on the source canvas =================
+const SRC_W = 460, SRC_H = 300;
+const sourceCanvas = document.createElement("canvas");
+sourceCanvas.width = SRC_W; sourceCanvas.height = SRC_H;
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+function drawPalette(ctx){
+  ctx.fillStyle = "#0b1220"; ctx.fillRect(0, 0, SRC_W, SRC_H);
+  const cells = [
+    ["#e11d48","Red"],["#ea580c","Orange"],["#f59e0b","Amber"],["#eab308","Yellow"],
+    ["#84cc16","Lime"],["#16a34a","Green"],["#0d9488","Teal"],["#0284c7","Blue"],
+    ["#4f46e5","Indigo"],["#7c3aed","Violet"],["#db2777","Pink"],["#78350f","Brown"]
+  ];
+  const cols = 4, rows = 3, pad = 12;
+  const cw = (SRC_W - pad*(cols+1)) / cols, ch = (SRC_H - pad*(rows+1)) / rows;
+  cells.forEach((c, i) => {
+    const cx = pad + (i % cols) * (cw + pad);
+    const cy = pad + Math.floor(i / cols) * (ch + pad);
+    ctx.fillStyle = c[0]; roundRect(ctx, cx, cy, cw, ch, 9); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.font = "bold 12px sans-serif";
+    ctx.fillText(c[1], cx + 9, cy + ch - 11);
+  });
+}
+function drawSpectrum(ctx){
+  for (let x = 0; x < SRC_W; x++){
+    ctx.fillStyle = "hsl(" + (x / SRC_W * 360) + ",92%,50%)";  // full hue wheel
+    ctx.fillRect(x, 0, 1, SRC_H * 0.5);
+  }
+  for (let x = 0; x < SRC_W; x++){
+    ctx.fillStyle = "hsl(" + (x / SRC_W * 120) + ",85%,45%)";  // red -> green band
+    ctx.fillRect(x, SRC_H * 0.5, 1, SRC_H * 0.28);
+  }
+  for (let x = 0; x < SRC_W; x++){
+    const v = Math.round(x / SRC_W * 255);
+    ctx.fillStyle = "rgb(" + v + "," + v + "," + v + ")";      // grey ramp
+    ctx.fillRect(x, SRC_H * 0.78, 1, SRC_H * 0.22);
+  }
+  ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.font = "bold 11px sans-serif";
+  ctx.fillText("full hue", 8, 20);
+  ctx.fillText("red -> green (the collapse zone)", 8, SRC_H*0.5 + 18);
+  ctx.fillText("grey ramp", 8, SRC_H*0.78 + 17);
+}
+function drawUI(ctx){
+  ctx.fillStyle = "#f1f5f9"; ctx.fillRect(0, 0, SRC_W, SRC_H);
+  // success / error buttons
+  ctx.fillStyle = "#16a34a"; roundRect(ctx, 20, 20, 190, 46, 9); ctx.fill();
+  ctx.fillStyle = "#dc2626"; roundRect(ctx, 250, 20, 190, 46, 9); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "bold 16px sans-serif";
+  ctx.fillText("✓ Success", 46, 49);
+  ctx.fillText("✕ Error", 292, 49);
+  // traffic light
+  ctx.fillStyle = "#1e293b"; roundRect(ctx, 20, 92, 60, 150, 12); ctx.fill();
+  const lights = ["#ef4444", "#f59e0b", "#22c55e"];
+  lights.forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(50, 120 + i*50, 20, 0, Math.PI*2); ctx.fill(); });
+  // two-series line chart (red vs green): the classic accessibility fail
+  const gx = 110, gy = 92, gw = 330, gh = 150;
+  ctx.fillStyle = "#fff"; roundRect(ctx, gx, gy, gw, gh, 10); ctx.fill();
+  const redPts   = [0.8, 0.55, 0.62, 0.35, 0.42, 0.2, 0.28];
+  const greenPts = [0.7, 0.72, 0.45, 0.5,  0.3,  0.36, 0.15];
+  function line(pts, col){
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = gx + 18 + i * ((gw - 36) / (pts.length - 1));
+      const y = gy + 16 + (1 - p) * (gh - 32);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  }
+  line(redPts, "#dc2626");
+  line(greenPts, "#16a34a");
+  ctx.fillStyle = "#dc2626"; ctx.font = "bold 12px sans-serif"; ctx.fillText("Revenue", gx + 14, gy + gh - 12);
+  ctx.fillStyle = "#16a34a"; ctx.fillText("Cost", gx + 90, gy + gh - 12);
+  // colour-coded status dots
+  ctx.fillStyle = "#334155"; ctx.font = "bold 12px sans-serif";
+  ctx.fillText("Status:", 20, 268);
+  ["#22c55e", "#ef4444", "#f59e0b"].forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(88 + i*34, 264, 9, 0, Math.PI*2); ctx.fill(); });
+}
+const SCENES = { palette: drawPalette, spectrum: drawSpectrum, ui: drawUI };
+
+function drawScene(name){
+  const ctx = sourceCanvas.getContext("2d");
+  sourceCanvas.width = SRC_W; sourceCanvas.height = SRC_H;
+  (SCENES[name] || drawPalette)(ctx);
+  renderAll();
+}
+function drawToSource(img){
+  const scale = Math.min(SRC_W / img.width, 1);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  sourceCanvas.width = w; sourceCanvas.height = h;
+  sourceCanvas.getContext("2d").drawImage(img, 0, 0, w, h);
+}
+
+// ================= render the 5 panels =================
+const CVD = [
+  { key:"normal",        name:"Original",       sub:"typical trichromat",        tag:"" },
+  { key:"protanopia",    name:"Protanopia",     sub:"no L-cone · red-blind",     tag:"~1% of men" },
+  { key:"deuteranopia",  name:"Deuteranopia",   sub:"no M-cone · green-blind",   tag:"~1% men · anomaly ~6%" },
+  { key:"tritanopia",    name:"Tritanopia",     sub:"no S-cone · blue-blind",    tag:"~0.01% · both sexes" },
+  { key:"achromatopsia", name:"Achromatopsia",  sub:"no colour · luminance only",tag:"~1 in 33,000" },
+];
+const panelCanvas = {};
+function buildGrid(){
+  const grid = el("cvdGrid");
+  grid.innerHTML = "";
+  CVD.forEach(c => {
+    const cell = document.createElement("div");
+    cell.className = "cvd-panel" + (c.key === "normal" ? " orig" : "");
+    const cv = document.createElement("canvas");
+    panelCanvas[c.key] = cv;
+    cell.appendChild(cv);
+    const cap = document.createElement("div");
+    cap.className = "cvd-cap";
+    cap.innerHTML = '<div class="nm">' + c.name + '</div><div class="sb">' + c.sub + '</div>' +
+                    (c.tag ? '<span class="tg">' + c.tag + '</span>' : '');
+    cell.appendChild(cap);
+    grid.appendChild(cell);
+  });
+}
+function renderAll(){
+  const w = sourceCanvas.width, h = sourceCanvas.height;
+  const base = sourceCanvas.getContext("2d").getImageData(0, 0, w, h);
+  CVD.forEach(c => {
+    const cv = panelCanvas[c.key];
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d");
+    if (c.key === "normal"){ ctx.putImageData(base, 0, 0); return; }
+    const out = ctx.createImageData(w, h);
+    simulateInto(base.data, out.data, c.key);
+    ctx.putImageData(out, 0, 0);
+  });
+}
+
+// ================= contrast-collapse checker =================
+const CC_MODES = [
+  ["normal","Normal vision"], ["protanopia","Protanopia"], ["deuteranopia","Deuteranopia"],
+  ["tritanopia","Tritanopia"], ["achromatopsia","Achromatopsia"]
+];
+function simOne(rgb, type){
+  return type === "achromatopsia" ? achromatopsia(rgb[0], rgb[1], rgb[2]) : simRGB(rgb[0], rgb[1], rgb[2], type);
+}
+function renderContrast(){
+  const a = hexToRgb(el("ccAhex").value), b = hexToRgb(el("ccBhex").value);
+  const out = el("ccOut");
+  if (!a || !b){ out.innerHTML = '<div class="text-sm text-red-600 mono">enter two valid #RRGGBB colours</div>'; return; }
+  let html = "";
+  for (const [key, name] of CC_MODES){
+    const sa = simOne(a, key), sb = simOne(b, key);
+    const de = deltaE(labOf(sa), labOf(sb));
+    let cls = "must", verdict = "distinct";
+    if (de < 5){ cls = "no"; verdict = "collapses"; }
+    else if (de < 15){ cls = "warn"; verdict = "risky"; }
+    html += '<div class="cc-row">' +
+      '<div class="cc-name">' + name + '</div>' +
+      '<div class="cc-pair"><div class="cc-sw" style="background:' + rgbCss(sa) + '"></div>' +
+      '<div class="cc-sw" style="background:' + rgbCss(sb) + '"></div></div>' +
+      '<div class="cc-de">ΔE ' + de.toFixed(1) + '</div>' +
+      '<div class="cc-verdict ' + cls + '">' + verdict + '</div></div>';
+  }
+  out.innerHTML = html;
+}
+
+// ================= wire the LOOK controls =================
+document.querySelectorAll("[data-scene]").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("[data-scene]").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    drawScene(btn.dataset.scene);
+  };
+});
+
+const drop = el("drop"), fileInput = el("file");
+drop.onclick = () => fileInput.click();
+fileInput.onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); };
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+function loadFile(file){
+  if (!file.type.startsWith("image/")) return;
+  const reader = new FileReader();               // read locally, never uploaded
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => { drawToSource(img); renderAll(); document.querySelectorAll("[data-scene]").forEach(b => b.classList.remove("on")); };
+    img.src = reader.result;                       // the data: URI
+  };
+  reader.readAsDataURL(file);
+}
+
+// contrast checker inputs (colour <-> hex kept in sync)
+function syncFromColor(colorEl, hexEl){ hexEl.value = colorEl.value.toUpperCase(); renderContrast(); }
+function syncFromHex(hexEl, colorEl){
+  const rgb = hexToRgb(hexEl.value);
+  if (rgb) colorEl.value = "#" + rgb.map(v => v.toString(16).padStart(2, "0")).join("");
+  renderContrast();
+}
+el("ccAcol").oninput = () => syncFromColor(el("ccAcol"), el("ccAhex"));
+el("ccBcol").oninput = () => syncFromColor(el("ccBcol"), el("ccBhex"));
+el("ccAhex").oninput = () => syncFromHex(el("ccAhex"), el("ccAcol"));
+el("ccBhex").oninput = () => syncFromHex(el("ccBhex"), el("ccBcol"));
+document.querySelectorAll("[data-cc]").forEach(btn => {
+  btn.onclick = () => {
+    const [a, b] = btn.dataset.cc.split(",");
+    el("ccAhex").value = "#" + a.toUpperCase(); el("ccAcol").value = "#" + a;
+    el("ccBhex").value = "#" + b.toUpperCase(); el("ccBcol").value = "#" + b;
+    renderContrast();
+  };
+});
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  el(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Vision runs on three cones",
+   why:"Human colour vision is trichromatic: three cone types, L (long / reddish), M (medium / greenish) and S (short / bluish), each responding to a band of wavelengths. Any colour you perceive is just the triple of how hard those three cones fire. That is the whole reason a screen can fake every colour with only red, green and blue primaries.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill r">L · long · red</span> <span class="pill g">M · medium · green</span> <span class="pill b">S · short · blue</span></div><div class="text-xs text-slate-400">every colour = how hard each cone fires = 3 numbers</div></div>`,
+   code:`// colour vision = 3 cone responses
+//   L  long   ~ reddish
+//   M  medium ~ greenish
+//   S  short  ~ bluish
+// a "colour" is really just [L, M, S]` },
+ { title:"2. A missing cone collapses a dimension",
+   why:"In a dichromacy one cone type is absent, so colour drops from three independent numbers to two. Whole families of colours that differed only along the missing axis now map to the same perception. For the common red-green types (missing L or M), that lost axis is roughly the red-to-green direction, which is why reds and greens fold together.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">3-D colour</span> &rarr; remove a cone &rarr; <span class="pill r">2-D colour</span></div><div><span class="pill r">red</span> and <span class="pill g">green</span> land on the <span class="pill a">same yellow</span></div></div>`,
+   code:`// dichromacy: one cone missing -> 2 numbers, not 3
+// colours that differed ONLY on the lost axis
+// become indistinguishable` },
+ { title:"3. Undo the sRGB gamma first",
+   why:"Image bytes are gamma-encoded sRGB, spaced for human perception rather than proportional to physical light. Cone responses are linear in light, so every colour must be converted to linear RGB before any matrix touches it — and converted back afterwards. Skip this and the simulated colours come out visibly wrong.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">sRGB byte 0..255</span> &rarr; <span class="pill b">linear light 0..1</span></div><div class="text-xs text-slate-400">c &le; .04045 ? c/12.92 : ((c+.055)/1.055)^2.4</div></div>`,
+   code:`function srgbToLinear(c){
+  c /= 255;
+  return c <= 0.04045 ? c/12.92
+                      : Math.pow((c+0.055)/1.055, 2.4);
+}` },
+ { title:"4. Linear RGB → LMS cone responses",
+   why:"A fixed 3×3 matrix converts linear red, green, blue into the three cone excitations L, M, S. This is the change of basis into the space vision actually uses — and the only space where 'the L cone is missing' is a clean, removable coordinate rather than a tangled mix of channels.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>[<span class="pill r">L</span> <span class="pill g">M</span> <span class="pill b">S</span>] = <span class="pill s">RGB_TO_LMS</span> · [R G B]</div><div class="text-xs text-slate-400">3×3 matrix into cone space</div></div>`,
+   code:`const RGB_TO_LMS = [
+  [0.31399022, 0.63951294, 0.04649755], // L
+  [0.15537241, 0.75789446, 0.08670142], // M
+  [0.01775239, 0.10944209, 0.87256922], // S
+];` },
+ { title:"5. Project onto the dichromat plane",
+   why:"Simulating a missing cone means rebuilding its signal from the other two, which mathematically projects the colour onto the 2-D plane a dichromat can still separate. Each deficiency is one small matrix: protanopia rewrites L from M and S, deuteranopia rewrites M, tritanopia rewrites S. Normal vision is the identity.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">protan</span> rebuilds L · <span class="pill g">deutan</span> rebuilds M · <span class="pill b">tritan</span> rebuilds S</div><div class="text-xs text-slate-400">3-D LMS projected onto a 2-D plane</div></div>`,
+   code:`const SIM = {
+  protanopia:   [[0, 1.05118294, -0.05116099],[0,1,0],[0,0,1]],
+  deuteranopia: [[1,0,0],[0.9513092, 0, 0.04866992],[0,0,1]],
+  tritanopia:   [[1,0,0],[0,1,0],[-0.86744736, 1.86727089, 0]],
+};` },
+ { title:"6. Red-green vs blue-yellow",
+   why:"Protanopia and deuteranopia both kill the red-green axis, so they look similar — the difference is mostly brightness, since the L cone also carries a lot of luminance (protanopes see reds as darker). Tritanopia instead loses the blue-yellow axis; it is far rarer and affects men and women equally, because the S-cone gene is not on the X chromosome.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">protan</span> + <span class="pill g">deutan</span> = lose <span class="pill a">red-green</span> <span class="text-xs text-slate-400">(~8% of men)</span></div><div><span class="pill b">tritan</span> = lose <span class="pill q">blue-yellow</span> <span class="text-xs text-slate-400">(rare, both sexes)</span></div></div>`,
+   code:`// L/M genes live on the X chromosome -> red-green
+//   deficiency is common and mostly in men
+// S-cone gene is autosomal -> tritan is rare,
+//   equal across sexes` },
+ { title:"7. Back to RGB to display it",
+   why:"The projected LMS is still in cone space; to paint it we invert step 4 with the LMS→RGB matrix to get linear RGB, then re-apply the sRGB gamma to land back on 0–255 bytes. The whole round trip — gamma out, two matrices, gamma in — is what one pixel of the simulation costs.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">LMS'</span> &rarr; <span class="pill b">linear RGB</span> &rarr; <span class="pill s">sRGB byte</span></div><div class="text-xs text-slate-400">inverse matrix, then re-apply gamma</div></div>`,
+   code:`const LMS_TO_RGB = [
+  [ 5.47221206, -4.64196010,  0.16963708],
+  [-1.12524190,  2.29317094, -0.16789520],
+  [ 0.02980165, -0.19318073,  1.16364789],
+];
+// then linearToSrgb() each channel -> 0..255` },
+ { title:"8. Achromatopsia = luminance only",
+   why:"Total colour blindness is the degenerate case: no cone matrix, because there is no colour left — only brightness. Take the Rec.709 luminance in linear light (0.2126 R + 0.7152 G + 0.0722 B) and write it into all three channels. Doing the weighting in linear light, not on the raw bytes, keeps the greys perceptually correct.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>Y = <span class="pill r">.2126R</span> + <span class="pill g">.7152G</span> + <span class="pill b">.0722B</span></div><div>[R G B] &rarr; <span class="pill s">[Y Y Y]</span></div></div>`,
+   code:`const y = 0.2126*S2L[r] + 0.7152*S2L[g] + 0.0722*S2L[b];
+const v = linearToSrgb(y);
+return [v, v, v]; // grey, brightness only` },
+ { title:"9. Contrast collapse as a number",
+   why:"To judge whether a colour pair survives a deficiency, simulate both colours, convert each to CIE-Lab, and measure the CIE76 ΔE distance between them. A big ΔE means they stay distinct; a tiny ΔE means the deficiency merged them. This is what turns 'red/green is bad' into an objective, per-deficiency verdict.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">red</span> vs <span class="pill g">green</span>: normal &Delta;E &asymp; <span class="pill g">90</span></div><div>under <span class="pill a">deuteranopia</span>: &Delta;E &asymp; <span class="pill r">7</span> &rarr; merges</div></div>`,
+   code:`const sa = simOne(colourA, "deuteranopia");
+const sb = simOne(colourB, "deuteranopia");
+deltaE(labOf(sa), labOf(sb)); // small -> indistinguishable` },
+ { title:"10. The full pipeline + a self-test",
+   why:"Every pixel is the same chain: linearise, RGB→LMS, apply the deficiency matrix, LMS→RGB, re-gamma (achromatopsia short-circuits to luminance). Two checks keep it honest: normal vision must be the identity, and pure red under deuteranopia must slide toward a dark yellow — the signature of a green-blind eye.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">sRGB</span>&rarr;<span class="pill b">linear</span>&rarr;<span class="pill r">LMS</span>&rarr;<span class="pill a">project</span>&rarr;<span class="pill b">linear</span>&rarr;<span class="pill s">sRGB</span></div><div><span class="pill g">simRGB(255,0,0,"deuteranopia") &asymp; [156,156,0]</span></div></div>`,
+   code:`simRGB(200,50,90,"normal");      // [200,50,90] identity
+simRGB(255,0,0,"deuteranopia");  // ~[156,156,0] -> yellow
+// red/green collapse is the whole point` },
+];
+const stepsEl = el("steps");
+const prevB = el("prev"), nextB = el("next-btn"), autoB = el("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + '</div>'; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  el("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + '</div>';
+  el("why").innerHTML = '<span class="fade-in inline-block">' + s.why + '</span>';
+  el("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= boot =================
+(function boot(){
+  buildGrid();
+  drawScene("palette");     // default scene + all 5 panels
+  renderContrast();         // red vs green by default
+})();
+</script>
+</body>
+</html>

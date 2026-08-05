@@ -56,6 +56,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 52 — JSON Schema Validator (from scratch)](https://dev48v.infy.uk/solve/day52-json-schema-validator.html) — `day52-json-schema-validator.html`
 - [SolveFromZero · Day 53 — HTML Entity Encoder/Decoder](https://dev48v.infy.uk/solve/day53-html-entity-encoder.html) — `day53-html-entity-encoder.html`
 - [SolveFromZero · Day 54 — ULID Generator (from scratch)](https://dev48v.infy.uk/solve/day54-ulid-generator.html) — `day54-ulid-generator.html`
+- [SolveFromZero · Day 55 — Colour-Blindness Simulator (from scratch)](https://dev48v.infy.uk/solve/day55-color-blindness-simulator.html) — `day55-color-blindness-simulator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
