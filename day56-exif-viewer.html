@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 56 — EXIF Viewer (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- segmented controls ---- */
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 13px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* ---- drop zone ---- */
+  .dropzone { border:2px dashed #cbd5e1; border-radius:12px; padding:22px 14px; text-align:center; color:#64748b; font:700 13px ui-monospace,Menlo,monospace; cursor:pointer; transition:.15s; }
+  .dropzone:hover, .dropzone.drag { border-color:#f59e0b; background:#fffbeb; color:#b45309; }
+
+  /* ---- thumbnail ---- */
+  .thumbwrap { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:12px; text-align:center; }
+  .thumbwrap img { max-width:100%; max-height:340px; border-radius:9px; display:inline-block; }
+  .thumbwrap .empty { color:#64748b; font:700 12px ui-monospace,Menlo,monospace; padding:40px 10px; }
+
+  /* ---- decoded rows ---- */
+  .kv { display:flex; gap:11px; align-items:baseline; padding:9px 12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:11px; margin-bottom:7px; }
+  .kv .lab { flex:none; min-width:148px; font:800 11px ui-monospace,Menlo,monospace; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+  .kv .val { font:800 13px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-word; }
+
+  /* ---- GPS block ---- */
+  .gps { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:14px 16px; color:#e2e8f0; }
+  .gps .co { font:900 22px ui-monospace,Menlo,monospace; color:#fbbf24; letter-spacing:.03em; word-break:break-all; }
+  .gps a { color:#38bdf8; font:800 12px ui-monospace,Menlo,monospace; }
+
+  /* ---- notice box ---- */
+  .notice { border-radius:12px; padding:14px 16px; font:700 13px ui-monospace,Menlo,monospace; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 20px/1.15 ui-monospace,Menlo,monospace; color:#0f172a; margin-top:4px; word-break:break-all; }
+  .stat .v small { font-size:11px; color:#94a3b8; font-weight:700; }
+
+  /* reference / raw table */
+  .fits { width:100%; border-collapse:collapse; font-size:12px; }
+  .fits th, .fits td { border:1px solid #e2e8f0; padding:6px 9px; text-align:left; vertical-align:top; }
+  .fits th { background:#f8fafc; font-weight:800; color:#0f172a; }
+  .fits td.mono { font-family:ui-monospace,Menlo,monospace; word-break:break-all; }
+  .must { color:#166534; font-weight:800; }
+  .no   { color:#b91c1c; font-weight:800; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 56</div>
+      <h1 class="text-xl font-bold">📷 <code class="mono">EXIF</code> Viewer — a real, from-scratch image-metadata reader: drop or pick a JPEG (real <code class="mono">FileReader.readAsArrayBuffer</code>, <strong>never uploaded</strong>) and a hand-written parser walks the file byte by byte — find the <strong>APP1 marker</strong> (<code class="mono">0xFFE1</code>), the <code class="mono">"Exif\0\0"</code> header, the <strong>TIFF header</strong> (byte order <code class="mono">II</code>/<code class="mono">MM</code> + <code class="mono">0x002A</code> + IFD offset), then walks <strong>IFD0</strong>, the <strong>EXIF sub-IFD</strong> and the <strong>GPS IFD</strong>, decoding each 12-byte entry with correct type handling (<code class="mono">BYTE / ASCII / SHORT / LONG / RATIONAL</code>) and endianness · reads <strong>Make, Model, Lens, DateTimeOriginal, ExposureTime, FNumber, ISO, FocalLength, Orientation</strong> and dimensions, converts <strong>GPS rationals</strong> (deg/min/sec) to decimal latitude &amp; longitude, shows a live thumbnail, and has a graceful <strong>"no EXIF found"</strong> path (PNGs and screenshots usually carry none) · everything client-side, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Every photo carries a hidden diary. Here is how to read it.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">When your camera or phone saves a JPEG it staples on a block of <strong>EXIF</strong> metadata: the camera make and model, the lens, the exact moment the shutter fired, the aperture, shutter speed, ISO, focal length, orientation — and, if location was on, the <strong>GPS coordinates</strong>. That block is not magic; it is a tiny, self-describing <strong>TIFF</strong> structure tucked inside the JPEG's <code class="mono">APP1</code> segment. This tool parses it <strong>from scratch</strong>: it reads the raw bytes with <code class="mono">FileReader.readAsArrayBuffer</code> (nothing ever leaves your browser), finds the <code class="mono">0xFFE1</code> marker and the <code class="mono">"Exif\0\0"</code> header, reads the TIFF byte-order flag (<code class="mono">II</code> little-endian or <code class="mono">MM</code> big-endian), then walks each <strong>Image File Directory</strong> — a list of 12-byte entries — decoding every value by its type and endianness. No <code class="mono">exif-js</code>, no dependency. Drop one of your own photos, or load the built-in synthetic sample.</p>
+      </div>
+
+      <!-- stat strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="stat"><div class="k">Format</div><div class="v" id="stFormat">—</div></div>
+        <div class="stat"><div class="k">File size</div><div class="v" id="stSize">—</div></div>
+        <div class="stat"><div class="k">EXIF present</div><div class="v" id="stExif">—</div></div>
+        <div class="stat"><div class="k">Tags decoded</div><div class="v" id="stTags">—</div></div>
+      </div>
+
+      <!-- source controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <div class="fieldlabel">Load a photo <span class="text-slate-400 normal-case">— read locally, nothing is uploaded</span></div>
+            <div id="drop" class="dropzone">⬆ drop a JPEG here, or click to choose a file<input id="file" type="file" accept="image/*" hidden></div>
+            <div class="text-xs text-slate-400 mt-2 mono">Tip: screenshots, chat-app downloads and most PNGs have their EXIF stripped — try a photo straight off a camera or phone.</div>
+          </div>
+          <div>
+            <div class="fieldlabel">No photo handy? <span class="text-slate-400 normal-case">— build a synthetic JPEG + EXIF in memory and parse it</span></div>
+            <button id="sampleBtn" class="seg" style="border-color:#f59e0b;color:#b45309">📷 load a sample image with EXIF</button>
+            <div class="text-xs text-slate-400 mt-2 mono">The sample is assembled byte-by-byte in JS (Canon EOS R6, 50mm f/2.8, ISO 400, London GPS) then run through the exact same parser.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- preview + summary -->
+      <div class="grid md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="fieldlabel">Preview <span class="text-slate-400 normal-case">— decoded locally in the browser</span></div>
+          <div class="thumbwrap" id="thumbWrap"><div class="empty" id="thumbEmpty">no image loaded yet</div><img id="thumb" style="display:none" alt="preview"></div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="fieldlabel">Camera &amp; shot <span class="text-slate-400 normal-case">— the tags people actually care about</span></div>
+          <div id="summary"><div class="text-slate-400 text-sm py-3 mono">Load an image to read its metadata.</div></div>
+        </div>
+      </div>
+
+      <!-- GPS -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6" id="gpsCard" style="display:none">
+        <div class="fieldlabel">Location <span class="text-slate-400 normal-case">— GPS IFD, degrees/minutes/seconds rationals converted to decimal</span></div>
+        <div class="gps" id="gpsBox"></div>
+      </div>
+
+      <!-- raw dump -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6" id="rawCard" style="display:none">
+        <div class="flex items-center justify-between mb-2">
+          <div class="fieldlabel mb-0">Every tag the parser found <span class="text-slate-400 normal-case">— raw IFD entries by hex tag, type and value</span></div>
+        </div>
+        <div style="overflow-x:auto"><table class="fits" id="rawTable"></table></div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about EXIF</div>
+        <p class="text-sm text-amber-800"><strong>1. GPS in a photo is a real privacy leak.</strong> A JPEG straight off a phone can pin the exact spot it was taken to within a few metres. That is why sharing platforms usually strip EXIF on upload — and why this tool never sends your file anywhere. <strong>2. PNGs (almost) never carry EXIF.</strong> The classic EXIF block lives in a JPEG/TIFF <code class="mono">APP1</code> segment; PNG has its own text chunks and rarely stores camera data, so a "no EXIF found" result on a PNG is normal, not a bug. <strong>3. Endianness is not optional.</strong> The TIFF header's first two bytes — <code class="mono">II</code> or <code class="mono">MM</code> — decide whether every multi-byte number in the block is little- or big-endian. Read one integer with the wrong order and every offset points into garbage. <strong>4. The value field is only four bytes.</strong> Each entry has a 4-byte slot; if the value fits (a SHORT, one LONG) it sits inline, otherwise those four bytes are an <em>offset</em> to where the real data lives — the single trickiest rule in the format. <strong>5. Rationals, not floats.</strong> EXIF stores exposure, aperture and GPS as pairs of integers (numerator / denominator). ExposureTime is literally <code class="mono">1/250</code>; a GPS coordinate is three rationals — degrees, minutes, seconds — which you fold into a single decimal.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How EXIF is laid out</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">An EXIF reader is a small, exact byte-walk over two nested formats: a <strong>JPEG</strong> is a chain of markers, and hidden inside one of them (<code>APP1</code>) is a whole <strong>TIFF</strong> file of metadata. The only tools you need are a <code>DataView</code> over the file's <code>ArrayBuffer</code> and a firm grip on two rules — <strong>endianness</strong> (read every number in the byte order the header declares) and the <strong>inline-vs-offset</strong> value field. Get those right and the rest is a loop over 12-byte entries. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Read the file as raw bytes — no upload</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>FileReader.readAsArrayBuffer</code> hands you the file's exact bytes in memory, entirely in the browser. Wrap them in a <code>DataView</code>, which lets you read integers of any width at any offset and — crucially — pick the byte order per read.</p>
+        <div class="relative"><pre>function readFile(file){
+  const reader = new FileReader();               // local only, never uploaded
+  reader.onload = () =&gt; {
+    const view = new DataView(reader.result);    // reader.result is an ArrayBuffer
+    const exif = parseExif(view);                // walk the bytes
+    render(exif);
+  };
+  reader.readAsArrayBuffer(file);                // give me the raw bytes
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">A JPEG is a chain of markers</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every JPEG starts with <code>0xFFD8</code> (Start Of Image). After it come segments, each introduced by <code>0xFF</code> + a marker byte, then a 2-byte big-endian length. Walk them until you hit <code>APP1</code> (<code>0xFFE1</code>) or the start of scan (<code>0xFFDA</code>), skipping each segment by its length. Marker lengths are <em>always</em> big-endian, regardless of the EXIF byte order inside.</p>
+        <div class="relative"><pre>if (view.getUint16(0) !== 0xFFD8) return null;   // not a JPEG
+let off = 2;
+while (off + 4 &lt;= view.byteLength){
+  const marker = view.getUint16(off);            // e.g. 0xFFE1
+  if ((marker &amp; 0xFF00) !== 0xFF00) break;        // lost sync
+  if (marker === 0xFFDA) break;                   // start of scan, no more metadata
+  const size = view.getUint16(off + 2);           // segment length (big-endian)
+  if (marker === 0xFFE1) { /* APP1 — check for Exif */ }
+  off += 2 + size;                                // jump to next marker
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Confirm "Exif\0\0", then find the TIFF header</h3></div>
+        <p class="text-sm text-slate-600 mb-3">An <code>APP1</code> segment can hold other things (XMP), so verify the six identifier bytes <code>45 78 69 66 00 00</code> = <code>"Exif\0\0"</code>. Right after them the TIFF block begins — and everything from here is measured as an offset <em>relative to the start of that TIFF header</em>, not the file.</p>
+        <div class="relative"><pre>// at the APP1 marker `off`: [FF E1][len][ "Exif\0\0" ][ TIFF ... ]
+if (view.getUint32(off + 4) === 0x45786966 &amp;&amp;    // "Exif"
+    view.getUint16(off + 8) === 0x0000){          // \0\0
+  const tiff = off + 10;                          // TIFF header starts here
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The TIFF header sets the byte order</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Two bytes decide everything: <code>0x4949</code> = <code>"II"</code> (Intel, little-endian) or <code>0x4D4D</code> = <code>"MM"</code> (Motorola, big-endian). A sanity check follows — the number <code>42</code> (<code>0x002A</code>) read in that order — then a 4-byte offset to the first directory, IFD0.</p>
+        <div class="relative"><pre>const bo = view.getUint16(tiff);
+const little = bo === 0x4949 ? true              // "II" little-endian
+             : bo === 0x4D4D ? false             // "MM" big-endian
+             : null;
+if (little === null) throw new Error("bad TIFF byte order");
+if (view.getUint16(tiff + 2, little) !== 0x002A) throw new Error("bad magic 42");
+const ifd0 = view.getUint32(tiff + 4, little);   // offset to IFD0, from `tiff`</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">An IFD is a list of 12-byte entries</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A directory starts with a 2-byte count, then that many 12-byte entries, then a 4-byte pointer to the next IFD. Each entry is: 2-byte <strong>tag</strong>, 2-byte <strong>type</strong>, 4-byte <strong>count</strong>, and a 4-byte <strong>value-or-offset</strong>. Every one of those numbers respects the <code>II</code>/<code>MM</code> order.</p>
+        <div class="relative"><pre>function readIFD(view, little, tiff, ifdOff){
+  const out = {};
+  const n = view.getUint16(ifdOff, little);       // entry count
+  for (let i = 0; i &lt; n; i++){
+    const e = ifdOff + 2 + i * 12;                // this entry
+    const tag   = view.getUint16(e, little);
+    const type  = view.getUint16(e + 2, little);
+    const count = view.getUint32(e + 4, little);
+    out[tag] = { type, count, value: readValue(view, little, tiff, e) };
+  }
+  return out;                                     // next-IFD ptr is at ifdOff+2+n*12
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Types, sizes, and inline-vs-offset</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Each type has a byte width: BYTE/ASCII/UNDEFINED = 1, SHORT = 2, LONG = 4, RATIONAL = 8. Multiply by the count. If the total fits in <strong>four bytes or fewer</strong>, the value lives right there in the entry's value field; otherwise those four bytes are an <em>offset</em> (from the TIFF start) to where the data actually is.</p>
+        <div class="relative"><pre>const SIZE = { 1:1, 2:1, 3:2, 4:4, 5:8, 7:1, 9:4, 10:8 };  // bytes per element
+function dataOffset(view, little, tiff, e, type, count){
+  const bytes = (SIZE[type] || 1) * count;
+  return bytes &lt;= 4
+    ? e + 8                                        // fits inline in the value field
+    : tiff + view.getUint32(e + 8, little);        // else it's an offset from `tiff`
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Decode a value by its type</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Now read <code>count</code> elements at that offset, each in the declared byte order. ASCII becomes a NUL-terminated string; SHORT/LONG become numbers; a RATIONAL is two LONGs — numerator then denominator — which we keep as a pair so we can show <code>1/250</code> and also divide it out.</p>
+        <div class="relative"><pre>function readValue(view, little, tiff, e){
+  const type = view.getUint16(e + 2, little), count = view.getUint32(e + 4, little);
+  let p = dataOffset(view, little, tiff, e, type, count);
+  if (type === 2){                                 // ASCII
+    let s = "";
+    for (let i = 0; i &lt; count; i++){ const c = view.getUint8(p + i); if (!c) break; s += String.fromCharCode(c); }
+    return s.trim();
+  }
+  const out = [];
+  for (let i = 0; i &lt; count; i++){
+    if (type === 3){ out.push(view.getUint16(p, little)); p += 2; }        // SHORT
+    else if (type === 4){ out.push(view.getUint32(p, little)); p += 4; }   // LONG
+    else if (type === 5){ out.push([view.getUint32(p, little), view.getUint32(p + 4, little)]); p += 8; } // RATIONAL
+    else if (type === 10){ out.push([view.getInt32(p, little), view.getInt32(p + 4, little)]); p += 8; }  // SRATIONAL
+    else { out.push(view.getUint8(p)); p += 1; }                           // BYTE / UNDEFINED
+  }
+  return out.length === 1 ? out[0] : out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Follow the sub-IFD pointers</h3></div>
+        <p class="text-sm text-slate-600 mb-3">IFD0 holds the basics (Make, Model, Orientation, DateTime), but the juicy camera settings live in a separate <strong>EXIF sub-IFD</strong> pointed to by tag <code>0x8769</code>, and location lives in the <strong>GPS IFD</strong> at tag <code>0x8825</code>. Both are just offsets — read them with the very same <code>readIFD</code>.</p>
+        <div class="relative"><pre>const ifd0 = readIFD(view, little, tiff, tiff + ifd0Off);
+const exif = ifd0[0x8769] ? readIFD(view, little, tiff, tiff + ifd0[0x8769].value) : {};
+const gps  = ifd0[0x8825] ? readIFD(view, little, tiff, tiff + ifd0[0x8825].value) : {};
+//  0x010F Make · 0x0110 Model · 0x0112 Orientation   (IFD0)
+//  0x829A ExposureTime · 0x829D FNumber · 0x8827 ISO · 0x920A FocalLength · 0xA434 LensModel (EXIF)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Make rationals human, GPS decimal</h3></div>
+        <p class="text-sm text-slate-600 mb-3">ExposureTime <code>[1,250]</code> reads best as <code>1/250 s</code>; FNumber <code>[28,10]</code> is <code>f/2.8</code>. GPS is three rationals — degrees, minutes, seconds — folded into one decimal, then negated for the S/W hemispheres so a single number drops onto a map.</p>
+        <div class="relative"><pre>const rat = r =&gt; r[1] ? r[0] / r[1] : 0;           // [num,den] -&gt; number
+function exposure(r){ const v = rat(r); return v &lt; 1 ? "1/" + Math.round(1 / v) + " s" : v + " s"; }
+function gpsDecimal(dms, ref){                     // [[d,d'],[m,m'],[s,s']] + "N/S/E/W"
+  let deg = rat(dms[0]) + rat(dms[1]) / 60 + rat(dms[2]) / 3600;
+  if (ref === "S" || ref === "W") deg = -deg;      // southern / western hemisphere
+  return deg;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">The "no EXIF" path — and a self-test</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Plenty of files have no EXIF: PNGs, screenshots, anything a chat app re-encoded. Every stage returns cleanly so the UI can say "no EXIF found" instead of throwing. To prove the walker itself, assemble a tiny TIFF in <em>both</em> byte orders and confirm the same rational round-trips.</p>
+        <div class="relative"><pre>if (view.getUint16(0) !== 0xFFD8) return { ok:false, reason:"not a JPEG (PNGs rarely carry EXIF)" };
+if (app1 &lt; 0)                     return { ok:false, reason:"no APP1 Exif segment" };
+
+// self-check: a RATIONAL f/2.8 must decode the same little- AND big-endian
+console.assert(Math.abs(rat([28,10]) - 2.8) &lt; 1e-9, "rational num/den");        // ✓
+console.assert(gpsDecimal([[51,1],[30,1],[0,1]], "N").toFixed(2) === "51.50", "DMS-&gt;decimal"); // ✓
+console.assert(gpsDecimal([[0,1],[7,1],[3960,100]], "W") &lt; 0, "western hemisphere is negative"); // ✓</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 56 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real EXIF reader with <strong>no library</strong>. It rests on two nested formats: a <strong>JPEG</strong> marker chain that leads you to the <code>APP1</code> segment, and a self-describing <strong>TIFF</strong> block inside it. Read the <code>II</code>/<code>MM</code> flag once, then every number obeys that byte order; walk each 12-byte IFD entry, honour the four-byte <strong>inline-vs-offset</strong> rule, and decode by type — ASCII strings, SHORT/LONG numbers, RATIONAL pairs. Follow the <code>0x8769</code> and <code>0x8825</code> pointers into the EXIF and GPS sub-directories, fold three GPS rationals into one decimal, and you have turned an opaque photo into its full hidden diary — camera, lens, moment and place — all in the browser, nothing uploaded.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= EXIF VIEWER (from scratch, no library) =================
+// A JPEG is a chain of markers; hidden in the APP1 marker (0xFFE1) is a TIFF block.
+//   APP1 -> "Exif\0\0" -> TIFF header (II/MM byte order + 0x2A + IFD0 offset)
+//   -> walk IFD0 + the EXIF sub-IFD (0x8769) + the GPS IFD (0x8825), each a list of
+//      12-byte entries: tag(2) type(2) count(4) value-or-offset(4), all in II/MM order.
+//   -> decode by type (BYTE/ASCII/SHORT/LONG/RATIONAL), fold GPS rationals to decimal.
+// Everything runs on a DataView over the file's ArrayBuffer. Nothing is uploaded.
+
+const el = id => document.getElementById(id);
+
+// ---------- type widths ----------
+const TYPE_SIZE = { 1:1, 2:1, 3:2, 4:4, 5:8, 6:1, 7:1, 8:2, 9:4, 10:8, 11:4, 12:8 };
+const TYPE_NAME = { 1:"BYTE", 2:"ASCII", 3:"SHORT", 4:"LONG", 5:"RATIONAL", 6:"SBYTE", 7:"UNDEFINED", 8:"SSHORT", 9:"SLONG", 10:"SRATIONAL", 11:"FLOAT", 12:"DOUBLE" };
+
+// ---------- tag dictionaries ----------
+const TAG_NAMES = {
+  0x0100:"ImageWidth", 0x0101:"ImageHeight", 0x0102:"BitsPerSample", 0x0103:"Compression",
+  0x010E:"ImageDescription", 0x010F:"Make", 0x0110:"Model", 0x0112:"Orientation",
+  0x011A:"XResolution", 0x011B:"YResolution", 0x0128:"ResolutionUnit", 0x0131:"Software",
+  0x0132:"DateTime", 0x013B:"Artist", 0x8298:"Copyright", 0x8769:"ExifIFDPointer",
+  0x8825:"GPSInfoIFDPointer", 0x829A:"ExposureTime", 0x829D:"FNumber", 0x8822:"ExposureProgram",
+  0x8827:"ISOSpeedRatings", 0x9000:"ExifVersion", 0x9003:"DateTimeOriginal", 0x9004:"DateTimeDigitized",
+  0x9201:"ShutterSpeedValue", 0x9202:"ApertureValue", 0x9204:"ExposureBiasValue", 0x9207:"MeteringMode",
+  0x9209:"Flash", 0x920A:"FocalLength", 0xA001:"ColorSpace", 0xA002:"PixelXDimension", 0xA003:"PixelYDimension",
+  0xA402:"ExposureMode", 0xA403:"WhiteBalance", 0xA405:"FocalLengthIn35mmFilm", 0xA406:"SceneCaptureType",
+  0xA430:"CameraOwnerName", 0xA431:"BodySerialNumber", 0xA433:"LensMake", 0xA434:"LensModel"
+};
+const GPS_NAMES = {
+  0x0000:"GPSVersionID", 0x0001:"GPSLatitudeRef", 0x0002:"GPSLatitude", 0x0003:"GPSLongitudeRef",
+  0x0004:"GPSLongitude", 0x0005:"GPSAltitudeRef", 0x0006:"GPSAltitude", 0x0007:"GPSTimeStamp",
+  0x0012:"GPSMapDatum", 0x001D:"GPSDateStamp"
+};
+const ORIENTATION = {
+  1:"Normal", 2:"Mirror horizontal", 3:"Rotate 180°", 4:"Mirror vertical",
+  5:"Mirror horizontal + rotate 270° CW", 6:"Rotate 90° CW",
+  7:"Mirror horizontal + rotate 90° CW", 8:"Rotate 270° CW"
+};
+
+// ---------- read one entry's value, honouring type + endianness + inline/offset ----------
+function readValue(view, little, tiff, entryOff){
+  const type  = view.getUint16(entryOff + 2, little);
+  const count = view.getUint32(entryOff + 4, little);
+  const bytes = (TYPE_SIZE[type] || 1) * count;
+  // <= 4 bytes: value sits inline in the entry; else the 4 bytes are an offset from TIFF start
+  let p = bytes <= 4 ? entryOff + 8 : tiff + view.getUint32(entryOff + 8, little);
+  if (p < 0 || p + bytes > view.byteLength) return null;   // guard corrupt offsets
+
+  if (type === 2){                                          // ASCII, NUL-terminated
+    let s = "";
+    for (let i = 0; i < count; i++){ const c = view.getUint8(p + i); if (c === 0) break; s += String.fromCharCode(c); }
+    return s.trim();
+  }
+  const out = [];
+  for (let i = 0; i < count; i++){
+    switch (type){
+      case 3:  out.push(view.getUint16(p, little)); p += 2; break;   // SHORT
+      case 8:  out.push(view.getInt16(p, little));  p += 2; break;   // SSHORT
+      case 4:  out.push(view.getUint32(p, little)); p += 4; break;   // LONG
+      case 9:  out.push(view.getInt32(p, little));  p += 4; break;   // SLONG
+      case 5:  out.push([view.getUint32(p, little), view.getUint32(p + 4, little)]); p += 8; break; // RATIONAL
+      case 10: out.push([view.getInt32(p, little),  view.getInt32(p + 4, little)]);  p += 8; break; // SRATIONAL
+      default: out.push(view.getUint8(p)); p += 1; break;            // BYTE / UNDEFINED / others
+    }
+  }
+  return out.length === 1 ? out[0] : out;
+}
+
+// ---------- read a whole IFD into { tag: {type, count, value} } ----------
+function readIFD(view, little, tiff, ifdOff){
+  const out = {};
+  if (ifdOff < 0 || ifdOff + 2 > view.byteLength) return out;
+  const n = view.getUint16(ifdOff, little);
+  for (let i = 0; i < n; i++){
+    const e = ifdOff + 2 + i * 12;
+    if (e + 12 > view.byteLength) break;
+    const tag = view.getUint16(e, little);
+    out[tag] = {
+      type:  view.getUint16(e + 2, little),
+      count: view.getUint32(e + 4, little),
+      value: readValue(view, little, tiff, e)
+    };
+  }
+  return out;
+}
+
+// ---------- the JPEG -> APP1 -> TIFF walk ----------
+function parseExif(view){
+  if (view.byteLength < 4) return { ok:false, reason:"file is too small to be an image" };
+  if (view.getUint16(0) !== 0xFFD8)                                  // Start Of Image
+    return { ok:false, reason:"not a JPEG (no 0xFFD8 SOI marker) — PNGs and most other formats carry no EXIF" };
+
+  let off = 2, app1 = -1, sof = null;
+  while (off + 4 <= view.byteLength){
+    const marker = view.getUint16(off);                              // big-endian marker
+    if ((marker & 0xFF00) !== 0xFF00) break;                         // lost marker sync
+    if (marker === 0xFFDA) break;                                    // Start Of Scan: metadata is done
+    const size = view.getUint16(off + 2);                            // segment length (big-endian, incl. these 2 bytes)
+    // capture real pixel dimensions from any Start-Of-Frame marker
+    if (marker >= 0xFFC0 && marker <= 0xFFCF && marker !== 0xFFC4 && marker !== 0xFFC8 && marker !== 0xFFCC && !sof){
+      sof = { h: view.getUint16(off + 5), w: view.getUint16(off + 7) };
+    }
+    // APP1 that actually starts with "Exif\0\0"
+    if (marker === 0xFFE1 && off + 10 <= view.byteLength &&
+        view.getUint32(off + 4) === 0x45786966 &&                    // "Exif"
+        view.getUint16(off + 8) === 0x0000){                         // \0\0
+      app1 = off + 10;                                               // TIFF header begins here
+    }
+    if (size < 2) break;                                             // malformed length guard
+    off += 2 + size;
+  }
+
+  if (app1 < 0) return { ok:false, reason:"no APP1 Exif segment — this JPEG has no embedded EXIF (often stripped by screenshots or chat apps)", sof };
+
+  // ---- TIFF header ----
+  const tiff = app1;
+  const bo = view.getUint16(tiff);
+  const little = bo === 0x4949 ? true : bo === 0x4D4D ? false : null; // "II" vs "MM"
+  if (little === null) return { ok:false, reason:"bad TIFF byte-order flag (expected II or MM)", sof };
+  if (view.getUint16(tiff + 2, little) !== 0x002A) return { ok:false, reason:"bad TIFF magic (expected 42)", sof };
+  const ifd0Off = view.getUint32(tiff + 4, little);
+
+  // ---- directories ----
+  const ifd0 = readIFD(view, little, tiff, tiff + ifd0Off);
+  const exif = ifd0[0x8769] ? readIFD(view, little, tiff, tiff + ifd0[0x8769].value) : {};
+  const gps  = ifd0[0x8825] ? readIFD(view, little, tiff, tiff + ifd0[0x8825].value) : {};
+
+  return { ok:true, little, tiff, ifd0, exif, gps, sof };
+}
+
+// ---------- value helpers ----------
+function rat(r){ return Array.isArray(r) ? (r[1] ? r[0] / r[1] : 0) : Number(r); }
+function fmtExposure(r){
+  const v = rat(r);
+  if (!isFinite(v) || v <= 0) return "—";
+  return v < 1 ? "1/" + Math.round(1 / v) + " s" : (Math.round(v * 100) / 100) + " s";
+}
+function fmtFNumber(r){ const v = rat(r); return isFinite(v) ? "f/" + (Math.round(v * 10) / 10) : "—"; }
+function fmtFocal(r){ const v = rat(r); return isFinite(v) ? (Math.round(v * 10) / 10) + " mm" : "—"; }
+function gpsDecimal(dms, ref){
+  if (!Array.isArray(dms) || dms.length < 3) return null;
+  let deg = rat(dms[0]) + rat(dms[1]) / 60 + rat(dms[2]) / 3600;
+  if (ref === "S" || ref === "W") deg = -deg;
+  return deg;
+}
+function tagVal(ifd, tag){ return ifd[tag] ? ifd[tag].value : undefined; }
+function fmtBytes(n){
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / (1024 * 1024)).toFixed(2) + " MB";
+}
+
+// ---------- render a raw value for the tag dump ----------
+function rawString(entry){
+  const v = entry.value;
+  if (v === null || v === undefined) return "(unreadable)";
+  if ((entry.type === 5 || entry.type === 10)){
+    if (Array.isArray(v) && Array.isArray(v[0])) return v.map(r => r[0] + "/" + r[1]).join(", ");
+    if (Array.isArray(v)) return v[0] + "/" + v[1] + " (≈ " + (v[1] ? (v[0] / v[1]).toFixed(4) : "∞") + ")";
+  }
+  if (Array.isArray(v)) return v.length > 24 ? v.slice(0, 24).join(", ") + " …" : v.join(", ");
+  return String(v);
+}
+
+// ================= RENDER =================
+function render(res, meta){
+  // stat strip
+  el("stFormat").textContent = meta.format || "—";
+  el("stSize").textContent   = meta.size != null ? fmtBytes(meta.size) : "—";
+  el("stExif").innerHTML = res.ok
+    ? '<span style="color:#16a34a">✓ yes</span>'
+    : '<span style="color:#dc2626">✗ none</span>';
+
+  const summary = el("summary"), gpsCard = el("gpsCard"), rawCard = el("rawCard");
+
+  if (!res.ok){
+    el("stTags").textContent = "0";
+    let extra = "";
+    if (res.sof) extra = '<div class="mt-3"><div class="kv"><div class="lab">Dimensions</div><div class="val">' + res.sof.w + ' × ' + res.sof.h + ' px <span class="text-slate-400">(from the JPEG frame header)</span></div></div></div>';
+    summary.innerHTML = '<div class="notice warn">📭 No EXIF found.<br><span style="font-weight:600">' + res.reason + '</span></div>' + extra;
+    gpsCard.style.display = "none";
+    rawCard.style.display = "none";
+    return;
+  }
+
+  const { ifd0, exif, gps } = res;
+  const tagCount = Object.keys(ifd0).length + Object.keys(exif).length + Object.keys(gps).length;
+  el("stTags").textContent = tagCount;
+
+  // ---- summary ("the tags people care about") ----
+  const rows = [];
+  const add = (label, val) => { if (val !== undefined && val !== null && val !== "") rows.push([label, val]); };
+
+  add("Camera make", tagVal(ifd0, 0x010F));
+  add("Camera model", tagVal(ifd0, 0x0110));
+  const lens = tagVal(exif, 0xA434) || tagVal(exif, 0xA433);
+  add("Lens", lens);
+  add("Date taken", tagVal(exif, 0x9003) || tagVal(ifd0, 0x0132));
+  if (exif[0x829A]) add("Exposure time", fmtExposure(exif[0x829A].value));
+  if (exif[0x829D]) add("Aperture", fmtFNumber(exif[0x829D].value));
+  add("ISO", tagVal(exif, 0x8827));
+  if (exif[0x920A]){
+    let f = fmtFocal(exif[0x920A].value);
+    const eq = tagVal(exif, 0xA405);
+    if (eq) f += " (" + eq + " mm equiv)";
+    add("Focal length", f);
+  }
+  const ori = tagVal(ifd0, 0x0112);
+  if (ori !== undefined) add("Orientation", (ORIENTATION[ori] || ("value " + ori)));
+  // dimensions: prefer the true frame size, then the EXIF pixel dimensions
+  let w = res.sof ? res.sof.w : tagVal(exif, 0xA002);
+  let h = res.sof ? res.sof.h : tagVal(exif, 0xA003);
+  if (w && h) add("Dimensions", w + " × " + h + " px");
+  if (exif[0x9209] !== undefined && exif[0x9209]) add("Flash", (tagVal(exif, 0x9209) & 1) ? "Fired" : "Did not fire");
+  add("Software", tagVal(ifd0, 0x0131));
+
+  summary.innerHTML = rows.length
+    ? rows.map(r => '<div class="kv"><div class="lab">' + r[0] + '</div><div class="val">' + r[1] + '</div></div>').join("")
+    : '<div class="notice warn">EXIF block present, but none of the common camera tags were set.</div>';
+
+  // ---- GPS ----
+  const latRef = tagVal(gps, 0x0001), lat = tagVal(gps, 0x0002);
+  const lonRef = tagVal(gps, 0x0003), lon = tagVal(gps, 0x0004);
+  const latD = gpsDecimal(lat, latRef), lonD = gpsDecimal(lon, lonRef);
+  if (latD !== null && lonD !== null){
+    const coord = latD.toFixed(6) + ", " + lonD.toFixed(6);
+    let alt = "";
+    if (gps[0x0006]){
+      const a = rat(gps[0x0006].value);
+      const below = tagVal(gps, 0x0005) === 1;
+      alt = '<div class="mt-1 text-xs" style="color:#94a3b8">Altitude ≈ ' + (Math.round(a * 10) / 10) + ' m' + (below ? " below sea level" : "") + '</div>';
+    }
+    el("gpsBox").innerHTML =
+      '<div class="co">' + coord + '</div>' + alt +
+      '<div class="mt-2"><a href="https://www.openstreetmap.org/?mlat=' + latD + '&mlon=' + lonD + '#map=15/' + latD + '/' + lonD + '" target="_blank" rel="noopener">↗ open on OpenStreetMap</a> &nbsp; · &nbsp; <a href="https://www.google.com/maps?q=' + latD + ',' + lonD + '" target="_blank" rel="noopener">↗ Google Maps</a></div>' +
+      '<div class="mt-2 text-xs" style="color:#64748b">' +
+        (latRef || "?") + ' ' + (Array.isArray(lat) ? lat.map(r => rat(r)).map((n, i) => n + (i === 0 ? "°" : i === 1 ? "'" : "\"")).join(" ") : "") +
+        ' &nbsp; ' + (lonRef || "?") + ' ' + (Array.isArray(lon) ? lon.map(r => rat(r)).map((n, i) => n + (i === 0 ? "°" : i === 1 ? "'" : "\"")).join(" ") : "") +
+      '</div>';
+    gpsCard.style.display = "";
+  } else {
+    gpsCard.style.display = "none";
+  }
+
+  // ---- raw dump of every tag ----
+  const sections = [["IFD0", ifd0, TAG_NAMES], ["EXIF sub-IFD", exif, TAG_NAMES], ["GPS IFD", gps, GPS_NAMES]];
+  let html = "<tr><th>Directory</th><th>Tag</th><th>Name</th><th>Type</th><th>Value</th></tr>";
+  for (const [secName, ifd, names] of sections){
+    const tags = Object.keys(ifd).map(Number).sort((a, b) => a - b);
+    for (const t of tags){
+      if (t === 0x8769 || t === 0x8825) continue;   // pointers, shown as their own sections
+      const e = ifd[t];
+      const hex = "0x" + t.toString(16).toUpperCase().padStart(4, "0");
+      html += "<tr><td class='mono'>" + secName + "</td><td class='mono'>" + hex +
+              "</td><td>" + (names[t] || "(unknown)") + "</td><td class='mono'>" + (TYPE_NAME[e.type] || e.type) +
+              "</td><td class='mono'>" + rawString(e) + "</td></tr>";
+    }
+  }
+  el("rawTable").innerHTML = html;
+  rawCard.style.display = "";
+}
+
+// ---------- load a real file ----------
+function loadFile(file){
+  const reader = new FileReader();                     // read locally, never uploaded
+  reader.onload = () => {
+    let res;
+    try { res = parseExif(new DataView(reader.result)); }
+    catch (err){ res = { ok:false, reason:"could not parse: " + err.message }; }
+    render(res, { format: file.type || "unknown", size: file.size });
+  };
+  reader.readAsArrayBuffer(file);                      // raw bytes -> ArrayBuffer
+
+  // preview (local object URL, also never uploaded)
+  const url = URL.createObjectURL(file);
+  const img = el("thumb");
+  img.onload = () => URL.revokeObjectURL(url);
+  img.onerror = () => { img.style.display = "none"; el("thumbEmpty").style.display = ""; el("thumbEmpty").textContent = "(browser could not decode this file for preview)"; };
+  img.src = url;
+  img.style.display = "";
+  el("thumbEmpty").style.display = "none";
+}
+
+// ================= synthetic sample: build a JPEG + EXIF in memory, byte by byte =================
+function buildSampleJpeg(){
+  const buf = new ArrayBuffer(2048);
+  const dv = new DataView(buf);
+  const LE = true;                                     // little-endian ("II") TIFF
+
+  // TIFF header at offset 0 (we prepend the JPEG/APP1 wrapper afterwards)
+  dv.setUint8(0, 0x49); dv.setUint8(1, 0x49);          // "II"
+  dv.setUint16(2, 0x002A, LE);                         // magic 42
+  dv.setUint32(4, 8, LE);                              // IFD0 at offset 8
+
+  // entry counts fixed the directory sizes, so we can place them back to back
+  const C0 = 6, CE = 8, CG = 4;
+  const ifd0 = 8;
+  const exifIfd = ifd0 + 2 + 12 * C0 + 4;
+  const gpsIfd  = exifIfd + 2 + 12 * CE + 4;
+  let heap = gpsIfd + 2 + 12 * CG + 4;                 // out-of-line data grows from here
+
+  const putStr = s => { const at = heap; for (let i = 0; i < s.length; i++) dv.setUint8(heap++, s.charCodeAt(i)); dv.setUint8(heap++, 0); if (heap & 1) heap++; return at; };
+  const putRat = pairs => { const at = heap; for (const [n, d] of pairs){ dv.setUint32(heap, n, LE); dv.setUint32(heap + 4, d, LE); heap += 8; } return at; };
+
+  function writeIFD(base, entries){
+    dv.setUint16(base, entries.length, LE);
+    entries.forEach((e, i) => {
+      const o = base + 2 + i * 12;
+      dv.setUint16(o, e.tag, LE);
+      dv.setUint16(o + 2, e.type, LE);
+      dv.setUint32(o + 4, e.count, LE);
+      e.write(o + 8);                                  // value field (4 bytes) — inline or an offset
+    });
+    dv.setUint32(base + 2 + entries.length * 12, 0, LE); // next-IFD pointer = 0
+  }
+
+  writeIFD(ifd0, [
+    { tag:0x010F, type:2, count:6,  write:o => dv.setUint32(o, putStr("Canon"), LE) },          // Make
+    { tag:0x0110, type:2, count:13, write:o => dv.setUint32(o, putStr("Canon EOS R6"), LE) },   // Model
+    { tag:0x0112, type:3, count:1,  write:o => dv.setUint16(o, 1, LE) },                        // Orientation = Normal
+    { tag:0x0132, type:2, count:20, write:o => dv.setUint32(o, putStr("2026:07:31 14:22:05"), LE) }, // DateTime
+    { tag:0x8769, type:4, count:1,  write:o => dv.setUint32(o, exifIfd, LE) },                  // -> EXIF sub-IFD
+    { tag:0x8825, type:4, count:1,  write:o => dv.setUint32(o, gpsIfd, LE) }                    // -> GPS IFD
+  ]);
+  writeIFD(exifIfd, [
+    { tag:0x829A, type:5, count:1,  write:o => dv.setUint32(o, putRat([[1, 250]]), LE) },       // ExposureTime 1/250
+    { tag:0x829D, type:5, count:1,  write:o => dv.setUint32(o, putRat([[28, 10]]), LE) },       // FNumber f/2.8
+    { tag:0x8827, type:3, count:1,  write:o => dv.setUint16(o, 400, LE) },                      // ISO 400
+    { tag:0x9003, type:2, count:20, write:o => dv.setUint32(o, putStr("2026:07:31 14:22:05"), LE) }, // DateTimeOriginal
+    { tag:0x920A, type:5, count:1,  write:o => dv.setUint32(o, putRat([[50, 1]]), LE) },        // FocalLength 50mm
+    { tag:0xA434, type:2, count:16, write:o => dv.setUint32(o, putStr("RF50mm F1.8 STM"), LE) },// LensModel
+    { tag:0xA002, type:4, count:1,  write:o => dv.setUint32(o, 6000, LE) },                     // PixelXDimension
+    { tag:0xA003, type:4, count:1,  write:o => dv.setUint32(o, 4000, LE) }                      // PixelYDimension
+  ]);
+  writeIFD(gpsIfd, [
+    { tag:0x0001, type:2, count:2, write:o => { dv.setUint8(o, 0x4E); dv.setUint8(o + 1, 0); } },   // GPSLatitudeRef "N"
+    { tag:0x0002, type:5, count:3, write:o => dv.setUint32(o, putRat([[51, 1], [30, 1], [0, 1]]), LE) }, // 51°30'0"
+    { tag:0x0003, type:2, count:2, write:o => { dv.setUint8(o, 0x57); dv.setUint8(o + 1, 0); } },   // GPSLongitudeRef "W"
+    { tag:0x0004, type:5, count:3, write:o => dv.setUint32(o, putRat([[0, 1], [7, 1], [3960, 100]]), LE) } // 0°7'39.6"
+  ]);
+
+  const tiffLen = heap;                                // bytes of TIFF we actually used
+  // wrap: FFD8 (SOI) + FFE1 (APP1) + length + "Exif\0\0" + TIFF + FFD9 (EOI)
+  const app1Len = 2 + 6 + tiffLen;                     // length field counts itself + payload
+  const out = new Uint8Array(2 + 2 + 2 + 6 + tiffLen + 2);
+  let w = 0;
+  out[w++] = 0xFF; out[w++] = 0xD8;                    // SOI
+  out[w++] = 0xFF; out[w++] = 0xE1;                    // APP1
+  out[w++] = (app1Len >> 8) & 0xFF; out[w++] = app1Len & 0xFF; // length (big-endian)
+  out[w++] = 0x45; out[w++] = 0x78; out[w++] = 0x69; out[w++] = 0x66; out[w++] = 0x00; out[w++] = 0x00; // "Exif\0\0"
+  for (let i = 0; i < tiffLen; i++) out[w++] = dv.getUint8(i);
+  out[w++] = 0xFF; out[w++] = 0xD9;                    // EOI
+  return out;
+}
+
+function loadSample(){
+  const bytes = buildSampleJpeg();
+  let res;
+  try { res = parseExif(new DataView(bytes.buffer)); }
+  catch (err){ res = { ok:false, reason:"sample build failed: " + err.message }; }
+  render(res, { format: "image/jpeg (synthetic sample)", size: bytes.byteLength });
+
+  // draw a placeholder thumbnail (the synthetic file has no real pixel data)
+  const cv = document.createElement("canvas");
+  cv.width = 360; cv.height = 240;
+  const ctx = cv.getContext("2d");
+  const g = ctx.createLinearGradient(0, 0, 360, 240);
+  g.addColorStop(0, "#f59e0b"); g.addColorStop(1, "#b45309");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 360, 240);
+  ctx.fillStyle = "rgba(255,255,255,.95)"; ctx.textAlign = "center";
+  ctx.font = "900 22px ui-monospace, Menlo, monospace"; ctx.fillText("📷 SAMPLE", 180, 108);
+  ctx.font = "700 12px ui-monospace, Menlo, monospace"; ctx.fillText("synthetic JPEG · EXIF assembled in JS", 180, 134);
+  const img = el("thumb");
+  img.onload = null; img.onerror = null;
+  img.src = cv.toDataURL();
+  img.style.display = ""; el("thumbEmpty").style.display = "none";
+}
+
+// ================= wire the LOOK controls =================
+const drop = el("drop"), fileInput = el("file");
+drop.onclick = () => fileInput.click();
+fileInput.onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); };
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+el("sampleBtn").onclick = loadSample;
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  el(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Two formats, one nested in the other",
+   why:"EXIF is not its own file format — it is a complete TIFF metadata block smuggled inside a JPEG. So reading it is two walks: first through the JPEG's marker chain to find the block, then through the TIFF directory structure inside it. Keeping those two levels straight is most of the battle.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill a">JPEG markers</span> ▸ <span class="pill b">APP1</span> ▸ <span class="pill g">TIFF / IFD tree</span></div><div class="text-xs text-slate-400">a whole TIFF file lives inside one JPEG segment</div></div>`,
+   code:`// JPEG:  FFD8 [ FFE0 JFIF ] [ FFE1 APP1 ] ... FFDA scan
+// APP1:  "Exif\\0\\0" + TIFF( header + IFD0 + sub-IFDs )
+// two nested walks: markers, then directory entries` },
+ { title:"2. The JPEG marker chain",
+   why:"A JPEG is a sequence of segments. Each begins with 0xFF and a marker byte; the informational ones carry a 2-byte big-endian length so you can skip straight to the next. You hop marker to marker until you reach APP1 (the EXIF holder) or the Start-Of-Scan marker, after which only pixel data remains.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">FFD8</span> <span class="pill b">FFE1 len …</span> <span class="pill b">FFDB len …</span> <span class="pill r">FFDA</span></div><div class="text-xs text-slate-400">SOI · segments (each with a length) · start of scan</div></div>`,
+   code:`let off = 2;                       // skip SOI (FFD8)
+while (off + 4 <= view.byteLength){
+  const marker = view.getUint16(off);       // FF__
+  if (marker === 0xFFDA) break;             // scan begins
+  const size = view.getUint16(off + 2);     // big-endian length
+  off += 2 + size;                          // next marker
+}` },
+ { title:"3. APP1 and the \"Exif\\0\\0\" tag",
+   why:"The APP1 marker (0xFFE1) is a general-purpose application segment; a camera puts EXIF there, but software also uses APP1 for XMP. So you confirm the six bytes right after the length are exactly 'Exif' followed by two NULs. Only then do you trust the TIFF block that follows.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">FF E1</span> <span class="pill s">len</span> <span class="pill a">45 78 69 66 00 00</span> <span class="pill g">TIFF…</span></div><div class="text-xs text-slate-400">"E  x  i  f  \\0 \\0" then the TIFF header</div></div>`,
+   code:`if (view.getUint32(off + 4) === 0x45786966 && // "Exif"
+    view.getUint16(off + 8) === 0x0000){       // \\0\\0
+  const tiff = off + 10;   // TIFF header starts here
+}` },
+ { title:"4. The TIFF header + endianness",
+   why:"The first two bytes of the TIFF block are the single most important decision in the format: II means little-endian, MM means big-endian. From this point on, EVERY multi-byte integer — offsets, counts, values — must be read in that order. A 42 magic number then confirms you read it right.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">II</span> = little-endian &nbsp; · &nbsp; <span class="pill b">MM</span> = big-endian</div><div><span class="pill s">+ 0x002A (42)</span> <span class="pill g">+ offset to IFD0</span></div></div>`,
+   code:`const bo = view.getUint16(tiff);
+const little = bo === 0x4949 ? true     // "II"
+             : bo === 0x4D4D ? false    // "MM"
+             : null;
+view.getUint16(tiff + 2, little);       // must be 42
+const ifd0 = view.getUint32(tiff + 4, little);` },
+ { title:"5. An IFD is a table of 12-byte rows",
+   why:"An Image File Directory opens with a 2-byte entry count, then that many fixed 12-byte entries, then a 4-byte offset to the next directory. Each entry names a tag and describes its value with a type and a count — a compact, self-describing schema you can walk without knowing any tag in advance.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">count</span> │ <span class="pill a">entry</span> <span class="pill a">entry</span> <span class="pill a">entry</span> … │ <span class="pill b">next IFD</span></div><div class="text-xs text-slate-400">each entry = tag(2) type(2) count(4) value/offset(4)</div></div>`,
+   code:`const n = view.getUint16(ifdOff, little);
+for (let i = 0; i < n; i++){
+  const e = ifdOff + 2 + i * 12;
+  const tag   = view.getUint16(e, little);
+  const type  = view.getUint16(e + 2, little);
+  const count = view.getUint32(e + 4, little);
+}` },
+ { title:"6. Type widths and the inline-vs-offset rule",
+   why:"The type tells you the width of one element (BYTE 1, SHORT 2, LONG 4, RATIONAL 8); times the count gives the total size. The subtlety: the entry has only a 4-byte value slot. If the data fits in 4 bytes it sits there directly; if not, those 4 bytes are instead an offset to where it really lives.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>size = <span class="pill s">width(type)</span> × <span class="pill s">count</span></div><div>size ≤ 4 → <span class="pill g">value is inline</span> &nbsp; else → <span class="pill r">value is an offset</span></div></div>`,
+   code:`const SIZE = {1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8};
+const bytes = SIZE[type] * count;
+const p = bytes <= 4
+  ? e + 8                                  // inline
+  : tiff + view.getUint32(e + 8, little);  // offset from TIFF start` },
+ { title:"7. Decoding each type",
+   why:"With the pointer resolved you read count elements in the header's byte order. ASCII is a NUL-terminated string; SHORT and LONG are plain integers; a RATIONAL is two LONGs (numerator, denominator) kept as a pair so you can show both the fraction and its decimal. This one function decodes every tag.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">ASCII</span> "Canon" &nbsp; <span class="pill b">SHORT</span> 400 &nbsp; <span class="pill g">RATIONAL</span> [1,250]</div><div class="text-xs text-slate-400">read count elements, each in II/MM order</div></div>`,
+   code:`if (type === 2){                     // ASCII
+  let s = ""; for (...) s += String.fromCharCode(byte); return s;
+}
+if (type === 5)                       // RATIONAL
+  return [view.getUint32(p, little), view.getUint32(p+4, little)];` },
+ { title:"8. Sub-IFDs: EXIF (0x8769) and GPS (0x8825)",
+   why:"IFD0 carries only the basics. The real camera settings sit in an EXIF sub-directory whose offset is stored in tag 0x8769, and location sits in a GPS directory at 0x8825. Both are ordinary IFDs at those offsets, so the very same reader recurses into them — a tree, not a flat list.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">IFD0</span> → <span class="pill a">0x8769</span> → <span class="pill b">EXIF sub-IFD</span></div><div><span class="pill s">IFD0</span> → <span class="pill a">0x8825</span> → <span class="pill g">GPS IFD</span></div></div>`,
+   code:`const exif = ifd0[0x8769]
+  ? readIFD(view, little, tiff, tiff + ifd0[0x8769].value) : {};
+const gps  = ifd0[0x8825]
+  ? readIFD(view, little, tiff, tiff + ifd0[0x8825].value) : {};` },
+ { title:"9. Rationals to readable, GPS to decimal",
+   why:"Rationals are how EXIF stays exact: ExposureTime [1,250] is 1/250 s, FNumber [28,10] is f/2.8. GPS latitude and longitude are each three rationals — degrees, minutes, seconds — which you fold into one decimal (deg + min/60 + sec/3600), negated for the S and W hemispheres so it drops straight onto a map.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">[1,250]</span> → 1/250 s &nbsp; <span class="pill g">[28,10]</span> → f/2.8</div><div><span class="pill a">51° 30' 0" N</span> → <span class="pill b">+51.5000</span></div></div>`,
+   code:`const rat = r => r[1] ? r[0]/r[1] : 0;
+let deg = rat(dms[0]) + rat(dms[1])/60 + rat(dms[2])/3600;
+if (ref === "S" || ref === "W") deg = -deg;   // hemisphere` },
+ { title:"10. No EXIF, and proving the walker",
+   why:"Many files legitimately have no EXIF — PNGs, screenshots, re-encoded chat images — so every stage returns a clean result the UI can report as 'no EXIF found' rather than crashing. To trust the parser itself, build a tiny TIFF by hand and check a rational and a GPS coordinate round-trip exactly.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">not a JPEG / no APP1</span> → "no EXIF found"</div><div><span class="pill g">rat([28,10]) === 2.8</span> &nbsp; <span class="pill g">DMS 51°30' → 51.50</span></div></div>`,
+   code:`if (view.getUint16(0) !== 0xFFD8) return { ok:false, reason:"not a JPEG" };
+console.assert(rat([28,10]) === 2.8);                       // ✓
+console.assert(gpsDecimal([[51,1],[30,1],[0,1]],"N").toFixed(2) === "51.50"); // ✓` },
+];
+const stepsEl = el("steps");
+const prevB = el("prev"), nextB = el("next-btn"), autoB = el("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + '</div>'; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  el("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + '</div>';
+  el("why").innerHTML = '<span class="fade-in inline-block">' + s.why + '</span>';
+  el("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= boot =================
+(function boot(){
+  loadSample();     // start with the synthetic EXIF sample so the page shows real output
+})();
+</script>
+</body>
+</html>
