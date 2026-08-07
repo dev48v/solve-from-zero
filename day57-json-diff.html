@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 57 — JSON Structural Diff (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- segmented controls ---- */
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 13px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* ---- editors ---- */
+  .editor { width:100%; min-height:236px; font:600 12.5px/1.55 ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:12px; padding:12px; background:#0f172a; color:#e2e8f0; resize:vertical; white-space:pre; tab-size:2; }
+  .editor:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .editor.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.18); }
+
+  /* ---- diff tree ---- */
+  .difftree { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:12px 0; font:600 12.5px/1.65 ui-monospace,Menlo,monospace; overflow:auto; max-height:560px; }
+  .dl { display:flex; align-items:flex-start; padding:0 14px; }
+  .dl .g { flex:none; width:14px; text-align:center; font-weight:900; opacity:.95; user-select:none; }
+  .dl .c { flex:1; white-space:pre-wrap; word-break:break-word; }
+  .dl.add { background:rgba(16,185,129,.13); }
+  .dl.add .g { color:#34d399; }
+  .dl.rem { background:rgba(239,68,68,.14); }
+  .dl.rem .g { color:#f87171; }
+  .dl.chg { background:rgba(245,158,11,.15); }
+  .dl.chg .g, .dl.chg-cont .g { color:#fbbf24; }
+  .dl.unc, .dl.chg-cont { color:#e2e8f0; }
+  .dl.collapsed { color:#64748b; }
+
+  .jk   { color:#7dd3fc; }         /* object key */
+  .jidx { color:#64748b; }         /* array index */
+  .jv-string  { color:#a5b4fc; }
+  .jv-number  { color:#fcd34d; }
+  .jv-boolean { color:#f0abfc; }
+  .jv-null    { color:#94a3b8; }
+  .brk { color:#cbd5e1; }
+  .arr { color:#fbbf24; font-weight:900; padding:0 3px; }
+  .dim { color:#64748b; font-style:italic; }
+
+  /* ---- notice box ---- */
+  .notice { border-radius:12px; padding:14px 16px; font:700 13px ui-monospace,Menlo,monospace; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .notice + .notice { margin-top:8px; }
+
+  /* ---- stat tiles ---- */
+  .stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; }
+  .stat .v { font:900 22px/1.15 ui-monospace,Menlo,monospace; margin-top:4px; }
+  .stat.add .v { color:#16a34a; }
+  .stat.rem .v { color:#dc2626; }
+  .stat.chg .v { color:#d97706; }
+  .stat.unc .v { color:#0f172a; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 57</div>
+      <h1 class="text-xl font-bold">🧬 <code class="mono">JSON</code> Structural Diff — a real, from-scratch <strong>semantic</strong> diff of two JSON documents: paste a <strong>before</strong> and an <strong>after</strong>, both are <code class="mono">JSON.parse</code>'d into real trees, then a recursive walker compares them node by node — <strong>type-aware</strong> (a number that became a string is a <em>change</em>, not a coincidence), <strong>order-insensitive</strong> for object keys (reordering keys is not a diff), and <strong>index-aligned</strong> for arrays — classifying every leaf and branch as <strong>added / removed / changed / unchanged</strong>, rendering a colour-coded collapsible tree (<span style="color:#16a34a">green add</span> · <span style="color:#dc2626">red remove</span> · <span style="color:#d97706">amber change</span>), a live summary count, and an emitted <strong>RFC 6902 JSON-Patch</strong> (<code class="mono">op / path / value</code>) whose paths are <strong>RFC 6901 JSON-Pointers</strong> · graceful parse-error handling with line &amp; column · this compares <strong>meaning, not characters</strong>, so it is distinct from the Day-13 line diff-checker · vanilla JS, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">Two JSON documents. What actually changed — not which lines moved.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A plain text diff treats JSON as lines of characters, so it lies about JSON: reformat a file, reorder two keys, or add a trailing comma and it screams that everything changed — even though the <em>data</em> is identical. A <strong>structural</strong> diff parses both sides into real trees and compares <strong>meaning</strong>. It walks the two trees together: at every object it compares the <strong>union of keys</strong> (so key order never matters), at every array it lines up elements <strong>by index</strong>, and at every leaf it checks both <strong>type and value</strong>. Each spot is labelled <span style="color:#16a34a;font-weight:700">added</span>, <span style="color:#dc2626;font-weight:700">removed</span>, <span style="color:#d97706;font-weight:700">changed</span> or <span style="color:#475569;font-weight:700">unchanged</span> — and from those labels it can emit a machine-applyable <strong>RFC 6902 JSON-Patch</strong> that turns <em>before</em> into <em>after</em>. Everything runs in your browser, no library, nothing uploaded. Edit either side and the diff updates live.</p>
+      </div>
+
+      <!-- stat strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="stat add"><div class="k">＋ Added</div><div class="v" id="stAdd">—</div></div>
+        <div class="stat rem"><div class="k">－ Removed</div><div class="v" id="stRem">—</div></div>
+        <div class="stat chg"><div class="k">~ Changed</div><div class="v" id="stChg">—</div></div>
+        <div class="stat unc"><div class="k">＝ Unchanged</div><div class="v" id="stUnc">—</div></div>
+      </div>
+
+      <!-- editors -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div>
+            <div class="fieldlabel">Before <span class="text-slate-400 normal-case">— the original document</span></div>
+            <textarea id="before" class="editor" spellcheck="false"></textarea>
+          </div>
+          <div>
+            <div class="fieldlabel">After <span class="text-slate-400 normal-case">— the new document</span></div>
+            <textarea id="after" class="editor" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-4 items-center">
+          <button id="sampleBtn" class="seg" style="border-color:#f59e0b;color:#b45309">↺ load sample pair</button>
+          <button id="fmtBtn" class="seg">⌗ pretty-print both</button>
+          <button id="swapBtn" class="seg">⇄ swap sides</button>
+          <button id="clearBtn" class="seg">✕ clear</button>
+          <label class="seg" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;">
+            <input id="collapseChk" type="checkbox" style="accent-color:#f59e0b"> collapse unchanged
+          </label>
+          <span class="text-xs text-slate-400 mono ml-auto">object keys compared order-insensitively · arrays by index</span>
+        </div>
+      </div>
+
+      <!-- parse errors -->
+      <div id="errBox" style="display:none" class="mb-6"></div>
+
+      <!-- diff tree -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <div class="fieldlabel mb-0">Structural diff <span class="text-slate-400 normal-case">— colour-coded tree, one node per key / index</span></div>
+          <div class="text-xs mono" style="color:#94a3b8"><span style="color:#16a34a">+ add</span> &nbsp; <span style="color:#dc2626">− remove</span> &nbsp; <span style="color:#d97706">~ change</span></div>
+        </div>
+        <div id="identBanner" class="notice ok mb-3" style="display:none">✓ The two documents are structurally identical (any differences are only formatting or key order).</div>
+        <div class="difftree" id="difftree"></div>
+        <div class="text-xs text-slate-400 mt-2 mono">Array note: elements are aligned <b>by index</b>, so inserting one item near the front makes everything after it read as "changed" — a positional diff, not a move-detecting one.</div>
+      </div>
+
+      <!-- JSON Patch -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <div class="fieldlabel mb-0">RFC 6902 JSON-Patch <span class="text-slate-400 normal-case">— the operations that turn <em>before</em> into <em>after</em></span></div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs mono" style="color:#94a3b8" id="patchCount">—</span>
+            <button class="copy-btn seg" onclick="copyPatch(this)">Copy patch</button>
+          </div>
+        </div>
+        <div class="relative"><pre id="patchOut" style="max-height:340px">[]</pre></div>
+        <div class="text-xs text-slate-400 mt-2 mono">Each op carries a <b>JSON-Pointer</b> path (RFC 6901): <code class="mono">/meta/reviews</code>, with <code class="mono">~1</code> for a literal <code class="mono">/</code> and <code class="mono">~0</code> for a literal <code class="mono">~</code> in a key.</div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about diffing JSON</div>
+        <p class="text-sm text-amber-800"><strong>1. A text diff is the wrong tool for JSON.</strong> Line-based diffs react to whitespace, indentation and key order — none of which change the data. Reformat a config file and a text diff lights up red; a structural diff correctly reports "nothing changed". <strong>2. Key order is not information.</strong> <code class="mono">{"a":1,"b":2}</code> and <code class="mono">{"b":2,"a":1}</code> are the same object, so this tool compares the <em>union</em> of keys and never flags a reorder. <strong>3. Type changes are real changes.</strong> The string <code class="mono">"10"</code> and the number <code class="mono">10</code> look alike but are different values — a change, not a match. <code class="mono">null</code>, <code class="mono">{}</code> and <code class="mono">[]</code> are all distinct too. <strong>4. Arrays are the hard part.</strong> There is no canonical way to align two lists, so the simple, predictable choice is by index. That means an insert near the front cascades into a wall of "changed" — honest, but a reminder that array position carries meaning in JSON. <strong>5. A diff can be executable.</strong> Once you know what changed, you can emit an <strong>RFC 6902 JSON-Patch</strong> — a list of <code class="mono">add</code> / <code class="mono">remove</code> / <code class="mono">replace</code> ops with JSON-Pointer paths — that any compliant library can apply to reproduce <em>after</em> from <em>before</em>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a structural diff works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A structural JSON diff is one small recursive function. Given two values it asks: are they the same <strong>type</strong>? If not, it is a change. If both are objects, walk the <strong>union of their keys</strong>; if both are arrays, walk the <strong>indices</strong>; if both are primitives, compare them directly. Every descent extends a <strong>JSON-Pointer path</strong> by one segment, so a difference buried five levels deep still names its exact location — and those labelled locations turn straight into an <strong>RFC 6902 JSON-Patch</strong>. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Parse both sides into real trees</h3></div>
+        <p class="text-sm text-slate-600 mb-3">You cannot diff text — you diff <em>data</em>. <code>JSON.parse</code> turns each document into a tree of objects, arrays and primitives. Wrap it so an invalid document reports the parse error with a line and column instead of throwing.</p>
+        <div class="relative"><pre>function parseJSON(text){
+  try { return { ok:true, value: JSON.parse(text) }; }
+  catch (e){
+    const m = /position (\d+)/.exec(e.message);   // V8 puts the byte offset here
+    let where = "";
+    if (m){
+      const pos = +m[1], upto = text.slice(0, pos);
+      const line = upto.split("\n").length;
+      const col  = pos - upto.lastIndexOf("\n");
+      where = " (line " + line + ", column " + col + ")";
+    }
+    return { ok:false, error: e.message + where };
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">A type-aware notion of "same"</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>typeof</code> alone is not enough: <code>typeof null</code> and <code>typeof []</code> both say <code>"object"</code>. Write one helper that returns the six JSON shapes so the diff can tell an array from an object from a null — and treat a shape change as a real change.</p>
+        <div class="relative"><pre>function typeOf(v){
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  return typeof v;                 // "object" | "string" | "number" | "boolean"
+}
+const MISSING = Symbol("missing");  // a key present on one side but not the other</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">The recursive core — one node at a time</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The whole diff is this one function. Missing on one side ⇒ added/removed. Different types ⇒ changed. Same container type ⇒ recurse. Same primitive ⇒ compare. Every case returns a small node describing the verdict.</p>
+        <div class="relative"><pre>function diffNode(a, b){
+  if (a === MISSING) return { kind:"added",   value:b };
+  if (b === MISSING) return { kind:"removed", value:a };
+  const ta = typeOf(a), tb = typeOf(b);
+  if (ta !== tb) return { kind:"changed", cont:false, before:a, after:b };
+  if (ta === "object") return diffObject(a, b);
+  if (ta === "array")  return diffArray(a, b);
+  return a === b ? { kind:"unchanged", cont:false, before:a }
+                 : { kind:"changed",   cont:false, before:a, after:b };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Objects: walk the union of keys (order-insensitive)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Collect every key from <em>both</em> sides into a set, so reordering keys is invisible and a key on only one side becomes an add or a remove. A container is "changed" if <em>any</em> child changed, else "unchanged".</p>
+        <div class="relative"><pre>function diffObject(a, b){
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  const children = []; let changed = false;
+  for (const k of keys){
+    const ca = (k in a) ? a[k] : MISSING;
+    const cb = (k in b) ? b[k] : MISSING;
+    const node = diffNode(ca, cb);              // recurse
+    if (node.kind !== "unchanged") changed = true;
+    children.push({ key:k, node });
+  }
+  return { kind: changed ? "changed" : "unchanged", cont:true, ctype:"object", children };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Arrays: align by index</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Objects have keys to match on; arrays do not, so the simple, predictable rule is to compare position <code>i</code> to position <code>i</code> up to the longer length. Extra tail elements are adds or removes. (This is why an insert near the front cascades — a documented trade-off.)</p>
+        <div class="relative"><pre>function diffArray(a, b){
+  const n = Math.max(a.length, b.length);
+  const children = []; let changed = false;
+  for (let i = 0; i &lt; n; i++){
+    const ca = i &lt; a.length ? a[i] : MISSING;
+    const cb = i &lt; b.length ? b[i] : MISSING;
+    const node = diffNode(ca, cb);
+    if (node.kind !== "unchanged") changed = true;
+    children.push({ key:i, node });
+  }
+  return { kind: changed ? "changed" : "unchanged", cont:true, ctype:"array", children };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Name the location: JSON-Pointer (RFC 6901)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A path is just the list of keys/indices you descended through. RFC 6901 joins them with <code>/</code> and escapes the two characters that would otherwise be ambiguous: a literal <code>/</code> in a key becomes <code>~1</code>, and a literal <code>~</code> becomes <code>~0</code>. The root is the empty string.</p>
+        <div class="relative"><pre>const escToken = t =&gt; String(t).replace(/~/g, "~0").replace(/\//g, "~1");
+const pointer  = path =&gt; path.length ? path.map(escToken).map(t =&gt; "/" + t).join("") : "";
+// ["meta","reviews"]      -&gt; "/meta/reviews"
+// ["paths","/api/v1"]     -&gt; "/paths/~1api~1v1"</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Turn the tree into an RFC 6902 JSON-Patch</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Walk the diff nodes carrying the path. An added node is one <code>add</code>, a removed node one <code>remove</code>, a changed <em>leaf</em> one <code>replace</code> (with the whole after-value). A changed <em>container</em> emits nothing itself — you recurse so the ops land on the exact leaves that moved.</p>
+        <div class="relative"><pre>function buildPatch(node, path, ops){
+  switch (node.kind){
+    case "added":   ops.push({ op:"add",     path:pointer(path), value:node.value }); break;
+    case "removed": ops.push({ op:"remove",  path:pointer(path) }); break;
+    case "changed":
+      if (node.cont) node.children.forEach(c =&gt; buildPatch(c.node, [...path, c.key], ops));
+      else ops.push({ op:"replace", path:pointer(path), value:node.after });
+      break;
+    // "unchanged": emit nothing
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Render the tree, colour by verdict</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Flatten the node tree into indented lines, each tagged with a gutter symbol and a colour: <code>+</code> green for add, <code>−</code> red for remove, <code>~</code> amber for a changed leaf (shown as <code>old → new</code>), and a plain line for unchanged. A changed container just brackets its changed children.</p>
+        <div class="relative"><pre>function emit(key, node, depth, lines){
+  if (node.kind === "changed" &amp;&amp; !node.cont)
+    lines.push(line(depth, "~", "chg",
+      label(key) + scalar(node.before) + " → " + scalar(node.after)));
+  else if (node.kind === "added")   whole(key, node.value, depth, "add", "+", lines);
+  else if (node.kind === "removed") whole(key, node.value, depth, "rem", "−", lines);
+  else if (node.cont) { /* bracket + recurse over node.children */ }
+  else lines.push(line(depth, " ", "unc", label(key) + scalar(node.before)));
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Collapse the noise, count the signal</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Real diffs are mostly unchanged. A "collapse unchanged" toggle folds those nodes into a dim one-liner so the eye lands on what moved, and a tally over the tree gives the summary — added / removed / changed leaves and unchanged leaves.</p>
+        <div class="relative"><pre>function tally(node, acc){
+  if (node.kind === "added")   { acc.added++;   return; }
+  if (node.kind === "removed") { acc.removed++; return; }
+  if (node.cont) { node.children.forEach(c =&gt; tally(c.node, acc)); return; }
+  if (node.kind === "changed")   acc.changed++;     // a changed leaf
+  else                           acc.unchanged++;   // an unchanged leaf
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Prove it with a self-test</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A diff you cannot trust is worse than none. Assert the four verdicts on tiny inputs: an added key, a removed key, a changed value, and — the one that separates structural from textual — two objects with the same keys in a different order coming back <strong>unchanged</strong>.</p>
+        <div class="relative"><pre>console.assert(diffNode({a:1}, {a:1, b:2}).children.find(c =&gt; c.key==="b").node.kind === "added");
+console.assert(diffNode({a:1, b:2}, {a:1}).children.find(c =&gt; c.key==="b").node.kind === "removed");
+console.assert(diffNode({a:1}, {a:2}).children[0].node.kind === "changed");
+console.assert(diffNode({a:1, b:2}, {b:2, a:1}).kind === "unchanged");   // key order ignored ✓
+console.assert(diffNode(10, "10").kind === "changed");                    // type matters ✓</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 57 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real <strong>structural</strong> JSON diff with <strong>no library</strong>. It rests on one recursive idea: compare two values by <strong>type first</strong>, then — for objects walk the <strong>union of keys</strong> (so order never lies), for arrays walk the <strong>indices</strong>, for primitives compare directly — labelling every spot <strong>added / removed / changed / unchanged</strong>. Carry a <strong>JSON-Pointer</strong> path down the recursion and those labels become an executable <strong>RFC 6902 JSON-Patch</strong>. Because it compares meaning and not characters, it shrugs off whitespace and key reorders that fool a text diff — the right way to compare data instead of the way it happens to be printed.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= JSON STRUCTURAL DIFF (from scratch, no library) =================
+// Parse both docs into trees, then one recursive walker compares them node by node:
+//   missing on a side -> added/removed · different type -> changed · same container
+//   -> recurse (objects by the UNION of keys, order-insensitive; arrays by index)
+//   -> same primitive -> unchanged/changed.  Every descent extends a JSON-Pointer
+//   path, so verdicts become an RFC 6902 JSON-Patch. Nothing is uploaded.
+
+const $ = id => document.getElementById(id);
+const beforeTA = $("before"), afterTA = $("after");
+
+// ---------- type-aware "same" ----------
+function typeOf(v){
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  return typeof v;                       // object | string | number | boolean
+}
+function isContainer(v){ const t = typeOf(v); return t === "object" || t === "array"; }
+const MISSING = Symbol("missing");       // a key/index present on only one side
+
+// ---------- the recursive structural diff ----------
+function diffNode(a, b){
+  if (a === MISSING) return { kind:"added",   value:b };
+  if (b === MISSING) return { kind:"removed", value:a };
+  const ta = typeOf(a), tb = typeOf(b);
+  if (ta !== tb) return { kind:"changed", cont:false, before:a, after:b };   // type change
+  if (ta === "object") return diffObject(a, b);
+  if (ta === "array")  return diffArray(a, b);
+  return a === b ? { kind:"unchanged", cont:false, before:a }
+                 : { kind:"changed",   cont:false, before:a, after:b };
+}
+function diffObject(a, b){
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();  // union, order-insensitive
+  const children = []; let changed = false;
+  for (const k of keys){
+    const ca = Object.prototype.hasOwnProperty.call(a, k) ? a[k] : MISSING;
+    const cb = Object.prototype.hasOwnProperty.call(b, k) ? b[k] : MISSING;
+    const node = diffNode(ca, cb);
+    if (node.kind !== "unchanged") changed = true;
+    children.push({ key:k, node });
+  }
+  return { kind: changed ? "changed" : "unchanged", cont:true, ctype:"object", children };
+}
+function diffArray(a, b){
+  const n = Math.max(a.length, b.length);
+  const children = []; let changed = false;
+  for (let i = 0; i < n; i++){
+    const ca = i < a.length ? a[i] : MISSING;
+    const cb = i < b.length ? b[i] : MISSING;
+    const node = diffNode(ca, cb);
+    if (node.kind !== "unchanged") changed = true;
+    children.push({ key:i, node });
+  }
+  return { kind: changed ? "changed" : "unchanged", cont:true, ctype:"array", children };
+}
+
+// ---------- JSON-Pointer (RFC 6901) ----------
+const escToken = t => String(t).replace(/~/g, "~0").replace(/\//g, "~1");
+const pointer  = path => path.length ? path.map(escToken).map(t => "/" + t).join("") : "";
+
+// ---------- RFC 6902 JSON-Patch ----------
+function buildPatch(node, path, ops){
+  switch (node.kind){
+    case "added":   ops.push({ op:"add",     path:pointer(path), value:node.value }); break;
+    case "removed": ops.push({ op:"remove",  path:pointer(path) }); break;
+    case "changed":
+      if (node.cont) node.children.forEach(c => buildPatch(c.node, path.concat([c.key]), ops));
+      else ops.push({ op:"replace", path:pointer(path), value:node.after });
+      break;
+    // "unchanged": nothing to do
+  }
+}
+
+// ---------- summary tally (matches the patch: add/remove/replace + unchanged leaves) ----------
+function tally(node, acc){
+  if (node.kind === "added")   { acc.added++;   return; }
+  if (node.kind === "removed") { acc.removed++; return; }
+  if (node.cont){
+    if (node.children.length === 0) acc.unchanged++;   // an empty {} / [] that matched
+    else node.children.forEach(c => tally(c.node, acc));
+    return;
+  }
+  if (node.kind === "changed") acc.changed++;          // a changed leaf / type change
+  else acc.unchanged++;                                // an unchanged leaf
+}
+
+// ---------- rendering ----------
+function escapeHtml(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function scalar(v){ return '<span class="jv-' + typeOf(v) + '">' + escapeHtml(JSON.stringify(v)) + "</span>"; }
+function label(key){
+  if (key === null || key === undefined) return "";
+  if (typeof key === "number") return '<span class="jidx">' + key + ":</span> ";
+  return '<span class="jk">' + escapeHtml(JSON.stringify(String(key))) + "</span>: ";
+}
+const line = (depth, gutter, cls, html) => ({ depth, gutter, cls, html });
+
+let collapseUnchanged = false;
+
+function collapsedSummary(node){
+  if (node.cont){
+    const isArr = node.ctype === "array", n = node.children.length;
+    return '<span class="brk">' + (isArr ? "[" : "{") + '</span><span class="dim"> … ' +
+           n + (isArr ? " item" : " key") + (n === 1 ? "" : "s") + ' unchanged </span><span class="brk">' +
+           (isArr ? "]" : "}") + "</span>";
+  }
+  return scalar(node.before) + ' <span class="dim">(unchanged)</span>';
+}
+
+// render a whole added/removed subtree in one colour
+function whole(key, val, depth, cls, gut, lines){
+  if (isContainer(val)){
+    const isArr = Array.isArray(val), open = isArr ? "[" : "{", close = isArr ? "]" : "}";
+    lines.push(line(depth, gut, cls, label(key) + '<span class="brk">' + open + "</span>"));
+    if (isArr) val.forEach((v, i) => whole(i, v, depth + 1, cls, gut, lines));
+    else Object.keys(val).forEach(k => whole(k, val[k], depth + 1, cls, gut, lines));
+    lines.push(line(depth, gut, cls, '<span class="brk">' + close + "</span>"));
+  } else {
+    lines.push(line(depth, gut, cls, label(key) + scalar(val)));
+  }
+}
+
+function emit(key, node, depth, lines){
+  // collapse an unchanged node into a single dim line
+  if (collapseUnchanged && node.kind === "unchanged"){
+    lines.push(line(depth, " ", "unc collapsed", label(key) + collapsedSummary(node)));
+    return;
+  }
+  if (node.kind === "added")   { whole(key, node.value, depth, "add", "+", lines); return; }
+  if (node.kind === "removed") { whole(key, node.value, depth, "rem", "−", lines); return; }
+
+  if (!node.cont){
+    if (node.kind === "changed")
+      lines.push(line(depth, "~", "chg", label(key) + scalar(node.before) + '<span class="arr">→</span>' + scalar(node.after)));
+    else
+      lines.push(line(depth, " ", "unc", label(key) + scalar(node.before)));
+    return;
+  }
+
+  // a container (changed or, when not collapsing, unchanged)
+  const isArr = node.ctype === "array", open = isArr ? "[" : "{", close = isArr ? "]" : "}";
+  const cont = node.kind === "changed" ? "chg-cont" : "unc";
+  const gut  = node.kind === "changed" ? "~" : " ";
+  lines.push(line(depth, gut, cont, label(key) + '<span class="brk">' + open + "</span>"));
+  for (const { key: ck, node: cn } of node.children) emit(ck, cn, depth + 1, lines);
+  lines.push(line(depth, " ", cont, '<span class="brk">' + close + "</span>"));
+}
+
+function linesToHtml(lines){
+  return lines.map(l =>
+    '<div class="dl ' + l.cls + '"><span class="g">' + l.gutter +
+    '</span><span class="c" style="margin-left:' + (l.depth * 16) + 'px">' + l.html + "</span></div>"
+  ).join("");
+}
+
+// ---------- parse with a graceful, located error ----------
+function parseJSON(text){
+  if (!text.trim()) return { ok:false, error:"empty — nothing to parse", empty:true };
+  try { return { ok:true, value: JSON.parse(text) }; }
+  catch (e){
+    let msg = e.message;
+    if (!/line \d+/.test(msg)){
+      const m = /position (\d+)/.exec(msg);
+      if (m){
+        const pos = +m[1], upto = text.slice(0, pos);
+        const ln = upto.split("\n").length;
+        const col = pos - upto.lastIndexOf("\n");
+        msg += " (line " + ln + ", column " + col + ")";
+      }
+    }
+    return { ok:false, error: msg };
+  }
+}
+
+// ================= main =================
+function run(){
+  const pa = parseJSON(beforeTA.value);
+  const pb = parseJSON(afterTA.value);
+  beforeTA.classList.toggle("bad", !pa.ok && !pa.empty);
+  afterTA.classList.toggle("bad", !pb.ok && !pb.empty);
+
+  const errs = [];
+  if (!pa.ok) errs.push(["Before", pa.error]);
+  if (!pb.ok) errs.push(["After",  pb.error]);
+  const errBox = $("errBox");
+
+  if (errs.length){
+    errBox.style.display = "";
+    errBox.innerHTML = errs.map(e =>
+      '<div class="notice err">✗ <b>' + e[0] + "</b>: " + escapeHtml(e[1]) + "</div>"
+    ).join("");
+    $("stAdd").textContent = $("stRem").textContent = $("stChg").textContent = $("stUnc").textContent = "—";
+    $("difftree").innerHTML = '<div class="dl unc"><span class="g"> </span><span class="c dim">fix the JSON above to see the diff</span></div>';
+    $("identBanner").style.display = "none";
+    $("patchOut").textContent = "[]";
+    $("patchCount").textContent = "—";
+    return;
+  }
+  errBox.style.display = "none";
+
+  const tree = diffNode(pa.value, pb.value);
+
+  // summary
+  const acc = { added:0, removed:0, changed:0, unchanged:0 };
+  tally(tree, acc);
+  $("stAdd").textContent = acc.added;
+  $("stRem").textContent = acc.removed;
+  $("stChg").textContent = acc.changed;
+  $("stUnc").textContent = acc.unchanged;
+
+  // tree
+  const lines = [];
+  emit(null, tree, 0, lines);
+  $("difftree").innerHTML = linesToHtml(lines);
+  $("identBanner").style.display = (acc.added + acc.removed + acc.changed === 0) ? "" : "none";
+
+  // patch
+  const ops = [];
+  buildPatch(tree, [], ops);
+  $("patchOut").textContent = JSON.stringify(ops, null, 2);
+  $("patchCount").textContent = ops.length + (ops.length === 1 ? " operation" : " operations");
+}
+
+// ================= sample data =================
+const SAMPLE_BEFORE = {
+  name: "widget",
+  version: "1.0.0",
+  active: true,
+  price: 9.99,
+  tags: ["stable", "beta", "cli"],
+  meta: { author: "sam", reviews: 12, rating: 4.5 },
+  legacy: "please remove me",
+  count: 10
+};
+const SAMPLE_AFTER = {
+  version: "1.1.0",                    // changed (and key order shuffled vs before)
+  name: "widget",                      // unchanged, despite the reorder
+  active: true,                        // unchanged
+  price: 9.99,                         // unchanged
+  tags: ["stable", "beta", "web"],     // tags[2] changed "cli" -> "web"
+  meta: { author: "sam", reviews: 15, rating: 4.5, stars: 5 }, // reviews changed + stars added
+  count: "10",                         // TYPE change: number 10 -> string "10"
+  featured: true                       // added
+};
+
+// ================= wire the LOOK controls =================
+function loadSample(){
+  beforeTA.value = JSON.stringify(SAMPLE_BEFORE, null, 2);
+  afterTA.value  = JSON.stringify(SAMPLE_AFTER, null, 2);
+  run();
+}
+function prettyPrint(){
+  [beforeTA, afterTA].forEach(ta => {
+    const p = parseJSON(ta.value);
+    if (p.ok) ta.value = JSON.stringify(p.value, null, 2);
+  });
+  run();
+}
+function swapSides(){
+  const t = beforeTA.value; beforeTA.value = afterTA.value; afterTA.value = t; run();
+}
+function clearAll(){ beforeTA.value = ""; afterTA.value = ""; run(); }
+
+beforeTA.addEventListener("input", run);
+afterTA.addEventListener("input", run);
+$("sampleBtn").onclick = loadSample;
+$("fmtBtn").onclick = prettyPrint;
+$("swapBtn").onclick = swapSides;
+$("clearBtn").onclick = clearAll;
+$("collapseChk").onchange = e => { collapseUnchanged = e.target.checked; run(); };
+
+function copyPatch(btn){
+  navigator.clipboard.writeText($("patchOut").textContent);
+  const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500);
+}
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.onclick = () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  $(t.dataset.tab).classList.remove("hidden");
+});
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Text diff vs structural diff",
+   why:"A line-based diff sees JSON as characters, so it reacts to whitespace, indentation and key order — none of which change the data. Reformat a file or reorder two keys and a text diff screams 'changed'. A structural diff parses both sides and compares the values themselves, reporting only differences that matter.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill r">text diff</span> reorder keys → "everything changed"</div><div class="mono"><span class="pill g">structural diff</span> reorder keys → "nothing changed"</div><div class="text-xs text-slate-400">compare meaning, not characters</div></div>`,
+   code:`// same data, different text:
+// {"a":1,"b":2}   vs   {\n  "b": 2,\n  "a": 1\n}
+// text diff: many changed lines
+// structural diff: UNCHANGED` },
+ { title:"2. Parse both sides into trees",
+   why:"You cannot diff data you have not parsed. JSON.parse turns each document into a tree of objects, arrays and primitives. Wrapping it means an invalid document becomes a friendly 'line X, column Y' message instead of a thrown exception that blanks the UI.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">text</span> → <span class="pill b">JSON.parse</span> → <span class="pill g">tree</span></div><div class="text-xs text-slate-400">objects · arrays · strings · numbers · booleans · null</div></div>`,
+   code:`try { value = JSON.parse(text); }
+catch (e){
+  // "... in JSON at position 42" → compute line & column
+  return { ok:false, error: e.message + located(text, e) };
+}` },
+ { title:"3. Type-aware equality",
+   why:"typeof is not enough: typeof null and typeof [] both say 'object'. A helper that returns the six JSON shapes lets the diff tell an array from an object from a null — and treat a shape change (number 10 becoming string \"10\") as a real change rather than an accidental match.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">null</span> <span class="pill b">array</span> <span class="pill g">object</span> <span class="pill s">string</span> <span class="pill p">number</span> <span class="pill q">boolean</span></div><div class="text-xs text-slate-400">10 vs "10" → different type → changed</div></div>`,
+   code:`function typeOf(v){
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  return typeof v;   // object | string | number | boolean
+}` },
+ { title:"4. The recursive core",
+   why:"The entire diff is one function applied to two values. Missing on one side is an add or a remove; different types is a change; same container type means recurse; same primitive means compare. Each call returns a tiny node recording its verdict, which is all the renderer and the patch builder need.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>MISSING? → <span class="pill g">added</span>/<span class="pill r">removed</span></div><div>type differs? → <span class="pill a">changed</span> &nbsp; container? → <span class="pill b">recurse</span></div></div>`,
+   code:`function diffNode(a, b){
+  if (a === MISSING) return { kind:"added",   value:b };
+  if (b === MISSING) return { kind:"removed", value:a };
+  if (typeOf(a) !== typeOf(b)) return { kind:"changed", before:a, after:b };
+  // ... objects / arrays / primitives
+}` },
+ { title:"5. Objects by the union of keys",
+   why:"Object keys are unordered, so the diff collects every key from BOTH sides into a set. A key on only one side is an add or a remove; a key on both recurses. Because the set ignores order, reordering keys is invisible — the single most important difference from a text diff.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">keys(a)</span> ∪ <span class="pill s">keys(b)</span> → walk each once</div><div class="text-xs text-slate-400">only in b → added · only in a → removed · both → recurse</div></div>`,
+   code:`const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+for (const k of [...keys].sort()){
+  const ca = (k in a) ? a[k] : MISSING;
+  const cb = (k in b) ? b[k] : MISSING;
+  children.push({ key:k, node: diffNode(ca, cb) });
+}` },
+ { title:"6. Arrays by index (and its limit)",
+   why:"Arrays have no keys to match on, so the simple, predictable rule is to compare position i to position i up to the longer length. It is honest and fast, but it has no notion of a 'move': insert one element near the front and everything after it shifts, so it all reads as changed. A documented trade-off.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">a[i]</span> ⟷ <span class="pill s">b[i]</span> for i in 0..max</div><div class="text-xs text-slate-400">insert at front → tail all 'changed' (no move detection)</div></div>`,
+   code:`const n = Math.max(a.length, b.length);
+for (let i = 0; i < n; i++){
+  const ca = i < a.length ? a[i] : MISSING;
+  const cb = i < b.length ? b[i] : MISSING;
+  children.push({ key:i, node: diffNode(ca, cb) });
+}` },
+ { title:"7. JSON-Pointer paths (RFC 6901)",
+   why:"To say WHERE something changed you keep the trail of keys and indices you descended through. RFC 6901 writes it as /segment/segment, escaping the two ambiguous characters: a '/' inside a key becomes ~1 and a '~' becomes ~0. The root document is the empty string. These are the exact paths a JSON-Patch needs.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>["meta","reviews"] → <span class="pill b">/meta/reviews</span></div><div>key "a/b" → <span class="pill a">/a~1b</span> &nbsp; key "x~y" → <span class="pill a">/x~0y</span></div></div>`,
+   code:`const escToken = t => String(t).replace(/~/g,"~0").replace(/\\//g,"~1");
+const pointer  = path => path.length
+  ? path.map(escToken).map(t => "/" + t).join("")
+  : "";   // root = ""` },
+ { title:"8. Emit an RFC 6902 JSON-Patch",
+   why:"A diff you can read is good; a diff a machine can APPLY is better. RFC 6902 is a list of operations — add, remove, replace — each with a JSON-Pointer path. Added node ⇒ add, removed ⇒ remove, changed leaf ⇒ replace with the new value; a changed container emits nothing itself and recurses so ops land on the precise leaves.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">add</span> {op,path,value} &nbsp; <span class="pill r">remove</span> {op,path}</div><div><span class="pill a">replace</span> {op,path,value} &nbsp; applies before → after</div></div>`,
+   code:`case "added":   ops.push({op:"add",     path, value:node.value}); break;
+case "removed": ops.push({op:"remove",  path}); break;
+case "changed": node.cont ? recurse(node.children)
+              : ops.push({op:"replace", path, value:node.after});` },
+ { title:"9. Render, colour, collapse",
+   why:"Flatten the node tree into indented lines, each with a gutter symbol and colour — + green add, − red remove, ~ amber change (old → new), plain for unchanged. Because real diffs are mostly unchanged, a 'collapse unchanged' toggle folds those into a dim one-liner so the eye lands on what actually moved.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span style="color:#16a34a">+ added</span> &nbsp; <span style="color:#dc2626">− removed</span> &nbsp; <span style="color:#d97706">~ old → new</span></div><div class="text-xs text-slate-400">toggle: hide the unchanged majority</div></div>`,
+   code:`if (kind === "changed" && leaf)
+  push("~", "chg", label + scalar(before) + " → " + scalar(after));
+else if (kind === "added")   whole(value, "add", "+");
+else if (kind === "removed") whole(value, "rem", "−");` },
+ { title:"10. A self-test for trust",
+   why:"A diff you cannot trust is worse than none. Assert the four verdicts on tiny inputs, and above all the one that defines a structural diff: two objects with the same keys in a different order must come back UNCHANGED, and a number that became a string must come back CHANGED.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">{a:1}→{a:1,b:2}</span> b = added ✓</div><div><span class="pill g">{a:1,b:2}→{b:2,a:1}</span> = unchanged ✓</div></div>`,
+   code:`console.assert(diffNode({a:1},{a:2}).children[0].node.kind === "changed");
+console.assert(diffNode({a:1,b:2},{b:2,a:1}).kind === "unchanged"); // order ✓
+console.assert(diffNode(10,"10").kind === "changed");               // type  ✓` },
+];
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach((s, i) => { const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>"; bn.onclick = () => show(i); stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach((bn, idx) => { bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = () => show(Math.max(0, curStep - 1)); nextB.onclick = () => show(Math.min(STEPS.length - 1, curStep + 1));
+let tm = null; autoB.onclick = () => { if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(() => { if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(() => btn.textContent = o, 1500); }
+
+// ================= self-test (proves the walker) =================
+(function selfTest(){
+  console.assert(diffNode({a:1}, {a:1, b:2}).children.find(c => c.key === "b").node.kind === "added", "added key");
+  console.assert(diffNode({a:1, b:2}, {a:1}).children.find(c => c.key === "b").node.kind === "removed", "removed key");
+  console.assert(diffNode({a:1}, {a:2}).children[0].node.kind === "changed", "changed leaf");
+  console.assert(diffNode({a:1, b:2}, {b:2, a:1}).kind === "unchanged", "key order ignored");
+  console.assert(diffNode(10, "10").kind === "changed", "type matters");
+  const ops = []; buildPatch(diffNode({a:1}, {a:1, b:2}), [], ops);
+  console.assert(ops.length === 1 && ops[0].op === "add" && ops[0].path === "/b", "patch add op");
+})();
+
+// ================= boot =================
+loadSample();   // start with the sample pair so the page shows a real diff
+</script>
+</body>
+</html>

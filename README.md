@@ -58,6 +58,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 54 — ULID Generator (from scratch)](https://dev48v.infy.uk/solve/day54-ulid-generator.html) — `day54-ulid-generator.html`
 - [SolveFromZero · Day 55 — Colour-Blindness Simulator (from scratch)](https://dev48v.infy.uk/solve/day55-color-blindness-simulator.html) — `day55-color-blindness-simulator.html`
 - [SolveFromZero · Day 56 — EXIF Viewer](https://dev48v.infy.uk/solve/day56-exif-viewer.html) — `day56-exif-viewer.html`
+- [SolveFromZero · Day 57 — JSON Structural Diff](https://dev48v.infy.uk/solve/day57-json-diff.html) — `day57-json-diff.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
