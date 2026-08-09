@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 58 — Favicon Generator (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- segmented controls ---- */
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:7px 13px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* ---- inputs ---- */
+  .inp { width:100%; font:700 13px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:10px; padding:9px 11px; background:#fff; color:#0f172a; }
+  .inp:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .glyphinp { text-align:center; font-size:22px; }
+  select.inp { cursor:pointer; }
+  input[type=color].swatch { -webkit-appearance:none; appearance:none; width:100%; height:38px; border:1.5px solid #e2e8f0; border-radius:10px; padding:0; background:none; cursor:pointer; }
+  input[type=color].swatch::-webkit-color-swatch-wrapper { padding:3px; }
+  input[type=color].swatch::-webkit-color-swatch { border:none; border-radius:7px; }
+
+  /* ---- drop zone ---- */
+  .dropzone { border:2px dashed #cbd5e1; border-radius:12px; padding:22px 14px; text-align:center; color:#64748b; font:700 13px ui-monospace,Menlo,monospace; cursor:pointer; transition:.15s; }
+  .dropzone:hover, .dropzone.drag { border-color:#f59e0b; background:#fffbeb; color:#b45309; }
+
+  /* ---- preview surfaces ---- */
+  .stage { background:
+      linear-gradient(45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(-45deg,#e2e8f0 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#e2e8f0 75%),
+      linear-gradient(-45deg,transparent 75%,#e2e8f0 75%);
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0;
+    background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:18px; display:flex; align-items:center; justify-content:center; }
+  .stage canvas { image-rendering:auto; border-radius:6px; }
+  .sizecell { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .sizecell .cap { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; }
+  .sizecell canvas { background:#fff; box-shadow:0 0 0 1px #e2e8f0; }
+
+  /* ---- fake browser tab ---- */
+  .tabmock { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid #e2e8f0; border-bottom:none; border-radius:9px 9px 0 0; padding:8px 12px 9px; max-width:260px; box-shadow:0 -1px 0 #e2e8f0 inset; }
+  .tabmock canvas { flex:none; }
+  .tabmock .ttl { font:700 12px -apple-system,sans-serif; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tabmock .x { color:#94a3b8; font-weight:800; margin-left:2px; }
+  .tabbar { border-bottom:2px solid #e2e8f0; }
+
+  /* ---- iOS home-screen mock ---- */
+  .homeicon { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .homeicon .plate { border-radius:14px; overflow:hidden; box-shadow:0 6px 14px rgba(15,23,42,.22); }
+  .homeicon .nm { font:700 11px -apple-system,sans-serif; color:#334155; }
+
+  /* ---- download chips ---- */
+  .dlchip { display:flex; align-items:center; gap:10px; border:1.5px solid #e2e8f0; border-radius:12px; padding:9px 11px; background:#f8fafc; }
+  .dlchip canvas { flex:none; background:#fff; box-shadow:0 0 0 1px #e2e8f0; border-radius:4px; }
+  .dlchip .meta { flex:1; min-width:0; }
+  .dlchip .fn { font:800 12px ui-monospace,Menlo,monospace; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dlchip .sub { font:700 10px ui-monospace,Menlo,monospace; color:#94a3b8; }
+  .dlchip button { flex:none; }
+
+  /* ---- notice box ---- */
+  .notice { border-radius:12px; padding:14px 16px; font:700 13px ui-monospace,Menlo,monospace; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 58</div>
+      <h1 class="text-xl font-bold">⭐ <code class="mono">Favicon</code> Generator — a real, from-scratch, entirely in-browser favicon maker: build an icon from <strong>either</strong> a typed <strong>letter or emoji</strong> (with your chosen background &amp; text colour, a square / rounded / circle shape and a font) <strong>or</strong> an <strong>uploaded image</strong> (real <code class="mono">FileReader.readAsDataURL</code>, <strong>never uploaded</strong> to a server) — every design is <strong>rasterised fresh</strong> on a <code class="mono">&lt;canvas&gt;</code> at each of the standard sizes (<code class="mono">16 · 32 · 48 · 180 apple-touch · 192 · 512</code>) rather than shrinking one big image, so each pixel size gets a crisp render · live previews at real size plus a <strong>fake browser-tab</strong> and an <strong>iOS home-screen</strong> mock, one-click <strong>PNG downloads</strong> per size via <code class="mono">canvas.toBlob</code> + an object-URL <code class="mono">&lt;a download&gt;</code>, and it emits the exact <strong>HTML <code class="mono">&lt;link&gt;</code> tags</strong> + a ready <code class="mono">site.webmanifest</code> JSON referencing those filenames · modern favicons are PNGs, not multi-size <code class="mono">.ico</code> (that is now a niche) · distinct from the Day-10 QR generator · vanilla JS, no library</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">One little icon, half a dozen sizes, and a snippet to wire it up.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">A favicon is that tiny square in the browser tab, the bookmark, the phone home screen. Making one used to mean a round-trip through an upload site. It never needed to: a browser can already <strong>draw</strong> and <strong>encode</strong> images. This tool builds a favicon two ways — type a <strong>letter or emoji</strong> and pick a background, shape and font, or drop <strong>your own image</strong> (read locally with <code class="mono">FileReader</code>, nothing leaves the page). Then it <strong>rasterises the design freshly at each standard size</strong> on a <code class="mono">&lt;canvas&gt;</code> — 16, 32 and 48 for the tab, 180 for Apple's touch icon, 192 and 512 for Android / PWA — because a crisp 16&times;16 wants its own render, not a shrunk 512. Each size downloads as a PNG through <code class="mono">canvas.toBlob</code> and an object-URL link, and the tool hands you the exact <code class="mono">&lt;link&gt;</code> tags and a <code class="mono">site.webmanifest</code> to paste into your <code class="mono">&lt;head&gt;</code>. All client-side, no library, no upload.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-5 gap-6">
+        <!-- ============ CONTROLS ============ -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Source</div>
+            <div class="flex gap-2 mb-4" id="modeSeg">
+              <button class="seg on" data-mode="glyph">🔤 Letter / emoji</button>
+              <button class="seg" data-mode="image">🖼 Upload image</button>
+            </div>
+
+            <!-- glyph controls -->
+            <div id="glyphCtrls">
+              <div class="fieldlabel">Glyph <span class="text-slate-400 normal-case">— one letter or an emoji</span></div>
+              <input id="glyphText" class="inp glyphinp" maxlength="4" value="D" spellcheck="false" />
+              <div class="grid grid-cols-2 gap-3 mt-4">
+                <div>
+                  <div class="fieldlabel">Background</div>
+                  <input id="bgColor" type="color" class="swatch" value="#f59e0b" />
+                </div>
+                <div>
+                  <div class="fieldlabel">Text colour</div>
+                  <input id="fgColor" type="color" class="swatch" value="#ffffff" />
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="fieldlabel">Font</div>
+                <select id="fontSel" class="inp">
+                  <option value="system-ui, -apple-system, sans-serif">System sans-serif</option>
+                  <option value="Georgia, 'Times New Roman', serif">Serif (Georgia)</option>
+                  <option value="ui-monospace, 'Courier New', monospace">Monospace</option>
+                  <option value="'Arial Black', Arial, sans-serif">Arial Black</option>
+                  <option value="Impact, Charcoal, sans-serif">Impact</option>
+                  <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans</option>
+                  <option value="Verdana, Geneva, sans-serif">Verdana</option>
+                </select>
+              </div>
+              <div class="flex flex-wrap gap-2 mt-4">
+                <button class="seg" data-preset="D|#f59e0b|#ffffff">amber D</button>
+                <button class="seg" data-preset="🚀|#0f172a|#ffffff">🚀 dark</button>
+                <button class="seg" data-preset="A|#6366f1|#ffffff">indigo A</button>
+                <button class="seg" data-preset="🐙|#16a34a|#ffffff">🐙 green</button>
+              </div>
+            </div>
+
+            <!-- image controls -->
+            <div id="imageCtrls" class="hidden">
+              <div id="drop" class="dropzone">📂 Drop an image here, or click to pick<br><span class="text-xs">PNG · JPG · SVG · WEBP — stays in your browser</span></div>
+              <input id="fileInput" type="file" accept="image/*" class="hidden" />
+              <div id="imgHint" class="text-xs text-slate-400 mono mt-2">A square image works best; others are cover-fit to the square.</div>
+              <div class="mt-4">
+                <div class="fieldlabel">Backdrop <span class="text-slate-400 normal-case">— shows through transparency / behind the shape</span></div>
+                <input id="bgColor2" type="color" class="swatch" value="#0f172a" />
+              </div>
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-slate-100">
+              <div class="fieldlabel">Shape</div>
+              <div class="flex gap-2" id="shapeSeg">
+                <button class="seg" data-shape="square">◼ Square</button>
+                <button class="seg on" data-shape="rounded">▢ Rounded</button>
+                <button class="seg" data-shape="circle">⬤ Circle</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Site details <span class="text-slate-400 normal-case">— used in the manifest &amp; theme-color</span></div>
+            <div class="grid grid-cols-1 gap-3">
+              <div>
+                <div class="fieldlabel">App name</div>
+                <input id="appName" class="inp" value="My App" spellcheck="false" />
+              </div>
+              <div>
+                <div class="fieldlabel">Theme colour</div>
+                <input id="themeColor" type="color" class="swatch" value="#0f172a" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PREVIEW + OUTPUT ============ -->
+        <div class="lg:col-span-3 space-y-6">
+          <!-- big preview -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Live preview</div>
+            <div class="grid md:grid-cols-2 gap-5 items-center">
+              <div class="stage"><canvas id="bigPrev" width="128" height="128" style="width:128px;height:128px"></canvas></div>
+              <div>
+                <div class="fieldlabel">At true pixel size</div>
+                <div class="flex items-end gap-5 mb-5" id="sizeStrip"></div>
+                <div class="fieldlabel">In a browser tab</div>
+                <div class="tabbar mb-4">
+                  <span class="tabmock"><canvas id="tabFav" width="16" height="16" style="width:16px;height:16px"></canvas><span class="ttl" id="tabTitle">My App</span><span class="x">×</span></span>
+                </div>
+                <div class="fieldlabel">On an iOS home screen</div>
+                <div class="homeicon">
+                  <div class="plate"><canvas id="appleFav" width="60" height="60" style="width:60px;height:60px"></canvas></div>
+                  <div class="nm" id="homeName">My App</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- downloads -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="fieldlabel mb-0">Export PNGs <span class="text-slate-400 normal-case">— each rasterised freshly at its size</span></div>
+              <button id="dlAll" class="seg" style="border-color:#f59e0b;color:#b45309">⤓ Download all</button>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3" id="dlRow"></div>
+          </div>
+
+          <!-- link tags -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="fieldlabel mb-0">HTML — paste into your <code class="mono">&lt;head&gt;</code></div>
+              <button class="copy-btn seg" onclick="copyText('linkOut', this)">Copy tags</button>
+            </div>
+            <pre id="linkOut"></pre>
+          </div>
+
+          <!-- manifest -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="fieldlabel mb-0"><code class="mono">site.webmanifest</code> <span class="text-slate-400 normal-case">— for Android / PWA install</span></div>
+              <button class="copy-btn seg" onclick="copyText('manifestOut', this)">Copy JSON</button>
+            </div>
+            <pre id="manifestOut" style="max-height:320px"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about favicons</div>
+        <p class="text-sm text-amber-800"><strong>1. PNG beat <code class="mono">.ico</code>.</strong> The old <code class="mono">favicon.ico</code> was a Windows container that could hold several sizes in one file. Every current browser accepts a plain PNG via <code class="mono">&lt;link rel="icon" type="image/png" sizes="…"&gt;</code>, so multi-size <code class="mono">.ico</code> is now a niche compatibility trick, not the default — this tool ships PNGs, one per size. <strong>2. Rasterise per size, do not shrink one big image.</strong> A 16&times;16 has 256 pixels to say everything with; a design auto-shrunk from 512 turns to mush. Drawing fresh at each size lets the shape and glyph stay legible where it counts. <strong>3. Apple does its own thing.</strong> iOS ignores <code class="mono">rel="icon"</code> and wants <code class="mono">rel="apple-touch-icon"</code> at 180&times;180, and it rounds the corners itself — so give it a full-bleed square and let the OS mask it. <strong>4. Android reads the manifest.</strong> The 192 and 512 icons are declared in <code class="mono">site.webmanifest</code>, and <code class="mono">purpose:"maskable"</code> tells Android it may crop into a circle/squircle — keep important art in the centre "safe zone". <strong>5. It is just canvas + a Blob.</strong> No server, no library: draw on a <code class="mono">&lt;canvas&gt;</code>, call <code class="mono">toBlob</code> to encode a PNG, wrap it in an object URL, and click a hidden <code class="mono">&lt;a download&gt;</code>. The same three steps export any image a browser can draw.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a favicon generator works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A favicon generator is a small pipeline: describe a <strong>design</strong> (a glyph with colours and a shape, or an uploaded image), write one <code>renderAt(canvas, size)</code> that draws it <strong>fresh at any pixel size</strong>, then loop the standard sizes calling <code>canvas.toBlob</code> to download a PNG each. The rest is presentation — live previews, a fake browser tab, the <code>&lt;link&gt;</code> tags and a manifest. No image library, no server; the browser already draws and encodes PNGs. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">One design object, two sources</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Hold the whole icon as plain data: a mode (<code>glyph</code> or <code>image</code>), the glyph text, foreground/background colours, a font, a shape, and — for uploads — a decoded <code>Image</code>. Everything downstream reads only this object, so a control change is just a field write plus a redraw.</p>
+        <div class="relative"><pre>const design = {
+  mode: "glyph",          // "glyph" | "image"
+  text: "D",
+  fg:   "#ffffff",        // glyph colour
+  bg:   "#f59e0b",        // background / backdrop
+  font: "system-ui, sans-serif",
+  shape:"rounded",        // "square" | "rounded" | "circle"
+  img:  null,             // decoded HTMLImageElement (image mode)
+  appName: "My App",
+  theme:   "#0f172a"
+};</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The shape is a clip path</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Square, rounded and circle are all one idea: build a path, then <code>clip()</code> so everything drawn afterwards is masked to it. A circle is an <code>arc</code>; a rounded square is four <code>arcTo</code> corners scaled to the size so the radius looks right at 16 and at 512 alike.</p>
+        <div class="relative"><pre>function clipShape(ctx, size, shape){
+  ctx.beginPath();
+  if (shape === "circle")      ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
+  else if (shape === "rounded")roundRect(ctx, 0, 0, size, size, size*0.2);
+  else                         ctx.rect(0, 0, size, size);
+}
+function roundRect(ctx, x, y, w, h, r){
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Centre a glyph — letter or emoji</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Set <code>textAlign:"center"</code> and <code>textBaseline:"middle"</code> so one <code>fillText</code> at the centre lands centred at any size. Scale the font to the icon size (emoji sit a little larger and ignore the fill colour — the OS paints their own).</p>
+        <div class="relative"><pre>function drawGlyph(ctx, size){
+  const t = design.text;
+  if (!t) return;
+  const isEmoji = /\p{Extended_Pictographic}/u.test(t);
+  ctx.fillStyle    = design.fg;
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.round(size * (isEmoji ? 0.74 : 0.62))}px ${design.font}`;
+  ctx.fillText(t, size/2, size/2 + size*0.02);   // tiny optical nudge
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Read an upload locally, cover-fit it</h3></div>
+        <p class="text-sm text-slate-600 mb-3"><code>FileReader.readAsDataURL</code> turns the picked file into a data URI — no upload — which an <code>Image</code> decodes. Then <em>cover</em>-fit it into the square: scale by the <strong>larger</strong> ratio so the icon is fully covered, and centre the overflow.</p>
+        <div class="relative"><pre>function loadFile(file){
+  const r = new FileReader();
+  r.onload = () =&gt; { const im = new Image();
+    im.onload = () =&gt; { design.img = im; redraw(); };
+    im.src = r.result; };            // data: URI, nothing leaves the page
+  r.readAsDataURL(file);
+}
+function drawCover(ctx, img, size){
+  const s = Math.max(size / img.width, size / img.height);   // cover, not contain
+  const w = img.width * s, h = img.height * s;
+  ctx.drawImage(img, (size - w)/2, (size - h)/2, w, h);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">renderAt(size) — the one function everything calls</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Size the canvas, clip to the shape, paint the backdrop, then either the glyph or the cover-fit image. Because it takes the size as an argument, the 16px tab preview and the 512px download run the <em>same</em> code — a fresh raster each time, never a downscale of one big bitmap.</p>
+        <div class="relative"><pre>function renderAt(canvas, size){
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  clipShape(ctx, size, design.shape); ctx.clip();   // mask to square/rounded/circle
+  ctx.fillStyle = design.bg; ctx.fillRect(0, 0, size, size);
+  if (design.mode === "image" && design.img) drawCover(ctx, design.img, size);
+  else                                        drawGlyph(ctx, size);
+  ctx.restore();
+  return canvas;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">The standard sizes and their filenames</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One table drives the downloads, the <code>&lt;link&gt;</code> tags and the manifest, so they can never drift apart. 16/32/48 are the classic favicon sizes, 180 is Apple's touch icon, 192 and 512 are the Android / PWA icons declared in the manifest.</p>
+        <div class="relative"><pre>const OUTPUTS = [
+  { size:16,  file:"favicon-16x16.png",         rel:"icon" },
+  { size:32,  file:"favicon-32x32.png",         rel:"icon" },
+  { size:48,  file:"favicon-48x48.png",         rel:"icon" },
+  { size:180, file:"apple-touch-icon.png",      rel:"apple-touch-icon" },
+  { size:192, file:"android-chrome-192x192.png",rel:"manifest" },
+  { size:512, file:"android-chrome-512x512.png",rel:"manifest" },
+];</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Encode a PNG and download it — no server</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Render at the size onto a throwaway canvas, ask the browser to encode a PNG with <code>toBlob</code>, wrap the blob in an object URL and click a hidden <code>&lt;a download&gt;</code>. Revoke the URL afterwards so it is not leaked. That is the entire "export" — the browser is the image encoder.</p>
+        <div class="relative"><pre>function downloadPNG(size, file){
+  const c = document.createElement("canvas");
+  renderAt(c, size);
+  c.toBlob(blob =&gt; {
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href:url, download:file });
+    a.click();
+    setTimeout(() =&gt; URL.revokeObjectURL(url), 1000);
+  }, "image/png");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Emit the <code class="mono">&lt;link&gt;</code> tags</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Modern favicons are wired with PNG <code>&lt;link&gt;</code>s. <code>rel="icon"</code> with a <code>sizes</code> hint covers the tab; Apple needs its own <code>rel="apple-touch-icon"</code> at 180; a <code>rel="manifest"</code> points to the JSON; and a <code>theme-color</code> meta tints mobile UI. This is the copy-paste your <code>&lt;head&gt;</code> needs.</p>
+        <div class="relative"><pre>function linkTags(){
+  return [
+    `&lt;link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"&gt;`,
+    `&lt;link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"&gt;`,
+    `&lt;link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png"&gt;`,
+    `&lt;link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"&gt;`,
+    `&lt;link rel="manifest" href="/site.webmanifest"&gt;`,
+    `&lt;meta name="theme-color" content="${design.theme}"&gt;`
+  ].join("\n");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Build the <code class="mono">site.webmanifest</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">Android and installable PWAs read the icons from a manifest, not the <code>&lt;head&gt;</code>. Declare the 192 and 512 PNGs, mark 512 <code>"any maskable"</code> so the launcher may crop it to its own shape, and carry the name, theme and background colours through. <code>JSON.stringify</code> makes the file.</p>
+        <div class="relative"><pre>function manifestJSON(){
+  return JSON.stringify({
+    name: design.appName, short_name: design.appName,
+    icons: [
+      { src:"/android-chrome-192x192.png", sizes:"192x192", type:"image/png" },
+      { src:"/android-chrome-512x512.png", sizes:"512x512", type:"image/png",
+        purpose:"any maskable" }
+    ],
+    theme_color: design.theme, background_color: design.bg,
+    display: "standalone"
+  }, null, 2);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Prove it with a self-test</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Trust the pipeline by checking it renders something at every size, and that the emitted tags and manifest reference the exact sizes and filenames in the table. Read the canvas back with <code>getImageData</code> and assert some pixels are opaque.</p>
+        <div class="relative"><pre>const c = document.createElement("canvas");
+OUTPUTS.forEach(o =&gt; {
+  renderAt(c, o.size);
+  console.assert(c.width === o.size, "canvas sized " + o.size);
+  const px = c.getContext("2d").getImageData(0, 0, o.size, o.size).data;
+  let opaque = 0; for (let i = 3; i &lt; px.length; i += 4) if (px[i]) opaque++;
+  console.assert(opaque &gt; 0, "non-empty render at " + o.size);
+});
+console.assert(linkTags().includes('sizes="16x16"'), "16 link tag");
+console.assert(JSON.parse(manifestJSON()).icons.length === 2, "manifest icons");</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 58 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real favicon generator with <strong>no library and no server</strong>. It rests on one function — <code>renderAt(canvas, size)</code> — that clips to a shape and paints either a centred glyph or a cover-fit upload, run <strong>fresh at each standard size</strong> so a 16&times;16 is drawn for 16&times;16, not shrunk from 512. <code>canvas.toBlob</code> encodes each PNG and an object-URL link downloads it, and one <code>OUTPUTS</code> table keeps the files, the <code>&lt;link&gt;</code> tags and the <code>site.webmanifest</code> perfectly in sync. The browser was always the image tool.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= FAVICON GENERATOR (from scratch, no library, no server) =================
+// One `design` object -> one renderAt(canvas, size) that clips to a shape and paints a
+// centred glyph OR a cover-fit uploaded image -> rasterised FRESH at every standard size
+// (16/32/48/180/192/512), exported as PNGs via canvas.toBlob + object-URL download, with
+// the matching <link> tags and a site.webmanifest emitted from one OUTPUTS table. Nothing
+// is uploaded: images are read locally with FileReader.readAsDataURL.
+
+const $ = id => document.getElementById(id);
+
+// ---------- the design (single source of truth) ----------
+const design = {
+  mode: "glyph",                          // "glyph" | "image"
+  text: "D",
+  fg:   "#ffffff",
+  bg:   "#f59e0b",
+  font: "system-ui, -apple-system, sans-serif",
+  shape:"rounded",                        // "square" | "rounded" | "circle"
+  img:  null,                             // decoded HTMLImageElement (image mode)
+  appName: "My App",
+  theme:   "#0f172a"
+};
+
+// ---------- the standard sizes + their filenames (drives everything) ----------
+const OUTPUTS = [
+  { size:16,  file:"favicon-16x16.png",          rel:"icon",             note:"browser tab" },
+  { size:32,  file:"favicon-32x32.png",          rel:"icon",             note:"retina tab / taskbar" },
+  { size:48,  file:"favicon-48x48.png",          rel:"icon",             note:"Windows site icon" },
+  { size:180, file:"apple-touch-icon.png",       rel:"apple-touch-icon", note:"iOS home screen" },
+  { size:192, file:"android-chrome-192x192.png", rel:"manifest",         note:"Android / PWA" },
+  { size:512, file:"android-chrome-512x512.png", rel:"manifest",         note:"PWA splash / maskable" }
+];
+
+// ---------- shapes are clip paths ----------
+function roundRect(ctx, x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+function clipShape(ctx, size, shape){
+  ctx.beginPath();
+  if (shape === "circle")       ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
+  else if (shape === "rounded") roundRect(ctx, 0, 0, size, size, size*0.2);
+  else                          ctx.rect(0, 0, size, size);
+}
+
+// ---------- glyph (letter or emoji) ----------
+function isEmoji(t){ try { return /\p{Extended_Pictographic}/u.test(t); } catch(e){ return /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(t); } }
+function drawGlyph(ctx, size){
+  const t = design.text;
+  if (!t) return;
+  const emoji = isEmoji(t);
+  ctx.fillStyle    = design.fg;
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 " + Math.round(size * (emoji ? 0.74 : 0.62)) + "px " + design.font;
+  ctx.fillText(t, size/2, size/2 + size*0.02);   // tiny optical baseline nudge
+}
+
+// ---------- uploaded image: cover-fit into the square ----------
+function drawCover(ctx, img, size){
+  const s = Math.max(size / img.width, size / img.height);   // cover (fill), not contain
+  const w = img.width * s, h = img.height * s;
+  ctx.drawImage(img, (size - w)/2, (size - h)/2, w, h);
+}
+
+// ---------- the one render function everything calls ----------
+function renderAt(canvas, size){
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  clipShape(ctx, size, design.shape);
+  ctx.clip();
+  ctx.fillStyle = design.bg;
+  ctx.fillRect(0, 0, size, size);
+  if (design.mode === "image" && design.img) drawCover(ctx, design.img, size);
+  else                                        drawGlyph(ctx, size);
+  ctx.restore();
+  return canvas;
+}
+
+// ---------- outputs: link tags + manifest (from the one OUTPUTS table) ----------
+function linkTags(){
+  return [
+    '<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">',
+    '<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">',
+    '<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">',
+    '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">',
+    '<link rel="manifest" href="/site.webmanifest">',
+    '<meta name="theme-color" content="' + design.theme + '">'
+  ].join("\n");
+}
+function manifestJSON(){
+  return JSON.stringify({
+    name: design.appName,
+    short_name: design.appName,
+    icons: [
+      { src:"/android-chrome-192x192.png", sizes:"192x192", type:"image/png" },
+      { src:"/android-chrome-512x512.png", sizes:"512x512", type:"image/png", purpose:"any maskable" }
+    ],
+    theme_color: design.theme,
+    background_color: design.bg,
+    display: "standalone"
+  }, null, 2);
+}
+
+// ---------- PNG export: canvas.toBlob + object-URL <a download> ----------
+function downloadPNG(size, file){
+  const c = document.createElement("canvas");
+  renderAt(c, size);
+  c.toBlob(function(blob){
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href:url, download:file });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }, "image/png");
+}
+function downloadAll(){
+  OUTPUTS.forEach(function(o, i){ setTimeout(function(){ downloadPNG(o.size, o.file); }, i * 250); });
+}
+
+// ================= preview wiring =================
+const STRIP_SIZES = [16, 32, 48];
+function buildStrip(){
+  const strip = $("sizeStrip"); strip.innerHTML = "";
+  STRIP_SIZES.forEach(function(s){
+    const cell = document.createElement("div"); cell.className = "sizecell";
+    const cv = document.createElement("canvas"); cv.width = cv.height = s;
+    cv.style.width = s + "px"; cv.style.height = s + "px"; cv.dataset.size = s;
+    const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = s + "px";
+    cell.appendChild(cv); cell.appendChild(cap); strip.appendChild(cell);
+  });
+}
+function buildDownloads(){
+  const row = $("dlRow"); row.innerHTML = "";
+  OUTPUTS.forEach(function(o){
+    const chip = document.createElement("div"); chip.className = "dlchip";
+    const cv = document.createElement("canvas"); cv.width = cv.height = 40;
+    cv.style.width = "40px"; cv.style.height = "40px"; cv.dataset.dl = o.size;
+    const meta = document.createElement("div"); meta.className = "meta";
+    meta.innerHTML = '<div class="fn">' + o.file + '</div><div class="sub">' + o.size + '&times;' + o.size + ' · ' + o.note + '</div>';
+    const btn = document.createElement("button"); btn.className = "seg"; btn.textContent = "⤓ PNG";
+    btn.onclick = function(){ downloadPNG(o.size, o.file); };
+    chip.appendChild(cv); chip.appendChild(meta); chip.appendChild(btn); row.appendChild(chip);
+  });
+}
+
+function redraw(){
+  // big preview + tab + apple mocks
+  renderAt($("bigPrev"), 128);
+  renderAt($("tabFav"), 16);
+  renderAt($("appleFav"), 60);
+  // true-size strip
+  document.querySelectorAll("#sizeStrip canvas").forEach(function(cv){ renderAt(cv, +cv.dataset.size); });
+  // download-chip thumbnails
+  document.querySelectorAll("#dlRow canvas").forEach(function(cv){ renderAt(cv, 40); });
+  // text mirrors
+  $("tabTitle").textContent = design.appName || "Untitled";
+  $("homeName").textContent = design.appName || "Untitled";
+  // outputs
+  $("linkOut").textContent      = linkTags();
+  $("manifestOut").textContent  = manifestJSON();
+}
+
+// ================= controls =================
+function setMode(mode){
+  design.mode = mode;
+  document.querySelectorAll("#modeSeg .seg").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
+  $("glyphCtrls").classList.toggle("hidden", mode !== "glyph");
+  $("imageCtrls").classList.toggle("hidden", mode !== "image");
+  redraw();
+}
+function setShape(shape){
+  design.shape = shape;
+  document.querySelectorAll("#shapeSeg .seg").forEach(function(b){ b.classList.toggle("on", b.dataset.shape === shape); });
+  redraw();
+}
+
+$("glyphText").addEventListener("input", function(e){ design.text = e.target.value; redraw(); });
+$("bgColor").addEventListener("input",   function(e){ design.bg = e.target.value; redraw(); });
+$("fgColor").addEventListener("input",   function(e){ design.fg = e.target.value; redraw(); });
+$("fontSel").addEventListener("change",  function(e){ design.font = e.target.value; redraw(); });
+$("bgColor2").addEventListener("input",  function(e){ design.bg = e.target.value; redraw(); });
+$("appName").addEventListener("input",   function(e){ design.appName = e.target.value; redraw(); });
+$("themeColor").addEventListener("input",function(e){ design.theme = e.target.value; redraw(); });
+
+document.querySelectorAll("#modeSeg .seg").forEach(function(b){ b.onclick = function(){ setMode(b.dataset.mode); }; });
+document.querySelectorAll("#shapeSeg .seg").forEach(function(b){ b.onclick = function(){ setShape(b.dataset.shape); }; });
+document.querySelectorAll("[data-preset]").forEach(function(b){
+  b.onclick = function(){
+    const p = b.dataset.preset.split("|");
+    design.text = p[0]; design.bg = p[1]; design.fg = p[2];
+    $("glyphText").value = p[0]; $("bgColor").value = p[1]; $("fgColor").value = p[2];
+    redraw();
+  };
+});
+
+// ---------- file upload (FileReader — nothing leaves the page) ----------
+function loadFile(file){
+  if (!file || !/^image\//.test(file.type)) return;
+  const r = new FileReader();
+  r.onload = function(){
+    const im = new Image();
+    im.onload = function(){ design.img = im; $("imgHint").textContent = "Loaded " + file.name + " (" + im.width + "×" + im.height + ")"; redraw(); };
+    im.src = r.result;                     // a data: URI held in memory
+  };
+  r.readAsDataURL(file);
+}
+const drop = $("drop"), fileInput = $("fileInput");
+drop.onclick = function(){ fileInput.click(); };
+fileInput.onchange = function(e){ loadFile(e.target.files[0]); };
+["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add("drag"); }); });
+["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove("drag"); }); });
+drop.addEventListener("drop", function(e){ if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+$("dlAll").onclick = downloadAll;
+
+// ---------- copy helpers ----------
+function copyText(id, btn){
+  navigator.clipboard.writeText($(id).textContent);
+  const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(function(){ btn.textContent = o; }, 1500);
+}
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(function(){ btn.textContent = o; }, 1500); }
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(function(t){ t.onclick = function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  $(t.dataset.tab).classList.remove("hidden");
+}; });
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Two ways to make one icon",
+   why:"A favicon is either a mark you type (a monogram letter or an emoji, on a colour) or a picture you already have. Both end up as the same thing — pixels on a canvas — so the tool keeps one 'design' object with a mode flag and lets every downstream step read only that. Change a control, and it is just a field write plus a redraw.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill a">glyph</span> letter / emoji + colours + shape + font</div><div class="mono"><span class="pill b">image</span> uploaded picture, cover-fit + shape</div><div class="text-xs text-slate-400">both → the same canvas render</div></div>`,
+   code:`const design = { mode:"glyph", text:"D",
+  fg:"#fff", bg:"#f59e0b", shape:"rounded",
+  font:"system-ui", img:null };
+// controls only mutate this object, then redraw()` },
+ { title:"2. Rasterise at each size (don't shrink)",
+   why:"The naive way is to render one big 512 icon and let the browser scale it to 16. That turns a crisp monogram to mush. Because the whole design is data, you can instead run the SAME render at 16, at 32, at 512 — each gets pixels drawn for it. This is the single idea that separates a good favicon from a blurry one.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">shrink 512→16</span> blurry</div><div><span class="pill g">render at 16</span> crisp</div><div class="text-xs text-slate-400">renderAt(canvas, size) — size is an argument</div></div>`,
+   code:`// same function, three sizes, three fresh rasters
+renderAt(tabCanvas, 16);
+renderAt(previewCanvas, 128);
+renderAt(exportCanvas, 512);` },
+ { title:"3. The shape is a clip path",
+   why:"Square, rounded and circle are one mechanism: build a path, clip() to it, and everything you draw afterwards is masked. A circle is an arc; a rounded square is four arcTo corners with the radius scaled to the size, so it looks equally rounded at 16 and at 512.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">◼ rect</span> <span class="pill s">▢ roundRect</span> <span class="pill s">⬤ arc</span></div><div class="text-xs text-slate-400">beginPath → path → clip() → draw</div></div>`,
+   code:`ctx.beginPath();
+if (shape === "circle") ctx.arc(s/2, s/2, s/2, 0, 2*Math.PI);
+else if (shape === "rounded") roundRect(ctx, 0,0, s,s, s*0.2);
+else ctx.rect(0,0, s,s);
+ctx.clip();   // mask everything after this` },
+ { title:"4. Centre a glyph",
+   why:"With textAlign 'center' and textBaseline 'middle', a single fillText at the centre point lands centred at any size — no measuring. Scale the font to the icon size, and note emoji render a touch larger and paint their own colours, so the fill colour only matters for letters.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">align:center</span> <span class="pill a">baseline:middle</span></div><div>fillText("D", s/2, s/2) → centred</div><div class="text-xs text-slate-400">font size ≈ 0.62·s (letter) / 0.74·s (emoji)</div></div>`,
+   code:`ctx.textAlign = "center"; ctx.textBaseline = "middle";
+ctx.fillStyle = design.fg;
+ctx.font = "700 " + Math.round(s*0.62) + "px " + design.font;
+ctx.fillText(design.text, s/2, s/2);` },
+ { title:"5. Read an upload locally, cover-fit it",
+   why:"FileReader.readAsDataURL turns the picked file into a data: URI held in memory — it never touches a server. An Image decodes it, then you 'cover'-fit into the square: scale by the LARGER of the two ratios so the icon is fully filled, and centre the overflow. (Contain would leave bars.)",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">file</span> → <span class="pill b">readAsDataURL</span> → <span class="pill g">Image</span></div><div>scale = max(s/w, s/h)  → cover</div><div class="text-xs text-slate-400">nothing uploaded</div></div>`,
+   code:`r.onload = () => { const im = new Image();
+  im.onload = () => { design.img = im; redraw(); };
+  im.src = r.result; };            // data: URI
+r.readAsDataURL(file);
+// cover: const s = Math.max(size/w, size/h);` },
+ { title:"6. renderAt — the one function",
+   why:"Everything routes through renderAt(canvas, size): size the canvas, clip to the shape, paint the backdrop, then the glyph or the cover-fit image. Previews, the tab mock and every download call it. One code path means the 16px you preview is exactly the 16px you ship.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>size canvas → clip shape → fill bg → glyph|image</div><div class="text-xs text-slate-400">one path for preview AND export</div></div>`,
+   code:`function renderAt(canvas, size){
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  clipShape(ctx, size, design.shape); ctx.clip();
+  ctx.fillStyle = design.bg; ctx.fillRect(0,0,size,size);
+  design.img ? drawCover(ctx, design.img, size)
+             : drawGlyph(ctx, size);
+}` },
+ { title:"7. Encode a PNG, download it",
+   why:"The export is three browser calls, no library: toBlob encodes the canvas as a real PNG, URL.createObjectURL wraps that blob in a URL, and a hidden <a download> click saves it. Revoke the URL after so memory is not leaked. The browser is the image encoder.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">canvas</span> → <span class="pill g">toBlob</span> → <span class="pill a">objectURL</span> → <span class="pill s">&lt;a download&gt;</span></div><div class="text-xs text-slate-400">client-side; no server round-trip</div></div>`,
+   code:`c.toBlob(blob => {
+  const url = URL.createObjectURL(blob);
+  Object.assign(document.createElement("a"),
+                { href:url, download:file }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}, "image/png");` },
+ { title:"8. The <link> tags",
+   why:"Wiring a favicon is a few <link>s in <head>. rel='icon' with a sizes hint feeds the tab, rel='apple-touch-icon' (180) feeds iOS, rel='manifest' points to the JSON, and a theme-color meta tints mobile chrome. One OUTPUTS table generates them so filenames never drift from the downloads.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">rel=icon</span> tab &nbsp; <span class="pill b">apple-touch-icon</span> iOS</div><div><span class="pill g">rel=manifest</span> Android &nbsp; <span class="pill s">theme-color</span> chrome</div></div>`,
+   code:`<link rel="icon" type="image/png" sizes="32x32"
+      href="/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180"
+      href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">` },
+ { title:"9. The web app manifest",
+   why:"Android and installable PWAs read icons from site.webmanifest, not the <head>. Declare the 192 and 512 PNGs, mark 512 'any maskable' so the launcher may crop it into a circle or squircle (keep art in the centre safe zone), and carry the name plus theme/background colours through.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill p">192</span> + <span class="pill p">512</span> icons</div><div><span class="pill a">purpose: any maskable</span> launcher may crop</div></div>`,
+   code:`{ "icons": [
+   { "src":"/android-chrome-192x192.png",
+     "sizes":"192x192", "type":"image/png" },
+   { "src":"/android-chrome-512x512.png",
+     "sizes":"512x512", "purpose":"any maskable" }
+] }` },
+ { title:"10. PNG, not .ico — and a self-test",
+   why:"The historic favicon.ico could pack many sizes in one Windows container; every current browser now accepts plain PNGs, so multi-size .ico is a niche fallback, not the default. Finally, prove the pipeline: render at each size and assert it produced opaque pixels, and that the tags/manifest name the right sizes.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">.ico</span> niche legacy container</div><div><span class="pill g">PNG per size</span> the modern default ✓</div></div>`,
+   code:`OUTPUTS.forEach(o => {
+  renderAt(c, o.size);
+  const px = ctx.getImageData(0,0,o.size,o.size).data;
+  let n=0; for (let i=3;i<px.length;i+=4) if(px[i]) n++;
+  console.assert(n > 0, "non-empty at " + o.size);
+});` },
+];
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach(function(s, i){ const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>"; bn.onclick = function(){ show(i); }; stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach(function(bn, idx){ bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = function(){ show(Math.max(0, curStep - 1)); };
+nextB.onclick = function(){ show(Math.min(STEPS.length - 1, curStep + 1)); };
+let tm = null; autoB.onclick = function(){ if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(function(){ if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+// ================= self-test (proves the pipeline) =================
+(function selfTest(){
+  const c = document.createElement("canvas");
+  OUTPUTS.forEach(function(o){
+    renderAt(c, o.size);
+    console.assert(c.width === o.size && c.height === o.size, "canvas sized " + o.size);
+    const px = c.getContext("2d").getImageData(0, 0, o.size, o.size).data;
+    let opaque = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) opaque++;
+    console.assert(opaque > 0, "non-empty render at " + o.size);
+  });
+  console.assert(linkTags().indexOf('sizes="16x16"') !== -1, "16 link tag present");
+  console.assert(linkTags().indexOf("apple-touch-icon") !== -1, "apple-touch link present");
+  console.assert(linkTags().indexOf("/site.webmanifest") !== -1, "manifest link present");
+  const mf = JSON.parse(manifestJSON());
+  console.assert(mf.icons.length === 2 && mf.icons[1].sizes === "512x512", "manifest icons");
+})();
+
+// ================= boot =================
+buildStrip();
+buildDownloads();
+setMode("glyph");
+setShape("rounded");
+redraw();
+</script>
+</body>
+</html>
