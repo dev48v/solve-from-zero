@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 59 — CIDR / Subnet Calculator (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- inputs ---- */
+  .inp { width:100%; font:700 14px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fff; color:#0f172a; }
+  .inp:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .inp.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.15); }
+  .big { font-size:18px; font-weight:800; letter-spacing:.02em; }
+  select.inp { cursor:pointer; }
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:6px 11px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:hover { border-color:#f59e0b; }
+
+  /* ---- prefix slider ---- */
+  input[type=range].slider { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:99px; background:linear-gradient(90deg,#f59e0b var(--p,75%),#e2e8f0 var(--p,75%)); outline:none; }
+  input[type=range].slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:20px; height:20px; border-radius:50%; background:#0f172a; border:3px solid #fff; box-shadow:0 1px 4px rgba(15,23,42,.35); cursor:pointer; }
+  input[type=range].slider::-moz-range-thumb { width:20px; height:20px; border-radius:50%; background:#0f172a; border:3px solid #fff; cursor:pointer; }
+
+  /* ---- stat grid ---- */
+  .stat { border:1px solid #e2e8f0; border-radius:11px; padding:9px 11px; background:#fff; }
+  .stat .k { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+  .stat .v { font:800 15px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-all; }
+  .stat.hi { background:#fffbeb; border-color:#fcd34d; }
+  .stat.hi .v { color:#b45309; }
+
+  /* ---- binary bits ---- */
+  .binline { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:7px; }
+  .binlbl { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; width:96px; flex:none; text-transform:uppercase; letter-spacing:.05em; }
+  .bits { display:flex; align-items:center; gap:3px; }
+  .oct { display:flex; gap:2px; }
+  .dot { color:#cbd5e1; font-weight:900; padding:0 2px; }
+  .bit { width:15px; height:21px; display:flex; align-items:center; justify-content:center; border-radius:3px; font:800 11px ui-monospace,Menlo,monospace; }
+  .bit.net  { background:#fef3c7; color:#92400e; }
+  .bit.host { background:#e2e8f0; color:#64748b; }
+  .bit.netOn  { background:#f59e0b; color:#fff; }
+  .bit.hostOn { background:#475569; color:#fff; }
+  .cut { width:2px; align-self:stretch; background:#ef4444; border-radius:2px; margin:0 3px; }
+  .binval { font:800 11px ui-monospace,Menlo,monospace; color:#64748b; margin-left:6px; }
+
+  /* ---- tables ---- */
+  table.t { width:100%; border-collapse:collapse; font:700 12px ui-monospace,Menlo,monospace; }
+  table.t th { text-align:left; color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1.5px solid #e2e8f0; position:sticky; top:0; background:#fff; }
+  table.t td { padding:6px 8px; border-bottom:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+  table.t tr:hover td { background:#fffbeb; }
+  .scrollbox { max-height:300px; overflow:auto; border:1px solid #e2e8f0; border-radius:11px; }
+
+  /* ---- notices ---- */
+  .notice { border-radius:12px; padding:12px 14px; font:700 13px ui-monospace,Menlo,monospace; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .notice.info { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 59</div>
+      <h1 class="text-xl font-bold">🌐 <code class="mono">CIDR</code> / Subnet Calculator — type any block like <code class="mono">192.168.1.100/24</code> (or drag the prefix slider) and every network fact is recomputed live with <strong>real 32-bit integer math</strong>, not a lookup table: netmask &amp; wildcard, network and broadcast addresses, the first/last usable host, total vs usable address counts, the historical class, and whether the block is private (RFC 1918), loopback, link-local, CGNAT, documentation or globally routable · a <strong>bit-level view</strong> paints all 32 bits with the prefix boundary drawn in, so you can literally see where the network part ends and the host part begins · then three real algorithms on top — a <strong>subnet splitter</strong> (borrow host bits, step by block size), a <strong>contains / overlap</strong> checker (one masked comparison), and an <strong>IP range → minimal CIDR list</strong> converter (greedy largest aligned block) · every operation is <code class="mono">&amp;</code>, <code class="mono">|</code>, <code class="mono">~</code> and <code class="mono">&gt;&gt;&gt;&nbsp;0</code> on one unsigned integer · vanilla JS, no library, nothing leaves the page</h1>
+    </div>
+    <div class="flex gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">An IP address is a number. A subnet is that number with a line drawn through it.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto"><code class="mono">192.168.1.100</code> looks like four numbers, but it is <strong>one 32-bit integer</strong> written in a friendly way — four bytes, biggest first. The <code class="mono">/24</code> after it is a line: the first 24 bits identify the <em>network</em>, the remaining 8 identify a <em>host</em> inside it. Once you hold that, every question a subnet calculator answers is a single bitwise operation. The network address is <code class="mono">ip &amp; mask</code>. The broadcast is <code class="mono">network | wildcard</code>. "Does this address belong to that block?" is one masked comparison. This page does all of it live, in front of you, in plain JavaScript — plus splitting a block into smaller ones, testing two blocks for overlap, and turning an arbitrary start–end range into the shortest list of CIDR blocks that covers it exactly. No library, no server, no lookup tables.</p>
+      </div>
+
+      <!-- ============ INPUT ============ -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid lg:grid-cols-5 gap-6 items-start">
+          <div class="lg:col-span-2">
+            <div class="fieldlabel">CIDR block <span class="text-slate-400 normal-case">— address / prefix</span></div>
+            <input id="cidrInput" class="inp big" value="192.168.1.100/24" spellcheck="false" autocomplete="off" />
+            <div id="inputMsg" class="text-xs mono mt-2 text-slate-400">Type an address with or without a <code class="mono">/prefix</code>.</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg" data-preset="192.168.1.100/24">192.168.1.100/24</button>
+              <button class="seg" data-preset="10.0.0.0/8">10.0.0.0/8</button>
+              <button class="seg" data-preset="172.16.5.4/22">172.16.5.4/22</button>
+              <button class="seg" data-preset="203.0.113.7/30">203.0.113.7/30</button>
+              <button class="seg" data-preset="100.64.0.1/10">100.64.0.1/10</button>
+              <button class="seg" data-preset="169.254.10.1/16">169.254.10.1/16</button>
+            </div>
+          </div>
+          <div class="lg:col-span-3">
+            <div class="flex items-baseline justify-between">
+              <div class="fieldlabel mb-0">Prefix length <span class="text-slate-400 normal-case">— how many bits belong to the network</span></div>
+              <div class="mono font-black text-lg text-amber-600"><span id="prefixOut">/24</span> <span class="text-slate-400 text-sm" id="maskOut">255.255.255.0</span></div>
+            </div>
+            <input id="prefixSlider" type="range" class="slider mt-3" min="0" max="32" value="24" />
+            <div class="flex justify-between mono text-[10px] text-slate-400 mt-1"><span>/0 · whole internet</span><span>/16</span><span>/24</span><span>/32 · one host</span></div>
+            <div id="typeBanner" class="notice info mt-4">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ RESULTS ============ -->
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">The block</div>
+            <div class="grid sm:grid-cols-2 gap-3" id="statGrid"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="fieldlabel mb-0">All 32 bits <span class="text-slate-400 normal-case">— amber = network bits, grey = host bits, the red line is the prefix</span></div>
+            </div>
+            <div style="overflow-x:auto">
+              <div id="binBox"></div>
+            </div>
+            <div class="text-xs text-slate-400 mono mt-3">Network = address AND mask (host bits forced to 0) · Broadcast = network OR wildcard (host bits forced to 1).</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex flex-wrap items-end gap-4 mb-3">
+              <div>
+                <div class="fieldlabel">Split this block into</div>
+                <select id="splitPrefix" class="inp" style="width:auto"></select>
+              </div>
+              <div id="splitSummary" class="text-sm mono text-slate-500 flex-1">—</div>
+            </div>
+            <div class="scrollbox">
+              <table class="t"><thead><tr><th>#</th><th>Subnet</th><th>Range</th><th>Broadcast</th><th>Usable</th></tr></thead><tbody id="splitBody"></tbody></table>
+            </div>
+            <div id="splitNote" class="text-xs text-slate-400 mono mt-2"></div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Does an address belong to this block?</div>
+            <input id="testIp" class="inp" value="192.168.1.200" spellcheck="false" autocomplete="off" />
+            <div id="containsOut" class="notice info mt-3">—</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Compare with another block</div>
+            <input id="otherCidr" class="inp" value="192.168.1.128/25" spellcheck="false" autocomplete="off" />
+            <div id="overlapOut" class="notice info mt-3">—</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Any range → the shortest CIDR list</div>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="rangeStart" class="inp" value="192.168.1.5" spellcheck="false" autocomplete="off" />
+              <input id="rangeEnd" class="inp" value="192.168.1.10" spellcheck="false" autocomplete="off" />
+            </div>
+            <div id="rangeSummary" class="text-xs mono text-slate-400 mt-2">—</div>
+            <div class="scrollbox mt-2" style="max-height:220px">
+              <table class="t"><thead><tr><th>CIDR</th><th>From</th><th>To</th><th>Size</th></tr></thead><tbody id="rangeBody"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about subnets</div>
+        <p class="text-sm text-amber-800"><strong>1. The prefix counts bits, not addresses.</strong> <code class="mono">/24</code> means "the first 24 bits are the network", which leaves 8 host bits, which is 2⁸ = 256 addresses. Every step down the prefix <em>doubles</em> the block: a <code class="mono">/23</code> is two <code class="mono">/24</code>s, a <code class="mono">/22</code> is four. That is why the numbers look strange until you count in bits. <strong>2. Two addresses are usually spent.</strong> The all-host-bits-zero address names the network itself and the all-ones address is the broadcast, so a <code class="mono">/24</code> hosts 254 machines, not 256. The exceptions: a <code class="mono">/32</code> is one single host (a route to one machine) and a <code class="mono">/31</code> is the RFC 3021 point-to-point trick where <em>both</em> addresses are usable because a two-ended link needs no broadcast. <strong>3. A block must be aligned.</strong> <code class="mono">192.168.1.64/26</code> is legal; <code class="mono">192.168.1.70/26</code> is really the same block written from the middle — masking snaps it back to <code class="mono">.64</code>. Blocks always start on a multiple of their size, which is exactly why the greedy range-to-CIDR converter has to check alignment before it grows a block. <strong>4. Classes are history, CIDR is the present.</strong> The old class A/B/C split (fixed /8, /16, /24 by first octet) burned addresses so fast that CIDR replaced it in 1993 — the prefix is now free to be any value 0–32, which is what makes route aggregation possible. The class shown here is a historical footnote. <strong>5. In JavaScript, always finish with <code class="mono">&gt;&gt;&gt; 0</code>.</strong> JS bitwise operators work on <em>signed</em> 32-bit integers, so <code class="mono">~0xFFFFFF00</code> or any address above 127.x comes out negative and prints nonsense. The unsigned right shift by zero is the standard trick that reinterprets those same bits as an unsigned value.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a subnet calculator works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A subnet calculator has no data structures worth the name. Everything is <strong>one unsigned 32-bit integer</strong> and four operators: <code>&amp;</code>, <code>|</code>, <code>~</code> and <code>&gt;&gt;&gt; 0</code>. Parse the dotted quad into that integer, build a mask from the prefix, and every answer — network, broadcast, host range, counts, membership, overlap, splits — falls out in one or two lines each. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Dotted quad ⇄ one 32-bit integer</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Four bytes, most significant first. Shift each octet into place and OR them together; reverse with shifts and a mask. Validate hard — reject any octet above 255, and reject leading zeros (<code>010</code> is ambiguous: some tools read it as octal 8).</p>
+        <div class="relative"><pre>function parseIp(s){
+  const m = String(s).trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const parts = m.slice(1);
+  if (parts.some(p =&gt; p.length &gt; 1 &amp;&amp; p[0] === "0")) return null;   // no 010
+  const o = parts.map(Number);
+  if (o.some(v =&gt; v &gt; 255)) return null;
+  return ((o[0] &lt;&lt; 24) | (o[1] &lt;&lt; 16) | (o[2] &lt;&lt; 8) | o[3]) &gt;&gt;&gt; 0;
+}
+function toIp(n){
+  n = n &gt;&gt;&gt; 0;
+  return [(n &gt;&gt;&gt; 24) &amp; 255, (n &gt;&gt;&gt; 16) &amp; 255, (n &gt;&gt;&gt; 8) &amp; 255, n &amp; 255].join(".");
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">The mask is <code class="mono">p</code> ones followed by zeros</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Take all-ones and push it left by the number of host bits: the ones that fall off the top are gone and zeros arrive at the bottom. <code>p = 0</code> needs a special case because shifting by 32 in JS is a shift by 0 (the count is taken mod 32). The wildcard is simply the mask inverted.</p>
+        <div class="relative"><pre>function maskOf(p){
+  return p === 0 ? 0 : (0xFFFFFFFF &lt;&lt; (32 - p)) &gt;&gt;&gt; 0;   // /24 -&gt; 255.255.255.0
+}
+function wildcardOf(p){
+  return (~maskOf(p)) &gt;&gt;&gt; 0;                              // /24 -&gt; 0.0.0.255
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Network and broadcast in one line each</h3></div>
+        <p class="text-sm text-slate-600 mb-3">AND with the mask clears every host bit, giving the first address of the block; OR with the wildcard sets every host bit, giving the last. This is also the normaliser: <code>192.168.1.70/26</code> masks down to <code>192.168.1.64/26</code>, the real block.</p>
+        <div class="relative"><pre>const networkOf   = (ip, p) =&gt; (ip &amp; maskOf(p)) &gt;&gt;&gt; 0;
+const broadcastOf = (ip, p) =&gt; (networkOf(ip, p) | wildcardOf(p)) &gt;&gt;&gt; 0;
+
+// 192.168.1.100/24
+// network   = 192.168.1.0
+// broadcast = 192.168.1.255</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Counting addresses (and the /31 · /32 exceptions)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Host bits = <code>32 - p</code>, so the block holds 2<sup>32-p</sup> addresses. Normally two are reserved (network + broadcast). A <code>/32</code> is a single host route, and a <code>/31</code> is the RFC 3021 point-to-point case where both addresses are usable — a link with exactly two ends needs no broadcast address. Use <code>Math.pow</code>, not <code>1 &lt;&lt; n</code>: a <code>/0</code> holds 2³² addresses, which overflows 32-bit shifts.</p>
+        <div class="relative"><pre>const countOf = p =&gt; Math.pow(2, 32 - p);       // /0 -&gt; 4294967296
+
+function usableOf(p){
+  if (p === 32) return 1;                      // single host route
+  if (p === 31) return 2;                      // RFC 3021 point-to-point
+  return countOf(p) - 2;                       // minus network + broadcast
+}
+const firstHost = (ip, p) =&gt; p &gt;= 31 ? networkOf(ip, p)   : (networkOf(ip, p) + 1) &gt;&gt;&gt; 0;
+const lastHost  = (ip, p) =&gt; p &gt;= 31 ? broadcastOf(ip, p) : (broadcastOf(ip, p) - 1) &gt;&gt;&gt; 0;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Membership is one masked comparison</h3></div>
+        <p class="text-sm text-slate-600 mb-3">"Is <code>10.1.2.3</code> inside <code>10.0.0.0/8</code>?" Mask both with the block's mask and compare. No loops, no ranges — the same test a router's forwarding table does millions of times a second.</p>
+        <div class="relative"><pre>function contains(netIp, p, ip){
+  return networkOf(ip, p) === networkOf(netIp, p);
+}
+
+contains(parseIp("10.0.0.0"), 8,  parseIp("10.1.2.3"));   // true
+contains(parseIp("10.0.0.0"), 8,  parseIp("11.1.2.3"));   // false</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Two blocks: overlap, containment, adjacency</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Reduce each block to its <code>[network, broadcast]</code> interval and the classic interval test applies. Because CIDR blocks are power-of-two aligned, partial overlap is impossible: two blocks are identical, one contains the other, or they are disjoint. That property is what lets routers aggregate routes.</p>
+        <div class="relative"><pre>function relation(a, b){                        // a, b = { ip, p }
+  const an = networkOf(a.ip, a.p), ab = broadcastOf(a.ip, a.p);
+  const bn = networkOf(b.ip, b.p), bb = broadcastOf(b.ip, b.p);
+  if (an === bn &amp;&amp; a.p === b.p)   return "identical";
+  if (an &lt;= bn &amp;&amp; bb &lt;= ab)       return "a contains b";
+  if (bn &lt;= an &amp;&amp; ab &lt;= bb)       return "b contains a";
+  if (an &lt;= bb &amp;&amp; bn &lt;= ab)       return "overlap";
+  if (ab + 1 === bn || bb + 1 === an) return "adjacent";
+  return "disjoint";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Subnetting = borrow host bits</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Splitting a <code>/24</code> into <code>/26</code>s borrows 2 host bits, producing 2² = 4 children, each 2<sup>32-26</sup> = 64 addresses wide. Walk from the parent network in steps of the child block size — that stride guarantees every child lands aligned.</p>
+        <div class="relative"><pre>function split(ip, p, q, limit){
+  const base = networkOf(ip, p);
+  const total = Math.pow(2, q - p);            // how many children
+  const step  = Math.pow(2, 32 - q);           // child block size
+  const out = [];
+  for (let i = 0; i &lt; Math.min(total, limit); i++)
+    out.push({ net: (base + i * step) &gt;&gt;&gt; 0, prefix: q });
+  return { total, step, out };
+}
+// /24 -&gt; /26 : 4 subnets of 64 addresses (62 usable each)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Range → the shortest CIDR list (greedy)</h3></div>
+        <p class="text-sm text-slate-600 mb-3">An arbitrary range like <code>192.168.1.5 – 192.168.1.10</code> is not one block. Stand at the start and grow the biggest block that both <em>starts</em> there (alignment) and <em>ends</em> at or before the range end; emit it, jump past it, repeat. Greedy is provably minimal here because of power-of-two alignment.</p>
+        <div class="relative"><pre>function rangeToCidrs(start, end){
+  const out = [];
+  let s = start &gt;&gt;&gt; 0;
+  while (s &lt;= end) {
+    let p = 32;
+    while (p &gt; 0) {                                   // try one bit bigger
+      const m = maskOf(p - 1);
+      if (((s &amp; m) &gt;&gt;&gt; 0) !== s) break;               // would not be aligned
+      if (((s | (~m &gt;&gt;&gt; 0)) &gt;&gt;&gt; 0) &gt; end) break;      // would overshoot
+      p--;
+    }
+    out.push({ base: s, prefix: p });
+    const last = (s | wildcardOf(p)) &gt;&gt;&gt; 0;
+    if (last &gt;= end) break;                            // also guards 255.255.255.255
+    s = last + 1;
+  }
+  return out;
+}
+// .5-.10 -&gt; 192.168.1.5/32, .6/31, .8/31, .10/32</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Classify the address — private, loopback, CGNAT…</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Special ranges are themselves CIDR blocks, so the classifier is just a table plus the <code>contains</code> you already wrote. Order matters: list the most specific blocks first so <code>192.0.2.0/24</code> (documentation) is not swallowed by a broader entry.</p>
+        <div class="relative"><pre>const SPECIAL = [
+  ["0.0.0.0",        8,  "this network"],
+  ["10.0.0.0",       8,  "private (RFC 1918)"],
+  ["100.64.0.0",    10,  "carrier-grade NAT (RFC 6598)"],
+  ["127.0.0.0",      8,  "loopback"],
+  ["169.254.0.0",   16,  "link-local (APIPA)"],
+  ["172.16.0.0",    12,  "private (RFC 1918)"],
+  ["192.0.2.0",     24,  "documentation TEST-NET-1"],
+  ["192.168.0.0",   16,  "private (RFC 1918)"],
+  ["224.0.0.0",      4,  "multicast"],
+  ["240.0.0.0",      4,  "reserved"]
+];
+function classify(ip){
+  for (const [net, p, label] of SPECIAL)
+    if (contains(parseIp(net), p, ip)) return label;
+  return "public — globally routable";
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Draw the bits, then prove it with a self-test</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Rendering all 32 bits with a line at the prefix turns the whole thing from arithmetic into a picture. Then assert the pipeline against textbook cases — the ones you can check by hand — so a refactor can never quietly break the maths.</p>
+        <div class="relative"><pre>const bits = n =&gt; (n &gt;&gt;&gt; 0).toString(2).padStart(32, "0");
+
+console.assert(toIp(parseIp("192.168.1.100")) === "192.168.1.100", "round-trip");
+console.assert(toIp(maskOf(24)) === "255.255.255.0",               "mask /24");
+console.assert(toIp(networkOf(parseIp("172.16.5.4"), 22)) === "172.16.4.0",   "network /22");
+console.assert(toIp(broadcastOf(parseIp("172.16.5.4"), 22)) === "172.16.7.255","broadcast /22");
+console.assert(usableOf(24) === 254 &amp;&amp; usableOf(31) === 2 &amp;&amp; usableOf(32) === 1, "counts");
+console.assert(rangeToCidrs(parseIp("192.168.1.5"), parseIp("192.168.1.10")).length === 4, "range");</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 59 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real CIDR calculator with <strong>no library and no lookup tables</strong>. One dotted quad became one unsigned 32-bit integer, the prefix became a mask, and from there every answer was a single operator: <code>&amp;</code> for the network, <code>|</code> for the broadcast, a masked <code>===</code> for membership, an interval test for overlap, a stride for subnetting, and a greedy aligned walk for range→CIDR. The only real trap in JavaScript is that bitwise maths is signed — finish with <code>&gt;&gt;&gt; 0</code> and the numbers behave.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= CIDR / SUBNET CALCULATOR (from scratch, no library) =================
+// One dotted quad -> one unsigned 32-bit integer. The prefix -> a mask. Everything else
+// (network, broadcast, host range, counts, membership, overlap, subnetting, range->CIDR)
+// is one or two bitwise operations on those two numbers. Nothing leaves the page.
+
+// ==CORE-START== (pure functions — no DOM below this line until CORE-END; node-tested)
+
+function parseIp(s){
+  const m = String(s).trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const parts = m.slice(1);
+  if (parts.some(function(p){ return p.length > 1 && p[0] === "0"; })) return null;  // reject 010
+  const o = parts.map(Number);
+  if (o.some(function(v){ return v > 255; })) return null;
+  return ((o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3]) >>> 0;
+}
+
+function toIp(n){
+  n = n >>> 0;
+  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+}
+
+function maskOf(p){ return p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0; }
+function wildcardOf(p){ return (~maskOf(p)) >>> 0; }
+function networkOf(ip, p){ return (ip & maskOf(p)) >>> 0; }
+function broadcastOf(ip, p){ return (networkOf(ip, p) | wildcardOf(p)) >>> 0; }
+function countOf(p){ return Math.pow(2, 32 - p); }
+
+function usableOf(p){
+  if (p === 32) return 1;      // a single host route
+  if (p === 31) return 2;      // RFC 3021 point-to-point link
+  return countOf(p) - 2;       // minus the network + broadcast addresses
+}
+function firstHost(ip, p){ return p >= 31 ? networkOf(ip, p)   : (networkOf(ip, p) + 1) >>> 0; }
+function lastHost(ip, p){  return p >= 31 ? broadcastOf(ip, p) : (broadcastOf(ip, p) - 1) >>> 0; }
+
+// "1.2.3.4/24" -> { ip, prefix } | { error }. A missing prefix falls back to the given default.
+function parseCidr(text, fallbackPrefix){
+  const raw = String(text).trim();
+  if (!raw) return { error: "empty" };
+  const slash = raw.indexOf("/");
+  const ipPart = slash === -1 ? raw : raw.slice(0, slash);
+  const ip = parseIp(ipPart);
+  if (ip === null) return { error: "not a valid IPv4 address: " + ipPart };
+  let prefix = fallbackPrefix;
+  if (slash !== -1) {
+    const tail = raw.slice(slash + 1).trim();
+    if (!/^\d{1,2}$/.test(tail)) return { error: "prefix must be a number 0-32" };
+    prefix = Number(tail);
+    if (prefix > 32) return { error: "prefix must be 0-32, got /" + prefix };
+  }
+  return { ip: ip, prefix: prefix };
+}
+
+function contains(netIp, p, ip){ return networkOf(ip, p) === networkOf(netIp, p); }
+
+function relation(a, b){
+  const an = networkOf(a.ip, a.prefix), ab = broadcastOf(a.ip, a.prefix);
+  const bn = networkOf(b.ip, b.prefix), bb = broadcastOf(b.ip, b.prefix);
+  if (an === bn && a.prefix === b.prefix) return "identical";
+  if (an <= bn && bb <= ab) return "a-contains-b";
+  if (bn <= an && ab <= bb) return "b-contains-a";
+  if (an <= bb && bn <= ab) return "overlap";
+  if (ab + 1 === bn || bb + 1 === an) return "adjacent";
+  return "disjoint";
+}
+
+// split a block into /q children; only `limit` are materialised, `total` is the real count
+function splitInto(ip, p, q, limit){
+  const base = networkOf(ip, p);
+  const total = Math.pow(2, q - p);
+  const step = Math.pow(2, 32 - q);
+  const out = [];
+  const n = Math.min(total, limit);
+  for (let i = 0; i < n; i++) out.push({ net: (base + i * step) >>> 0, prefix: q });
+  return { total: total, step: step, shown: out };
+}
+
+// the shortest list of CIDR blocks that covers [start, end] exactly
+function rangeToCidrs(start, end){
+  const out = [];
+  let s = start >>> 0;
+  const e = end >>> 0;
+  if (s > e) return out;
+  for (;;) {
+    let p = 32;
+    while (p > 0) {
+      const m = maskOf(p - 1);
+      if (((s & m) >>> 0) !== s) break;               // one bit bigger would not be aligned
+      if (((s | (~m >>> 0)) >>> 0) > e) break;        // one bit bigger would overshoot the end
+      p--;
+    }
+    out.push({ base: s, prefix: p });
+    const last = (s | wildcardOf(p)) >>> 0;
+    if (last >= e) break;                             // also stops at 255.255.255.255
+    s = last + 1;
+  }
+  return out;
+}
+
+const SPECIAL = [
+  ["0.0.0.0",         8, "\"this network\" (RFC 1122)",            "warn"],
+  ["10.0.0.0",        8, "private — RFC 1918",                     "ok"],
+  ["100.64.0.0",     10, "carrier-grade NAT — RFC 6598",           "warn"],
+  ["127.0.0.0",       8, "loopback — never on the wire",           "warn"],
+  ["169.254.0.0",    16, "link-local / APIPA — no DHCP answered",  "warn"],
+  ["172.16.0.0",     12, "private — RFC 1918",                     "ok"],
+  ["192.0.0.0",      24, "IETF protocol assignments",              "warn"],
+  ["192.0.2.0",      24, "documentation TEST-NET-1 — RFC 5737",    "warn"],
+  ["192.88.99.0",    24, "6to4 relay anycast (deprecated)",        "warn"],
+  ["192.168.0.0",    16, "private — RFC 1918",                     "ok"],
+  ["198.18.0.0",     15, "benchmarking — RFC 2544",                "warn"],
+  ["198.51.100.0",   24, "documentation TEST-NET-2 — RFC 5737",    "warn"],
+  ["203.0.113.0",    24, "documentation TEST-NET-3 — RFC 5737",    "warn"],
+  ["224.0.0.0",       4, "multicast — class D",                    "warn"],
+  ["240.0.0.0",       4, "reserved — class E",                     "warn"]
+];
+
+function classify(ip){
+  for (let i = 0; i < SPECIAL.length; i++) {
+    const row = SPECIAL[i];
+    if (contains(parseIp(row[0]), row[1], ip)) return { label: row[2], kind: row[3], block: row[0] + "/" + row[1] };
+  }
+  return { label: "public — globally routable", kind: "info", block: null };
+}
+
+function ipClass(ip){
+  const a = (ip >>> 24) & 255;
+  if (a < 128) return "A";
+  if (a < 192) return "B";
+  if (a < 224) return "C";
+  if (a < 240) return "D (multicast)";
+  return "E (reserved)";
+}
+
+function bitsOf(n){ return (n >>> 0).toString(2).padStart(32, "0"); }
+function toHex(n){ return "0x" + (n >>> 0).toString(16).toUpperCase().padStart(8, "0"); }
+
+// ==CORE-END==
+
+const $ = function(id){ return document.getElementById(id); };
+const fmt = function(n){ return n.toLocaleString("en-US"); };
+
+const state = { ip: parseIp("192.168.1.100"), prefix: 24 };
+
+// ---------- bit rendering ----------
+function bitRow(label, value, prefix, on){
+  const b = bitsOf(value);
+  let html = '<div class="binline"><div class="binlbl">' + label + '</div><div class="bits">';
+  for (let oct = 0; oct < 4; oct++) {
+    html += '<div class="oct">';
+    for (let i = 0; i < 8; i++) {
+      const idx = oct * 8 + i;
+      const isNet = idx < prefix;
+      const bit = b[idx];
+      let cls = isNet ? "net" : "host";
+      if (on && bit === "1") cls = isNet ? "netOn" : "hostOn";
+      html += '<span class="bit ' + cls + '">' + bit + "</span>";
+      if (idx + 1 === prefix && idx !== 31) html += '<span class="cut"></span>';
+    }
+    html += "</div>";
+    if (oct < 3) html += '<span class="dot">.</span>';
+  }
+  html += '</div><span class="binval">' + toIp(value) + "</span></div>";
+  return html;
+}
+
+function renderBits(){
+  const p = state.prefix, ip = state.ip;
+  $("binBox").innerHTML =
+      bitRow("address", ip, p, true)
+    + bitRow("mask /" + p, maskOf(p), p, true)
+    + bitRow("network", networkOf(ip, p), p, true)
+    + bitRow("broadcast", broadcastOf(ip, p), p, true)
+    + '<div class="text-xs mono text-slate-400 mt-1" style="padding-left:105px">'
+      + p + " network bit" + (p === 1 ? "" : "s") + " · " + (32 - p) + " host bit"
+      + ((32 - p) === 1 ? "" : "s") + " → 2^" + (32 - p) + " = " + fmt(countOf(p)) + " addresses</div>";
+}
+
+// ---------- stats ----------
+function stat(k, v, hi){
+  return '<div class="stat' + (hi ? " hi" : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>";
+}
+
+function renderStats(){
+  const ip = state.ip, p = state.prefix;
+  const net = networkOf(ip, p), bc = broadcastOf(ip, p);
+  const usable = usableOf(p);
+  const hostRange = p === 32 ? toIp(net) + " (single host)"
+                             : toIp(firstHost(ip, p)) + " – " + toIp(lastHost(ip, p));
+  $("statGrid").innerHTML =
+      stat("CIDR block", toIp(net) + "/" + p, true)
+    + stat("Usable host range", hostRange, true)
+    + stat("Network address", toIp(net))
+    + stat("Broadcast address", p >= 31 ? "— (none for /" + p + ")" : toIp(bc))
+    + stat("Netmask", toIp(maskOf(p)))
+    + stat("Wildcard mask", toIp(wildcardOf(p)))
+    + stat("Total addresses", fmt(countOf(p)))
+    + stat("Usable hosts", fmt(usable) + (p === 31 ? " (RFC 3021)" : p === 32 ? " (host route)" : ""))
+    + stat("Address as integer", fmt(ip >>> 0))
+    + stat("Address in hex", toHex(ip))
+    + stat("Historical class", "Class " + ipClass(ip))
+    + stat("Short form", toIp(net) + "/" + p + "  ·  " + toIp(ip) + " " + toIp(maskOf(p)));
+
+  const c = classify(net);
+  const banner = $("typeBanner");
+  banner.className = "notice " + (c.kind === "ok" ? "ok" : c.kind === "warn" ? "warn" : "info") + " mt-4";
+  banner.innerHTML = (c.kind === "ok" ? "🔒 " : c.kind === "warn" ? "⚠️ " : "🌍 ") + toIp(net) + "/" + p + " — " + c.label
+    + (c.block ? ' <span class="opacity-70">(inside ' + c.block + ")</span>" : "");
+}
+
+// ---------- subnet splitter ----------
+function renderSplitOptions(){
+  const sel = $("splitPrefix");
+  const want = Number(sel.value);
+  let html = "";
+  for (let q = state.prefix; q <= 32; q++) {
+    const kids = Math.pow(2, q - state.prefix);
+    html += '<option value="' + q + '">/' + q + " — " + fmt(kids) + " subnet" + (kids === 1 ? "" : "s") + "</option>";
+  }
+  sel.innerHTML = html;
+  const def = want >= state.prefix && want <= 32 ? want : Math.min(state.prefix + 2, 32);
+  sel.value = String(def);
+}
+
+function renderSplit(){
+  const q = Number($("splitPrefix").value);
+  const p = state.prefix;
+  const LIMIT = 256;
+  const res = splitInto(state.ip, p, q, LIMIT);
+  const per = countOf(q), use = usableOf(q);
+  $("splitSummary").innerHTML = "a <b>/" + p + "</b> splits into <b>" + fmt(res.total) + "</b> × <b>/" + q + "</b> — "
+    + fmt(per) + " addresses each, <b>" + fmt(use) + "</b> usable"
+    + (q > p ? " · borrowed " + (q - p) + " host bit" + ((q - p) === 1 ? "" : "s") : " · same block");
+  let rows = "";
+  res.shown.forEach(function(s, i){
+    const bc = broadcastOf(s.net, q);
+    const range = q === 32 ? toIp(s.net) : toIp(firstHost(s.net, q)) + " – " + toIp(lastHost(s.net, q));
+    rows += "<tr><td>" + (i + 1) + "</td><td><b>" + toIp(s.net) + "/" + q + "</b></td><td>" + range
+          + "</td><td>" + (q >= 31 ? "—" : toIp(bc)) + "</td><td>" + fmt(use) + "</td></tr>";
+  });
+  $("splitBody").innerHTML = rows || '<tr><td colspan="5" class="text-slate-400">—</td></tr>';
+  $("splitNote").textContent = res.total > LIMIT
+    ? "Showing the first " + LIMIT + " of " + fmt(res.total) + " subnets (the rest continue every " + fmt(res.step) + " addresses)."
+    : "Every subnet starts on a multiple of its size — that is what \"aligned\" means.";
+}
+
+// ---------- contains ----------
+function renderContains(){
+  const el = $("testIp"), out = $("containsOut");
+  const ip = parseIp(el.value);
+  if (ip === null) {
+    el.classList.add("bad");
+    out.className = "notice err mt-3"; out.textContent = "Not a valid IPv4 address.";
+    return;
+  }
+  el.classList.remove("bad");
+  const p = state.prefix, net = networkOf(state.ip, p);
+  const inside = contains(state.ip, p, ip);
+  out.className = "notice " + (inside ? "ok" : "err") + " mt-3";
+  out.innerHTML = (inside ? "✓ inside " : "✗ outside ")
+    + toIp(net) + "/" + p + "<br><span class=\"opacity-70\">" + toIp(ip) + " &amp; " + toIp(maskOf(p))
+    + " = " + toIp(networkOf(ip, p)) + (inside ? " = " : " ≠ ") + toIp(net) + "</span>";
+}
+
+// ---------- overlap ----------
+const REL_TEXT = {
+  "identical":     ["ok",   "= identical blocks"],
+  "a-contains-b":  ["ok",   "⊃ the current block CONTAINS it"],
+  "b-contains-a":  ["ok",   "⊂ it CONTAINS the current block"],
+  "overlap":       ["warn", "∩ the blocks overlap"],
+  "adjacent":      ["info", "→ disjoint but ADJACENT (they touch)"],
+  "disjoint":      ["info", "∥ completely separate"]
+};
+
+function renderOverlap(){
+  const el = $("otherCidr"), out = $("overlapOut");
+  const r = parseCidr(el.value, 32);
+  if (r.error) {
+    el.classList.add("bad");
+    out.className = "notice err mt-3"; out.textContent = r.error;
+    return;
+  }
+  el.classList.remove("bad");
+  const a = { ip: state.ip, prefix: state.prefix };
+  const b = { ip: r.ip, prefix: r.prefix };
+  const rel = relation(a, b);
+  const t = REL_TEXT[rel];
+  out.className = "notice " + t[0] + " mt-3";
+  out.innerHTML = t[1] + "<br><span class=\"opacity-70\">"
+    + toIp(networkOf(a.ip, a.prefix)) + "/" + a.prefix + " covers " + toIp(networkOf(a.ip, a.prefix)) + " – " + toIp(broadcastOf(a.ip, a.prefix)) + "<br>"
+    + toIp(networkOf(b.ip, b.prefix)) + "/" + b.prefix + " covers " + toIp(networkOf(b.ip, b.prefix)) + " – " + toIp(broadcastOf(b.ip, b.prefix))
+    + "</span>";
+}
+
+// ---------- range -> cidr ----------
+function renderRange(){
+  const sEl = $("rangeStart"), eEl = $("rangeEnd");
+  const s = parseIp(sEl.value), e = parseIp(eEl.value);
+  sEl.classList.toggle("bad", s === null);
+  eEl.classList.toggle("bad", e === null);
+  if (s === null || e === null) {
+    $("rangeSummary").textContent = "Both ends must be valid IPv4 addresses.";
+    $("rangeBody").innerHTML = "";
+    return;
+  }
+  if (s > e) {
+    $("rangeSummary").textContent = "The start address must not be after the end address.";
+    $("rangeBody").innerHTML = "";
+    return;
+  }
+  const list = rangeToCidrs(s, e);
+  const covered = list.reduce(function(t, c){ return t + countOf(c.prefix); }, 0);
+  $("rangeSummary").innerHTML = fmt(e - s + 1) + " addresses → <b>" + list.length + "</b> CIDR block"
+    + (list.length === 1 ? "" : "s") + " (covering " + fmt(covered) + " — exact ✓)";
+  let rows = "";
+  list.forEach(function(c){
+    rows += "<tr><td><b>" + toIp(c.base) + "/" + c.prefix + "</b></td><td>" + toIp(c.base)
+          + "</td><td>" + toIp(broadcastOf(c.base, c.prefix)) + "</td><td>" + fmt(countOf(c.prefix)) + "</td></tr>";
+  });
+  $("rangeBody").innerHTML = rows;
+}
+
+// ---------- the one refresh ----------
+function refresh(){
+  $("prefixOut").textContent = "/" + state.prefix;
+  $("maskOut").textContent = toIp(maskOf(state.prefix));
+  $("prefixSlider").value = String(state.prefix);
+  $("prefixSlider").style.setProperty("--p", (state.prefix / 32 * 100) + "%");
+  renderStats();
+  renderBits();
+  renderSplit();
+  renderContains();
+  renderOverlap();
+  renderRange();
+}
+
+// ---------- wiring ----------
+$("cidrInput").addEventListener("input", function(){
+  const r = parseCidr(this.value, state.prefix);
+  const msg = $("inputMsg");
+  if (r.error) {
+    this.classList.add("bad");
+    msg.textContent = "⚠ " + r.error;
+    msg.className = "text-xs mono mt-2 text-red-500";
+    return;
+  }
+  this.classList.remove("bad");
+  msg.textContent = "✓ " + toIp(networkOf(r.ip, r.prefix)) + "/" + r.prefix + " · "
+    + fmt(usableOf(r.prefix)) + " usable host" + (usableOf(r.prefix) === 1 ? "" : "s");
+  msg.className = "text-xs mono mt-2 text-emerald-600";
+  state.ip = r.ip;
+  if (r.prefix !== state.prefix) { state.prefix = r.prefix; renderSplitOptions(); }
+  refresh();
+});
+
+$("prefixSlider").addEventListener("input", function(){
+  state.prefix = Number(this.value);
+  $("cidrInput").value = toIp(state.ip) + "/" + state.prefix;
+  $("cidrInput").classList.remove("bad");
+  $("inputMsg").textContent = "✓ " + toIp(networkOf(state.ip, state.prefix)) + "/" + state.prefix;
+  $("inputMsg").className = "text-xs mono mt-2 text-emerald-600";
+  renderSplitOptions();
+  refresh();
+});
+
+document.querySelectorAll("[data-preset]").forEach(function(b){
+  b.onclick = function(){
+    const r = parseCidr(b.dataset.preset, 24);
+    state.ip = r.ip; state.prefix = r.prefix;
+    $("cidrInput").value = b.dataset.preset;
+    $("cidrInput").classList.remove("bad");
+    $("inputMsg").textContent = "✓ " + toIp(networkOf(r.ip, r.prefix)) + "/" + r.prefix;
+    $("inputMsg").className = "text-xs mono mt-2 text-emerald-600";
+    renderSplitOptions();
+    refresh();
+  };
+});
+
+$("splitPrefix").addEventListener("change", renderSplit);
+$("testIp").addEventListener("input", renderContains);
+$("otherCidr").addEventListener("input", renderOverlap);
+$("rangeStart").addEventListener("input", renderRange);
+$("rangeEnd").addEventListener("input", renderRange);
+
+// ---------- copy helpers ----------
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(function(){ btn.textContent = o; }, 1500); }
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(function(t){ t.onclick = function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  $(t.dataset.tab).classList.remove("hidden");
+}; });
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. An IPv4 address is one 32-bit number",
+   why:"The dots are only punctuation for humans. 192.168.1.100 is four bytes — 192, 168, 1, 100 — packed most-significant-first into a single 32-bit integer, which is 3232235876. Every subnet question becomes easy the moment you stop seeing four numbers and start seeing one. Shifting each octet into place and OR-ing them together is the whole parser, and shifting back out with a &255 mask is the whole formatter. Validation matters more than it looks: an octet above 255 does not fit in its byte, and a leading zero like 010 is genuinely ambiguous because some tools read it as octal 8, so both are rejected outright.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill s">192</span>.<span class="pill s">168</span>.<span class="pill s">1</span>.<span class="pill s">100</span></div><div class="text-xs text-slate-400">↓ shift each byte into place</div><div class="mono"><span class="pill a">11000000 10101000 00000001 01100100</span></div><div class="mono text-slate-500">= 3,232,235,876</div></div>`,
+   code:`(192 << 24) | (168 << 16) | (1 << 8) | 100
+// -> 3232235876
+
+toIp(3232235876)
+// -> "192.168.1.100"` },
+ { title:"2. The prefix draws a line through the bits",
+   why:"The /24 in 192.168.1.100/24 is not an address, it is a count: the first 24 bits of that number identify the network everybody on the wire shares, and the remaining 8 bits identify one host inside it. Move the line left and the network gets bigger; move it right and it gets smaller. This one idea replaces every table of 'how many hosts does a /26 hold' — you just count the bits on the right: 32 minus 26 is 6 host bits, so 64 addresses. Because the split is at a bit boundary, block sizes are always powers of two, which is the property everything else in this page depends on.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill a">11000000 10101000 00000001</span><span class="pill r">|</span><span class="pill s">01100100</span></div><div class="text-xs text-slate-400">24 network bits │ 8 host bits</div><div class="mono">2⁸ = 256 addresses in the block</div></div>`,
+   code:`prefix = 24;
+networkBits = 24;
+hostBits    = 32 - 24;      // 8
+addresses   = 2 ** hostBits // 256` },
+ { title:"3. The mask is that line, written as a number",
+   why:"A netmask is nothing but the prefix drawn as bits: p ones followed by (32-p) zeros, so /24 is 255.255.255.0. You build it by taking all-ones and shifting it left by the number of host bits — the ones fall off the top and zeros arrive at the bottom. There is one trap: JavaScript takes shift counts modulo 32, so shifting by 32 (which is what /0 asks for) is really a shift by 0 and returns all-ones instead of zero, hence the explicit p === 0 case. The wildcard mask is simply the netmask inverted — all zeros then all ones — and it is what Cisco ACLs and OSPF configs use.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">11111111 11111111 11111111</span><span class="pill s">00000000</span></div><div>mask /24 = <b>255.255.255.0</b></div><div><span class="pill s">00000000 00000000 00000000</span><span class="pill a">11111111</span></div><div>wildcard = <b>0.0.0.255</b></div></div>`,
+   code:`function maskOf(p){
+  return p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0;
+}
+maskOf(24)  // 4294967040 -> "255.255.255.0"
+wildcardOf(24)         // -> "0.0.0.255"` },
+ { title:"4. AND gives the network, OR gives the broadcast",
+   why:"AND-ing an address with its mask keeps every network bit and forces every host bit to zero, which is the definition of the network address — the first address of the block and its name. OR-ing that with the wildcard forces every host bit to one, giving the last address, the broadcast. These two lines are the heart of the calculator; everything on the LOOK tab is derived from them. This is also the normaliser: 192.168.1.70/26 is not really a block, and masking snaps it back to 192.168.1.64/26, which is the block the writer meant.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>192.168.1.100 <span class="pill b">AND</span> 255.255.255.0</div><div>= <span class="pill g">192.168.1.0</span> &nbsp;network</div><div class="pt-2">192.168.1.0 <span class="pill b">OR</span> 0.0.0.255</div><div>= <span class="pill r">192.168.1.255</span> &nbsp;broadcast</div></div>`,
+   code:`const networkOf   = (ip,p) => (ip & maskOf(p)) >>> 0;
+const broadcastOf = (ip,p) => (networkOf(ip,p) | wildcardOf(p)) >>> 0;
+
+networkOf(parseIp("192.168.1.70"), 26)
+// -> 192.168.1.64   (snapped to the real block)` },
+ { title:"5. Counting hosts — and the /31 and /32 exceptions",
+   why:"A block holds 2^(32-p) addresses, but two of them are traditionally not assignable: the all-zeros host part names the network and the all-ones part is the broadcast, so a /24 gives 254 usable hosts rather than 256. Two prefixes break that rule for good reasons. A /32 is a single address — a host route, used for loopbacks and for pointing at one specific machine. A /31 has only two addresses, and RFC 3021 says both are usable on a point-to-point link, because a link with exactly two ends never needs to broadcast; it saves two addresses on every router-to-router hop. Note also that /0 holds 2³² addresses, which overflows a 32-bit shift, so the count uses Math.pow rather than 1 << n.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">/24</span> 256 total → <b>254</b> usable</div><div><span class="pill s">/30</span> 4 total → <b>2</b> usable</div><div><span class="pill a">/31</span> 2 total → <b>2</b> usable (RFC 3021)</div><div><span class="pill a">/32</span> 1 total → <b>1</b> host route</div></div>`,
+   code:`function usableOf(p){
+  if (p === 32) return 1;
+  if (p === 31) return 2;             // RFC 3021
+  return Math.pow(2, 32 - p) - 2;
+}` },
+ { title:"6. The JavaScript trap: bitwise maths is signed",
+   why:"JavaScript numbers are doubles, but the bitwise operators convert to a SIGNED 32-bit integer first. So the moment the top bit is set — every address from 128.0.0.0 upward, and every mask — the result comes back negative: ~0 is -1, not 4294967295, and 200 << 24 prints a negative number. The fix is the unsigned right shift by zero, >>> 0, which is the one operator that returns an unsigned result; it reinterprets the same bits as 0…4294967295. The rule is simple: do the bitwise work, then finish every expression with >>> 0 before comparing, printing or storing it. Skipping it is the single most common bug in hand-written IP code.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">~maskOf(24)</span> → -256 ✗</div><div><span class="pill g">(~maskOf(24)) >>> 0</span> → 255 ✓</div><div class="text-xs text-slate-400">same bits, unsigned reading</div></div>`,
+   code:`(0xFFFFFFFF << 8)          // -256      (signed)
+(0xFFFFFFFF << 8) >>> 0   // 4294967040 (unsigned)
+
+// rule: every bitwise expression ends in >>> 0` },
+ { title:"7. Membership is a single masked comparison",
+   why:"'Is 10.1.2.3 inside 10.0.0.0/8?' does not need a loop over a range. Mask the candidate with the block's mask and compare it to the block's network address: if the network bits agree, the address is inside, because the only thing that can differ is the host part. This is exactly what a router does when it matches a packet against a routing table entry, millions of times a second — and why firewall rules and ACLs are written as CIDR blocks rather than lists. It is also the building block for the classifier: 'is this a private address' is just this test against 10/8, 172.16/12 and 192.168/16.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>10.1.2.3 <span class="pill b">&</span> 255.0.0.0 = <span class="pill g">10.0.0.0</span> ✓ inside</div><div>11.1.2.3 <span class="pill b">&</span> 255.0.0.0 = <span class="pill r">11.0.0.0</span> ✗ outside</div></div>`,
+   code:`function contains(netIp, p, ip){
+  return networkOf(ip, p) === networkOf(netIp, p);
+}` },
+ { title:"8. Two blocks can only nest or miss — never half-overlap",
+   why:"Reduce each block to the interval [network, broadcast] and comparing two blocks becomes the classic interval test. But CIDR gives you something stronger: because every block is a power-of-two size aligned to a multiple of that size, two blocks can never partially overlap. Either they are identical, one wholly contains the other, or they are completely disjoint — a fact worth checking against your intuition. That nesting property is what makes route aggregation possible: an ISP can advertise one /16 instead of 256 separate /24s, and a firewall can reason about rule shadowing without enumerating addresses. Adjacency is worth reporting too, since two adjacent equal-sized aligned blocks can be merged into one shorter prefix.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">192.168.1.0/24</span> ⊃ <span class="pill g">192.168.1.128/25</span></div><div><span class="pill s">192.168.1.0/25</span> ↔ <span class="pill s">192.168.1.128/25</span> adjacent → merge to /24</div><div class="text-xs text-slate-400">partial overlap is impossible</div></div>`,
+   code:`const an = networkOf(a.ip,a.p), ab = broadcastOf(a.ip,a.p);
+const bn = networkOf(b.ip,b.p), bb = broadcastOf(b.ip,b.p);
+if (an <= bn && bb <= ab) return "a contains b";
+if (an <= bb && bn <= ab) return "overlap";
+if (ab + 1 === bn)        return "adjacent";
+return "disjoint";` },
+ { title:"9. Subnetting = borrowing host bits",
+   why:"To carve a /24 into four pieces you move the line two bits right: /26. Those two borrowed bits count the children (2² = 4) and the six bits left over size each child (2⁶ = 64 addresses). Generating them is a walk from the parent network in steps of the child size, and because the step is a power of two every child automatically lands on a legal aligned boundary. The practical cost is visible immediately: splitting a /24 into four /26s loses eight addresses, because each child now spends its own network and broadcast address. That trade — more, smaller broadcast domains versus wasted addresses — is the whole art of subnet design, and the reason VLSM (mixing prefix sizes inside one block) exists.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">192.168.1.0/24</span> → 4 × <span class="pill g">/26</span></div><div>.0/26 · .64/26 · .128/26 · .192/26</div><div class="text-xs text-slate-400">step = 2^(32-26) = 64 addresses</div></div>`,
+   code:`const step  = Math.pow(2, 32 - q);   // child block size
+const total = Math.pow(2, q - p);    // number of children
+for (let i = 0; i < total; i++)
+  children.push((base + i * step) >>> 0);` },
+ { title:"10. Any range → the shortest list of CIDR blocks",
+   why:"Real inputs are often ranges, not blocks: 'allow 192.168.1.5 through 192.168.1.10'. That range is not a single CIDR, so it must be covered by several. The greedy algorithm stands at the start address and grows the biggest block that both STARTS there — the address must be aligned for that prefix — and ENDS at or before the range end; it emits that block, jumps past it, and repeats. Greedy is provably optimal here because of power-of-two alignment: at any position exactly one largest legal block exists. Watch the loop's exit: comparing against the last address rather than incrementing past it is what stops 255.255.255.255 from wrapping around to 0.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>192.168.1.5 – 192.168.1.10</div><div class="text-xs text-slate-400">↓ greedy largest aligned block</div><div><span class="pill g">.5/32</span> <span class="pill g">.6/31</span> <span class="pill g">.8/31</span> <span class="pill g">.10/32</span></div><div class="text-xs text-slate-400">6 addresses, exactly covered</div></div>`,
+   code:`while (p > 0) {
+  const m = maskOf(p - 1);
+  if (((s & m) >>> 0) !== s) break;             // not aligned
+  if (((s | (~m >>> 0)) >>> 0) > end) break;    // overshoots
+  p--;                                          // grow the block
+}` },
+ { title:"11. Special ranges, and why classes died",
+   why:"Some blocks never appear on the public internet, and knowing them saves hours of debugging: 10/8, 172.16/12 and 192.168/16 are private (RFC 1918) and must be NAT-ed; 127/8 is loopback; 169.254/16 is link-local, the address a machine gives itself when DHCP fails; 100.64/10 is carrier-grade NAT, which is why your 'public' IP sometimes is not; 192.0.2/24, 198.51.100/24 and 203.0.113/24 are reserved for documentation, so use those in examples rather than someone's real address. Each entry is itself a CIDR block, so the classifier is just the contains() from step 7 run down an ordered table, most specific first. The class A/B/C letters that predate all this fixed the prefix at /8, /16 or /24 by first octet, which wasted addresses so badly that CIDR replaced it in 1993 — the class shown in the output is now only a historical label.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">10/8 · 172.16/12 · 192.168/16</span> private</div><div><span class="pill a">127/8</span> loopback &nbsp; <span class="pill a">169.254/16</span> link-local</div><div><span class="pill b">100.64/10</span> CGNAT &nbsp; <span class="pill p">224/4</span> multicast</div><div class="text-xs text-slate-400">classes A/B/C = pre-1993 history</div></div>`,
+   code:`for (const [net, p, label] of SPECIAL)
+  if (contains(parseIp(net), p, ip)) return label;
+return "public — globally routable";` },
+];
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach(function(s, i){ const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>"; bn.onclick = function(){ show(i); }; stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach(function(bn, idx){ bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = function(){ show(Math.max(0, curStep - 1)); };
+nextB.onclick = function(){ show(Math.min(STEPS.length - 1, curStep + 1)); };
+let tm = null; autoB.onclick = function(){ if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(function(){ if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+// ================= self-test (the same assertions the node test runs) =================
+(function selfTest(){
+  console.assert(toIp(parseIp("192.168.1.100")) === "192.168.1.100", "round-trip");
+  console.assert(parseIp("192.168.1.256") === null && parseIp("10.0.0.010") === null, "validation");
+  console.assert(toIp(maskOf(24)) === "255.255.255.0" && maskOf(0) === 0, "masks");
+  console.assert(toIp(wildcardOf(22)) === "0.0.3.255", "wildcard /22");
+  console.assert(toIp(networkOf(parseIp("172.16.5.4"), 22)) === "172.16.4.0", "network /22");
+  console.assert(toIp(broadcastOf(parseIp("172.16.5.4"), 22)) === "172.16.7.255", "broadcast /22");
+  console.assert(usableOf(24) === 254 && usableOf(30) === 2 && usableOf(31) === 2 && usableOf(32) === 1, "counts");
+  console.assert(contains(parseIp("10.0.0.0"), 8, parseIp("10.1.2.3")) === true, "contains");
+  console.assert(relation({ip:parseIp("192.168.1.0"),prefix:24},{ip:parseIp("192.168.1.128"),prefix:25}) === "a-contains-b", "relation");
+  console.assert(splitInto(parseIp("192.168.1.0"), 24, 26, 999).total === 4, "split /24 -> /26");
+  const r = rangeToCidrs(parseIp("192.168.1.5"), parseIp("192.168.1.10"));
+  console.assert(r.length === 4 && toIp(r[1].base) + "/" + r[1].prefix === "192.168.1.6/31", "range -> cidr");
+  console.assert(classify(parseIp("10.1.1.1")).label.indexOf("private") === 0, "classify private");
+})();
+
+// ================= boot =================
+renderSplitOptions();
+refresh();
+</script>
+</body>
+</html>
