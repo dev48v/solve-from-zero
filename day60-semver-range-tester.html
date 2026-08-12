@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 60 — Semver Range Tester (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .grid > * { min-width:0; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- inputs ---- */
+  .inp { width:100%; font:700 14px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fff; color:#0f172a; }
+  .inp:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .inp.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.15); }
+  .big { font-size:18px; font-weight:800; letter-spacing:.02em; }
+  select.inp { cursor:pointer; }
+  textarea.inp { font-size:12.5px; line-height:1.55; resize:vertical; }
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:6px 11px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:hover { border-color:#f59e0b; }
+
+  /* ---- stat grid ---- */
+  .stat { border:1px solid #e2e8f0; border-radius:11px; padding:9px 11px; background:#fff; min-width:0; }
+  .stat .k { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+  .stat .v { font:800 15px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-all; }
+  .stat.hi { background:#fffbeb; border-color:#fcd34d; }
+  .stat.hi .v { color:#b45309; }
+
+  /* ---- comparator chips (the desugaring) ---- */
+  .setrow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:9px 10px; border:1px solid #e2e8f0; border-radius:11px; background:#f8fafc; }
+  .comp { display:inline-flex; align-items:center; padding:4px 9px; border-radius:8px; background:#0f172a; color:#fde68a; font:800 12px ui-monospace,Menlo,monospace; }
+  .comp.any { background:#e2e8f0; color:#475569; }
+  .comp.none { background:#fee2e2; color:#b91c1c; }
+  .andop { color:#94a3b8; font:800 10px ui-monospace,Menlo,monospace; letter-spacing:.08em; }
+  .orsep { text-align:center; font:900 11px ui-monospace,Menlo,monospace; color:#f59e0b; padding:5px 0; letter-spacing:.12em; }
+
+  /* ---- tables ---- */
+  table.t { width:100%; border-collapse:collapse; font:700 12px ui-monospace,Menlo,monospace; }
+  table.t th { text-align:left; color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1.5px solid #e2e8f0; position:sticky; top:0; background:#fff; }
+  table.t td { padding:6px 8px; border-bottom:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+  table.t tr:hover td { background:#fffbeb; }
+  table.t tr.win td { background:#fffbeb; }
+  .scrollbox { max-height:320px; overflow:auto; border:1px solid #e2e8f0; border-radius:11px; }
+  .yes { color:#166534; font-weight:800; }
+  .no  { color:#b91c1c; font-weight:800; }
+
+  /* ---- sorted chain ---- */
+  .chain { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+  .vpill { padding:3px 8px; border-radius:7px; font:800 11.5px ui-monospace,Menlo,monospace; background:#f1f5f9; color:#334155; }
+  .vpill.pre { background:#f3e8ff; color:#7e22ce; }
+  .vpill.top { background:#f59e0b; color:#fff; }
+  .lt { color:#cbd5e1; font-weight:900; font-size:11px; }
+
+  /* ---- notices ---- */
+  .notice { border-radius:12px; padding:12px 14px; font:700 13px ui-monospace,Menlo,monospace; word-break:break-word; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .notice.info { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 60</div>
+      <h1 class="text-xl font-bold">🏷️ <code class="mono">semver</code> Range Tester — type a version like <code class="mono">1.2.3-rc.1+build.9</code> and a range like <code class="mono">^1.2.3</code>, and a hand-written <strong>SemVer 2.0.0</strong> engine does the rest live: a strict parser (leading zeros rejected, identifier charset enforced, build metadata kept but never compared), the full §11 <strong>precedence chain</strong> including the subtle prerelease rules, and a <strong>range engine</strong> that desugars <code class="mono">^</code>, <code class="mono">~</code>, <code class="mono">x</code>-ranges, hyphen ranges and <code class="mono">||</code> sets into plain comparators <em>in front of you</em> · paste a list of published versions and see exactly which ones satisfy, which is <code class="mono">maxSatisfying</code>, and therefore what <code class="mono">npm install</code> would actually pull · plus a bump calculator, a "which bump does this change need?" explainer, a real precedence sort and a demo of the prerelease trap that bites everyone · vanilla JS, no library, nothing leaves the page</h1>
+    </div>
+    <div class="flex flex-wrap gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">A version is a promise. A range is the set of promises you will accept.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto"><code class="mono">1.2.3</code> is not a decimal number and it is not a string — it is three independent counters with a contract attached. Bump the <strong>patch</strong> and you promised nothing changed but a bug. Bump the <strong>minor</strong> and you promised you only added. Bump the <strong>major</strong> and you admitted you broke something. A range like <code class="mono">^1.2.3</code> is you saying "I will take any promise up to the next break". Everything a package manager does with versions falls out of two functions: a <em>comparator</em> that puts two versions in order, and a <em>desugarer</em> that turns friendly range syntax into plain <code class="mono">&gt;=</code> / <code class="mono">&lt;</code> bounds. This page implements both from scratch — including the parts everybody gets wrong: <code class="mono">0.9.0 &lt; 0.10.0</code>, <code class="mono">1.0.0-alpha &lt; 1.0.0</code>, <code class="mono">1.0.0-alpha.11 &gt; 1.0.0-alpha.2</code>, build metadata being invisible to comparison, and why your <code class="mono">-beta.1</code> silently refuses to install.</p>
+      </div>
+
+      <!-- ============ INPUTS ============ -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="grid lg:grid-cols-2 gap-6 items-start">
+          <div>
+            <div class="fieldlabel">Version <span class="text-slate-400 normal-case">— major.minor.patch[-prerelease][+build]</span></div>
+            <input id="verInput" class="inp big" value="1.2.3-rc.1+build.9" spellcheck="false" autocomplete="off" />
+            <div id="verMsg" class="text-xs mono mt-2 text-slate-400">Type any version.</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg" data-ver="1.2.3">1.2.3</button>
+              <button class="seg" data-ver="1.2.3-rc.1+build.9">1.2.3-rc.1+build.9</button>
+              <button class="seg" data-ver="0.10.0">0.10.0</button>
+              <button class="seg" data-ver="1.0.0-alpha.11">1.0.0-alpha.11</button>
+              <button class="seg" data-ver="2.0.0+20130313144700">2.0.0+20130313144700</button>
+              <button class="seg" data-ver="1.02.3">1.02.3 ✗</button>
+            </div>
+          </div>
+          <div>
+            <div class="fieldlabel">Range <span class="text-slate-400 normal-case">— what your <code class="mono">package.json</code> would say</span></div>
+            <input id="rangeInput" class="inp big" value="^1.2.3" spellcheck="false" autocomplete="off" />
+            <div id="rangeMsg" class="text-xs mono mt-2 text-slate-400">Type any npm-style range.</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg" data-range="^1.2.3">^1.2.3</button>
+              <button class="seg" data-range="^0.2.3">^0.2.3</button>
+              <button class="seg" data-range="~1.2.3">~1.2.3</button>
+              <button class="seg" data-range="1.2.x">1.2.x</button>
+              <button class="seg" data-range="&gt;=1.2.0 &lt;2.0.0">&gt;=1.2.0 &lt;2.0.0</button>
+              <button class="seg" data-range="1.2.3 - 2.3.4">1.2.3 - 2.3.4</button>
+              <button class="seg" data-range="^1.0.0 || ^2.0.0">^1.0.0 || ^2.0.0</button>
+              <button class="seg" data-range="&gt;=1.3.0-beta.1 &lt;2.0.0">&gt;=1.3.0-beta.1 &lt;2.0.0</button>
+              <button class="seg" data-range="*">*</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="verdict" class="notice info mt-5">—</div>
+      </div>
+
+      <!-- ============ RESULTS ============ -->
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 space-y-6">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">The range, desugared <span class="text-slate-400 normal-case">— every range is only sugar for a set of comparators</span></div>
+            <div id="rangeDesugar" class="mt-1"></div>
+            <div class="text-xs text-slate-400 mono mt-3">Comparators inside a row are ANDed · rows are ORed · a version satisfies the range if it satisfies every comparator of at least one row.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">The parsed version <span class="text-slate-400 normal-case">— what the comparator actually sees</span></div>
+            <div class="grid sm:grid-cols-2 gap-3" id="verBreak"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex flex-wrap items-end gap-3 mb-3">
+              <div class="flex-1" style="min-width:200px">
+                <div class="fieldlabel mb-0">Published versions <span class="text-slate-400 normal-case">— one per line, like the registry would list them</span></div>
+              </div>
+              <label class="text-xs mono text-slate-500 flex items-center gap-2"><input type="checkbox" id="inclPre" /> includePrerelease</label>
+            </div>
+            <textarea id="verList" class="inp" rows="6" spellcheck="false"></textarea>
+            <div id="resolveBanner" class="notice ok mt-3">—</div>
+            <div class="scrollbox mt-3">
+              <table class="t"><thead><tr><th>Version</th><th>Satisfies?</th><th>Why</th></tr></thead><tbody id="listBody"></tbody></table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Sorted by real precedence <span class="text-slate-400 normal-case">— not string order, not <code class="mono">parseFloat</code></span></div>
+            <div id="sortBox" class="chain"></div>
+            <div id="sortNote" class="text-xs text-slate-400 mono mt-3"></div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Compare two versions</div>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="cmpA" class="inp" value="1.0.0-alpha.11" spellcheck="false" autocomplete="off" />
+              <input id="cmpB" class="inp" value="1.0.0-alpha.2" spellcheck="false" autocomplete="off" />
+            </div>
+            <div id="cmpOut" class="notice info mt-3">—</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="flex flex-wrap items-end gap-3 mb-2">
+              <div class="fieldlabel mb-0 flex-1" style="min-width:120px">Bump the version above</div>
+              <div style="width:130px">
+                <input id="preid" class="inp" value="beta" spellcheck="false" autocomplete="off" style="padding:6px 9px;font-size:12px" />
+              </div>
+            </div>
+            <div class="text-[10px] mono text-slate-400 mb-2 text-right">prerelease identifier</div>
+            <div class="scrollbox" style="max-height:none">
+              <table class="t"><thead><tr><th>Bump</th><th>Result</th><th>In range?</th></tr></thead><tbody id="bumpBody"></tbody></table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">Which bump does this change need?</div>
+            <select id="changeSel" class="inp"></select>
+            <div id="changeOut" class="notice info mt-3">—</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="fieldlabel">The prerelease trap <span class="text-slate-400 normal-case">— live, not a screenshot</span></div>
+            <div class="scrollbox mt-1" style="max-height:none">
+              <table class="t"><thead><tr><th>Version</th><th>Range</th><th>?</th></tr></thead><tbody id="trapBody"></tbody></table>
+            </div>
+            <div class="text-xs text-slate-400 mono mt-2">A prerelease only satisfies a range when a comparator in the matching row itself carries a prerelease on the <em>same</em> major.minor.patch.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about semver</div>
+        <p class="text-sm text-amber-800"><strong>1. The three numbers are counters, not digits.</strong> <code class="mono">0.10.0</code> is newer than <code class="mono">0.9.0</code>, because each field is compared as an integer, one field at a time, left to right. Sort your version list as strings and <code class="mono">0.10.0</code> lands before <code class="mono">0.9.0</code>; sort with <code class="mono">parseFloat</code> and <code class="mono">1.2.3</code> becomes 1.2 and ties with <code class="mono">1.2.9</code>. Both bugs ship regularly. <strong>2. <code class="mono">0.x</code> has no contract.</strong> The spec explicitly says anything may change at any time below 1.0.0, which is why <code class="mono">^</code> changes meaning there: <code class="mono">^1.2.3</code> allows everything under <code class="mono">2.0.0</code>, but <code class="mono">^0.2.3</code> allows only up to <code class="mono">0.3.0</code>, and <code class="mono">^0.0.3</code> allows nothing but <code class="mono">0.0.3</code> itself. Staying on 0.x forever is not "being careful", it is opting out of the promise. <strong>3. Prereleases are invisible by default.</strong> <code class="mono">1.3.0-beta.1</code> does <em>not</em> satisfy <code class="mono">^1.2.3</code>, even though it sits neatly between the bounds — a range only admits a prerelease if one of its own comparators names a prerelease at the same major.minor.patch. That is deliberate: nobody wants an untested beta pulled in by a caret, and it is why publishing under a dist-tag is the normal way to ship one. <strong>4. Build metadata is not a version.</strong> <code class="mono">1.0.0+build.1</code> and <code class="mono">1.0.0+build.2</code> are <em>equal</em> for every comparison in the spec — the <code class="mono">+</code> part is carried along and ignored. Registries reject the second upload as a duplicate, so metadata can label a build but can never distinguish a release. <strong>5. A range is not a version.</strong> <code class="mono">"lodash": "^4.17.0"</code> in <code class="mono">package.json</code> is a wish; the lockfile is the fact. Two machines installing the same wish a week apart legitimately get different code — which is the whole reason <code class="mono">npm ci</code> and committed lockfiles exist.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a semver engine works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A semver engine is two ideas stacked. First a <strong>total order</strong> on versions: parse into <code>{major, minor, patch, pre[], build[]}</code> and compare field by field, with special rules for the prerelease tail. Then a <strong>desugarer</strong>: every friendly range syntax — <code>^</code>, <code>~</code>, <code>1.2.x</code>, <code>1.2.3 - 2.3.4</code>, <code>||</code> — collapses into sets of plain <code>&gt;=</code> / <code>&lt;</code> comparators, and "does this version satisfy that range" becomes a loop over those comparators plus one extra rule about prereleases. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Parse strictly — the regex is only half the rules</h3></div>
+        <p class="text-sm text-slate-600 mb-3">One regex splits the five parts, then hand-written checks enforce what a regex reads badly: numeric fields must not carry leading zeros (<code>01</code> is not a number here), identifiers are limited to <code>[0-9A-Za-z-]</code>, and empty identifiers (a double dot, a trailing dot) are illegal. Prerelease and build are kept as <em>arrays of identifiers</em>, never as one string, because every later rule works identifier by identifier.</p>
+        <div class="relative"><pre>const NUMERIC = /^(0|[1-9]\d*)$/;      // no leading zeros
+const IDENT   = /^[0-9A-Za-z-]+$/;      // the only legal charset
+
+function parseSemver(text){
+  const raw = String(text).trim();
+  const m = raw.match(/^(\d+)\.(\d+)\.(\d+)(?:-([^+]*))?(?:\+(.*))?$/);
+  if (!m) return { error: "expected major.minor.patch[-prerelease][+build]" };
+
+  for (const [i, name] of [[1,"major"],[2,"minor"],[3,"patch"]])
+    if (!NUMERIC.test(m[i])) return { error: name + " has a leading zero" };
+
+  const pre   = m[4] === undefined ? [] : m[4].split(".");
+  const build = m[5] === undefined ? [] : m[5].split(".");
+  return { major:+m[1], minor:+m[2], patch:+m[3], pre, build };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Comparing one identifier: numbers first, then ASCII</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Spec §11.4: identifiers made only of digits compare <em>numerically</em>, identifiers with letters compare in <em>ASCII</em> order, and a numeric identifier always ranks lower than an alphanumeric one. Because leading zeros are already rejected, numeric comparison can be done without <code>Number()</code> at all — the longer digit string is the bigger number, and equal lengths compare lexically. That keeps it exact past 2⁵³.</p>
+        <div class="relative"><pre>function cmpIdent(a, b){
+  const an = NUMERIC.test(a), bn = NUMERIC.test(b);
+  if (an &amp;&amp; bn) {                                  // both numeric
+    if (a.length !== b.length) return a.length &lt; b.length ? -1 : 1;
+    return a &lt; b ? -1 : a &gt; b ? 1 : 0;              // exact, no float
+  }
+  if (an) return -1;                                // numeric &lt; alphanumeric
+  if (bn) return 1;
+  return a &lt; b ? -1 : a &gt; b ? 1 : 0;                // ASCII order
+}
+
+cmpIdent("11", "2");     //  1   eleven &gt; two
+cmpIdent("2", "beta");   // -1   numeric loses to alphanumeric</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Comparing the prerelease tail</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Two rules that look backwards until you say them out loud. <em>Having</em> a prerelease makes a version <strong>smaller</strong>, because <code>1.0.0-rc.1</code> comes before the real <code>1.0.0</code>. And when both have one, you walk identifier by identifier; if everything matches up to the length of the shorter, the <strong>longer</strong> one wins, because <code>alpha.1</code> is a further step along than plain <code>alpha</code>.</p>
+        <div class="relative"><pre>function cmpPre(a, b){
+  if (!a.length &amp;&amp; !b.length) return 0;
+  if (!a.length) return 1;        // 1.0.0 &gt; 1.0.0-alpha
+  if (!b.length) return -1;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i &lt; n; i++) {
+    const c = cmpIdent(a[i], b[i]);
+    if (c !== 0) return c;
+  }
+  return a.length === b.length ? 0 : (a.length &lt; b.length ? -1 : 1);
+}
+
+// alpha &lt; alpha.1 &lt; alpha.beta &lt; beta &lt; beta.2 &lt; beta.11 &lt; rc.1 &lt; (none)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">The whole comparator — and the field that is never read</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Major, then minor, then patch, then the prerelease tail. Build metadata is deliberately absent: the spec says it MUST be ignored when determining precedence, so <code>1.0.0+a</code> and <code>1.0.0+b</code> are equal. Pass this straight to <code>Array.prototype.sort</code> and you have a correct release history for free.</p>
+        <div class="relative"><pre>function compareVer(a, b){
+  if (a.major !== b.major) return a.major &lt; b.major ? -1 : 1;
+  if (a.minor !== b.minor) return a.minor &lt; b.minor ? -1 : 1;
+  if (a.patch !== b.patch) return a.patch &lt; b.patch ? -1 : 1;
+  return cmpPre(a.pre, b.pre);        // build[] is never looked at
+}
+
+const sorted = list.slice().sort(compareVer);
+// 0.9.0, 0.10.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.0.0-beta, 1.0.0-rc.1, 1.0.0</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Partials: a range operand may be incomplete</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Inside a range, <code>1</code>, <code>1.2</code>, <code>1.2.x</code> and <code>*</code> are all legal operands. Parse them into the same shape as a version but with <code>null</code> standing for "unspecified", and remember that once a field is <code>x</code>, everything to its right is <code>x</code> too. Every desugaring rule below is then just arithmetic on those three slots.</p>
+        <div class="relative"><pre>function parsePartial(text){
+  const s = text.trim().replace(/^[v=]+/, "");        // npm tolerates v1.2.3
+  const m = s.match(/^(x|X|\*|\d+)(?:\.(x|X|\*|\d+)(?:\.(x|X|\*|\d+)(?:-([^+]*))?(?:\+(.*))?)?)?$/);
+  if (!m) return null;
+  const num = t =&gt; (t === undefined || t === "x" || t === "X" || t === "*") ? null : +t;
+  let M = num(m[1]), mi = num(m[2]), p = num(m[3]);
+  if (M === null) { mi = null; p = null; }             // x.2.3 is really x
+  if (mi === null) p = null;
+  return { M, m: mi, p, pre: m[4] ? m[4].split(".") : [] };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg">Caret and tilde are two lines of arithmetic</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Caret means "up to the next thing that is allowed to break", and below 1.0.0 the leftmost non-zero field <em>is</em> the breaking field — that single sentence generates all five caret cases. Tilde is simpler: it pins whatever you specified down to the minor and lets the patch float, so <code>~1.2.3</code> stops at <code>1.3.0</code> but <code>~1</code> stops at <code>2.0.0</code>.</p>
+        <div class="relative"><pre>function caretRange(q){                       // ^q
+  const low = ge(q.M, q.m ?? 0, q.p ?? 0, q.p === null ? [] : q.pre);
+  let hi;
+  if (q.M &gt; 0)           hi = lt(q.M + 1, 0, 0);   // ^1.2.3 -&gt; &lt;2.0.0
+  else if (q.m === null) hi = lt(1, 0, 0);         // ^0.x   -&gt; &lt;1.0.0
+  else if (q.m &gt; 0)      hi = lt(0, q.m + 1, 0);   // ^0.2.3 -&gt; &lt;0.3.0
+  else if (q.p === null) hi = lt(0, 1, 0);         // ^0.0.x -&gt; &lt;0.1.0
+  else                   hi = lt(0, 0, q.p + 1);   // ^0.0.3 -&gt; &lt;0.0.4
+  return [low, hi];
+}
+
+function tildeRange(q){                       // ~q
+  const low = ge(q.M, q.m ?? 0, q.p ?? 0, q.p === null ? [] : q.pre);
+  const hi  = q.m === null ? lt(q.M + 1, 0, 0)     // ~1     -&gt; &lt;2.0.0
+                           : lt(q.M, q.m + 1, 0);  // ~1.2.3 -&gt; &lt;1.3.0
+  return [low, hi];
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">X-ranges, hyphen ranges, and <code class="mono">&gt;1.2</code></h3></div>
+        <p class="text-sm text-slate-600 mb-3">An <code>x</code> is a window, so the operator decides which edge of the window you land on: <code>&gt;1.2</code> means "past the whole 1.2 window", i.e. <code>&gt;=1.3.0</code>, while <code>&lt;=1.2</code> means "through the end of it", i.e. <code>&lt;1.3.0</code>. Hyphen ranges use the same idea on the right-hand side: <code>1.2.3 - 2.3</code> ends at <code>&lt;2.4.0</code>, but a complete <code>2.3.4</code> ends at an inclusive <code>&lt;=2.3.4</code>.</p>
+        <div class="relative"><pre>function plainRange(op, q){
+  if (q.m === null) {                                   // "1" / "1.x"
+    if (op === "" || op === "=") return [ge(q.M,0,0), lt(q.M+1,0,0)];
+    if (op === "&gt;")  return [ge(q.M+1, 0, 0)];           // &gt;1   -&gt; &gt;=2.0.0
+    if (op === "&gt;=") return [ge(q.M,   0, 0)];
+    if (op === "&lt;")  return [lt(q.M,   0, 0)];
+    if (op === "&lt;=") return [lt(q.M+1, 0, 0)];           // &lt;=1  -&gt; &lt;2.0.0
+  }
+  if (q.p === null) { /* same five cases on the minor */ }
+  return [{ op: op || "=", ver: mk(q.M, q.m, q.p, q.pre) }];
+}
+
+// 1.2.3 - 2.3.4  ->  &gt;=1.2.3 &lt;=2.3.4
+// 1.2.3 - 2.3    ->  &gt;=1.2.3 &lt;2.4.0
+// 1.2   - 2      ->  &gt;=1.2.0 &lt;3.0.0</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">Evaluate: AND inside a row, OR across rows</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Split the whole range on <code>||</code> into rows, desugar each token in a row into comparators, and satisfaction is the obvious double loop. Then the one rule that is not obvious: a version <em>with</em> a prerelease is rejected unless some comparator in the same row names a prerelease on the identical <code>major.minor.patch</code>. That is what stops <code>^1.2.3</code> from quietly installing <code>1.3.0-beta.1</code>.</p>
+        <div class="relative"><pre>function testComparator(v, c){
+  if (c.op === "*") return true;
+  const r = compareVer(v, c.ver);
+  return c.op === "="  ? r === 0 : c.op === "&gt;"  ? r &gt; 0
+       : c.op === "&gt;=" ? r &gt;= 0 : c.op === "&lt;"  ? r &lt; 0
+       : c.op === "&lt;=" ? r &lt;= 0 : false;
+}
+
+function satisfiesSet(v, comps, includePrerelease){
+  if (!comps.every(c =&gt; testComparator(v, c))) return false;
+  if (v.pre.length &amp;&amp; !includePrerelease) {
+    const named = comps.some(c =&gt; c.op !== "*" &amp;&amp; c.ver.pre.length
+      &amp;&amp; c.ver.major === v.major &amp;&amp; c.ver.minor === v.minor &amp;&amp; c.ver.patch === v.patch);
+    if (!named) return false;
+  }
+  return true;
+}
+
+const satisfies = (v, range) =&gt; range.sets.some(s =&gt; satisfiesSet(v, s));</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">What <code class="mono">npm install</code> actually picks</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Given the registry's list of published versions and your range, the resolver takes the <strong>highest</strong> version that satisfies — <code>maxSatisfying</code>. Two functions you already wrote, composed: filter, then reduce with the comparator. This is also why an unlocked <code>^</code> can change what you get between two installs of the same <code>package.json</code>.</p>
+        <div class="relative"><pre>function maxSatisfying(list, range, includePrerelease){
+  let best = null;
+  for (const v of list) {
+    if (!satisfies(v, range, includePrerelease)) continue;
+    if (best === null || compareVer(v, best) &gt; 0) best = v;
+  }
+  return best;
+}
+
+// published: 1.2.3 1.2.4 1.3.0 1.3.0-rc.1 2.0.0
+// "^1.2.3"  -&gt; 1.3.0     (the rc is invisible, 2.0.0 is out of bounds)</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Bumping — then prove the whole thing</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A bump is not always "+1": bumping the patch of <code>1.2.3-rc.1</code> gives <code>1.2.3</code>, because the prerelease was already aiming at that release. Finish with assertions — the §11 chain is the canonical one, and a total-order check over random triples catches any comparator that is subtly inconsistent.</p>
+        <div class="relative"><pre>function inc(v, release, preid){
+  switch (release) {
+    case "patch": return v.pre.length ? mk(v.major, v.minor, v.patch)
+                                      : mk(v.major, v.minor, v.patch + 1);
+    case "minor": return (v.pre.length &amp;&amp; v.patch === 0) ? mk(v.major, v.minor, 0)
+                                                         : mk(v.major, v.minor + 1, 0);
+    case "major": return (v.pre.length &amp;&amp; v.minor === 0 &amp;&amp; v.patch === 0)
+                         ? mk(v.major, 0, 0) : mk(v.major + 1, 0, 0);
+    case "premajor": return mk(v.major + 1, 0, 0, [preid, "0"]);
+  }
+}
+
+const CHAIN = ["1.0.0-alpha","1.0.0-alpha.1","1.0.0-alpha.beta","1.0.0-beta",
+               "1.0.0-beta.2","1.0.0-beta.11","1.0.0-rc.1","1.0.0"];
+for (let i = 1; i &lt; CHAIN.length; i++)
+  console.assert(compareVer(parseSemver(CHAIN[i-1]), parseSemver(CHAIN[i])) &lt; 0, CHAIN[i]);
+console.assert(compareVer(parseSemver("1.0.0+a"), parseSemver("1.0.0+b")) === 0, "build ignored");</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 60 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real semver engine with <strong>no library</strong>. A strict parser produced five fields; a comparator turned them into a total order (with build metadata deliberately never read); a desugarer collapsed <code>^</code>, <code>~</code>, <code>x</code>-ranges, hyphen ranges and <code>||</code> into plain bounds; and satisfaction became a double loop plus one rule about prereleases. That last rule is the whole reason your <code>-beta.1</code> never installs — and now you can point at the four lines that do it.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= SEMVER 2.0.0 ENGINE (from scratch, no library) =================
+// A version is {major, minor, patch, pre[], build[]}. Precedence compares the first four
+// and never looks at build. A range is sugar: it desugars into OR-sets of ANDed
+// comparators, and satisfaction is a double loop plus one prerelease rule.
+
+// ==CORE-START== (pure functions — no DOM below this line until CORE-END; node-tested)
+
+var NUMERIC = /^(0|[1-9]\d*)$/;
+var IDENT   = /^[0-9A-Za-z-]+$/;
+
+function mk(M, m, p, pre, build){
+  return { major: M, minor: m, patch: p, pre: pre || [], build: build || [] };
+}
+
+function fmtVer(v){
+  return v.major + "." + v.minor + "." + v.patch
+       + (v.pre.length   ? "-" + v.pre.join(".")   : "")
+       + (v.build.length ? "+" + v.build.join(".") : "");
+}
+
+function checkPre(ids){
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    if (id === "") return "empty prerelease identifier — two dots in a row, or a trailing dot";
+    if (!IDENT.test(id)) return "prerelease identifier \"" + id + "\" may only use 0-9 A-Z a-z and -";
+    if (/^\d+$/.test(id) && !NUMERIC.test(id)) return "numeric prerelease identifier \"" + id + "\" has a leading zero";
+  }
+  return null;
+}
+
+function checkBuild(ids){
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    if (id === "") return "empty build identifier";
+    if (!IDENT.test(id)) return "build identifier \"" + id + "\" may only use 0-9 A-Z a-z and -";
+  }
+  return null;
+}
+
+// strict SemVer 2.0.0 parse -> {major,minor,patch,pre[],build[]} | {error}
+function parseSemver(text){
+  var raw = String(text).trim();
+  if (!raw) return { error: "empty" };
+  if (/^[v=]/i.test(raw)) return { error: "drop the leading \"" + raw[0] + "\" — a SemVer version starts with a digit" };
+  var m = raw.match(/^(\d+)\.(\d+)\.(\d+)(?:-([^+]*))?(?:\+(.*))?$/);
+  if (!m) {
+    var head = raw.split("+")[0].split("-")[0];
+    var n = head.split(".").length;
+    if (n < 3) return { error: "need all three numbers: major.minor.patch (got " + n + ")" };
+    return { error: "expected major.minor.patch[-prerelease][+build]" };
+  }
+  var nums = [m[1], m[2], m[3]], names = ["major", "minor", "patch"];
+  for (var i = 0; i < 3; i++)
+    if (!NUMERIC.test(nums[i]))
+      return { error: names[i] + " \"" + nums[i] + "\" has a leading zero — 01 is not a number here" };
+  var pre   = m[4] === undefined ? [] : m[4].split(".");
+  var build = m[5] === undefined ? [] : m[5].split(".");
+  var e1 = checkPre(pre);   if (e1) return { error: e1 };
+  var e2 = checkBuild(build); if (e2) return { error: e2 };
+  return mk(Number(m[1]), Number(m[2]), Number(m[3]), pre, build);
+}
+
+// ---------- precedence (spec §11) ----------
+function cmpIdent(a, b){
+  var an = NUMERIC.test(a), bn = NUMERIC.test(b);
+  if (an && bn) {                                     // both numeric -> compare as numbers
+    if (a.length !== b.length) return a.length < b.length ? -1 : 1;   // no leading zeros, so length wins
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  if (an) return -1;                                  // numeric always lower than alphanumeric
+  if (bn) return 1;
+  return a < b ? -1 : a > b ? 1 : 0;                  // ASCII order
+}
+
+function cmpPre(a, b){
+  if (!a.length && !b.length) return 0;
+  if (!a.length) return 1;                            // 1.0.0 > 1.0.0-alpha
+  if (!b.length) return -1;
+  var n = Math.min(a.length, b.length);
+  for (var i = 0; i < n; i++) {
+    var c = cmpIdent(a[i], b[i]);
+    if (c !== 0) return c;
+  }
+  return a.length === b.length ? 0 : (a.length < b.length ? -1 : 1);  // longer prefix wins
+}
+
+function compareVer(a, b){
+  if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+  if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+  if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+  return cmpPre(a.pre, b.pre);                        // build metadata is never compared
+}
+
+function eqVer(a, b){ return compareVer(a, b) === 0; }
+function sortVersions(list){ return list.slice().sort(compareVer); }
+
+// which field changed first
+function diffType(a, b){
+  if (compareVer(a, b) === 0) return null;
+  var pre = (a.pre.length || b.pre.length) ? "pre" : "";
+  if (a.major !== b.major) return pre + "major";
+  if (a.minor !== b.minor) return pre + "minor";
+  if (a.patch !== b.patch) return pre + "patch";
+  return "prerelease";
+}
+
+// ---------- ranges ----------
+var ANY = { op: "*" };
+function ge(M, m, p, pre){ return { op: ">=", ver: mk(M, m, p, pre || [], []) }; }
+function lt(M, m, p){ return { op: "<", ver: mk(M, m, p, [], []) }; }
+function nothing(){ return { op: "<", ver: mk(0, 0, 0, ["0"], []) }; }   // nothing is below 0.0.0-0
+
+// "1", "1.2", "1.2.x", "*", "1.2.3-beta.1" -> {M,m,p,pre,build} with null meaning "x"
+function parsePartial(text){
+  var s = String(text).trim().replace(/^[v=]+/, "");
+  if (s === "") return null;
+  var m = s.match(/^(x|X|\*|\d+)(?:\.(x|X|\*|\d+)(?:\.(x|X|\*|\d+)(?:-([^+]*))?(?:\+(.*))?)?)?$/);
+  if (!m) return null;
+  function num(t){
+    if (t === undefined) return null;
+    if (t === "x" || t === "X" || t === "*") return null;
+    if (!NUMERIC.test(t)) return NaN;                 // leading zero
+    return Number(t);
+  }
+  var M = num(m[1]), mi = num(m[2]), p = num(m[3]);
+  if (Number.isNaN(M) || Number.isNaN(mi) || Number.isNaN(p)) return null;
+  var pre   = m[4] === undefined ? [] : m[4].split(".");
+  var build = m[5] === undefined ? [] : m[5].split(".");
+  if (pre.length && checkPre(pre)) return null;
+  if (build.length && checkBuild(build)) return null;
+  if (M === null) { mi = null; p = null; }            // x.2.3 is really x
+  if (mi === null) p = null;
+  return { M: M, m: mi, p: p, pre: pre, build: build };
+}
+
+function caretRange(q){
+  if (q.M === null) return [ANY];
+  var low = ge(q.M, q.m === null ? 0 : q.m, q.p === null ? 0 : q.p, q.p === null ? [] : q.pre);
+  var hi;
+  if (q.M > 0)           hi = lt(q.M + 1, 0, 0);      // ^1.2.3 -> <2.0.0
+  else if (q.m === null) hi = lt(1, 0, 0);            // ^0.x   -> <1.0.0
+  else if (q.m > 0)      hi = lt(0, q.m + 1, 0);      // ^0.2.3 -> <0.3.0
+  else if (q.p === null) hi = lt(0, 1, 0);            // ^0.0.x -> <0.1.0
+  else                   hi = lt(0, 0, q.p + 1);      // ^0.0.3 -> <0.0.4
+  return [low, hi];
+}
+
+function tildeRange(q){
+  if (q.M === null) return [ANY];
+  var low = ge(q.M, q.m === null ? 0 : q.m, q.p === null ? 0 : q.p, q.p === null ? [] : q.pre);
+  var hi  = q.m === null ? lt(q.M + 1, 0, 0) : lt(q.M, q.m + 1, 0);
+  return [low, hi];
+}
+
+function plainRange(op, q){
+  if (q.M === null) {                                 // "*" / "x"
+    if (op === ">" || op === "<") return [nothing()];
+    return [ANY];
+  }
+  if (q.m === null) {
+    if (op === "" || op === "=") return [ge(q.M, 0, 0), lt(q.M + 1, 0, 0)];
+    if (op === ">")  return [ge(q.M + 1, 0, 0)];
+    if (op === ">=") return [ge(q.M, 0, 0)];
+    if (op === "<")  return [lt(q.M, 0, 0)];
+    if (op === "<=") return [lt(q.M + 1, 0, 0)];
+  }
+  if (q.p === null) {
+    if (op === "" || op === "=") return [ge(q.M, q.m, 0), lt(q.M, q.m + 1, 0)];
+    if (op === ">")  return [ge(q.M, q.m + 1, 0)];
+    if (op === ">=") return [ge(q.M, q.m, 0)];
+    if (op === "<")  return [lt(q.M, q.m, 0)];
+    if (op === "<=") return [lt(q.M, q.m + 1, 0)];
+  }
+  return [{ op: op === "" ? "=" : op, ver: mk(q.M, q.m, q.p, q.pre, q.build) }];
+}
+
+function hyphenRange(a, b){
+  var out = [];
+  if (a.M !== null) out.push(ge(a.M, a.m === null ? 0 : a.m, a.p === null ? 0 : a.p, a.p === null ? [] : a.pre));
+  if (b.M === null) return out.length ? out : [ANY];
+  if (b.m === null)      out.push(lt(b.M + 1, 0, 0));                       // - 2   -> <3.0.0
+  else if (b.p === null) out.push(lt(b.M, b.m + 1, 0));                     // - 2.3 -> <2.4.0
+  else                   out.push({ op: "<=", ver: mk(b.M, b.m, b.p, b.pre, b.build) });
+  return out;
+}
+
+// "^1.0.0 || >=2.1 <3.0.0-0" -> { sets: [ [comp,...], ... ] } | { error }
+function parseRange(text){
+  var raw = String(text).trim();
+  if (raw === "") raw = "*";
+  var orParts = raw.split("||");
+  var sets = [];
+  for (var i = 0; i < orParts.length; i++) {
+    var piece = orParts[i]
+      .replace(/,/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/(\^|~|>=|<=|>|<|=)\s+/g, "$1")        // ">= 1.2.3" -> ">=1.2.3"
+      .trim();
+    if (piece === "") piece = "*";
+    var toks = piece.split(" ");
+    var comps = [];
+    var j = 0;
+    while (j < toks.length) {
+      var t = toks[j];
+      if (toks[j + 1] === "-" && toks[j + 2] !== undefined) {               // hyphen range
+        var a = parsePartial(t), b = parsePartial(toks[j + 2]);
+        if (!a) return { error: "\"" + t + "\" is not a valid version on the left of the hyphen range" };
+        if (!b) return { error: "\"" + toks[j + 2] + "\" is not a valid version on the right of the hyphen range" };
+        comps = comps.concat(hyphenRange(a, b));
+        j += 3;
+        continue;
+      }
+      if (t === "-") return { error: "a hyphen range needs a version on both sides, like 1.2.3 - 2.3.4" };
+      var om = t.match(/^(\^|~|>=|<=|>|<|=)?([\s\S]*)$/);
+      var op = om[1] || "", rest = om[2];
+      var q = parsePartial(rest);
+      if (!q) return { error: "\"" + t + "\" is not a valid comparator" };
+      if (op === "^")      comps = comps.concat(caretRange(q));
+      else if (op === "~") comps = comps.concat(tildeRange(q));
+      else                 comps = comps.concat(plainRange(op, q));
+      j++;
+    }
+    sets.push(comps);
+  }
+  return { sets: sets, raw: raw };
+}
+
+function fmtComp(c){ return c.op === "*" ? "*" : c.op + fmtVer(c.ver); }
+function fmtSet(comps){ return comps.map(fmtComp).join(" "); }
+function fmtRange(r){ return r.sets.map(fmtSet).join(" || "); }
+
+function testComparator(v, c){
+  if (c.op === "*") return true;
+  var r = compareVer(v, c.ver);
+  if (c.op === "=")  return r === 0;
+  if (c.op === ">")  return r > 0;
+  if (c.op === ">=") return r >= 0;
+  if (c.op === "<")  return r < 0;
+  if (c.op === "<=") return r <= 0;
+  return false;
+}
+
+// a prerelease is only admitted when a comparator in the SAME set names a prerelease
+// on the identical major.minor.patch — this is the rule everybody trips over
+function preAllowed(v, comps){
+  for (var i = 0; i < comps.length; i++) {
+    var c = comps[i];
+    if (c.op === "*") continue;
+    if (c.ver.pre.length && c.ver.major === v.major && c.ver.minor === v.minor && c.ver.patch === v.patch) return true;
+  }
+  return false;
+}
+
+function satisfiesSet(v, comps, includePrerelease){
+  for (var i = 0; i < comps.length; i++) if (!testComparator(v, comps[i])) return false;
+  if (v.pre.length && !includePrerelease && !preAllowed(v, comps)) return false;
+  return true;
+}
+
+function satisfies(v, range, includePrerelease){
+  for (var i = 0; i < range.sets.length; i++)
+    if (satisfiesSet(v, range.sets[i], includePrerelease)) return true;
+  return false;
+}
+
+function whyNot(v, comps, includePrerelease){
+  for (var i = 0; i < comps.length; i++)
+    if (!testComparator(v, comps[i])) return "fails " + fmtComp(comps[i]);
+  if (v.pre.length && !includePrerelease && !preAllowed(v, comps)) return "prerelease, and the range names none at " + v.major + "." + v.minor + "." + v.patch;
+  return "";
+}
+
+function maxSatisfying(list, range, includePrerelease){
+  var best = null;
+  for (var i = 0; i < list.length; i++) {
+    if (!satisfies(list[i], range, includePrerelease)) continue;
+    if (best === null || compareVer(list[i], best) > 0) best = list[i];
+  }
+  return best;
+}
+
+function minSatisfying(list, range, includePrerelease){
+  var best = null;
+  for (var i = 0; i < list.length; i++) {
+    if (!satisfies(list[i], range, includePrerelease)) continue;
+    if (best === null || compareVer(list[i], best) < 0) best = list[i];
+  }
+  return best;
+}
+
+// ---------- bumping ----------
+function inc(v, release, preid){
+  var pid = String(preid === undefined ? "" : preid).trim();
+  function pre0(){ return pid ? [pid, "0"] : ["0"]; }
+  if (release === "major")
+    return (v.pre.length && v.minor === 0 && v.patch === 0) ? mk(v.major, 0, 0, [], []) : mk(v.major + 1, 0, 0, [], []);
+  if (release === "minor")
+    return (v.pre.length && v.patch === 0) ? mk(v.major, v.minor, 0, [], []) : mk(v.major, v.minor + 1, 0, [], []);
+  if (release === "patch")
+    return v.pre.length ? mk(v.major, v.minor, v.patch, [], []) : mk(v.major, v.minor, v.patch + 1, [], []);
+  if (release === "premajor") return mk(v.major + 1, 0, 0, pre0(), []);
+  if (release === "preminor") return mk(v.major, v.minor + 1, 0, pre0(), []);
+  if (release === "prepatch") return mk(v.major, v.minor, v.patch + 1, pre0(), []);
+  if (release === "prerelease") {
+    if (!v.pre.length) return mk(v.major, v.minor, v.patch + 1, pre0(), []);
+    var pre = v.pre.slice();
+    if (pid && pre[0] !== pid) return mk(v.major, v.minor, v.patch, [pid, "0"], []);
+    var i = pre.length - 1;
+    while (i >= 0 && !NUMERIC.test(pre[i])) i--;
+    if (i >= 0) pre[i] = String(Number(pre[i]) + 1);
+    else pre.push("0");
+    return mk(v.major, v.minor, v.patch, pre, []);
+  }
+  return mk(v.major, v.minor, v.patch, v.pre.slice(), []);
+}
+
+// parse a newline/comma separated list, keeping the bad lines for reporting
+function parseList(text){
+  var lines = String(text).split(/[\n,]+/);
+  var good = [], bad = [];
+  for (var i = 0; i < lines.length; i++) {
+    var s = lines[i].trim();
+    if (!s) continue;
+    var v = parseSemver(s);
+    if (v.error) bad.push(s); else good.push(v);
+  }
+  return { good: good, bad: bad };
+}
+
+// ==CORE-END==
+
+const $ = function(id){ return document.getElementById(id); };
+
+const DEFAULT_LIST = [
+  "0.2.3", "0.2.9", "0.3.0", "0.9.0", "0.10.0",
+  "1.0.0", "1.0.1", "1.1.0", "1.2.0", "1.2.3", "1.2.4",
+  "1.3.0-beta.1", "1.3.0-beta.2", "1.3.0-rc.1", "1.3.0",
+  "2.0.0-alpha.1", "2.0.0-beta.1", "2.0.0", "2.1.0", "3.0.0-next.1"
+].join("\n");
+
+const state = { ver: parseSemver("1.2.3-rc.1+build.9"), range: parseRange("^1.2.3") };
+
+// ---------- version breakdown ----------
+function stat(k, v, hi){
+  return '<div class="stat' + (hi ? " hi" : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>";
+}
+
+function renderVersion(){
+  const v = state.ver;
+  const box = $("verBreak");
+  if (v.error) { box.innerHTML = stat("status", "invalid", true) + stat("reason", v.error); return; }
+  const key = v.major + " · " + v.minor + " · " + v.patch + " · [" + (v.pre.length ? v.pre.join(", ") : "—") + "]";
+  box.innerHTML =
+      stat("major — breaking", String(v.major), true)
+    + stat("minor — additive", String(v.minor), true)
+    + stat("patch — fixes", String(v.patch))
+    + stat("prerelease ids", v.pre.length ? v.pre.join(" · ") : "— (this is a release)")
+    + stat("build metadata", v.build.length ? v.build.join(" · ") + "  (ignored)" : "—")
+    + stat("precedence key", key)
+    + stat("stability", v.major === 0 ? "0.x — no compatibility promise" : "1.0.0+ — public API is a contract")
+    + stat("normalised", fmtVer(v));
+}
+
+// ---------- range desugaring ----------
+function renderRange(){
+  const r = state.range;
+  const box = $("rangeDesugar");
+  if (r.error) { box.innerHTML = '<div class="notice err">' + r.error + "</div>"; return; }
+  let html = "";
+  r.sets.forEach(function(comps, i){
+    if (i) html += '<div class="orsep">OR  ||</div>';
+    let row = '<div class="setrow">';
+    if (!comps.length) row += '<span class="comp any">*</span>';
+    comps.forEach(function(c, j){
+      if (j) row += '<span class="andop">AND</span>';
+      const isNothing = c.op === "<" && c.ver.major === 0 && c.ver.minor === 0 && c.ver.patch === 0 && c.ver.pre.length;
+      row += '<span class="comp' + (c.op === "*" ? " any" : isNothing ? " none" : "") + '">'
+           + (isNothing ? "&lt;0.0.0-0  (matches nothing)" : fmtComp(c).replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+           + "</span>";
+    });
+    row += "</div>";
+    html += row;
+  });
+  box.innerHTML = html;
+}
+
+// ---------- verdict ----------
+function renderVerdict(){
+  const el = $("verdict");
+  const v = state.ver, r = state.range;
+  if (v.error || r.error) {
+    el.className = "notice err mt-5";
+    el.textContent = v.error ? "Version: " + v.error : "Range: " + r.error;
+    return;
+  }
+  const incl = $("inclPre").checked;
+  const ok = satisfies(v, r, incl);
+  el.className = "notice " + (ok ? "ok" : "err") + " mt-5";
+  let msg = (ok ? "✓ " : "✗ ") + fmtVer(v) + (ok ? " satisfies " : " does NOT satisfy ") + r.raw;
+  if (!ok) {
+    const reasons = r.sets.map(function(s){ return whyNot(v, s, incl); }).filter(Boolean);
+    if (reasons.length) msg += " — " + reasons.join(" · ");
+  }
+  el.innerHTML = msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace("✓", '<span style="font-size:15px">✓</span>').replace("✗", '<span style="font-size:15px">✗</span>');
+}
+
+// ---------- the published-version list ----------
+function renderList(){
+  const r = state.range;
+  const parsed = parseList($("verList").value);
+  const incl = $("inclPre").checked;
+  const body = $("listBody");
+  if (r.error) { body.innerHTML = '<tr><td colspan="3" class="text-slate-400">fix the range first</td></tr>'; $("resolveBanner").className = "notice warn mt-3"; $("resolveBanner").textContent = "—"; return; }
+  const best = maxSatisfying(parsed.good, r, incl);
+  const low  = minSatisfying(parsed.good, r, incl);
+  const sorted = sortVersions(parsed.good).reverse();
+  let rows = "", hits = 0;
+  sorted.forEach(function(v){
+    const ok = satisfies(v, r, incl);
+    if (ok) hits++;
+    const why = ok ? (best && eqVer(v, best) && fmtVer(v) === fmtVer(best) ? "highest match → npm installs this" : "inside the bounds")
+                   : r.sets.map(function(s){ return whyNot(v, s, incl); }).filter(Boolean).join(" · ");
+    const isBest = best && fmtVer(v) === fmtVer(best);
+    rows += '<tr class="' + (isBest ? "win" : "") + '"><td><b>' + fmtVer(v) + "</b></td><td class=\"" + (ok ? "yes" : "no") + '">' + (ok ? "✓ yes" : "✗ no")
+          + "</td><td>" + why.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</td></tr>";
+  });
+  parsed.bad.forEach(function(s){
+    rows += '<tr><td><b>' + s.replace(/</g, "&lt;") + '</b></td><td class="no">✗ invalid</td><td>not a SemVer version</td></tr>';
+  });
+  body.innerHTML = rows || '<tr><td colspan="3" class="text-slate-400">—</td></tr>';
+
+  const b = $("resolveBanner");
+  b.className = "notice " + (best ? "ok" : "warn") + " mt-3";
+  b.innerHTML = best
+    ? "📦 <b>npm install</b> would resolve <span class=\"opacity-70\">" + r.raw.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</span> to <b>" + fmtVer(best) + "</b>"
+      + " · " + hits + " of " + parsed.good.length + " published versions match · floor " + fmtVer(low)
+    : "⚠️ no published version satisfies " + r.raw.replace(/</g, "&lt;").replace(/>/g, "&gt;") + " — npm would fail with ETARGET";
+}
+
+// ---------- precedence sort ----------
+function renderSort(){
+  const parsed = parseList($("verList").value);
+  const sorted = sortVersions(parsed.good);
+  let html = "";
+  sorted.forEach(function(v, i){
+    if (i) html += '<span class="lt">&lt;</span>';
+    const top = i === sorted.length - 1;
+    html += '<span class="vpill ' + (top ? "top" : v.pre.length ? "pre" : "") + '">' + fmtVer(v) + "</span>";
+  });
+  $("sortBox").innerHTML = html || '<span class="text-slate-400 text-sm">—</span>';
+  $("sortNote").textContent = sorted.length
+    ? sorted.length + " versions in true precedence order · purple = prerelease (always below its own release) · amber = newest. Sorting these as plain strings would put 0.10.0 before 0.9.0 and 1.0.0-rc.1 after 1.0.0."
+    : "";
+}
+
+// ---------- compare two ----------
+function renderCompare(){
+  const aEl = $("cmpA"), bEl = $("cmpB"), out = $("cmpOut");
+  const a = parseSemver(aEl.value), b = parseSemver(bEl.value);
+  aEl.classList.toggle("bad", !!a.error);
+  bEl.classList.toggle("bad", !!b.error);
+  if (a.error || b.error) {
+    out.className = "notice err mt-3";
+    out.textContent = a.error ? "left: " + a.error : "right: " + b.error;
+    return;
+  }
+  const c = compareVer(a, b);
+  const sign = c < 0 ? "<" : c > 0 ? ">" : "=";
+  const d = diffType(a, b);
+  let reason;
+  if (a.major !== b.major) reason = "major differs";
+  else if (a.minor !== b.minor) reason = "minor differs";
+  else if (a.patch !== b.patch) reason = "patch differs";
+  else if (a.pre.length !== b.pre.length && (!a.pre.length || !b.pre.length)) reason = "one is a prerelease of the other";
+  else if (cmpPre(a.pre, b.pre) !== 0) reason = "prerelease identifiers differ";
+  else if (a.build.join(".") !== b.build.join(".")) reason = "only the build metadata differs — which the spec ignores, so they are EQUAL";
+  else reason = "identical";
+  out.className = "notice " + (c === 0 ? "warn" : "info") + " mt-3";
+  out.innerHTML = "<b>" + fmtVer(a) + "</b> " + (sign === "<" ? "&lt;" : sign === ">" ? "&gt;" : "=") + " <b>" + fmtVer(b) + "</b>"
+    + '<br><span class="opacity-70">' + reason + (d ? " · diff type: " + d : "") + "</span>";
+}
+
+// ---------- bumps ----------
+const BUMPS = ["patch", "minor", "major", "prepatch", "preminor", "premajor", "prerelease"];
+function renderBumps(){
+  const v = state.ver, r = state.range, incl = $("inclPre").checked;
+  const body = $("bumpBody");
+  if (v.error) { body.innerHTML = '<tr><td colspan="3" class="text-slate-400">fix the version first</td></tr>'; return; }
+  const pid = $("preid").value;
+  let rows = "";
+  BUMPS.forEach(function(kind){
+    const next = inc(v, kind, pid);
+    const ok = r.error ? null : satisfies(next, r, incl);
+    rows += "<tr><td>" + kind + "</td><td><b>" + fmtVer(next) + "</b></td><td class=\""
+          + (ok === null ? "" : ok ? "yes" : "no") + '">' + (ok === null ? "—" : ok ? "✓" : "✗") + "</td></tr>";
+  });
+  body.innerHTML = rows;
+}
+
+// ---------- which bump? ----------
+const CHANGES = [
+  ["Fixed a bug, public API untouched", "patch", "Nobody has to read anything. This is the only kind of change that is truly free for your users."],
+  ["Rewrote the internals, same API", "patch", "A refactor is invisible from the outside, so it is a patch — however big the diff looks."],
+  ["Added a new function or an optional option", "minor", "Additive and backwards compatible: existing code keeps working, new code gets more. This is what ^ is designed to let through."],
+  ["Deprecated something, but it still works", "minor", "A deprecation warning is an addition, not a removal. The removal itself is the major."],
+  ["Added a new REQUIRED parameter", "major", "Every existing call site is now wrong. Required means breaking, even though you only 'added'."],
+  ["Removed or renamed a public function", "major", "The classic break. A rename is a removal plus an addition."],
+  ["Changed a default value", "major", "Same signature, different behaviour — the worst kind of break, because nothing fails to compile."],
+  ["Changed a return type or shape", "major", "Callers destructure and store what you return, so the shape is part of the contract."],
+  ["Fixed a bug people were relying on", "major", "Hyrum's law: with enough users, every observable behaviour is depended on by somebody. Ship the fix as a major or behind a flag."],
+  ["Dropped support for an old runtime", "major", "Installing on that runtime now fails, which is as breaking as it gets."],
+  ["Docs, tests or CI only", "patch", "Nothing in the published artifact changed — most projects publish nothing at all, or a patch if the README ships with the package."]
+];
+
+function renderChange(){
+  const i = Number($("changeSel").value);
+  const row = CHANGES[i];
+  const out = $("changeOut");
+  const v = state.ver;
+  const kind = row[1];
+  const next = v.error ? null : inc(v, kind, $("preid").value);
+  out.className = "notice " + (kind === "major" ? "err" : kind === "minor" ? "warn" : "ok") + " mt-3";
+  out.innerHTML = "<b>" + kind.toUpperCase() + "</b>"
+    + (next ? " · " + fmtVer(v) + " → <b>" + fmtVer(next) + "</b>" : "")
+    + '<br><span class="opacity-80" style="font-weight:600">' + row[2] + "</span>";
+}
+
+// ---------- the prerelease trap ----------
+const TRAP = [
+  ["1.3.0-beta.1", "^1.2.3", false],
+  ["1.3.0-beta.1", "^1.2.3", true],
+  ["1.3.0-beta.1", ">=1.3.0-alpha <2.0.0", false],
+  ["1.3.0-beta.1", "^1.2.3-alpha", false],
+  ["1.2.4-beta.1", "^1.2.3-alpha", false],
+  ["1.3.0", "^1.2.3", false]
+];
+function renderTrap(){
+  let rows = "";
+  TRAP.forEach(function(t){
+    const v = parseSemver(t[0]), r = parseRange(t[1]);
+    const ok = satisfies(v, r, t[2]);
+    rows += "<tr><td>" + t[0] + "</td><td>" + t[1].replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          + (t[2] ? ' <span class="text-amber-600">+incl</span>' : "")
+          + "</td><td class=\"" + (ok ? "yes" : "no") + '">' + (ok ? "✓" : "✗") + "</td></tr>";
+  });
+  $("trapBody").innerHTML = rows;
+}
+
+// ---------- the one refresh ----------
+function refresh(){
+  renderVersion();
+  renderRange();
+  renderVerdict();
+  renderList();
+  renderSort();
+  renderBumps();
+  renderChange();
+}
+
+// ---------- wiring ----------
+function setVersion(text, echo){
+  state.ver = parseSemver(text);
+  if (echo) $("verInput").value = text;
+  const msg = $("verMsg");
+  if (state.ver.error) {
+    $("verInput").classList.add("bad");
+    msg.textContent = "⚠ " + state.ver.error;
+    msg.className = "text-xs mono mt-2 text-red-500";
+  } else {
+    $("verInput").classList.remove("bad");
+    msg.textContent = "✓ valid SemVer 2.0.0" + (state.ver.pre.length ? " · prerelease" : "") + (state.ver.build.length ? " · build metadata ignored for ordering" : "");
+    msg.className = "text-xs mono mt-2 text-emerald-600";
+  }
+  refresh();
+}
+
+function setRange(text, echo){
+  state.range = parseRange(text);
+  if (echo) $("rangeInput").value = text;
+  const msg = $("rangeMsg");
+  if (state.range.error) {
+    $("rangeInput").classList.add("bad");
+    msg.textContent = "⚠ " + state.range.error;
+    msg.className = "text-xs mono mt-2 text-red-500";
+  } else {
+    $("rangeInput").classList.remove("bad");
+    msg.textContent = "✓ " + fmtRange(state.range) + "  ·  " + state.range.sets.length + " OR-set" + (state.range.sets.length === 1 ? "" : "s");
+    msg.className = "text-xs mono mt-2 text-emerald-600";
+  }
+  refresh();
+}
+
+$("verInput").addEventListener("input", function(){ setVersion(this.value, false); });
+$("rangeInput").addEventListener("input", function(){ setRange(this.value, false); });
+$("verList").addEventListener("input", function(){ renderList(); renderSort(); });
+$("inclPre").addEventListener("change", refresh);
+$("preid").addEventListener("input", function(){ renderBumps(); renderChange(); });
+$("cmpA").addEventListener("input", renderCompare);
+$("cmpB").addEventListener("input", renderCompare);
+$("changeSel").addEventListener("change", renderChange);
+
+document.querySelectorAll("[data-ver]").forEach(function(b){
+  b.onclick = function(){ setVersion(b.dataset.ver, true); };
+});
+document.querySelectorAll("[data-range]").forEach(function(b){
+  b.onclick = function(){ setRange(b.dataset.range, true); };
+});
+
+// ---------- copy helpers ----------
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(function(){ btn.textContent = o; }, 1500); }
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(function(t){ t.onclick = function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  $(t.dataset.tab).classList.remove("hidden");
+}; });
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Three numbers, three different promises",
+   why:"A version string is not a decimal number and not a label — it is three independent counters, each attached to a promise about the code behind it. Bumping the patch says 'I fixed something and changed nothing you can see'. Bumping the minor says 'I only added; everything you already call still works'. Bumping the major says 'I broke something, read the changelog'. Because the fields are counters and not digits, 0.10.0 is genuinely newer than 0.9.0, and 1.2.10 is newer than 1.2.9 — a fact that string sorting and parseFloat both get wrong. Everything else on this page exists to make those three counters comparable and filterable.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono text-lg"><span class="pill r">1</span>.<span class="pill a">2</span>.<span class="pill g">3</span></div><div class="text-xs text-slate-400">major · minor · patch</div><div class="text-xs"><span class="pill r">breaking</span> <span class="pill a">additive</span> <span class="pill g">fixes only</span></div><div class="mono text-xs text-slate-500">0.9.0 &lt; 0.10.0 &nbsp;— counters, not digits</div></div>`,
+   code:`1.2.3
+ │ │ └── patch: bug fixes, no visible change
+ │ └──── minor: backwards-compatible additions
+ └────── major: something broke` },
+ { title:"2. Parsing is strict on purpose",
+   why:"The full grammar is major.minor.patch, then an optional -prerelease, then an optional +build. One regex splits those five parts, but two rules a regex reads badly still have to be enforced by hand. First, numeric fields must not have leading zeros: 01 is not a number here, because if it were, 1.01.0 and 1.1.0 would be two different names for the same release. Second, identifiers may only contain 0-9, A-Z, a-z and hyphen, and none of them may be empty — so a trailing dot or a double dot is rejected rather than silently producing an empty identifier that would sort below everything. Strictness is not pedantry: a registry that accepts two spellings of one version has to decide which one is real.",
+   concept:`<div class="text-center text-sm space-y-2"><div class="mono"><span class="pill r">1</span>.<span class="pill a">2</span>.<span class="pill g">3</span><span class="pill s">-rc.1</span><span class="pill b">+build.9</span></div><div class="text-xs text-slate-400">core · prerelease · build metadata</div><div class="mono text-xs"><span class="pill r">1.02.3 ✗</span> leading zero &nbsp; <span class="pill r">1.2.3- ✗</span> empty id</div></div>`,
+   code:`/^(\\d+)\\.(\\d+)\\.(\\d+)(?:-([^+]*))?(?:\\+(.*))?$/
+
+// then, by hand:
+NUMERIC = /^(0|[1-9]\\d*)$/     // rejects 01
+IDENT   = /^[0-9A-Za-z-]+$/     // rejects "" and "a_b"` },
+ { title:"3. Precedence: compare fields, left to right",
+   why:"Ordering two versions is a chain of early returns. Compare majors as integers; if they differ you are done. Otherwise compare minors, then patches. Only when all three are equal does the prerelease tail matter. This is what makes the whole thing a total order — a relation you can hand straight to Array.sort and trust. It is also why you must never compare version strings with < or > directly: '10' < '9' is true for strings and false for numbers, and every list of releases past x.9 will be wrong in a way nobody notices until a release goes missing.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>1.<span class="pill a">2</span>.9 vs 1.<span class="pill a">3</span>.0 → minor decides</div><div>1.2.<span class="pill g">9</span> vs 1.2.<span class="pill g">10</span> → patch decides, 10 wins</div><div class="text-xs text-slate-400 pt-1">string order would say "10" &lt; "9"</div></div>`,
+   code:`if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+return cmpPre(a.pre, b.pre);` },
+ { title:"4. A prerelease sorts BELOW its own release",
+   why:"1.0.0-rc.1 comes before 1.0.0, not after. Read the string out loud and it makes sense: the release candidate is on the way to 1.0.0, so it has to be smaller, otherwise shipping the real 1.0.0 would look like a downgrade. The implementation is the surprising part — the version with NO prerelease is the bigger one, so an empty prerelease array must return 'greater' rather than 'equal'. Get that backwards and every -rc you publish will look newer than the release that follows it, which is exactly the bug that makes an auto-updater install a beta forever.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill p">1.0.0-alpha</span> &lt; <span class="pill p">1.0.0-beta</span> &lt; <span class="pill p">1.0.0-rc.1</span> &lt; <span class="pill g">1.0.0</span></div><div class="text-xs text-slate-400 pt-1">having a prerelease makes you smaller</div></div>`,
+   code:`function cmpPre(a, b){
+  if (!a.length && !b.length) return 0;
+  if (!a.length) return 1;     // 1.0.0 is GREATER than 1.0.0-alpha
+  if (!b.length) return -1;
+  ...
+}` },
+ { title:"5. Inside the prerelease: numeric, then ASCII",
+   why:"When both versions carry a prerelease, you walk the dot-separated identifiers in lockstep. An identifier of pure digits is compared as a number, so beta.11 is above beta.2 even though the string '11' sorts below '2'. An identifier containing letters is compared in plain ASCII order, so alpha < beta < rc falls out for free — and, less happily, RC < alpha, because uppercase letters come first in ASCII. And when the two kinds meet, the numeric one is always lower, which is why 1.0.0-1 sits below 1.0.0-alpha. Since leading zeros are already banned, the numeric comparison can be done by digit count then lexical order, which stays exact for numbers far beyond what a double can hold.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">beta.2</span> &lt; <span class="pill a">beta.11</span> &nbsp;(numeric)</div><div><span class="pill b">alpha</span> &lt; <span class="pill b">beta</span> &lt; <span class="pill b">rc</span> &nbsp;(ASCII)</div><div><span class="pill s">1.0.0-1</span> &lt; <span class="pill s">1.0.0-alpha</span> &nbsp;(numeric &lt; alphanumeric)</div></div>`,
+   code:`if (an && bn) {                     // both numeric
+  if (a.length !== b.length) return a.length < b.length ? -1 : 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+if (an) return -1;                  // numeric loses to alphanumeric
+if (bn) return 1;
+return a < b ? -1 : a > b ? 1 : 0;  // ASCII` },
+ { title:"6. Equal prefix? The longer prerelease wins",
+   why:"1.0.0-alpha < 1.0.0-alpha.1, because when every identifier they share is equal, having MORE identifiers means being further along. The intuition: alpha is the first cut, alpha.1 is the next one after it. This is the tie-break that runs last, after every shared identifier has already compared equal, and it is why the canonical §11 chain in the spec has alpha, then alpha.1, then alpha.beta — that last jump is not the length rule but ASCII, since '1' is numeric and 'beta' is not, so alpha.1 loses to alpha.beta on the second identifier before length is ever consulted.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill p">alpha</span> &lt; <span class="pill p">alpha.1</span> &nbsp;(length)</div><div><span class="pill p">alpha.1</span> &lt; <span class="pill p">alpha.beta</span> &nbsp;(numeric &lt; alphanumeric)</div><div class="text-xs text-slate-400 pt-1">the spec's own §11 example chain</div></div>`,
+   code:`// after every shared identifier compared equal:
+return a.length === b.length ? 0
+     : a.length < b.length ? -1 : 1;` },
+ { title:"7. Build metadata exists and is invisible",
+   why:"Everything after a + is build metadata: a commit hash, a timestamp, a CI job number. The spec says it MUST be ignored when determining precedence, which has a consequence people find shocking: 1.0.0+build.1 and 1.0.0+build.2 are EQUAL, not merely close. They are the same version with two labels, so a registry treats the second publish as a duplicate and refuses it. Metadata is therefore useful for tracing which build produced an artifact, and useless for distinguishing two releases. If you need them ordered, you needed a prerelease identifier (before the +), not metadata.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div>1.0.0<span class="pill b">+build.1</span> &nbsp;<span class="pill s">=</span>&nbsp; 1.0.0<span class="pill b">+build.2</span></div><div class="text-xs text-slate-400">equal — the + part is never compared</div><div>1.0.0<span class="pill p">-build.1</span> &nbsp;<span class="pill s">&lt;</span>&nbsp; 1.0.0<span class="pill p">-build.2</span></div><div class="text-xs text-slate-400">a hyphen would have ordered them</div></div>`,
+   code:`compareVer(parse("1.0.0+a"), parse("1.0.0+b"))   // 0
+
+// build[] is simply never read by the comparator` },
+ { title:"8. Every range is sugar for comparators",
+   why:"A range in package.json looks like a language, but it is only shorthand. Split the whole string on || to get OR-rows; inside a row, whitespace means AND; then each token expands into one or two plain comparators built from >=, >, <=, < and =. Once that is done, 'does this version satisfy this range' is a boring double loop with no special cases left — which is exactly why doing the desugaring first is worth the effort. Printing the desugared form, as this page does, also turns a lot of arguments about what ^ means into something you can just look at.",
+   concept:`<div class="text-center text-sm mono space-y-2"><div><span class="pill a">^1.2.3 || ~2.1</span></div><div class="text-xs text-slate-400">↓ desugar</div><div><span class="pill g">&gt;=1.2.3</span> <span class="pill s">AND</span> <span class="pill g">&lt;2.0.0</span></div><div class="text-xs text-amber-600 font-bold">OR</div><div><span class="pill g">&gt;=2.1.0</span> <span class="pill s">AND</span> <span class="pill g">&lt;2.2.0</span></div></div>`,
+   code:`range.split("||")            // OR rows
+     .map(row => row.split(" ")   // AND tokens
+       .flatMap(desugarToken));   // -> comparators` },
+ { title:"9. Caret: up to the next thing allowed to break",
+   why:"^1.2.3 means >=1.2.3 <2.0.0 — take any compatible update. The interesting part is 0.x, where the spec grants no compatibility promise at all, so the caret shifts one field right: ^0.2.3 becomes >=0.2.3 <0.3.0, and ^0.0.3 becomes >=0.0.3 <0.0.4, which allows nothing but that exact release. One sentence generates every case: the caret keeps the leftmost NON-ZERO field fixed. This is why moving a library from 0.x to 1.0.0 is a real event — it is the moment the caret starts allowing minor updates, and the moment your users stop having to pin.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">^1.2.3</span> → &gt;=1.2.3 <span class="pill s">&lt;2.0.0</span></div><div><span class="pill a">^0.2.3</span> → &gt;=0.2.3 <span class="pill s">&lt;0.3.0</span></div><div><span class="pill a">^0.0.3</span> → &gt;=0.0.3 <span class="pill s">&lt;0.0.4</span></div><div class="text-xs text-slate-400 pt-1">leftmost non-zero field is the one that is pinned</div></div>`,
+   code:`if (M > 0)      hi = lt(M + 1, 0, 0);   // ^1.2.3 -> <2.0.0
+else if (m > 0) hi = lt(0, m + 1, 0);   // ^0.2.3 -> <0.3.0
+else            hi = lt(0, 0, p + 1);   // ^0.0.3 -> <0.0.4` },
+ { title:"10. Tilde, x-ranges and hyphen ranges",
+   why:"Tilde is the conservative sibling: ~1.2.3 allows patches only, >=1.2.3 <1.3.0, but ~1 with nothing after it can only stop at <2.0.0, because there was no minor to pin. X-ranges say the same thing in a different accent — 1.2.x IS >=1.2.0 <1.3.0 — and they combine with operators in a way worth remembering: >1.2 means 'past the whole 1.2 window', so >=1.3.0, while <=1.2 means 'through the end of it', so <1.3.0. Hyphen ranges apply that logic to the upper bound: 1.2.3 - 2.3.4 is inclusive on both ends, but 1.2.3 - 2.3 ends at <2.4.0 because 2.3 is a window, not a point.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">~1.2.3</span> → &gt;=1.2.3 &lt;1.3.0</div><div><span class="pill b">1.2.x</span> → &gt;=1.2.0 &lt;1.3.0</div><div><span class="pill b">&gt;1.2</span> → &gt;=1.3.0</div><div><span class="pill b">1.2.3 - 2.3</span> → &gt;=1.2.3 &lt;2.4.0</div></div>`,
+   code:`// an "x" is a window; the operator picks which edge
+">1.2"   -> >=1.3.0        // past the window
+"<=1.2"  -> <1.3.0         // through the window
+"1.2"    -> >=1.2.0 <1.3.0 // the window itself` },
+ { title:"11. Prereleases are excluded unless invited",
+   why:"This is the rule that generates the bug reports. 1.3.0-beta.1 sits comfortably between the bounds of ^1.2.3, and yet it does not satisfy it. The extra rule: a version carrying a prerelease is only admitted when some comparator in the SAME and-row itself names a prerelease on the identical major.minor.patch. So >=1.3.0-alpha <2.0.0 admits 1.3.0-beta.1, but ^1.2.3-alpha does not, because its prerelease sits at 1.2.3 while the candidate is 1.3.0. The reasoning is that you opted into instability for one specific upcoming release, not for every future one — a caret should never silently pull an untested beta into production.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill p">1.3.0-beta.1</span> vs <span class="pill a">^1.2.3</span> → <span class="pill r">✗</span></div><div><span class="pill p">1.3.0-beta.1</span> vs <span class="pill a">&gt;=1.3.0-alpha &lt;2.0.0</span> → <span class="pill g">✓</span></div><div class="text-xs text-slate-400 pt-1">the invitation must sit on the same major.minor.patch</div></div>`,
+   code:`if (v.pre.length && !includePrerelease) {
+  const named = comps.some(c => c.ver.pre.length
+    && c.ver.major === v.major
+    && c.ver.minor === v.minor
+    && c.ver.patch === v.patch);
+  if (!named) return false;
+}` },
+ { title:"12. maxSatisfying is what actually gets installed",
+   why:"A range does not name a version; it names a set. The resolver asks the registry for every published version, filters by the range, and takes the highest survivor — maxSatisfying. That is why two developers who install the same package.json a week apart can legitimately end up with different code, and why the lockfile, not the manifest, is the reproducible artifact: npm install may re-resolve, npm ci must not. It is also why publishing a bad patch release breaks thousands of builds within minutes, and why the fix is to publish a higher one rather than to unpublish the bad one.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div class="text-xs text-slate-400">published: 1.2.3 1.2.4 1.3.0-rc.1 1.3.0 2.0.0</div><div><span class="pill a">^1.2.3</span> → matches <span class="pill g">1.2.3 1.2.4 1.3.0</span></div><div>installed → <span class="pill q">1.3.0</span> &nbsp;(the highest)</div></div>`,
+   code:`function maxSatisfying(list, range){
+  let best = null;
+  for (const v of list)
+    if (satisfies(v, range) && (!best || compareVer(v, best) > 0)) best = v;
+  return best;
+}` },
+];
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach(function(s, i){ const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>"; bn.onclick = function(){ show(i); }; stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach(function(bn, idx){ bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = function(){ show(Math.max(0, curStep - 1)); };
+nextB.onclick = function(){ show(Math.min(STEPS.length - 1, curStep + 1)); };
+let tm = null; autoB.onclick = function(){ if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(function(){ if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+// ================= self-test (the same assertions the node test runs) =================
+(function selfTest(){
+  const P = parseSemver;
+  const CHAIN = ["1.0.0-alpha","1.0.0-alpha.1","1.0.0-alpha.beta","1.0.0-beta","1.0.0-beta.2","1.0.0-beta.11","1.0.0-rc.1","1.0.0"];
+  for (let i = 1; i < CHAIN.length; i++)
+    console.assert(compareVer(P(CHAIN[i-1]), P(CHAIN[i])) < 0, "chain " + CHAIN[i-1] + " < " + CHAIN[i]);
+  console.assert(compareVer(P("0.9.0"), P("0.10.0")) < 0, "0.9.0 < 0.10.0");
+  console.assert(compareVer(P("1.0.0+a"), P("1.0.0+b")) === 0, "build metadata ignored");
+  console.assert(P("1.02.3").error && P("1.2.3-01").error && P("v1.2.3").error, "strict rejection");
+  console.assert(fmtRange(parseRange("^1.2.3")) === ">=1.2.3 <2.0.0", "caret 1.x");
+  console.assert(fmtRange(parseRange("^0.2.3")) === ">=0.2.3 <0.3.0", "caret 0.x");
+  console.assert(fmtRange(parseRange("^0.0.3")) === ">=0.0.3 <0.0.4", "caret 0.0.x");
+  console.assert(fmtRange(parseRange("~1.2.3")) === ">=1.2.3 <1.3.0", "tilde");
+  console.assert(fmtRange(parseRange("1.2.x")) === ">=1.2.0 <1.3.0", "x-range");
+  console.assert(fmtRange(parseRange("1.2.3 - 2.3.4")) === ">=1.2.3 <=2.3.4", "hyphen");
+  console.assert(satisfies(P("1.9.9"), parseRange("^1.2.3")) === true, "in caret");
+  console.assert(satisfies(P("2.0.0"), parseRange("^1.2.3")) === false, "out of caret");
+  console.assert(satisfies(P("1.3.0-beta.1"), parseRange("^1.2.3")) === false, "prerelease excluded");
+  console.assert(satisfies(P("1.3.0-beta.1"), parseRange(">=1.3.0-alpha <2.0.0")) === true, "prerelease invited");
+  const list = ["1.2.3","1.2.4","1.3.0-rc.1","1.3.0","2.0.0"].map(P);
+  console.assert(fmtVer(maxSatisfying(list, parseRange("^1.2.3"))) === "1.3.0", "maxSatisfying");
+  console.assert(fmtVer(inc(P("1.2.3-rc.1"), "patch")) === "1.2.3", "patch bump off a prerelease");
+  console.assert(fmtVer(inc(P("1.2.3"), "premajor", "beta")) === "2.0.0-beta.0", "premajor bump");
+})();
+
+// ================= boot =================
+$("verList").value = DEFAULT_LIST;
+$("changeSel").innerHTML = CHANGES.map(function(c, i){ return '<option value="' + i + '">' + c[0] + "</option>"; }).join("");
+setVersion("1.2.3-rc.1+build.9", true);
+setRange("^1.2.3", true);
+renderCompare();
+renderTrap();
+</script>
+</body>
+</html>
