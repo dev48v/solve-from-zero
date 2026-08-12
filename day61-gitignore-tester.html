@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 61 — .gitignore Pattern Tester (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; }
+
+  .grid > * { min-width:0; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- inputs ---- */
+  .inp { width:100%; font:700 14px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fff; color:#0f172a; }
+  .inp:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .inp.bad { border-color:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.15); }
+  .big { font-size:16px; font-weight:800; letter-spacing:.02em; }
+  select.inp { cursor:pointer; }
+  textarea.inp { font-size:12.5px; line-height:1.55; resize:vertical; }
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:6px 11px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:hover { border-color:#f59e0b; }
+  .seg.sm { padding:4px 9px; font-size:11px; }
+
+  /* ---- stat grid ---- */
+  .stat { border:1px solid #e2e8f0; border-radius:11px; padding:9px 11px; background:#fff; min-width:0; }
+  .stat .k { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+  .stat .v { font:800 15px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-all; }
+  .stat.hi { background:#fffbeb; border-color:#fcd34d; }
+  .stat.hi .v { color:#b45309; }
+
+  /* ---- rule rows (the compiled pattern list) ---- */
+  .setrow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:9px 10px; border:1px solid #e2e8f0; border-radius:11px; background:#f8fafc; }
+  .comp { display:inline-flex; align-items:center; padding:4px 9px; border-radius:8px; background:#0f172a; color:#fde68a; font:800 12px ui-monospace,Menlo,monospace; word-break:break-all; }
+  .comp.any { background:#e2e8f0; color:#475569; }
+  .comp.none { background:#fee2e2; color:#b91c1c; }
+  .andop { color:#94a3b8; font:800 10px ui-monospace,Menlo,monospace; letter-spacing:.08em; }
+  .orsep { text-align:center; font:900 11px ui-monospace,Menlo,monospace; color:#f59e0b; padding:5px 0; letter-spacing:.12em; }
+
+  /* ---- tables ---- */
+  table.t { width:100%; border-collapse:collapse; font:700 12px ui-monospace,Menlo,monospace; }
+  table.t th { text-align:left; color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1.5px solid #e2e8f0; position:sticky; top:0; background:#fff; }
+  table.t td { padding:6px 8px; border-bottom:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+  table.t tr:hover td { background:#fffbeb; cursor:pointer; }
+  table.t tr.win td { background:#fffbeb; }
+  table.t tr.sel td { background:#fef3c7; }
+  .scrollbox { max-height:340px; overflow:auto; border:1px solid #e2e8f0; border-radius:11px; }
+  .yes { color:#166534; font-weight:800; }
+  .no  { color:#b91c1c; font-weight:800; }
+  .dim { color:#94a3b8; font-weight:700; }
+
+  /* ---- trace ---- */
+  .trace { font:700 11.5px ui-monospace,Menlo,monospace; }
+  .tl { display:flex; gap:8px; align-items:flex-start; padding:4px 8px; border-bottom:1px solid #f1f5f9; }
+  .tl .n { color:#cbd5e1; width:26px; flex:none; text-align:right; }
+  .tl .p { flex:1; min-width:0; word-break:break-all; color:#334155; }
+  .tl .r { flex:none; }
+  .tl.hitm { background:#fffbeb; }
+  .tl.winner { background:#fef3c7; box-shadow:inset 3px 0 0 #f59e0b; }
+  .tl.skip .p { color:#cbd5e1; }
+  .walk { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .wseg { padding:3px 8px; border-radius:7px; font:800 11.5px ui-monospace,Menlo,monospace; background:#f1f5f9; color:#334155; }
+  .wseg.ig { background:#fee2e2; color:#b91c1c; }
+  .wseg.ok { background:#dcfce7; color:#166534; }
+  .wsl { color:#cbd5e1; font-weight:900; }
+
+  /* ---- notices ---- */
+  .notice { border-radius:12px; padding:12px 14px; font:700 13px ui-monospace,Menlo,monospace; word-break:break-word; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .notice.info { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+
+  /* the intro headline is long on purpose; on a phone it must not become a
+     full-screen sticky lid that swallows every tap underneath it */
+  @media (max-width: 1023px) {
+    header.sticky { position:static; }
+    header h1 { font-size:14.5px; line-height:1.45; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+    <div>
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 61</div>
+      <h1 class="text-xl font-bold">🙈 <code class="mono">.gitignore</code> Pattern Tester — paste a real ignore file and a real file tree, and a hand-written <strong>gitignore(5)</strong> engine classifies every path live: ignored or not, <em>which line decided it</em>, and why · it implements the rules the docs bury — <strong>last matching pattern wins</strong>, <code class="mono">!</code> negation, trailing <code class="mono">/</code> for directory-only, a leading or embedded <code class="mono">/</code> for anchoring, <code class="mono">*</code> that refuses to cross a <code class="mono">/</code>, <code class="mono">?</code>, character classes, and <code class="mono">**</code> in all three real shapes — plus <strong>nested <code class="mono">.gitignore</code> files</strong> where the deeper file overrides the shallower one · and it catches the trap that produces the bug reports: you <em>cannot</em> re-include a file whose parent directory is excluded, because git never walks into an excluded directory in the first place · a full trace panel walks every pattern in order, a pattern tester shows the compiled matcher, and the whole thing is vanilla JS with nothing leaving the page</h1>
+    </div>
+    <div class="flex flex-wrap gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 sm:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold mb-1">A <code class="mono">.gitignore</code> is not a list of files. It is a program, and the last rule to speak wins.</h2>
+        <p class="text-slate-500 mb-5 max-w-3xl mx-auto">Everybody reads a <code class="mono">.gitignore</code> top to bottom like a shopping list and assumes the first rule that matches decides. It is the opposite: git walks every pattern, remembers the <strong>last</strong> one that matched, and that one decides — which is the only reason <code class="mono">!</code> negation can work at all. Then a second rule quietly overrides the first: git does not test paths, it <em>walks directories</em>, and it never walks into a directory it has already decided to ignore. So <code class="mono">node_modules/</code> followed by <code class="mono">!node_modules/patched.js</code> does exactly nothing — the file is unreachable, not un-matched. This page implements the real matcher: the line parser with its escapes and its trailing-space rule, a glob compiler where <code class="mono">*</code> stops at a slash and <code class="mono">**</code> does not, the anchoring rule, directory-only patterns, nested ignore files, and the ancestor walk that produces the trap. Every verdict below points at the exact file and line number that produced it.</p>
+      </div>
+
+      <!-- ============ INPUTS ============ -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 mb-6">
+        <div class="grid lg:grid-cols-2 gap-6 items-start">
+          <div>
+            <div class="flex flex-wrap gap-2 items-center mb-2">
+              <div class="fieldlabel mb-0">Ignore files <span class="text-slate-400 normal-case">— deeper file overrides shallower</span></div>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-2" id="fileTabs"></div>
+            <div class="flex flex-wrap gap-2 mb-2">
+              <input id="newDir" class="inp" style="flex:1;min-width:130px;padding:6px 9px;font-size:12px" placeholder="src/util" spellcheck="false" autocomplete="off" />
+              <button id="addFile" class="seg sm">+ nested .gitignore</button>
+              <button id="delFile" class="seg sm">− remove</button>
+            </div>
+            <textarea id="ignoreText" class="inp" rows="16" spellcheck="false"></textarea>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <span class="text-[11px] mono text-slate-400 self-center">presets:</span>
+              <button class="seg sm" data-preset="demo">Demo (all rules)</button>
+              <button class="seg sm" data-preset="node">Node</button>
+              <button class="seg sm" data-preset="python">Python</button>
+              <button class="seg sm" data-preset="jetbrains">JetBrains</button>
+            </div>
+          </div>
+          <div>
+            <div class="fieldlabel">File tree <span class="text-slate-400 normal-case">— one path per line, a trailing <code class="mono">/</code> means it is a directory</span></div>
+            <textarea id="treeText" class="inp" rows="16" spellcheck="false"></textarea>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3" id="statBox"></div>
+          </div>
+        </div>
+
+        <div id="verdict" class="notice info mt-5">—</div>
+      </div>
+
+      <!-- ============ RESULTS ============ -->
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 space-y-6">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Every path, classified <span class="text-slate-400 normal-case">— click a row to trace it</span></div>
+            <div class="scrollbox mt-1">
+              <table class="t"><thead><tr><th>Path</th><th>Verdict</th><th>Decided by</th></tr></thead><tbody id="pathBody"></tbody></table>
+            </div>
+            <div class="text-xs text-slate-400 mono mt-3">A path is ignored when the last pattern that matched it — or any of its ancestor directories — was not a negation. Ancestors are tested first, and the walk stops the moment one of them is excluded.</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Trace <span class="text-slate-400 normal-case">— every pattern, in order, for the selected path</span></div>
+            <div id="walkBox" class="walk mb-3"></div>
+            <div id="traceHead" class="notice info mb-3">—</div>
+            <div class="scrollbox trace" style="max-height:300px"><div id="traceBody"></div></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">The compiled rule list <span class="text-slate-400 normal-case">— what the matcher actually holds in memory</span></div>
+            <div class="scrollbox mt-1" style="max-height:300px">
+              <table class="t"><thead><tr><th>#</th><th>Pattern</th><th>Kind</th><th>Compiled to</th></tr></thead><tbody id="ruleBody"></tbody></table>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Pattern tester <span class="text-slate-400 normal-case">— one rule against one path</span></div>
+            <input id="tPat" class="inp big" value="docs/**/*.tmp" spellcheck="false" autocomplete="off" />
+            <input id="tPath" class="inp big mt-2" value="docs/api/spec.tmp" spellcheck="false" autocomplete="off" />
+            <label class="text-xs mono text-slate-500 flex items-center gap-2 mt-2"><input type="checkbox" id="tDir" /> the path is a directory</label>
+            <div id="tOut" class="notice info mt-3">—</div>
+            <div class="grid sm:grid-cols-2 gap-2 mt-3" id="tBreak"></div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg sm" data-tp="*.log|src/app.log">*.log</button>
+              <button class="seg sm" data-tp="/*.log|src/app.log">/*.log</button>
+              <button class="seg sm" data-tp="**/build|a/b/build">**/build</button>
+              <button class="seg sm" data-tp="cache/**|cache/a/b.bin">cache/**</button>
+              <button class="seg sm" data-tp="a/**/b|a/x/y/b">a/**/b</button>
+              <button class="seg sm" data-tp="[Tt]humbs.db|Thumbs.db">[Tt]humbs.db</button>
+              <button class="seg sm" data-tp="temp?.dat|temp1.dat">temp?.dat</button>
+              <button class="seg sm" data-tp="\#draft.md|#draft.md">\#draft.md</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Traps found in your file <span class="text-slate-400 normal-case">— live, not a screenshot</span></div>
+            <div id="trapBox" class="space-y-2"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Where else git looks</div>
+            <p class="text-sm text-slate-600">Four sources feed the same matcher, and they are consulted in a fixed order of decreasing precedence. Highest: patterns passed on the command line (<code class="mono">git ls-files --exclude</code>). Then every <code class="mono">.gitignore</code> from the path's own directory upward — <strong>deeper wins</strong>, which is what the tabs on the left model. Then <code class="mono">$GIT_DIR/info/exclude</code>, a per-clone file that is never committed, for the junk only your machine makes. Lowest: the file named by <code class="mono">core.excludesFile</code>, your global ignore list, which is where <code class="mono">.DS_Store</code> and editor droppings actually belong rather than in every repo you touch.</p>
+            <pre class="mt-3">git config --global core.excludesFile ~/.gitignore_global
+echo ".DS_Store"  &gt;&gt; ~/.gitignore_global
+echo "scratch.md" &gt;&gt; .git/info/exclude   # local only, never committed</pre>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+            <div class="fieldlabel">Prove it against real git</div>
+            <p class="text-sm text-slate-600">Everything on this page has an oracle you already have installed. <code class="mono">check-ignore -v</code> prints the source file, line number and pattern that decided — the same three things this page prints in the "Decided by" column.</p>
+            <pre class="mt-3">$ git check-ignore -v --no-index node_modules/patched.js
+.gitignore:11:node_modules/    node_modules/patched.js
+
+$ git status --porcelain -uall --ignored=matching
+!! node_modules/patched.js
+?? src/app.log</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Five things worth knowing about .gitignore</div>
+        <p class="text-sm text-amber-800"><strong>1. It only hides files git is not already tracking.</strong> Adding <code class="mono">.env</code> to <code class="mono">.gitignore</code> after you committed <code class="mono">.env</code> changes nothing at all — the file is in the index, and the index outranks every ignore rule. The fix is <code class="mono">git rm --cached .env</code>, which deletes it from the index while leaving it on disk; only then does the pattern start applying. This is why "I added it to gitignore and it still shows up" is the single most common git question ever asked. <strong>2. The last matching pattern wins, not the first.</strong> Git evaluates every line and keeps the most recent match, which is the whole mechanism behind <code class="mono">!</code>: a negation only works if it appears <em>after</em> the rule it is undoing. Reorder two lines and you flip the answer, which makes a <code class="mono">.gitignore</code> genuinely order-dependent in a way a list of filenames never is. <strong>3. You cannot re-include a file inside an excluded directory.</strong> Git does not test every path against every pattern; it walks the tree and prunes. If <code class="mono">node_modules/</code> is excluded, git never opens the directory, so <code class="mono">!node_modules/patched.js</code> is a line that can never be reached. The documented workaround is to unignore at directory granularity first — <code class="mono">/*</code> then <code class="mono">!/keep/</code> — so the walk can still get inside. <strong>4. A slash changes the meaning of the whole line.</strong> <code class="mono">build</code> matches a file or directory named <code class="mono">build</code> at <em>any</em> depth, because a pattern with no slash is matched against the basename only. Add a slash anywhere — <code class="mono">/build</code>, <code class="mono">src/build</code> — and the pattern is anchored to the directory holding that <code class="mono">.gitignore</code>. And <code class="mono">build/</code> with a trailing slash still matches at any depth, but only directories. <strong>5. <code class="mono">*</code> stops at a slash and <code class="mono">**</code> does not.</strong> <code class="mono">src/*.js</code> never matches <code class="mono">src/util/a.js</code>, because the glob is path-aware; you need <code class="mono">src/**/*.js</code>. And the three <code class="mono">**</code> shapes mean three different things: leading <code class="mono">**/x</code> is "at any depth", trailing <code class="mono">x/**</code> is "everything inside x", and middle <code class="mono">a/**/b</code> is "b under a, zero or more directories down".</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-4 sm:p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2">
+      <h3 class="font-bold text-lg mb-3">How a gitignore engine works</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step →</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700">—</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-4 sm:p-8">
+    <h2 class="text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">A gitignore engine is three layers. A <strong>line parser</strong> that turns text into rule objects, dealing with comments, escapes and the trailing-space rule. A <strong>glob compiler</strong> that turns one pattern into a matcher which respects path boundaries — <code>*</code> stops at <code>/</code>, <code>**</code> does not. And a <strong>walker</strong> that tests a path's ancestors before the path itself and stops at the first excluded directory, which is where every surprising gitignore behaviour comes from. Here it is, step by step.</p>
+    <ol class="space-y-6">
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">The line parser — blanks, comments, and one weird space rule</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A blank line matches nothing and exists only as a separator. A line whose <em>first raw character</em> is <code>#</code> is a comment — checked before any trimming, which is why <code>\#draft.md</code> is a pattern and not a comment. Trailing spaces are stripped, but only literal spaces (never tabs), and a backslash cancels the strip so <code>foo\ </code> really does target a file ending in a space. Leading whitespace is never stripped, so an accidentally indented rule targets a filename that starts with spaces and silently does nothing.</p>
+        <div class="relative"><pre>function trimTrailingSpaces(s){
+  let lastSpace = -1;
+  for (let i = 0; i &lt; s.length; i++) {
+    const c = s.charAt(i);
+    if (c === " ") { if (lastSpace &lt; 0) lastSpace = i; continue; }
+    if (c === "\\") { i++; if (i &gt;= s.length) return s; }  // \ escapes, incl. "\ "
+    lastSpace = -1;
+  }
+  return lastSpace &gt;= 0 ? s.slice(0, lastSpace) : s;
+}
+
+if (raw === "")            return { kind: "blank" };
+if (raw.charAt(0) === "#") return { kind: "comment" };   // RAW first char</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Peel off the two prefix/suffix flags</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A leading <code>!</code> makes the rule a negation and is removed from the body; a literal bang is written <code>\!</code>, which the compiler later unescapes. A single trailing <code>/</code> sets "directory only" and is removed. Order matters: the bang comes off first, so <code>!build/</code> is a negated directory-only rule. Only <em>one</em> trailing slash is consumed, so <code>foo//</code> ends up as the pattern <code>foo/</code>, which matches nothing at all — a real typo that produces a silently dead rule.</p>
+        <div class="relative"><pre>let body = trimTrailingSpaces(raw), negated = false, dirOnly = false;
+if (body.charAt(0) === "!") { negated = true; body = body.slice(1); }
+if (body.endsWith("/"))     { dirOnly = true; body = body.slice(0, -1); }
+if (body === "") return { kind: "blank" };     // "!" or "/" alone
+
+// anchoring: does ANY raw slash survive in the body?
+const anchored = body.indexOf("/") !== -1;
+const matchBody = body.charAt(0) === "/" ? body.slice(1) : body;</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">Anchored or basename — the single most important branch</h3></div>
+        <p class="text-sm text-slate-600 mb-3">After the trailing slash is gone, scan the body for a <code>/</code>. If there is none, the rule is matched against the <strong>basename</strong> of the path and therefore fires at any depth. If there is one anywhere — leading, middle, it does not matter — the rule is matched against the <strong>whole path relative to the directory holding that .gitignore</strong>, and a leading slash is then just noise that gets stripped. That is the entire difference between <code>build</code> (any depth) and <code>/build</code> (root only), and it is why <code>docs/*.md</code> quietly stops matching once you nest a folder.</p>
+        <div class="relative"><pre>function patternMatches(p, path, isDir, baseDir){
+  if (p.dirOnly &amp;&amp; !isDir) return false;
+  let rel = path;
+  if (baseDir) {                                   // nested .gitignore
+    if (path.slice(0, baseDir.length + 1) !== baseDir + "/") return false;
+    rel = path.slice(baseDir.length + 1);
+  }
+  if (p.anchored) return p.regex.test(rel);        // whole relative path
+  return p.regex.test(rel.slice(rel.lastIndexOf("/") + 1));  // basename only
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg">Compiling one path segment</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Within a single segment, <code>*</code> becomes <code>[^/]*</code> and <code>?</code> becomes <code>[^/]</code> — never <code>.</code> and never <code>.*</code>, because the glob is path-aware and a wildcard must not swallow a directory boundary. A backslash escapes the next character into a literal, which is how <code>\#</code>, <code>\!</code> and <code>\*</code> survive. Everything else is escaped for the regex engine, so a dot in <code>*.log</code> is a real dot rather than "any character".</p>
+        <div class="relative"><pre>function segGlob(s){
+  let out = "";
+  for (let i = 0; i &lt; s.length; i++) {
+    const c = s.charAt(i);
+    if (c === "\\" &amp;&amp; i + 1 &lt; s.length) { out += escRe(s.charAt(++i)); continue; }
+    if (c === "*") { out += "[^/]*"; continue; }   // NOT ".*"
+    if (c === "?") { out += "[^/]";  continue; }   // NOT "."
+    if (c === "[") { const k = parseClass(s, i);
+                     if (k) { out += k.re; i = k.next - 1; continue; } }
+    out += escRe(c);
+  }
+  return out;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">Character classes, including the negated kind</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Git supports full <code>fnmatch</code> bracket expressions: ranges like <code>[a-z]</code>, explicit sets like <code>[Tt]</code>, POSIX names like <code>[[:digit:]]</code>, and negation with <code>[!abc]</code> — note the <code>!</code>, not the <code>^</code> a regex would use, though git accepts both. One rule is easy to miss: a bracket expression never matches a <code>/</code>, even if you literally put a slash inside it, so the compiled class gets a guard in front of it.</p>
+        <div class="relative"><pre>function parseClass(s, i){                 // s[i] === "["
+  let j = i + 1, neg = false;
+  if (s.charAt(j) === "!" || s.charAt(j) === "^") { neg = true; j++; }
+  let body = "", first = true, closed = false;
+  while (j &lt; s.length) {
+    const c = s.charAt(j);
+    if (c === "]" &amp;&amp; !first) { closed = true; j++; break; }   // "[]]" is legal
+    first = false;
+    body += (c === "-" ? "-" : escClass(c));                  // keep ranges
+    j++;
+  }
+  if (!closed) return null;                                   // stray "[" = literal
+  return { re: "(?!/)[" + (neg ? "^" : "") + body + "]", next: j };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg"><code class="mono">**</code> — one token, three meanings</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A <code>**</code> is only special when it is an entire path segment; <code>a**b</code> is just two ordinary stars. As a segment it means "zero or more directories", which produces three shapes. Leading <code>**/x</code> matches <code>x</code> at any depth including the root, so the group must be allowed to repeat zero times. Trailing <code>x/**</code> matches everything <em>inside</em> <code>x</code> but never <code>x</code> itself, so it needs at least one character after the slash. Middle <code>a/**/b</code> matches <code>a/b</code> as well as <code>a/p/q/b</code> — the "zero directories" case is the one hand-rolled matchers usually get wrong.</p>
+        <div class="relative"><pre>function compileGlob(body){
+  const segs = splitSegments(body);
+  let out = "", needSep = false;
+  for (let i = 0; i &lt; segs.length; i++) {
+    const s = segs[i], last = i === segs.length - 1;
+    if (/^\*\*+$/.test(s)) {
+      if (last) { out += (needSep ? "/" : "") + ".+"; needSep = false; }   // x/**
+      else      { out += (needSep ? "/" : "") + "(?:[^/]+/)*"; needSep = false; }
+    } else { out += (needSep ? "/" : "") + segGlob(s); needSep = true; }
+  }
+  return new RegExp("^" + out + "$");
+}
+
+// "**/build"  -&gt; ^(?:[^/]+/)*build$      any depth, incl. root
+// "cache/**"  -&gt; ^cache/.+$              inside cache, not cache itself
+// "a/**/b"    -&gt; ^a/(?:[^/]+/)*b$        zero or more dirs between</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Last match wins — across a stack of files</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Evaluating a path means running every applicable rule and keeping the last one that matched, rather than returning early on the first hit. Applicable means: every <code>.gitignore</code> in an ancestor directory of the path, from the repository root downward. Iterating shallow-to-deep and overwriting the winner gives you both precedence rules for free — later lines beat earlier lines inside one file, and a deeper file beats a shallower one, because it simply runs last.</p>
+        <div class="relative"><pre>function lastMatch(files, path, isDir){
+  const dirs = ancestorDirs(path);        // "a/b/c.txt" -&gt; ["", "a", "a/b"]
+  let win = null;
+  for (const d of dirs) {                 // shallow first...
+    const f = files[d];
+    if (!f) continue;
+    for (const p of f.patterns)           // ...later lines overwrite earlier
+      if (patternMatches(p, path, isDir, d)) win = p;
+  }
+  return win;                             // may be a NEGATION
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">The walk — where the parent-directory rule comes from</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the function that makes the engine correct instead of merely plausible. Git does not ask "does any pattern match this path"; it walks the tree and refuses to descend into an excluded directory. So the classifier tests each ancestor prefix as a directory first, and the instant one of them comes back excluded it stops and reports that ancestor's rule as the decider. Everything below an excluded directory is therefore ignored, unreachable, and invisible to any later negation.</p>
+        <div class="relative"><pre>function classify(files, path, isDir){
+  const segs = path.split("/");
+  for (let i = 0; i &lt; segs.length; i++) {
+    const sub  = segs.slice(0, i + 1).join("/");
+    const last = i === segs.length - 1;
+    const win  = lastMatch(files, sub, last ? isDir : true);
+    if (win &amp;&amp; !win.negated)                       // an ancestor is excluded
+      return { ignored: true, by: win, at: sub, viaParent: !last };
+  }
+  return { ignored: false, by: lastMatch(files, path, isDir), at: path };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">Detect the trap and say so out loud</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A tool that only answers "ignored: yes" is useless for the case people actually hit. When the walk stops at an ancestor, ask a second question the walk skipped: what would the path's <em>own</em> last match have been? If it would have been a negation, the user wrote a rule that can never fire, and you can say exactly that plus name the fix — unignore the directory first, then narrow inside it.</p>
+        <div class="relative"><pre>if (res.viaParent) {
+  const own = lastMatch(files, path, isDir);
+  if (own &amp;&amp; own.negated) {
+    res.trapped = true;                    // "!" that can never be reached
+    res.trapBy  = own;
+    res.fix     = "unignore the directory first:  " + res.at + "/*\n"
+                + "                               !" + path;
+  }
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+      <li class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">Prove it — real git is the oracle</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is one of the rare toys with a free reference implementation sitting on your machine. Generate a throwaway repo, write your patterns and a tree, then compare: <code>git status --porcelain -uall --ignored=matching</code> gives the verdict for every file, and <code>git check-ignore -v --no-index</code> gives the source file, line number and pattern that decided it. Assert both, and any disagreement is your bug rather than an opinion.</p>
+        <div class="relative"><pre>const oracle = run("git status --porcelain -uall --ignored=matching");
+for (const line of oracle.split("\n")) {
+  const ignored = line.startsWith("!!");            // "??" = not ignored
+  const path    = line.slice(3).trim();
+  assert(classify(files, path, false).ignored === ignored, path);
+}
+
+// and the deciding line, verbatim:
+//   $ git check-ignore -v --no-index docs/api/spec.tmp
+//   .gitignore:19:docs/**/*.tmp   docs/api/spec.tmp</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 61 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built a real <code>gitignore(5)</code> matcher with <strong>no library</strong>. A line parser handled comments, escapes and the trailing-space rule; a glob compiler produced path-aware regexes where <code>*</code> stops at a slash and <code>**</code> does not; last-match-wins ran across a stack of nested files; and an ancestor walk reproduced the one behaviour that generates most of the confusion — a negation inside an excluded directory is a line git never reads. Now when someone says "gitignore is broken", you can point at the line.</p></div>
+  </div>
+</section>
+
+<script>
+// ================= GITIGNORE(5) ENGINE (from scratch, no library) =================
+// A rule is {negated, dirOnly, anchored, regex, lineNo, dir}. A path is classified by
+// walking its ancestor directories first (git prunes excluded directories and never
+// descends into them) and, at each level, keeping the LAST pattern that matched across
+// every applicable .gitignore, shallow file first so that deeper files override.
+
+// ==CORE-START== (pure functions — no DOM below this line until CORE-END; node-tested)
+
+var POSIX = {
+  alnum: "0-9A-Za-z", alpha: "A-Za-z", blank: " \\t", cntrl: "\\x00-\\x1f\\x7f",
+  digit: "0-9", graph: "\\x21-\\x7e", lower: "a-z", print: "\\x20-\\x7e",
+  punct: "!-\\/:-@\\[-`{-~", space: " \\t\\r\\n\\v\\f", upper: "A-Z", xdigit: "0-9A-Fa-f"
+};
+
+function escRe(c){ return "\\^$.|?*+()[]{}/".indexOf(c) >= 0 ? "\\" + c : c; }
+function escClass(c){ return "\\]^".indexOf(c) >= 0 ? "\\" + c : c; }
+
+// ---------- git's trim_trailing_spaces(), byte for byte ----------
+// Only literal spaces are stripped (never tabs), and a backslash escapes the next
+// character, so "foo\ " keeps its space and a lone trailing "\" cancels the trim.
+function trimTrailingSpaces(s){
+  var lastSpace = -1;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charAt(i);
+    if (c === " ") { if (lastSpace < 0) lastSpace = i; continue; }
+    if (c === "\\") { i++; if (i >= s.length) return s; }
+    lastSpace = -1;
+  }
+  return lastSpace >= 0 ? s.slice(0, lastSpace) : s;
+}
+
+// ---------- bracket expression: [a-z] [!abc] [Tt] [[:digit:]] ----------
+function parseClass(s, i){
+  var j = i + 1, neg = false;
+  if (s.charAt(j) === "!" || s.charAt(j) === "^") { neg = true; j++; }
+  var body = "", first = true, closed = false;
+  while (j < s.length) {
+    var c = s.charAt(j);
+    if (c === "]" && !first) { closed = true; j++; break; }
+    first = false;
+    if (c === "[" && s.charAt(j + 1) === ":") {
+      var end = s.indexOf(":]", j + 2);
+      if (end > 0) {
+        var name = s.slice(j + 2, end);
+        if (POSIX[name]) { body += POSIX[name]; j = end + 2; continue; }
+      }
+    }
+    if (c === "\\" && j + 1 < s.length) { body += escClass(s.charAt(j + 1)); j += 2; continue; }
+    body += (c === "-" ? "-" : escClass(c));
+    j++;
+  }
+  if (!closed) return null;                       // an unclosed "[" is a literal
+  // WM_PATHNAME: a bracket expression never matches a "/", whatever is inside it.
+  return { re: "(?!/)[" + (neg ? "^" : "") + body + "]", next: j };
+}
+
+// ---------- one path segment: * ? [] and backslash escapes ----------
+function segGlob(s){
+  var out = "";
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charAt(i);
+    if (c === "\\" && i + 1 < s.length) { i++; out += escRe(s.charAt(i)); continue; }
+    if (c === "*") { out += "[^/]*"; continue; }   // a star never crosses a slash
+    if (c === "?") { out += "[^/]";  continue; }
+    if (c === "[") {
+      var k = parseClass(s, i);
+      if (k) { out += k.re; i = k.next - 1; continue; }
+      out += "\\["; continue;
+    }
+    out += escRe(c);
+  }
+  return out;
+}
+
+// split on UNESCAPED slashes only
+function splitSegments(s){
+  var out = [], cur = "";
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charAt(i);
+    if (c === "\\" && i + 1 < s.length) { cur += c + s.charAt(i + 1); i++; continue; }
+    if (c === "/") { out.push(cur); cur = ""; continue; }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+function isDoubleStar(s){ return /^\*\*+$/.test(s); }
+
+// ---------- the whole pattern body -> a regex ----------
+function compileGlob(body){
+  var segs = splitSegments(body);
+  var out = "", needSep = false;
+  for (var i = 0; i < segs.length; i++) {
+    var s = segs[i], last = i === segs.length - 1;
+    if (isDoubleStar(s)) {
+      if (last) { out += (needSep ? "/" : "") + ".+"; needSep = false; }
+      else      { out += (needSep ? "/" : "") + "(?:[^/]+/)*"; needSep = false; }
+    } else {
+      out += (needSep ? "/" : "") + segGlob(s);
+      needSep = true;
+    }
+  }
+  return new RegExp("^" + out + "$");
+}
+
+// RegExp#source re-escapes a bare "/" so the pattern can round-trip as a literal;
+// undo that for display and for tests, since a slash is never escaped on purpose here.
+function reSrc(re){ return re.source.replace(/\\\//g, "/"); }
+
+// ---------- one line of a .gitignore -> a rule ----------
+function parseIgnoreLine(raw, lineNo, dir){
+  var p = { raw: raw, lineNo: lineNo, dir: dir, kind: "blank",
+            negated: false, dirOnly: false, anchored: false, body: "", src: "" };
+  if (raw === "") return p;
+  if (raw.charAt(0) === "#") { p.kind = "comment"; return p; }   // RAW first char
+  var body = trimTrailingSpaces(raw);
+  if (body === "") return p;                                     // spaces only
+  if (body.charAt(0) === "!") { p.negated = true; body = body.slice(1); }
+  if (body.length && body.charAt(body.length - 1) === "/") { p.dirOnly = true; body = body.slice(0, -1); }
+  if (body === "") return p;                                     // "!" or "/" alone
+  p.kind = "pattern";
+  p.body = body;
+  // exactly what `git check-ignore -v` prints back: flags reattached, spaces already trimmed
+  p.canon = (p.negated ? "!" : "") + body + (p.dirOnly ? "/" : "");
+  p.anchored = body.indexOf("/") !== -1;         // a slash ANYWHERE anchors the rule
+  var m = body.charAt(0) === "/" ? body.slice(1) : body;
+  p.matchBody = m;
+  p.regex = compileGlob(m);
+  p.src = reSrc(p.regex);
+  return p;
+}
+
+function parseIgnoreFile(text, dir){
+  var lines = String(text).replace(/\r\n/g, "\n").split("\n");
+  var out = [];
+  for (var i = 0; i < lines.length; i++) out.push(parseIgnoreLine(lines[i], i + 1, dir));
+  return { dir: dir, name: (dir ? dir + "/" : "") + ".gitignore", lines: out,
+           patterns: out.filter(function(p){ return p.kind === "pattern"; }) };
+}
+
+// files: [{dir:"", text:"..."}, ...]  ->  { "": file, "src": file, ... }
+function buildFiles(list){
+  var map = {};
+  for (var i = 0; i < list.length; i++) {
+    var d = String(list[i].dir || "").replace(/^\/+|\/+$/g, "");
+    map[d] = parseIgnoreFile(list[i].text, d);
+  }
+  return map;
+}
+
+// ---------- does one rule match one path? ----------
+function patternMatches(p, path, isDir, baseDir){
+  if (p.kind !== "pattern") return false;
+  if (p.dirOnly && !isDir) return false;
+  var rel = path;
+  if (baseDir) {
+    if (path.slice(0, baseDir.length + 1) !== baseDir + "/") return false;
+    rel = path.slice(baseDir.length + 1);
+  }
+  if (p.anchored) return p.regex.test(rel);
+  return p.regex.test(rel.slice(rel.lastIndexOf("/") + 1));    // basename only
+}
+
+// "a/b/c.txt" -> ["", "a", "a/b"]   (every directory that may hold a .gitignore)
+function ancestorDirs(path){
+  var segs = path.split("/"), out = [""];
+  for (var i = 0; i < segs.length - 1; i++) out.push(segs.slice(0, i + 1).join("/"));
+  return out;
+}
+
+// ---------- LAST matching pattern wins, deeper file overriding shallower ----------
+function lastMatch(files, path, isDir){
+  var dirs = ancestorDirs(path), win = null;
+  for (var d = 0; d < dirs.length; d++) {
+    var f = files[dirs[d]];
+    if (!f) continue;
+    for (var i = 0; i < f.patterns.length; i++) {
+      var p = f.patterns[i];
+      if (patternMatches(p, path, isDir, dirs[d])) win = p;
+    }
+  }
+  return win;
+}
+
+// every rule that was even consulted, with its verdict (for the trace panel)
+function traceMatch(files, path, isDir){
+  var dirs = ancestorDirs(path), rows = [], winIdx = -1;
+  for (var d = 0; d < dirs.length; d++) {
+    var f = files[dirs[d]];
+    if (!f) continue;
+    for (var i = 0; i < f.lines.length; i++) {
+      var p = f.lines[i];
+      if (p.kind !== "pattern") { rows.push({ p: p, hit: false, skip: true }); continue; }
+      var hit = patternMatches(p, path, isDir, dirs[d]);
+      if (hit) winIdx = rows.length;
+      rows.push({ p: p, hit: hit, skip: false });
+    }
+  }
+  if (winIdx >= 0) rows[winIdx].win = true;
+  return { rows: rows, winner: winIdx >= 0 ? rows[winIdx].p : null };
+}
+
+// ---------- the walk: ancestors first, stop at the first excluded directory ----------
+function classify(files, path, isDir){
+  var segs = path.split("/");
+  for (var i = 0; i < segs.length; i++) {
+    var sub  = segs.slice(0, i + 1).join("/");
+    var last = i === segs.length - 1;
+    var win  = lastMatch(files, sub, last ? !!isDir : true);
+    if (win && !win.negated) {
+      var res = { ignored: true, by: win, at: sub, viaParent: !last };
+      if (res.viaParent) {
+        var own = lastMatch(files, path, !!isDir);
+        if (own && own.negated) { res.trapped = true; res.trapBy = own; }
+      }
+      return res;
+    }
+  }
+  return { ignored: false, by: lastMatch(files, path, !!isDir), at: path, viaParent: false };
+}
+
+// ---------- turn a pasted tree into {path, isDir} rows ----------
+function parseTree(text){
+  var lines = String(text).replace(/\r\n/g, "\n").split("\n");
+  var dirs = {}, order = [], seen = {};
+  var i, s;
+  for (i = 0; i < lines.length; i++) {
+    s = lines[i].trim();
+    if (!s || s.charAt(0) === "#") continue;
+    s = s.replace(/^\.\//, "").replace(/^\/+/, "");
+    var isDir = s.charAt(s.length - 1) === "/";
+    s = s.replace(/\/+$/, "");
+    if (!s) continue;
+    if (isDir) dirs[s] = true;
+    var segs = s.split("/");
+    for (var k = 0; k < segs.length - 1; k++) dirs[segs.slice(0, k + 1).join("/")] = true;
+    if (!seen[s]) { seen[s] = true; order.push(s); }
+  }
+  return order.map(function(p){ return { path: p, isDir: !!dirs[p] }; });
+}
+
+function classifyAll(files, rows){
+  return rows.map(function(r){
+    var c = classify(files, r.path, r.isDir);
+    return { path: r.path, isDir: r.isDir, res: c };
+  });
+}
+
+// ==CORE-END==
+
+const $ = function(id){ return document.getElementById(id); };
+const esc = function(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+
+// ================= PRESETS =================
+const PRESETS = {
+  demo: {
+    files: [
+      { dir: "", text:
+"# ---- build output ----\n" +
+"/dist\n" +
+"build/\n" +
+"*.log\n" +
+"!important.log\n" +
+"\n" +
+"# ---- dependencies ----\n" +
+"node_modules/\n" +
+"!node_modules/patched.js\n" +
+"\n" +
+"# ---- secrets ----\n" +
+".env\n" +
+".env.*\n" +
+"!.env.example\n" +
+"\n" +
+"# ---- editors ----\n" +
+".idea/\n" +
+"*.swp\n" +
+"\n" +
+"# ---- at any depth ----\n" +
+"**/__generated__/\n" +
+"docs/**/*.tmp\n" +
+"cache/**\n" +
+"\n" +
+"# ---- escapes: a literal hash, not a comment ----\n" +
+"\\#draft.md\n" +
+"\n" +
+"# ---- character classes ----\n" +
+"[Tt]humbs.db\n" +
+"temp?.dat\n" +
+"report-[0-9][0-9].csv\n" },
+      { dir: "src", text:
+"# a deeper .gitignore overrides the root one\n" +
+"!*.log\n" +
+"*.min.js\n" }
+    ],
+    tree:
+"README.md\n" +
+"important.log\n" +
+"debug.log\n" +
+"dist/app.js\n" +
+"build/main.css\n" +
+"node_modules/left-pad/index.js\n" +
+"node_modules/patched.js\n" +
+".env\n" +
+".env.local\n" +
+".env.example\n" +
+".idea/workspace.xml\n" +
+"src/index.js\n" +
+"src/app.log\n" +
+"src/vendor.min.js\n" +
+"src/util/helper.js\n" +
+"src/util/__generated__/types.d.ts\n" +
+"docs/guide.md\n" +
+"docs/notes.tmp\n" +
+"docs/api/spec.tmp\n" +
+"cache/a/b/c.bin\n" +
+"#draft.md\n" +
+"Thumbs.db\n" +
+"thumbs.db\n" +
+"temp1.dat\n" +
+"temp12.dat\n" +
+"report-07.csv\n" +
+"report-2026.csv\n"
+  },
+  node: {
+    files: [{ dir: "", text:
+"# Logs\n" +
+"logs\n" +
+"*.log\n" +
+"npm-debug.log*\n" +
+"yarn-debug.log*\n" +
+"pnpm-debug.log*\n" +
+"\n" +
+"# Dependencies\n" +
+"node_modules/\n" +
+"jspm_packages/\n" +
+"\n" +
+"# Build output\n" +
+"dist/\n" +
+"build/\n" +
+"out/\n" +
+".next/\n" +
+".nuxt/\n" +
+"coverage/\n" +
+"*.tsbuildinfo\n" +
+"\n" +
+"# Environment\n" +
+".env\n" +
+".env.*\n" +
+"!.env.example\n" +
+"\n" +
+"# Misc\n" +
+".DS_Store\n" +
+".cache/\n" +
+"*.pid\n" }],
+    tree:
+"package.json\n" +
+"package-lock.json\n" +
+"npm-debug.log.1\n" +
+"logs/access.log\n" +
+"node_modules/react/index.js\n" +
+"dist/bundle.js\n" +
+"coverage/lcov.info\n" +
+".next/server/app.js\n" +
+".env\n" +
+".env.production\n" +
+".env.example\n" +
+"src/index.tsx\n" +
+"src/components/Button.tsx\n" +
+"src/tsconfig.tsbuildinfo\n" +
+".DS_Store\n" +
+"server.pid\n"
+  },
+  python: {
+    files: [{ dir: "", text:
+"# Byte-compiled\n" +
+"__pycache__/\n" +
+"*.py[cod]\n" +
+"*$py.class\n" +
+"\n" +
+"# Distribution / packaging\n" +
+"build/\n" +
+"dist/\n" +
+"*.egg-info/\n" +
+".eggs/\n" +
+"\n" +
+"# Virtual environments\n" +
+".venv/\n" +
+"venv/\n" +
+"env/\n" +
+"\n" +
+"# Testing\n" +
+".pytest_cache/\n" +
+".coverage\n" +
+"htmlcov/\n" +
+".tox/\n" +
+"\n" +
+"# Type checkers / notebooks\n" +
+".mypy_cache/\n" +
+".ipynb_checkpoints/\n" +
+"\n" +
+"# Local settings, but keep the sample\n" +
+"local_settings.py\n" +
+"!local_settings.example.py\n" }],
+    tree:
+"setup.py\n" +
+"pyproject.toml\n" +
+"app/__init__.py\n" +
+"app/__pycache__/main.cpython-312.pyc\n" +
+"app/main.py\n" +
+"app/main.pyc\n" +
+"app/main.pyo\n" +
+"app/models.pyd\n" +
+"build/lib/app/main.py\n" +
+"myproj.egg-info/PKG-INFO\n" +
+".venv/lib/python3.12/site.py\n" +
+".pytest_cache/v/cache/lastfailed\n" +
+"htmlcov/index.html\n" +
+".coverage\n" +
+"notebooks/.ipynb_checkpoints/Untitled-checkpoint.ipynb\n" +
+"conf/local_settings.py\n" +
+"conf/local_settings.example.py\n"
+  },
+  jetbrains: {
+    files: [{ dir: "", text:
+"# JetBrains: ignore the workspace, keep the shared config\n" +
+".idea/**\n" +
+"!.idea/codeStyles/\n" +
+"!.idea/codeStyles/**\n" +
+"!.idea/inspectionProfiles/\n" +
+"!.idea/inspectionProfiles/**\n" +
+"\n" +
+"# Module files and caches\n" +
+"*.iml\n" +
+"*.ipr\n" +
+"*.iws\n" +
+"out/\n" +
+"\n" +
+"# Gradle / Maven output\n" +
+".gradle/\n" +
+"build/\n" +
+"target/\n" }],
+    tree:
+"pom.xml\n" +
+"app.iml\n" +
+".idea/workspace.xml\n" +
+".idea/misc.xml\n" +
+".idea/codeStyles/Project.xml\n" +
+".idea/inspectionProfiles/Project_Default.xml\n" +
+"out/production/app/Main.class\n" +
+"target/classes/Main.class\n" +
+".gradle/7.6/fileHashes.bin\n" +
+"src/main/java/Main.java\n"
+  }
+};
+
+// ================= STATE =================
+const state = { files: [], active: 0, sel: null, map: {}, rows: [] };
+
+function cloneFiles(list){ return list.map(function(f){ return { dir: f.dir, text: f.text }; }); }
+
+// ---------- ignore-file tab strip ----------
+function renderTabsStrip(){
+  const box = $("fileTabs");
+  box.innerHTML = state.files.map(function(f, i){
+    const label = (f.dir ? f.dir + "/" : "") + ".gitignore";
+    return '<button class="seg sm ' + (i === state.active ? "on" : "") + '" data-fi="' + i + '">' + esc(label) + "</button>";
+  }).join("");
+  box.querySelectorAll("[data-fi]").forEach(function(b){
+    b.onclick = function(){ state.files[state.active].text = $("ignoreText").value; state.active = +b.dataset.fi; $("ignoreText").value = state.files[state.active].text; renderTabsStrip(); recompute(); };
+  });
+}
+
+function loadPreset(name){
+  const p = PRESETS[name];
+  state.files = cloneFiles(p.files);
+  state.active = 0;
+  state.sel = null;
+  $("ignoreText").value = state.files[0].text;
+  $("treeText").value = p.tree;
+  renderTabsStrip();
+  recompute();
+}
+
+// ================= RENDER =================
+// the same three fields, in the same order, that `git check-ignore -v` prints
+function ruleLabel(p){
+  if (!p) return "—";
+  return esc((p.dir ? p.dir + "/" : "") + ".gitignore:" + p.lineNo + ":" + p.canon);
+}
+
+function recompute(){
+  state.files[state.active].text = $("ignoreText").value;
+  state.map = buildFiles(state.files);
+  state.rows = classifyAll(state.map, parseTree($("treeText").value));
+  renderStats();
+  renderPaths();
+  renderRules();
+  renderTrace();
+  renderTraps();
+  renderVerdict();
+}
+
+function stat(k, v, hi){
+  return '<div class="stat' + (hi ? " hi" : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>";
+}
+
+function renderStats(){
+  let pat = 0, neg = 0, dirOnly = 0, anch = 0, comments = 0;
+  Object.keys(state.map).forEach(function(d){
+    state.map[d].lines.forEach(function(p){
+      if (p.kind === "comment") comments++;
+      if (p.kind !== "pattern") return;
+      pat++;
+      if (p.negated) neg++;
+      if (p.dirOnly) dirOnly++;
+      if (p.anchored) anch++;
+    });
+  });
+  const ig = state.rows.filter(function(r){ return r.res.ignored; }).length;
+  $("statBox").innerHTML =
+      stat("paths", String(state.rows.length))
+    + stat("ignored", String(ig), true)
+    + stat("committed", String(state.rows.length - ig))
+    + stat("ignore files", String(Object.keys(state.map).length))
+    + stat("rules", String(pat))
+    + stat("negations", String(neg))
+    + stat("dir-only", String(dirOnly))
+    + stat("anchored", String(anch));
+}
+
+function renderPaths(){
+  const body = $("pathBody");
+  if (!state.rows.length) { body.innerHTML = '<tr><td colspan="3" class="dim">paste some paths →</td></tr>'; return; }
+  body.innerHTML = state.rows.map(function(r, i){
+    const c = r.res;
+    const cls = (state.sel === i ? "sel" : "") + (c.trapped ? " win" : "");
+    const why = c.by
+      ? ruleLabel(c.by) + (c.viaParent ? '  <span class="dim">via ' + esc(c.at) + "/</span>" : "")
+      : '<span class="dim">no pattern matched</span>';
+    return '<tr class="' + cls + '" data-pi="' + i + '"><td><b>' + esc(r.path) + (r.isDir ? "/" : "") + "</b></td>"
+         + '<td class="' + (c.ignored ? "no" : "yes") + '">' + (c.ignored ? "✗ ignored" : "✓ committed") + (c.trapped ? " ⚠" : "") + "</td>"
+         + "<td>" + why + "</td></tr>";
+  }).join("");
+  body.querySelectorAll("[data-pi]").forEach(function(tr){
+    tr.onclick = function(){ state.sel = +tr.dataset.pi; renderPaths(); renderTrace(); };
+  });
+}
+
+function renderRules(){
+  const body = $("ruleBody");
+  let rows = "", n = 0;
+  Object.keys(state.map).forEach(function(d){
+    const f = state.map[d];
+    f.patterns.forEach(function(p){
+      n++;
+      const kind = (p.negated ? "re-include" : "ignore")
+                 + (p.dirOnly ? " · dir-only" : "")
+                 + (p.anchored ? " · anchored" : " · any depth");
+      rows += "<tr><td>" + esc(f.name) + ":" + p.lineNo + "</td><td><b>" + esc(p.raw) + "</b></td><td>"
+            + esc(kind) + '</td><td class="dim">' + esc(p.src) + "</td></tr>";
+    });
+  });
+  body.innerHTML = rows || '<tr><td colspan="4" class="dim">no patterns — every line is blank or a comment</td></tr>';
+}
+
+function renderTrace(){
+  const head = $("traceHead"), box = $("traceBody"), walk = $("walkBox");
+  if (state.sel === null || !state.rows[state.sel]) {
+    head.className = "notice info mb-3"; head.textContent = "Click a path above to see every rule that was consulted, in order.";
+    box.innerHTML = ""; walk.innerHTML = ""; return;
+  }
+  const r = state.rows[state.sel], c = r.res;
+  const segs = r.path.split("/");
+
+  // the ancestor walk
+  let w = "";
+  for (let i = 0; i < segs.length; i++) {
+    const sub = segs.slice(0, i + 1).join("/");
+    const last = i === segs.length - 1;
+    const win = lastMatch(state.map, sub, last ? r.isDir : true);
+    const bad = win && !win.negated;
+    if (i) w += '<span class="wsl">/</span>';
+    w += '<span class="wseg ' + (bad ? "ig" : "ok") + '">' + esc(segs[i]) + "</span>";
+    if (bad) break;
+  }
+  walk.innerHTML = w;
+
+  // the deciding level
+  const at = c.at, atIsDir = (at === r.path) ? r.isDir : true;
+  const tr = traceMatch(state.map, at, atIsDir);
+  head.className = "notice " + (c.trapped ? "warn" : c.ignored ? "err" : "ok") + " mb-3";
+  let msg = (c.ignored ? "✗ " : "✓ ") + esc(r.path) + (c.ignored ? " is ignored" : " is committed");
+  if (c.by) msg += " — last match was " + ruleLabel(c.by);
+  else msg += " — no pattern matched it at all";
+  if (c.viaParent) msg += "<br>The walk stopped at the directory <b>" + esc(c.at) + "/</b>; git never descends into an excluded directory, so nothing below it is even looked at.";
+  if (c.trapped) msg += "<br>⚠ <b>Unreachable negation.</b> " + ruleLabel(c.trapBy) + " would match this file, but it can never fire. Unignore the directory first: <code>" + esc(c.at) + "/*</code> then <code>!" + esc(r.path) + "</code>.";
+  head.innerHTML = msg;
+
+  box.innerHTML = tr.rows.map(function(row){
+    const p = row.p;
+    const cls = row.win ? "tl winner" : row.skip ? "tl skip" : row.hit ? "tl hitm" : "tl";
+    const mark = row.skip ? '<span class="dim">·</span>' : row.hit ? '<span class="yes">✓ match</span>' : '<span class="dim">✗</span>';
+    return '<div class="' + cls + '"><span class="n">' + esc((p.dir ? p.dir + "/" : "") + ".gi:" + p.lineNo) + '</span>'
+         + '<span class="p">' + (p.raw === "" ? '<span class="dim">(blank)</span>' : esc(p.raw)) + "</span>"
+         + '<span class="r">' + mark + "</span></div>";
+  }).join("");
+}
+
+function renderTraps(){
+  const box = $("trapBox");
+  const traps = state.rows.filter(function(r){ return r.res.trapped; });
+  const dead = [];
+  Object.keys(state.map).forEach(function(d){
+    state.map[d].patterns.forEach(function(p){
+      if (!p.negated) return;
+      const used = state.rows.some(function(r){ return r.res.by === p || r.res.trapBy === p; });
+      if (!used) dead.push(p);
+    });
+  });
+  let html = "";
+  traps.forEach(function(r){
+    html += '<div class="notice warn">⚠ <b>' + esc(r.path) + "</b> is still ignored. " + ruleLabel(r.res.trapBy)
+          + " can never fire because <b>" + esc(r.res.at) + "/</b> is excluded by " + ruleLabel(r.res.by)
+          + ". Re-include the directory first.</div>";
+  });
+  if (!traps.length) html += '<div class="notice ok">No unreachable negations — every <code>!</code> rule in this file can actually be reached.</div>';
+  if (dead.length) html += '<div class="notice info">' + dead.length + " negation rule" + (dead.length > 1 ? "s" : "")
+    + " never decided anything for this tree: " + dead.map(ruleLabel).join(" · ") + ". Harmless, but often a typo.</div>";
+  box.innerHTML = html;
+}
+
+function renderVerdict(){
+  const el = $("verdict");
+  const ig = state.rows.filter(function(r){ return r.res.ignored; }).length;
+  const traps = state.rows.filter(function(r){ return r.res.trapped; }).length;
+  el.className = "notice " + (traps ? "warn" : "info") + " mt-5";
+  el.innerHTML = "📂 " + state.rows.length + " paths · <b>" + ig + " ignored</b>, " + (state.rows.length - ig)
+    + " would be committed · " + Object.keys(state.map).length + " ignore file(s) in play"
+    + (traps ? " · ⚠ <b>" + traps + " unreachable negation" + (traps > 1 ? "s" : "") + "</b> — a <code>!</code> rule inside an excluded directory" : "");
+}
+
+// ================= PATTERN TESTER =================
+function renderTester(){
+  const patText = $("tPat").value;
+  const path = $("tPath").value.trim().replace(/^\.\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
+  const isDir = $("tDir").checked;
+  const p = parseIgnoreLine(patText, 1, "");
+  const out = $("tOut"), brk = $("tBreak");
+  if (p.kind !== "pattern") {
+    out.className = "notice warn mt-3";
+    out.textContent = p.kind === "comment" ? "That line is a comment — the first character is #." : "That line is blank and matches nothing.";
+    brk.innerHTML = "";
+    return;
+  }
+  const hit = patternMatches(p, path, isDir, "");
+  out.className = "notice " + (hit ? (p.negated ? "info" : "err") : "ok") + " mt-3";
+  out.innerHTML = hit
+    ? "✓ this rule <b>matches</b> " + esc(path) + (p.negated ? " — and it is a negation, so it would re-include it" : " — so it would be ignored")
+    : "✗ this rule does <b>not</b> match " + esc(path) + (p.dirOnly && !isDir ? " — the pattern is directory-only and this is a file" : "");
+  brk.innerHTML =
+      stat("negation", p.negated ? "yes — !" : "no")
+    + stat("directory only", p.dirOnly ? "yes — trailing /" : "no")
+    + stat("scope", p.anchored ? "anchored to the .gitignore dir" : "basename — any depth", true)
+    + stat("matched against", p.anchored ? (path || "—") : (path.slice(path.lastIndexOf("/") + 1) || "—"))
+    + stat("compiled matcher", esc("/" + p.src + "/"), true)
+    + stat("pattern body", esc(p.matchBody));
+}
+
+// ---------- copy helpers ----------
+function copy(btn){ const pre = btn.parentElement.querySelector("pre"); navigator.clipboard.writeText(pre.textContent); const o = btn.textContent; btn.textContent = "✓ Copied!"; setTimeout(function(){ btn.textContent = o; }, 1500); }
+
+// ================= WIRING =================
+$("ignoreText").addEventListener("input", recompute);
+$("treeText").addEventListener("input", function(){ state.sel = null; recompute(); });
+$("tPat").addEventListener("input", renderTester);
+$("tPath").addEventListener("input", renderTester);
+$("tDir").addEventListener("change", renderTester);
+
+$("addFile").onclick = function(){
+  const d = $("newDir").value.trim().replace(/^\/+|\/+$/g, "");
+  if (!d) return;
+  if (state.files.some(function(f){ return f.dir === d; })) return;
+  state.files[state.active].text = $("ignoreText").value;
+  state.files.push({ dir: d, text: "# " + d + "/.gitignore — this file wins over the root one\n" });
+  state.active = state.files.length - 1;
+  $("ignoreText").value = state.files[state.active].text;
+  $("newDir").value = "";
+  renderTabsStrip();
+  recompute();
+};
+$("delFile").onclick = function(){
+  if (state.files.length < 2) return;
+  state.files.splice(state.active, 1);
+  state.active = 0;
+  $("ignoreText").value = state.files[0].text;
+  renderTabsStrip();
+  recompute();
+};
+
+document.querySelectorAll("[data-preset]").forEach(function(b){
+  b.onclick = function(){ loadPreset(b.dataset.preset); };
+});
+document.querySelectorAll("[data-tp]").forEach(function(b){
+  b.onclick = function(){ const parts = b.dataset.tp.split("|"); $("tPat").value = parts[0]; $("tPath").value = parts[1]; renderTester(); };
+});
+
+// ================= TABS =================
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(function(t){ t.onclick = function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  $(t.dataset.tab).classList.remove("hidden");
+}; });
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. It only hides files git is not already tracking",
+   why:"A .gitignore does not remove anything and it does not protect anything — it only tells git which UNTRACKED files to stop offering you. Once a file is in the index, the index wins forever, which is why adding .env to .gitignore after you already committed .env changes precisely nothing. The fix is to take it out of the index while leaving it on disk: git rm --cached .env, then commit that removal. This is also the reason a leaked secret is not fixed by gitignoring it — the old blob is still in history, and history is what people clone. If you want to check what git currently thinks, git ls-files shows the index; anything listed there is immune to every pattern in the file.",
+   concept:`<div class="text-center text-sm space-y-2"><div><span class="pill g">tracked</span> → <span class="pill s">.gitignore has no effect</span></div><div><span class="pill a">untracked</span> → <span class="pill b">patterns apply</span></div><div class="mono text-xs text-slate-500 pt-1">git rm --cached .env &nbsp;moves it from the left to the right</div></div>`,
+   code:`$ echo ".env" >> .gitignore
+$ git status
+  modified:   .env          # still tracked, still watched
+
+$ git rm --cached .env
+$ git status
+  deleted:    .env          # now the pattern applies` },
+ { title:"2. Lines, comments, escapes, trailing spaces",
+   why:"The file format looks trivial and has four rules that bite. A blank line matches nothing and is only a separator. A line whose first raw character is # is a comment — checked before any trimming, so \\#draft.md is a real pattern for a file literally named #draft.md. Trailing spaces are stripped, but only spaces and never tabs, and a backslash before one keeps it, which is how you target the genuinely cursed filenames people create on shared drives. Leading whitespace is never stripped, so an indented rule is a rule about a filename that starts with a space, and it will silently match nothing forever.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s"># comment</span> &nbsp; <span class="pill a">\\#draft.md</span> = a file named #draft.md</div><div><span class="pill s">"build&nbsp;&nbsp;"</span> → <span class="pill b">"build"</span> &nbsp;(spaces trimmed)</div><div><span class="pill s">"build\\&nbsp;"</span> → <span class="pill b">"build "</span> &nbsp;(escaped, kept)</div><div class="text-xs text-slate-400 pt-1">tabs are never trimmed</div></div>`,
+   code:`if (raw === "")            -> blank
+if (raw[0] === "#")        -> comment      // RAW first char
+body = trimTrailingSpaces(raw)             // spaces only, "\\ " survives
+if (body[0] === "!")       -> negated, strip it
+if (body ends with "/")    -> directory-only, strip ONE slash` },
+ { title:"3. The LAST matching pattern wins",
+   why:"Almost everyone reads a .gitignore as a series of filters where the first hit decides. It is the other way round: git evaluates every line and remembers the most recent one that matched. That single design choice is what makes negation possible at all — if the first match won, a ! could never override anything written above it. The practical consequence is that a .gitignore is order-dependent in a way a list of names is not: swapping two lines can invert the answer for a whole directory. When you inherit a confusing file, the useful question is never 'does anything match this' but 'what is the last thing that matches this', which is exactly what git check-ignore -v prints.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">*.log</span> then <span class="pill g">!important.log</span> → kept ✓</div><div><span class="pill g">!important.log</span> then <span class="pill r">*.log</span> → ignored ✗</div><div class="text-xs text-slate-400 pt-1">same two rules, opposite result</div></div>`,
+   code:`let win = null;
+for (const p of patterns)
+  if (matches(p, path)) win = p;   // keep going, do NOT return early
+return win;                        // may be a negation` },
+ { title:"4. Negation is the only way to carve an exception",
+   why:"A ! prefix flips a rule from 'ignore this' to 'do not ignore this'. It is not a delete — the earlier pattern still matched, it just stopped being the last match. Because of that, order is everything and a negation placed above its target does nothing at all. The classic shape is a broad rule followed by a narrow exception: *.log then !important.log, or .env.* then !.env.example. Two limits catch people out: a negation cannot rescue a file whose parent directory is excluded (the next steps explain why), and a literal exclamation mark at the start of a filename must be written \\! or it will be read as the operator.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">.env.*</span></div><div><span class="pill g">!.env.example</span></div><div class="text-xs text-slate-400 pt-1">.env.local ✗ &nbsp;·&nbsp; .env.example ✓</div><div class="text-xs"><span class="pill s">\\!urgent.txt</span> = a file literally named !urgent.txt</div></div>`,
+   code:`.env.*            # ignore every env variant
+!.env.example     # ...except the committed sample
+
+# order matters — this version keeps nothing:
+!.env.example
+.env.*` },
+ { title:"5. A slash anywhere anchors the pattern",
+   why:"After the trailing slash has been peeled off, git scans the rest of the pattern for a slash. Find none and the pattern is matched against the BASENAME of each path, so build matches build, src/build and a/b/c/build alike. Find one anywhere — leading, middle, it does not matter — and the pattern is matched against the whole path relative to the directory holding that .gitignore, and a leading slash becomes noise that gets stripped. So /build is root-only, src/build is that one path, and build is every build anywhere. This one branch explains most 'why did it match that' and 'why did it not match that' reports at once.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">build</span> → matches <span class="pill s">build</span> <span class="pill s">a/build</span> <span class="pill s">a/b/build</span></div><div><span class="pill a">/build</span> → matches <span class="pill s">build</span> only</div><div><span class="pill a">src/build</span> → matches <span class="pill s">src/build</span> only</div><div class="text-xs text-slate-400 pt-1">the slash is the switch, not its position</div></div>`,
+   code:`anchored = body.indexOf("/") !== -1;
+
+anchored ? regex.test(relativePath)                  // whole path
+         : regex.test(basename(relativePath));       // last segment only` },
+ { title:"6. A trailing slash means directories only",
+   why:"build/ and build are not the same rule. The trailing slash sets a directory-only flag, so the pattern will match a directory named build but never a FILE named build. That is more useful than it sounds: logs/ ignores the folder while leaving a stray file called logs visible, which is exactly what you want when a build script sometimes writes one and sometimes the other. Note the flag is orthogonal to anchoring — the slash is stripped before the anchoring scan, so build/ is still a basename pattern that fires at any depth. And a directory-only match is what triggers the pruning behaviour in the next step, which is why build/ is the version that makes git skip the whole subtree.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">build/</span> → <span class="pill r">build/ (dir)</span> <span class="pill g">build (file) kept</span></div><div><span class="pill a">build</span> → <span class="pill r">both ignored</span></div><div class="text-xs text-slate-400 pt-1">the slash is stripped before the anchoring scan, so build/ is still any-depth</div></div>`,
+   code:`if (p.dirOnly && !isDir) return false;
+
+# logs/   -> the directory, at any depth
+# /logs/  -> the directory, at the root only
+# logs    -> a file OR a directory, at any depth` },
+ { title:"7. A star stops at a slash",
+   why:"gitignore globs are path-aware, which is a different language from shell globbing. A * expands to 'any run of characters that contains no slash', and ? is exactly one non-slash character. So src/*.js matches src/a.js and never src/util/a.js, and a lone * matches every entry at one level rather than the whole tree. Bracket expressions follow the same law: [a-z] can never match a slash even if you literally write one inside the brackets. Once you internalise that the slash is a wall, the difference between * and ** stops being folklore and becomes a single sentence: one refuses to cross the wall, the other is allowed to.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">src/*.js</span> → <span class="pill g">src/a.js</span> <span class="pill r">src/util/a.js ✗</span></div><div><span class="pill a">src/**/*.js</span> → <span class="pill g">both ✓</span></div><div class="text-xs text-slate-400 pt-1">* → [^/]* &nbsp;·&nbsp; ? → [^/] &nbsp;·&nbsp; [a-z] never matches /</div></div>`,
+   code:`"*"  ->  [^/]*      // NOT ".*"
+"?"  ->  [^/]       // NOT "."
+"[a-z]" -> (?!/)[a-z]   // a class never matches a slash` },
+ { title:"8. ** has exactly three useful shapes",
+   why:"A ** is only special when it forms a whole path segment; a**b is just two ordinary stars and still cannot cross a slash. As a segment it means 'zero or more directories', and that produces three idioms worth memorising. Leading **/x means x at any depth INCLUDING the root, so **/__generated__/ catches the folder wherever it appears. Trailing x/** means everything inside x but never x itself, which matters when you want the directory entry itself to stay visible. Middle a/**/b means b somewhere under a with zero or more directories between — and the zero case, a/b, is the one hand-rolled matchers routinely get wrong.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">**/build</span> → build · a/build · a/b/build</div><div><span class="pill b">cache/**</span> → everything IN cache, not cache</div><div><span class="pill b">a/**/b</span> → a/b · a/x/b · a/x/y/b</div><div class="text-xs text-slate-400 pt-1">a**b is NOT a double star — it is two plain stars</div></div>`,
+   code:`"**/build" -> ^(?:[^/]+/)*build$   // zero or more dirs, then build
+"cache/**" -> ^cache/.+$          // at least one char inside
+"a/**/b"   -> ^a/(?:[^/]+/)*b$    // the zero-dir case included` },
+ { title:"9. Git prunes directories — it does not scan paths",
+   why:"This is the mental model swap that makes everything else click. Git does not build a list of every file and test each one against every pattern. It walks the tree from the root, and at every directory it asks 'is this directory excluded?'. If the answer is yes it stops — it does not open the directory, it does not read a .gitignore inside it, it does not look at a single file below it. That is a performance decision first (node_modules can hold a quarter of a million files and git skips all of them with one comparison) and a semantic decision second. Every surprising gitignore behaviour is downstream of this one loop.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="wseg">src</span><span class="wsl">/</span><span class="wseg">util</span><span class="wsl">/</span><span class="wseg ok">a.js</span> &nbsp;<span class="pill g">walked</span></div><div><span class="wseg ig">node_modules</span> &nbsp;<span class="pill r">pruned — nothing below is read</span></div><div class="text-xs text-slate-400 pt-1">one comparison skips 250,000 files</div></div>`,
+   code:`for (const prefix of ancestors(path)) {     // "a", "a/b", "a/b/c.txt"
+  const win = lastMatch(files, prefix, isDir);
+  if (win && !win.negated) return IGNORED;   // stop. do not descend.
+}
+return NOT_IGNORED;` },
+ { title:"10. So you cannot re-include inside an excluded directory",
+   why:"node_modules/ followed by !node_modules/patched.js does nothing, and now you know why: the walk stops at node_modules, so the second line is never reached. The docs state this in one sentence and it is responsible for a large share of all gitignore confusion. The documented workaround is to unignore at DIRECTORY granularity first, so the walk can still get inside: exclude everything at a level with /*, then re-include the directory with !/keep/, and files inside keep are simply never matched by the anchored /* rule. The general shape is: negate the containers on the way down, then narrow once you are inside.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill r">node_modules/</span> + <span class="pill g">!node_modules/patched.js</span> → <span class="pill r">still ignored</span></div><div class="text-xs text-slate-400 pt-2">the working idiom:</div><div><span class="pill a">/*</span> then <span class="pill g">!/keep/</span> → keep/ and everything in it ✓</div></div>`,
+   code:`# BROKEN — the ! can never be reached
+node_modules/
+!node_modules/patched.js
+
+# WORKS — unignore the container, then narrow
+/*
+!/keep/
+!/.gitignore` },
+ { title:"11. Nested .gitignore files, and the four sources",
+   why:"A .gitignore applies to its own directory and everything below it, and its patterns are relative to it — so src/.gitignore with the line *.min.js means src/**/*.min.js, not repo-wide. When several files apply to one path, the DEEPER file wins, which lets a subdirectory re-include something the root banned. Beyond the committed files there are three more sources, in decreasing precedence: patterns given on the command line, then the .gitignore stack, then $GIT_DIR/info/exclude for per-clone junk that must never be committed, and finally core.excludesFile for your global list. Editor and OS droppings belong in the global file, not in every repository you touch.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">command line --exclude</span></div><div class="text-xs text-slate-400">↓ beats</div><div><span class="pill a">src/.gitignore</span> ↓ beats <span class="pill a">./.gitignore</span></div><div class="text-xs text-slate-400">↓ beats</div><div><span class="pill b">.git/info/exclude</span> ↓ beats <span class="pill p">core.excludesFile</span></div></div>`,
+   code:`# src/.gitignore  — relative to src/, and it OVERRIDES the root
+!*.log        # keep logs under src/ even though the root banned *.log
+*.min.js      # ignore built bundles, but only under src/
+
+git config --global core.excludesFile ~/.gitignore_global` },
+ { title:"12. Debugging: ask git, do not guess",
+   why:"Two commands answer every question this page answers, and they ship with git. git check-ignore -v --no-index PATH prints the source file, the line number and the exact pattern that decided — and with -v it prints negations too, so you can see when the last match was a ! that lost to the parent-directory rule. git status --porcelain -uall --ignored=matching lists every file with !! for ignored and ?? for untracked, which is the ground truth for a whole tree at once. When a file is stubbornly tracked despite a correct pattern, the reset is git rm -r --cached . followed by git add . — that rebuilds the index from disk with the current rules applied, and the diff shows you exactly what the ignore file was hiding.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">git check-ignore -v PATH</span></div><div class="text-xs text-slate-400">.gitignore:11:node_modules/ &nbsp;node_modules/patched.js</div><div class="pt-1"><span class="pill b">git status --ignored=matching</span></div><div class="text-xs text-slate-400">!! ignored &nbsp;·&nbsp; ?? untracked but visible</div></div>`,
+   code:`$ git check-ignore -v --no-index docs/api/spec.tmp
+.gitignore:19:docs/**/*.tmp   docs/api/spec.tmp
+
+# re-apply the rules to an index that drifted:
+$ git rm -r --cached . && git add . && git status` },
+];
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach(function(s, i){ const bn = document.createElement("button"); bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>"; bn.onclick = function(){ show(i); }; stepsEl.appendChild(bn); });
+function show(i){ curStep = i; const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach(function(bn, idx){ bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold" : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm"; });
+}
+prevB.onclick = function(){ show(Math.max(0, curStep - 1)); };
+nextB.onclick = function(){ show(Math.min(STEPS.length - 1, curStep + 1)); };
+let tm = null; autoB.onclick = function(){ if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; } autoB.textContent = "⏸ Pause"; show(0); tm = setInterval(function(){ if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; } show(curStep + 1); }, 5200); };
+show(0);
+
+// ================= self-test (the same assertions the node/git test runs) =================
+(function selfTest(){
+  const F = function(txt, dir){ return buildFiles([{ dir: dir || "", text: txt }]); };
+  const ig = function(txt, path, isDir){ return classify(F(txt), path, !!isDir).ignored; };
+
+  console.assert(reSrc(compileGlob("*.log")) === "^[^/]*\\.log$", "star does not cross a slash");
+  console.assert(reSrc(compileGlob("**/build")) === "^(?:[^/]+/)*build$", "leading **");
+  console.assert(reSrc(compileGlob("cache/**")) === "^cache/.+$", "trailing **");
+  console.assert(reSrc(compileGlob("a/**/b")) === "^a/(?:[^/]+/)*b$", "middle **");
+
+  console.assert(ig("*.log", "src/a.log") === true, "basename pattern hits any depth");
+  console.assert(ig("/*.log", "src/a.log") === false, "anchored pattern is root only");
+  console.assert(ig("src/*.js", "src/util/a.js") === false, "a star stops at a slash");
+  console.assert(ig("src/**/*.js", "src/util/a.js") === true, "** crosses slashes");
+  console.assert(ig("a/**/b", "a/b") === true, "** matches zero directories");
+  console.assert(ig("cache/**", "cache") === false, "x/** never matches x itself");
+  console.assert(ig("build/", "build", true) === true, "dir-only matches a directory");
+  console.assert(ig("build/", "build", false) === false, "dir-only skips a file");
+  console.assert(ig("*.log\n!important.log", "important.log") === false, "last match wins");
+  console.assert(ig("!important.log\n*.log", "important.log") === true, "order flips the answer");
+  console.assert(ig("node_modules/\n!node_modules/patched.js", "node_modules/patched.js") === true, "cannot re-include inside an excluded dir");
+  console.assert(ig("/*\n!/keep/", "keep/a.txt") === false, "the /* + !/dir/ idiom works");
+  console.assert(ig("\\#draft.md", "#draft.md") === true, "escaped hash is a pattern");
+  console.assert(ig("#draft.md", "#draft.md") === false, "unescaped hash is a comment");
+  console.assert(ig("[Tt]humbs.db", "Thumbs.db") === true && ig("[Tt]humbs.db", "Xhumbs.db") === false, "character class");
+  console.assert(ig("temp?.dat", "temp1.dat") === true && ig("temp?.dat", "temp12.dat") === false, "single-char wildcard");
+  console.assert(trimTrailingSpaces("build   ") === "build", "trailing spaces stripped");
+  console.assert(trimTrailingSpaces("build\\ ") === "build\\ ", "escaped trailing space kept");
+
+  const nested = buildFiles([{ dir: "", text: "*.log" }, { dir: "src", text: "!*.log" }]);
+  console.assert(classify(nested, "src/a.log", false).ignored === false, "deeper .gitignore wins");
+  console.assert(classify(nested, "a.log", false).ignored === true, "root file still applies elsewhere");
+
+  const trap = classify(F("node_modules/\n!node_modules/patched.js"), "node_modules/patched.js", false);
+  console.assert(trap.trapped === true, "the unreachable negation is detected");
+})();
+
+// ================= boot =================
+loadPreset("demo");
+renderTester();
+</script>
+</body>
+</html>
