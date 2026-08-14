@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 62 — SPF / DKIM / DMARC Evaluator (from scratch)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; max-width:100%; }
+  .fade-in { animation: fadeIn .4s ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:5px; font-size:.92em; word-break:break-word; }
+
+  .grid > * { min-width:0; }
+
+  .fieldlabel { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+
+  /* ---- inputs ---- */
+  .inp { width:100%; font:700 14px ui-monospace,Menlo,monospace; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fff; color:#0f172a; }
+  .inp:focus { outline:none; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+  .inp.sm { font-size:12.5px; padding:7px 10px; }
+  .big { font-size:15px; font-weight:800; letter-spacing:.02em; }
+  textarea.inp { font-size:12px; line-height:1.55; resize:vertical; white-space:pre; overflow-wrap:normal; overflow-x:auto; }
+  .seg { border:1.5px solid #e2e8f0; background:#fff; color:#475569; border-radius:9px; padding:6px 11px; font:800 12px ui-monospace,Menlo,monospace; cursor:pointer; }
+  .seg.on { background:#0f172a; color:#fde68a; border-color:#0f172a; }
+  .seg:hover { border-color:#f59e0b; }
+  .seg.sm { padding:4px 9px; font-size:11px; }
+
+  /* ---- stat grid ---- */
+  .stat { border:1px solid #e2e8f0; border-radius:11px; padding:9px 11px; background:#fff; min-width:0; }
+  .stat .k { font:800 10px ui-monospace,Menlo,monospace; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+  .stat .v { font:800 15px ui-monospace,Menlo,monospace; color:#0f172a; word-break:break-all; }
+  .stat .s { font:700 10.5px ui-monospace,Menlo,monospace; color:#94a3b8; word-break:break-all; }
+  .stat.hi   { background:#fffbeb; border-color:#fcd34d; }
+  .stat.hi .v   { color:#b45309; }
+  .stat.good { background:#f0fdf4; border-color:#bbf7d0; }
+  .stat.good .v { color:#166534; }
+  .stat.bad  { background:#fef2f2; border-color:#fecaca; }
+  .stat.bad .v  { color:#b91c1c; }
+
+  /* ---- result pills ---- */
+  .res { display:inline-block; padding:3px 9px; border-radius:7px; font:800 11.5px ui-monospace,Menlo,monospace; letter-spacing:.02em; white-space:nowrap; }
+  .res.pass       { background:#dcfce7; color:#166534; }
+  .res.fail       { background:#fee2e2; color:#b91c1c; }
+  .res.softfail   { background:#ffedd5; color:#9a3412; }
+  .res.neutral    { background:#e2e8f0; color:#334155; }
+  .res.none       { background:#f1f5f9; color:#64748b; }
+  .res.permerror  { background:#fae8ff; color:#a21caf; }
+  .res.temperror  { background:#e0e7ff; color:#3730a3; }
+  .res.quarantine { background:#fef3c7; color:#92400e; }
+  .res.reject     { background:#fee2e2; color:#b91c1c; }
+
+  /* ---- tables ---- */
+  table.t { width:100%; border-collapse:collapse; font:700 12px ui-monospace,Menlo,monospace; }
+  table.t th { text-align:left; color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1.5px solid #e2e8f0; position:sticky; top:0; background:#fff; white-space:nowrap; }
+  table.t td { padding:6px 8px; border-bottom:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+  table.t tr.win td { background:#fffbeb; }
+  table.t tr.head td { background:#f8fafc; color:#64748b; }
+  table.t td.wrap { white-space:normal; word-break:break-all; }
+  .scrollbox { max-height:340px; overflow:auto; border:1px solid #e2e8f0; border-radius:11px; }
+  .yes { color:#166534; font-weight:800; }
+  .no  { color:#b91c1c; font-weight:800; }
+  .dim { color:#94a3b8; font-weight:700; }
+  .d1 { padding-left:18px; }
+  .d2 { padding-left:34px; }
+  .d3 { padding-left:50px; }
+
+  /* ---- canonicalisation viewer ---- */
+  .canon { font:700 11.5px ui-monospace,Menlo,monospace; background:#0f172a; color:#e2e8f0; border-radius:11px; padding:11px 12px; overflow:auto; max-height:220px; white-space:pre; }
+  .canon .ws   { color:#f59e0b; background:rgba(245,158,11,.16); border-radius:3px; }
+  .canon .crlf { color:#475569; }
+  .hashline { font:800 12px ui-monospace,Menlo,monospace; word-break:break-all; }
+
+  /* ---- notices ---- */
+  .notice { border-radius:12px; padding:12px 14px; font:700 13px ui-monospace,Menlo,monospace; word-break:break-word; }
+  .notice.warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .notice.err  { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .notice.ok   { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  .notice.info { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; }
+
+  /* UNDERSTAND bits */
+  .pill { display:inline-block; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,monospace; }
+  .pill.a { background:#fef3c7; color:#92400e; }
+  .pill.b { background:#dbeafe; color:#1d4ed8; }
+  .pill.g { background:#dcfce7; color:#166534; }
+  .pill.s { background:#e2e8f0; color:#334155; }
+  .pill.r { background:#fee2e2; color:#b91c1c; }
+  .pill.p { background:#f3e8ff; color:#7e22ce; }
+  .pill.q { background:#ccfbf1; color:#0f766e; }
+  .copy-btn { cursor:pointer; }
+
+  /* the intro headline is long on purpose; on a phone it must not become a
+     full-screen sticky lid that swallows every tap underneath it */
+  @media (max-width: 1023px) {
+    header.sticky { position:static; }
+    header h1 { font-size:14.5px; line-height:1.45; }
+    .canon { max-height:170px; font-size:10.5px; }
+    pre { font-size:11px; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <a href="../solvefromzero.php" title="back" class="absolute left-3 top-3 text-sm font-bold text-slate-500 hover:text-amber-600" style="text-decoration:none;">&larr; back</a>
+  <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 pl-[68px] md:pl-[76px] flex flex-wrap gap-3 items-center justify-between">
+    <div class="flex-1 min-w-0">
+      <div class="text-xs text-amber-600 font-bold uppercase tracking-wider">SolveFromZero · Day 62</div>
+      <h1 class="text-lg md:text-xl font-bold">📧 SPF / DKIM / DMARC Evaluator — paste a mock DNS zone and a raw message, and a hand-written email-authentication engine runs all three protocols live: a real <strong>RFC 7208</strong> <code class="mono">check_host()</code> that walks the terms left to right and stops at the <em>first</em> match, with <code class="mono">+ - ~ ?</code> qualifiers, <code class="mono">ip4</code>/<code class="mono">ip6</code> CIDR containment, <code class="mono">a</code>/<code class="mono">mx</code>/<code class="mono">ptr</code>/<code class="mono">exists</code>/<code class="mono">include</code>, <code class="mono">redirect=</code>, full <strong>macro expansion</strong>, and the <strong>10-lookup budget</strong> counted the way the RFC actually counts it · a real <strong>RFC 6376</strong> DKIM pass that implements <code class="mono">simple</code> and <code class="mono">relaxed</code> canonicalisation for headers <em>and</em> body and hashes the result with <strong>WebCrypto SHA-256</strong>, so one stray trailing space breaks <code class="mono">bh=</code> in front of you · and <strong>RFC 7489</strong> DMARC with organizational-domain <strong>identifier alignment</strong>, <code class="mono">p</code>/<code class="mono">sp</code>/<code class="mono">pct</code> and the resulting disposition · it demonstrates why SPF alone stops nothing a human can see, why forwarding breaks SPF but not DKIM, and why a chain of <code class="mono">include:</code> that trips the lookup limit is a <code class="mono">permerror</code> that can never pass DMARC · vanilla JS, no network, nothing leaves the page</h1>
+    </div>
+    <div class="flex flex-wrap gap-2" id="tabs">
+      <button data-tab="look"       class="tab-active px-4 py-2 rounded-lg font-semibold text-sm">👁 LOOK</button>
+      <button data-tab="understand" class="bg-slate-100 px-4 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build"      class="bg-slate-100 px-4 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center">
+        <h2 class="text-xl md:text-2xl font-bold mb-1">SPF authenticates an address the recipient never sees. That is the whole problem DMARC exists to fix.</h2>
+        <p class="text-slate-500 text-sm md:text-base mb-5 max-w-3xl mx-auto">There are two &quot;from&quot; addresses in every email. The <strong>envelope</strong> sender &mdash; <code class="mono">MAIL FROM</code>, spoken during the SMTP conversation, used for bounces, invisible in every mail client on earth &mdash; and the <code class="mono">From:</code> <strong>header</strong>, which is the only one a human reads. SPF checks the first one. So an attacker can register a domain, publish a perfectly valid SPF record for it, send from an IP that record authorises, collect a clean <code class="mono">spf=pass</code>, and still put <em>your</em> name in the <code class="mono">From:</code> header. DKIM has the opposite shape: it signs the message itself, survives forwarding, and carries its own <code class="mono">d=</code> domain &mdash; which also does not have to match <code class="mono">From:</code>. DMARC is the small piece of glue that makes the other two mean something: it demands that at least one of them <em>pass</em> <strong>and</strong> be <strong>aligned</strong> with the visible <code class="mono">From:</code>. Everything below is computed in your browser, right now, against the zone in the box.</p>
+      </div>
+
+      <!-- ============ INPUTS ============ -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 mb-6">
+        <div class="flex flex-wrap gap-2 items-center mb-3">
+          <span class="text-[11px] mono text-slate-400 self-center">scenario:</span>
+          <button class="seg sm" data-preset="well">Well configured</button>
+          <button class="seg sm" data-preset="forward">Forwarded</button>
+          <button class="seg sm" data-preset="spoof">Lookalike spoof</button>
+          <button class="seg sm" data-preset="over10">Over 10 lookups</button>
+          <button class="seg sm" data-preset="subdomain">Subdomain sp=reject</button>
+          <button class="seg sm" data-preset="plusall">+all</button>
+          <button class="seg sm" data-preset="broken">Broken body hash</button>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6 items-start">
+          <div>
+            <div class="fieldlabel">Mock DNS zone <span class="text-slate-400 normal-case">&mdash; nothing is resolved; these records <em>are</em> the DNS</span></div>
+            <textarea id="zoneText" class="inp" rows="14" spellcheck="false"></textarea>
+            <div class="text-[11px] mono text-slate-400 mt-2">Format: <code>name TYPE value</code>. Types: <code>TXT</code> (quote the value), <code>A</code>, <code>AAAA</code>, <code>MX</code> (<code>pref host</code>), <code>PTR</code>, and <code>TIMEOUT</code> to make a name fail to resolve. Lines starting with <code>#</code> are comments; a trailing dot is optional.</div>
+          </div>
+          <div>
+            <div class="fieldlabel">Raw message <span class="text-slate-400 normal-case">&mdash; headers, one blank line, then the body</span></div>
+            <textarea id="msgText" class="inp" rows="14" spellcheck="false"></textarea>
+            <div class="grid sm:grid-cols-2 gap-2 mt-3">
+              <div><div class="fieldlabel">Connecting IP</div><input id="ctxIp" class="inp sm" spellcheck="false" autocomplete="off" /></div>
+              <div><div class="fieldlabel">HELO name</div><input id="ctxHelo" class="inp sm" spellcheck="false" autocomplete="off" /></div>
+              <div><div class="fieldlabel">Envelope MAIL FROM</div><input id="ctxMfrom" class="inp sm" spellcheck="false" autocomplete="off" /></div>
+              <div><div class="fieldlabel">From: header domain</div><input id="ctxFrom" class="inp sm" spellcheck="false" autocomplete="off" /></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="verdict" class="notice info mt-5">&mdash;</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3" id="statBox"></div>
+      </div>
+
+      <!-- ============ RESULTS ============ -->
+      <div class="grid lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 space-y-6 min-w-0">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">SPF &mdash; <code class="mono">check_host()</code> term by term <span class="text-slate-400 normal-case">&mdash; first match wins; indented rows are inside an <code class="mono">include</code></span></div>
+            <div class="scrollbox mt-1">
+              <table class="t"><thead><tr><th>#</th><th>Term</th><th>Resolved to</th><th>Match</th><th>DNS</th></tr></thead><tbody id="spfBody"></tbody></table>
+            </div>
+            <div id="spfNote" class="notice info mt-3">&mdash;</div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">DKIM &mdash; canonicalisation and the body hash <span class="text-slate-400 normal-case">&mdash; computed here, with WebCrypto SHA-256</span></div>
+            <div id="dkimBox" class="space-y-4"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">DMARC &mdash; alignment, policy, disposition</div>
+            <div id="dmarcBox" class="space-y-3"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">Authentication-Results <span class="text-slate-400 normal-case">&mdash; the header a real receiver would stamp on</span></div>
+            <pre id="authRes" class="mt-1" style="white-space:pre-wrap;word-break:break-all">&mdash;</pre>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6 min-w-0">
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">Macro expander <span class="text-slate-400 normal-case">&mdash; <code class="mono">exists:</code> and <code class="mono">exp=</code> run on these</span></div>
+            <input id="macIn" class="inp big" spellcheck="false" autocomplete="off" value="%{ir}.%{v}._spf.%{d2}" />
+            <div id="macOut" class="notice info mt-3">&mdash;</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg sm" data-mac="%{i}">%{i}</button>
+              <button class="seg sm" data-mac="%{ir}.%{v}._spf.%{d2}">%{ir}.%{v}._spf.%{d2}</button>
+              <button class="seg sm" data-mac="%{l}._at_.%{o}">%{l}._at_.%{o}</button>
+              <button class="seg sm" data-mac="%{d3}">%{d3}</button>
+              <button class="seg sm" data-mac="%{s}">%{s}</button>
+              <button class="seg sm" data-mac="%{h}">%{h}</button>
+              <button class="seg sm" data-mac="%{S}">%{S} escaped</button>
+              <button class="seg sm" data-mac="%{o-}">%{o-} dash split</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">CIDR containment <span class="text-slate-400 normal-case">&mdash; the arithmetic under <code class="mono">ip4:</code> and <code class="mono">ip6:</code></span></div>
+            <input id="cidrIp" class="inp big" spellcheck="false" autocomplete="off" value="192.0.2.130" />
+            <input id="cidrNet" class="inp big mt-2" spellcheck="false" autocomplete="off" value="192.0.2.128/26" />
+            <div id="cidrOut" class="notice info mt-3">&mdash;</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button class="seg sm" data-cidr="192.0.2.130|192.0.2.128/26">v4 /26</button>
+              <button class="seg sm" data-cidr="192.0.2.191|192.0.2.128/26">last inside</button>
+              <button class="seg sm" data-cidr="192.0.2.192|192.0.2.128/26">first outside</button>
+              <button class="seg sm" data-cidr="203.0.113.9|0.0.0.0/0">/0</button>
+              <button class="seg sm" data-cidr="2001:db8:1::5|2001:db8:1::/48">v6 /48</button>
+              <button class="seg sm" data-cidr="2001:db8:2::5|2001:db8:1::/48">v6 outside</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">The lookup budget <span class="text-slate-400 normal-case">&mdash; what counts and what does not</span></div>
+            <div class="scrollbox mt-1" style="max-height:260px">
+              <table class="t"><thead><tr><th>Term</th><th>Costs?</th><th>Why</th></tr></thead><tbody id="budgetBody"></tbody></table>
+            </div>
+            <p class="text-sm text-slate-600 mt-3">RFC 7208 &sect;4.6.4 names exactly six terms that consume the budget of ten. Everything else is free, because it is answered from the record already in hand. Exceeding ten is a <code class="mono">permerror</code> &mdash; not a soft failure, not a warning &mdash; and under DMARC a <code class="mono">permerror</code> can never be an aligned pass.</p>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+            <div class="fieldlabel">What this page does not do</div>
+            <p class="text-sm text-slate-600">Two honest limits. First, there is <strong>no DNS</strong>: the zone box above <em>is</em> the resolver, which is what makes the page reproducible and lets you build a broken domain in ten seconds. Second, DKIM here verifies the <strong>body hash and both canonicalisations</strong> and stops there &mdash; the <code class="mono">b=</code> value is an RSA or Ed25519 signature over the canonicalised header set, and checking it needs the public key from <code class="mono">selector._domainkey.d</code> plus real asymmetric crypto. That half is arithmetic; the half implemented here is where DKIM actually breaks in production. A footer added by a mailing list, a gateway that rewrites a subject, an appliance that strips a trailing space &mdash; every one of those changes <code class="mono">bh=</code>, and the signature is dead long before anybody looks at <code class="mono">b=</code>. The page still checks that the key record exists and is not revoked, because a published-then-deleted selector is the other half of the same bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- gotchas -->
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 md:p-5 mt-6">
+        <div class="font-bold text-amber-900 mb-1">Six things about email authentication that generate the support tickets</div>
+        <p class="text-sm text-amber-800"><strong>1. SPF authenticates the envelope, not the <code class="mono">From:</code> a human reads.</strong> <code class="mono">MAIL FROM</code> is spoken during the SMTP conversation and never rendered by a mail client. An attacker who owns <code class="mono">examp1e-mail.net</code> can publish a flawless SPF record for it, pass SPF from their own server, and still write <code class="mono">Ada &lt;ada@example.com&gt;</code> in the header. Load the <em>Lookalike spoof</em> scenario: SPF says <span class="res pass">pass</span> and DMARC still says <span class="res reject">reject</span>, because the passing identifier is not the one on screen. SPF on its own has never stopped a single display-name phish. <strong>2. Plain forwarding breaks SPF and leaves DKIM intact.</strong> A forwarder connects from its own IP carrying the original <code class="mono">MAIL FROM</code>, so the origin domain&#39;s record does not list it and the answer is <span class="res fail">fail</span> &mdash; through no fault of anyone. DKIM signs the message, so it survives the hop untouched. That asymmetry is the entire reason DMARC accepts <em>either</em> an aligned SPF pass <em>or</em> an aligned DKIM pass rather than demanding both. <strong>3. <code class="mono">+all</code> is a disaster and it looks like success.</strong> It says &quot;every IP address on the internet is authorised to send as me&quot;. Every check returns <span class="res pass">pass</span>, dashboards go green, and the record is worth strictly less than having none &mdash; a missing record at least yields <span class="res none">none</span>, which receivers treat with suspicion. <strong>4. Eleven lookups is a <code class="mono">permerror</code>, and a permerror can never pass DMARC.</strong> The budget is ten terms, not ten records, and it is spent by <code class="mono">include</code>, <code class="mono">a</code>, <code class="mono">mx</code>, <code class="mono">ptr</code>, <code class="mono">exists</code> and <code class="mono">redirect</code> anywhere in the tree, including inside every vendor&#39;s <code class="mono">include</code>. Add one more SaaS sender and a working domain becomes unauthenticatable overnight; if DKIM is not also aligned, DMARC fails outright. <strong>5. <code class="mono">~all</code> and <code class="mono">-all</code> differ less than you think &mdash; under DMARC.</strong> Standalone, <code class="mono">-all</code> asks receivers to reject and <code class="mono">~all</code> asks them to accept and mark. But DMARC only cares whether SPF <em>passed</em>: <span class="res softfail">softfail</span> and <span class="res fail">fail</span> are equally not-a-pass, and the disposition comes from <code class="mono">p=</code>, not from the SPF qualifier. <code class="mono">~all</code> plus <code class="mono">p=reject</code> rejects. <strong>6. A <code class="mono">d=</code> that is not aligned passes DKIM and still fails DMARC.</strong> Any domain can sign any message. A bulk sender signing with <code class="mono">d=mail.vendor.net</code> produces a genuine, cryptographically valid <span class="res pass">pass</span> that does nothing for a <code class="mono">From:</code> at your domain, because relaxed alignment compares <em>organizational</em> domains and <code class="mono">vendor.net</code> is not <code class="mono">example.com</code>. This is why vendors ask you to CNAME a selector into your own zone.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="max-w-7xl mx-auto p-4 md:p-6 grid lg:grid-cols-5 gap-6">
+    <aside class="lg:col-span-2 min-w-0">
+      <h3 class="font-bold text-lg mb-3">How the three protocols actually work</h3>
+      <p class="text-sm text-slate-500 mb-4">Click any step.</p>
+      <div id="steps" class="space-y-2"></div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="prev" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold text-sm">← Prev</button>
+        <button id="next-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Next →</button>
+        <button id="auto" class="bg-amber-400 text-white px-4 py-2 rounded-lg font-semibold text-sm">▶ Auto-play</button>
+      </div>
+    </aside>
+    <div class="lg:col-span-3 space-y-4 min-w-0">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CONCEPT</div><div id="concept" class="min-h-[200px] flex items-center justify-center"><div class="text-slate-400 text-sm">Click a step</div></div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">WHY</div><div id="why" class="text-slate-700 text-sm md:text-base leading-relaxed">&mdash;</div></div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6"><div class="text-xs uppercase font-bold text-amber-600 tracking-wider mb-2">CODE FOR THIS STEP</div><pre id="code"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="max-w-5xl mx-auto p-4 md:p-8">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">🔨 Build it yourself</h2>
+    <p class="text-slate-500 mb-8">An email-authentication engine is three small machines sharing one input. A <strong>resolver</strong> you can fake, so the whole thing is testable without the internet. An <strong>SPF evaluator</strong> that is a left-to-right loop with a budget, a recursion rule and a macro language nobody expects. And a <strong>DKIM canonicaliser</strong> that reconstructs the exact byte sequence the signer hashed &mdash; which is the part that breaks in production, and the part you can verify in a browser with no keys at all. DMARC is thirty lines on top that finally connect the other two to the address a human reads. Here it is, step by step.</p>
+    <ol class="space-y-6">
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">1</div><h3 class="font-bold text-lg">Fake the resolver first &mdash; and model both kinds of nothing</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Every SPF bug is a DNS bug wearing a costume, so the resolver has to be data you control. A zone is a map from name to record types. The subtlety that matters is that DNS has <em>two</em> ways of saying no, and SPF treats them differently from a timeout: <strong>NXDOMAIN</strong> (the name does not exist) and <strong>NOERROR with zero answers</strong> (the name exists but holds no record of that type) are both <em>void lookups</em>, capped at two, while a genuine timeout or SERVFAIL is a <code>temperror</code> &mdash; a retryable maybe, not a verdict. Conflating the three is how engines end up rejecting real mail during a DNS outage.</p>
+        <div class="relative"><pre>const zone = {
+  "example.com":      { TXT:["v=spf1 mx -all"], MX:[{pref:10, host:"mail.example.com"}] },
+  "mail.example.com": { A:["192.0.2.25"] },
+  "slow.example.com": { TIMEOUT:true }
+};
+
+function dnsQuery(zone, name, type){
+  const n = String(name).toLowerCase().replace(/\.$/, "");
+  const node = Object.prototype.hasOwnProperty.call(zone, n) ? zone[n] : null;
+  if (node === null) return { rcode:"NXDOMAIN", records:[], isVoid:true  };
+  if (node.TIMEOUT)  return { rcode:"TIMEOUT",  records:[], isVoid:false };
+  const recs = node[type] || [];
+  return { rcode:"NOERROR", records:recs, isVoid: recs.length === 0 };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">2</div><h3 class="font-bold text-lg">Parse the record into terms &mdash; mechanisms and modifiers are different animals</h3></div>
+        <p class="text-sm text-slate-600 mb-3">A record is <code>v=spf1</code> followed by whitespace-separated <em>terms</em>. A term whose leading run of letters is followed by <code>=</code> is a <strong>modifier</strong> (<code>redirect=</code>, <code>exp=</code>, or an unknown one you must <em>ignore</em> rather than reject); everything else is a <strong>mechanism</strong> with an optional leading qualifier. Mechanisms are positional and modifiers are not, which produces two surprises: a second <code>redirect=</code> is a <code>permerror</code> even though the first may never run, and a modifier written anywhere still applies at the end. Note the dual-CIDR syntax on <code>a</code> and <code>mx</code>: <code>/24</code> sets the IPv4 prefix, <code>//64</code> the IPv6 one, and <code>a:host/24//64</code> sets both.</p>
+        <div class="relative"><pre>function parseSpf(txt){
+  const toks = String(txt).trim().split(/[ \t]+/).filter(Boolean);
+  if (!toks.length || toks[0].toLowerCase() !== "v=spf1")
+    return { error: 'record does not start with "v=spf1"' };
+  const rec = { terms:[], redirect:null, exp:null, hasAll:false };
+  for (let i = 1; i &lt; toks.length; i++){
+    const t = toks[i];
+    const mod = t.match(/^([A-Za-z][A-Za-z0-9._-]*)=(.*)$/);
+    if (mod){ addModifier(rec, mod[1].toLowerCase(), mod[2]); continue; }
+    let q = "+", s = t;
+    if ("+-~?".indexOf(s.charAt(0)) &gt;= 0){ q = s.charAt(0); s = s.slice(1); }
+    const name = (s.match(/^[A-Za-z][A-Za-z0-9]*/) || [""])[0].toLowerCase();  // ip4/ip6
+    rec.terms.push(parseMechanism(q, name, s.slice(name.length)));
+    if (name === "all") rec.hasAll = true;
+  }
+  return rec;
+}
+
+// "/24"      -&gt; { p4:24, p6:null }
+// "//64"     -&gt; { p4:null, p6:64 }
+// "/24//64"  -&gt; { p4:24, p6:64 }        anything else is a permerror</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">3</div><h3 class="font-bold text-lg">CIDR containment, both families, no library</h3></div>
+        <p class="text-sm text-slate-600 mb-3">&quot;Is this address inside this block&quot; is one masked comparison. For IPv4, pack the four octets into a 32-bit integer and compare under a mask &mdash; but beware the shift: <code>0xFFFFFFFF &lt;&lt; 32</code> is <em>not</em> zero in JavaScript, because the shift count is taken modulo 32, so <code>/0</code> has to be special-cased or it silently becomes <code>/32</code>. For IPv6, skip BigInt and compare eight 16-bit words: whole words while at least sixteen bits of prefix remain, then one masked word. Both run in constant time and neither allocates.</p>
+        <div class="relative"><pre>function ip4InCidr(ip, net, prefix){
+  const a = ip4ToInt(ip), b = ip4ToInt(net);
+  if (a === null || b === null || prefix &lt; 0 || prefix &gt; 32) return false;
+  if (prefix === 0) return true;               // 0xFFFFFFFF &lt;&lt; 32 === 0xFFFFFFFF
+  const mask = (0xFFFFFFFF &lt;&lt; (32 - prefix)) &gt;&gt;&gt; 0;
+  return ((a &amp; mask) &gt;&gt;&gt; 0) === ((b &amp; mask) &gt;&gt;&gt; 0);
+}
+
+function ip6InCidr(ip, net, prefix){
+  const a = ip6ToWords(ip), b = ip6ToWords(net);      // 8 x 16-bit words
+  if (!a || !b || prefix &lt; 0 || prefix &gt; 128) return false;
+  let bits = prefix;
+  for (let i = 0; i &lt; 8; i++){
+    if (bits &lt;= 0) return true;
+    if (bits &gt;= 16){ if (a[i] !== b[i]) return false; bits -= 16; continue; }
+    const m = (0xFFFF &lt;&lt; (16 - bits)) &amp; 0xFFFF;
+    return (a[i] &amp; m) === (b[i] &amp; m);
+  }
+  return true;
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">4</div><h3 class="font-bold text-lg"><code class="mono">check_host()</code> &mdash; left to right, first match wins</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the opposite of the rule that governs a <code>.gitignore</code>, and confusing the two produces a genuinely wrong mental model. SPF evaluates terms strictly in order and <strong>returns on the first mechanism that matches</strong>; the qualifier on that mechanism becomes the result. Everything after it is never evaluated &mdash; which is why <code>-all</code> written near the front disables the entire rest of the record, and why the DNS lookups of later terms are never spent. If no mechanism matches, the record falls through to <code>redirect=</code> when there is one, and otherwise to <code>neutral</code>.</p>
+        <div class="relative"><pre>const QUAL = { "+":"pass", "-":"fail", "~":"softfail", "?":"neutral" };
+
+for (const term of rec.terms){
+  if (term.kind !== "mech") continue;          // modifiers are handled after
+  const m = matchMechanism(term, st);          // may recurse, may throw
+  if (m.match) return { result: QUAL[term.qual], by: term };   // STOP HERE
+}
+if (rec.redirect !== null &amp;&amp; !rec.hasAll) return followRedirect(rec, st);
+return { result: "neutral" };                  // the documented default</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">5</div><h3 class="font-bold text-lg">The budget of ten &mdash; counted along the path actually taken</h3></div>
+        <p class="text-sm text-slate-600 mb-3">RFC 7208 &sect;4.6.4 names six terms that cost a lookup: <code>include</code>, <code>a</code>, <code>mx</code>, <code>ptr</code>, <code>exists</code> and the <code>redirect=</code> modifier. <code>ip4</code>, <code>ip6</code> and <code>all</code> cost nothing because they are answered from the record already in hand, and <code>exp=</code> costs nothing because it is fetched <em>after</em> evaluation finishes and only when the result is <code>fail</code>. Two details decide whether your counter is right. The budget is <strong>global across the whole recursion</strong>, not per record &mdash; one counter threaded through every <code>include</code>. And it counts terms <em>evaluated</em>, not terms <em>written</em>: a term sitting after the winning match never runs and never costs anything. Exceed ten and the answer is <code>permerror</code>, full stop.</p>
+        <div class="relative"><pre>function spend(st, what){              // ONE shared counter for the whole tree
+  st.lookups += 1;
+  if (st.lookups &gt; 10) throw { spf:"permerror", why:"over the 10-term limit" };
+}
+
+// a, mx, ptr, exists, include, redirect  -&gt; spend(st)
+// ip4, ip6, all                          -&gt; free
+// exp                                    -&gt; free (fetched after the verdict)
+
+// separate sub-budgets, RFC 7208 4.6.4:
+//   mx   : at most 10 address lookups for the MX names
+//   ptr  : at most 10 PTR names examined
+//   void : at most 2 lookups returning NXDOMAIN or an empty answer</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">6</div><h3 class="font-bold text-lg"><code class="mono">include</code> is a recursive call with a translation table</h3></div>
+        <p class="text-sm text-slate-600 mb-3">This is the most misread mechanism in the specification. <code>include:vendor.net</code> does not splice the vendor&#39;s terms into your record and it does not adopt the vendor&#39;s qualifiers. It runs a full nested <code>check_host()</code> against the vendor&#39;s domain and then flattens seven possible results into &quot;matched&quot; or &quot;did not match&quot;. Only <code>pass</code> counts as a match. A nested <code>fail</code>, <code>softfail</code> or <code>neutral</code> all mean the same thing to you &mdash; keep going &mdash; so the vendor&#39;s <code>-all</code> is <em>invisible</em> from outside. But a nested <code>none</code> (the vendor deleted their record) or <code>permerror</code> becomes <strong>your</strong> <code>permerror</code>, which is exactly how one vendor&#39;s mistake takes your domain down.</p>
+        <div class="relative"><pre>const INCLUDE_MAP = {          // RFC 7208 section 5.2, verbatim
+  pass:      "match",
+  fail:      "no-match",
+  softfail:  "no-match",
+  neutral:   "no-match",
+  temperror: "temperror",      // propagate
+  permerror: "permerror",      // propagate
+  none:      "permerror"       // a MISSING record is YOUR error
+};
+
+function evalInclude(term, ctx, st){
+  spend(st, "include");
+  const target = expandMacro(term.domain, ctx);
+  const inner  = checkHost(st, subContext(ctx, target), st.depth + 1);
+  const out    = INCLUDE_MAP[inner.result];
+  if (out === "match")    return { match:true  };
+  if (out === "no-match") return { match:false };
+  throw { spf: out, why: "include:" + target + " returned " + inner.result };
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">7</div><h3 class="font-bold text-lg">Macros &mdash; SPF has a string language and almost nobody knows</h3></div>
+        <p class="text-sm text-slate-600 mb-3">Any domain in <code>a</code>, <code>mx</code>, <code>ptr</code>, <code>exists</code>, <code>include</code>, <code>redirect=</code> and <code>exp=</code> may contain macros. <code>%{i}</code> is the client IP, <code>%{s}</code> the whole envelope sender, <code>%{l}</code> its local part, <code>%{o}</code> its domain, <code>%{d}</code> the domain currently being evaluated, <code>%{h}</code> the HELO and <code>%{v}</code> the literal string <code>in-addr</code> or <code>ip6</code>. The transformers are the interesting half: a digit keeps the <em>rightmost</em> N parts, <code>r</code> reverses them, and trailing punctuation redefines the split characters. So <code>%{ir}.%{v}._spf.%{d2}</code> turns <code>192.0.2.25</code> at <code>mail.example.com</code> into <code>25.2.0.192.in-addr._spf.example.com</code> &mdash; a per-IP lookup computed at query time. An uppercase letter URL-escapes the result, which only ever matters inside <code>exp=</code> text.</p>
+        <div class="relative"><pre>function expandOne(spec, ctx){
+  const m = /^([slodipvhcrt])([0-9]*)([r]?)([-.+,\/_=]*)$/i.exec(spec);
+  if (!m) throw { spf:"permerror", why:"bad macro %{" + spec + "}" };
+  let parts = split(macroValue(m[1].toLowerCase(), ctx), m[4] || ".");
+  if (m[3]) parts = parts.reverse();                        // "r"
+  const n = m[2] ? parseInt(m[2], 10) : 0;                  // digits
+  if (n &gt; 0 &amp;&amp; parts.length &gt; n) parts = parts.slice(-n);   // RIGHTMOST n
+  const out = parts.join(".");                              // always rejoined with "."
+  return (m[1] &gt;= "A" &amp;&amp; m[1] &lt;= "Z") ? urlEscape(out) : out;
+}
+
+// %%  -&gt; "%"      %_  -&gt; " "      %-  -&gt; "%20"
+// and if the expansion exceeds 253 chars, drop whole labels from the LEFT</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">8</div><h3 class="font-bold text-lg">DKIM canonicalisation &mdash; the bytes that were actually hashed</h3></div>
+        <p class="text-sm text-slate-600 mb-3">DKIM does not sign the message; it signs a <em>canonical rendering</em> of the message, and there are two of them for headers and two for the body. <code>simple</code> means &quot;change nothing&quot;, which is honest and unbelievably brittle &mdash; one whitespace edit anywhere in transit kills it. <code>relaxed</code> lowercases field names, unfolds continuation lines, collapses runs of spaces and tabs to a single space, strips trailing whitespace and removes the space around the colon. Both body algorithms drop trailing empty lines and add a final <code>CRLF</code> when the body has content without one. The asymmetry worth memorising: an <strong>empty body canonicalises to <code>CRLF</code> under simple and to the empty string under relaxed</strong>, so the same nothing produces two different hashes.</p>
+        <div class="relative"><pre>function relaxHeader(raw){
+  const i = raw.indexOf(":");
+  const name = raw.slice(0, i).trim().toLowerCase();
+  const v = raw.slice(i + 1)
+               .replace(/\r\n/g, "")           // unfold, keeping the folding WSP
+               .replace(/[ \t]+/g, " ")        // collapse every WSP run to one SP
+               .replace(/^[ \t]+|[ \t]+$/g, "");
+  return name + ":" + v + "\r\n";
+}
+
+function relaxBody(body){
+  const lines = toCRLF(body).split("\r\n").map(function(l){
+    return l.replace(/[ \t]+/g, " ").replace(/[ \t]+$/, "");
+  });
+  const b = lines.join("\r\n").replace(/(?:\r\n)+$/, "");   // drop trailing blanks
+  return b === "" ? "" : b + "\r\n";      // simple returns "\r\n" for an empty body
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">9</div><h3 class="font-bold text-lg">The header set, the emptied <code class="mono">b=</code>, and the hash you can check</h3></div>
+        <p class="text-sm text-slate-600 mb-3">The signed header set is exactly the list in <code>h=</code>, in that order, each name selecting the <em>last unused</em> instance of that field counting from the bottom &mdash; which is what lets a signature survive a forwarder prepending another <code>Received:</code>. The <code>DKIM-Signature</code> field is then appended to the hash input with two rules that trip everyone: its <code>b=</code> <strong>value</strong> is emptied while the tag itself is kept, and the field is contributed <strong>without a trailing CRLF</strong>. The body is separate: canonicalise it, truncate to <code>l=</code> octets if present, hash, base64, compare to <code>bh=</code>. That comparison needs no key and no crypto beyond SHA-256, and it catches almost every real DKIM failure.</p>
+        <div class="relative"><pre>function stripBTag(raw){                  // "b=abc" -&gt; "b=" , leaves "bh=" intact
+  const c = raw.indexOf(":");
+  const parts = raw.slice(c + 1).split(";");    // b= is base64: never holds a ";"
+  for (let i = 0; i &lt; parts.length; i++){
+    const m = parts[i].match(/^([ \t\r\n]*)b([ \t\r\n]*=)/);
+    if (m) parts[i] = m[1] + "b" + m[2];
+  }
+  return raw.slice(0, c + 1) + parts.join(";");
+}
+
+let input = "";
+for (const name of tags.h.split(":"))
+  input += canonHeader(pickLastUnused(name), mode);
+input += canonHeader(stripBTag(sigRaw), mode).replace(/\r\n$/, "");   // no final CRLF
+
+const bh = b64(await crypto.subtle.digest("SHA-256", utf8(canonBody(body, bmode))));
+const ok = (bh === tags.bh);              // this is the check that fails in the wild</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">10</div><h3 class="font-bold text-lg">DMARC &mdash; organizational domains, alignment, disposition</h3></div>
+        <p class="text-sm text-slate-600 mb-3">DMARC adds one idea and one lever. The idea is <strong>alignment</strong>: an authentication result only counts if the domain it authenticated is the domain in <code>From:</code>. <code>strict</code> means the labels are identical; <code>relaxed</code> &mdash; the default for both <code>adkim</code> and <code>aspf</code> &mdash; means the two share an <em>organizational domain</em>, found by taking the longest public suffix plus one more label. That is why <code>mail.example.com</code> aligns with <code>example.com</code> under relaxed but not strict, and why <code>example.co.uk</code> needs a suffix list rather than &quot;the last two labels&quot;. The lever is policy: the receiver queries <code>_dmarc.&lt;From domain&gt;</code>, falls back to <code>_dmarc.&lt;org domain&gt;</code>, and if it landed on the org record for a subdomain then <code>sp=</code> overrides <code>p=</code>. The verdict itself is a single OR.</p>
+        <div class="relative"><pre>function orgDomain(d, psl){
+  const L = d.toLowerCase().replace(/\.$/, "").split(".");
+  let n = 0;                                         // labels in the matched suffix
+  for (let i = 0; i &lt; L.length; i++)                 // ascending i = longest first
+    if (psl.indexOf(L.slice(i).join(".")) &gt;= 0){ n = L.length - i; break; }
+  if (n === 0) n = 1;                                // unknown TLD -&gt; last label
+  return L.slice(L.length - Math.min(L.length, n + 1)).join(".");
+}
+
+const spfOK  = spf.result === "pass" &amp;&amp; aligned(envelopeDomain, fromDomain, rec.aspf);
+const dkimOK = sig.result === "pass" &amp;&amp; aligned(sig.d,          fromDomain, rec.adkim);
+const pass   = spfOK || dkimOK;                       // EITHER one. never both.
+
+const policy   = (foundAtOrg &amp;&amp; isSubdomain &amp;&amp; rec.sp !== null) ? rec.sp : rec.p;
+const applied  = pass ? "none" : (rec.pct &gt; 0 ? policy : downgrade(policy));
+const residual = pass ? "none" : (rec.pct &gt;= 100 ? policy : downgrade(policy));
+// downgrade: reject -&gt; quarantine, quarantine -&gt; none</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+
+      <li class="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+        <div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">11</div><h3 class="font-bold text-lg">Prove it &mdash; golden vectors, a second evaluator, and a full cross-product</h3></div>
+        <p class="text-sm text-slate-600 mb-3">There is no <code>git check-ignore</code> for email, so the oracle has to be built &mdash; and three sources of genuine external truth are available. The RFC 6376 canonicalisation examples in &sect;3.4.6 are printed character by character with <code>&lt;SP&gt;</code> and <code>&lt;HTAB&gt;</code> markers, so they are exact vectors nobody can fudge; the published SHA-256 of an empty body under each algorithm is another. For SPF, write a <strong>second evaluator with a different shape</strong> &mdash; a table-driven recursive walker against the loop &mdash; and run both over thousands of generated zones, asserting the result <em>and</em> the final lookup count. For DMARC the input space is small enough to enumerate completely: every combination of SPF result, SPF alignment, DKIM result, DKIM alignment, <code>p</code>, <code>sp</code>, <code>pct</code> and subdomain-or-not is a few thousand cells, so check them all rather than sampling.</p>
+        <div class="relative"><pre>// RFC 6376 3.4.6 example 1 -- external ground truth, not self-invented
+const RAW = "A: X\r\nB : Y\t\r\n\tZ  \r\n\r\n C \r\nD \t E\r\n\r\n\r\n";
+assert(relaxHeaders(RAW)         === "a:X\r\nb:Y Z\r\n");
+assert(relaxBody(bodyOf(RAW))    === " C\r\nD E\r\n");
+assert(simpleBody(bodyOf(RAW))   === " C \r\nD \t E\r\n");
+assert(simpleHeaders(RAW)        === "A: X\r\nB : Y\t\r\n\tZ  \r\n");
+
+// the published empty-body hashes, both algorithms
+assert(sha256b64(simpleBody("")) === "frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=");
+assert(sha256b64(relaxBody(""))  === "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=");
+
+// differential SPF: same zone, two independent engines, same answer AND same count
+for (const [zone, query] of generated(5000)){
+  const a = engine.evalSpf(zone, query), b = referenceWalker(zone, query);
+  assert(a.result === b.result &amp;&amp; a.lookups === b.lookups);
+}</pre><button class="copy-btn absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded" onclick="copy(this)">Copy all</button></div>
+      </li>
+    </ol>
+    <div class="mt-10 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center"><h3 class="font-bold text-lg text-amber-900">🎉 Day 62 of SolveFromZero.</h3><p class="text-sm text-amber-700 mt-2">You built an email-authentication engine with <strong>no library</strong>. A fake resolver that models NXDOMAIN, empty answers and timeouts as three different things; an <code>RFC 7208</code> evaluator with qualifiers, dual-CIDR mechanisms, a global lookup budget, the seven-way <code>include</code> translation and a full macro language; an <code>RFC 6376</code> canonicaliser checked against the specification&#39;s own printed vectors and hashed with real SHA-256; and an <code>RFC 7489</code> layer that finally ties an authenticated identifier to the address a human actually reads. Now when a vendor says &quot;just add our include and set <code>p=reject</code>&quot;, you can count the lookups yourself.</p></div>
+  </div>
+</section>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// Email-authentication engine, from scratch. Pure: no document, no window, no fetch.
+// The DNS zone is a plain object passed in, so the whole thing is deterministic.
+//   SPF    RFC 7208     DKIM   RFC 6376     DMARC  RFC 7489
+function lc(s){ return String(s == null ? "" : s).toLowerCase(); }
+function normName(n){ return lc(n).trim().replace(/\.$/, ""); }
+
+/* ------------------------------------------------------------------ IPv4 */
+function ip4ToInt(s){
+  const parts = String(s == null ? "" : s).split(".");
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (let i = 0; i < 4; i++){
+    const p = parts[i];
+    if (!/^[0-9]{1,3}$/.test(p)) return null;
+    if (p.length > 1 && p.charAt(0) === "0") return null;   // no leading zeros (RFC 7208 ABNF)
+    const v = parseInt(p, 10);
+    if (v > 255) return null;
+    n = (n * 256) + v;
+  }
+  return n >>> 0;
+}
+function ip4InCidr(ip, net, prefix){
+  const a = ip4ToInt(ip), b = ip4ToInt(net);
+  if (a === null || b === null) return false;
+  if (typeof prefix !== "number" || prefix < 0 || prefix > 32 || (prefix | 0) !== prefix) return false;
+  if (prefix === 0) return true;                            // 0xFFFFFFFF << 32 === 0xFFFFFFFF in JS
+  const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
+  return ((a & mask) >>> 0) === ((b & mask) >>> 0);
+}
+
+/* ------------------------------------------------------------------ IPv6 */
+function hex16(h){
+  if (!/^[0-9a-fA-F]{1,4}$/.test(h)) return null;
+  return parseInt(h, 16);
+}
+function ip6ToWords(str){
+  let s = String(str == null ? "" : str).trim();
+  if (s === "" || s.length > 45) return null;
+  const pct = s.indexOf("%");
+  if (pct >= 0) s = s.slice(0, pct);
+  if (s.indexOf(".") >= 0){                                 // embedded dotted quad
+    const m = s.match(/^(.*:)([0-9.]+)$/);
+    if (!m) return null;
+    const v4 = ip4ToInt(m[2]);
+    if (v4 === null) return null;
+    s = m[1] + (((v4 >>> 16) & 0xFFFF)).toString(16) + ":" + ((v4 & 0xFFFF)).toString(16);
+  }
+  const dbl = s.indexOf("::");
+  if (dbl !== s.lastIndexOf("::")) return null;
+  let headStr, tailStr;
+  if (dbl >= 0){ headStr = s.slice(0, dbl); tailStr = s.slice(dbl + 2); }
+  else { headStr = s; tailStr = null; }
+  if (headStr.charAt(headStr.length - 1) === ":") return null;
+  if (tailStr !== null && tailStr.charAt(0) === ":") return null;
+  const head = headStr === "" ? [] : headStr.split(":");
+  const words = [];
+  for (let i = 0; i < head.length; i++){ const w = hex16(head[i]); if (w === null) return null; words.push(w); }
+  if (tailStr === null) return words.length === 8 ? words : null;
+  const tailArr = tailStr === "" ? [] : tailStr.split(":");
+  const tail = [];
+  for (let i = 0; i < tailArr.length; i++){ const w = hex16(tailArr[i]); if (w === null) return null; tail.push(w); }
+  const fill = 8 - words.length - tail.length;
+  if (fill < 1) return null;                                // "::" stands for >= 1 group
+  for (let i = 0; i < fill; i++) words.push(0);
+  return words.concat(tail);
+}
+function ip6InCidr(ip, net, prefix){
+  const a = ip6ToWords(ip), b = ip6ToWords(net);
+  if (a === null || b === null) return false;
+  if (typeof prefix !== "number" || prefix < 0 || prefix > 128 || (prefix | 0) !== prefix) return false;
+  let bits = prefix;
+  for (let i = 0; i < 8; i++){
+    if (bits <= 0) return true;
+    if (bits >= 16){ if (a[i] !== b[i]) return false; bits -= 16; continue; }
+    const m = (0xFFFF << (16 - bits)) & 0xFFFF;
+    return (a[i] & m) === (b[i] & m);
+  }
+  return true;
+}
+function ip6Nibbles(words){
+  const out = [];
+  for (let i = 0; i < 8; i++){
+    const h = ("000" + words[i].toString(16)).slice(-4);
+    for (let j = 0; j < 4; j++) out.push(h.charAt(j));
+  }
+  return out.join(".");
+}
+function looksV6(s){ return String(s == null ? "" : s).indexOf(":") >= 0; }
+
+/* ---------------------------------------------------------------- macros */
+function macroSplit(s, delims){
+  const out = []; let cur = "";
+  for (let i = 0; i < s.length; i++){
+    const c = s.charAt(i);
+    if (delims.indexOf(c) >= 0){ out.push(cur); cur = ""; } else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+function utf8Bytes(str){
+  const out = [];
+  for (let i = 0; i < str.length; i++){
+    const c = str.charCodeAt(i);
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xC0 | (c >> 6), 0x80 | (c & 63));
+    else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length){
+      const cp = 0x10000 + ((c - 0xD800) << 10) + (str.charCodeAt(i + 1) - 0xDC00); i++;
+      out.push(0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    } else out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return out;
+}
+function urlEscape(s){
+  let o = "";
+  for (let i = 0; i < s.length; i++){
+    const c = s.charAt(i);
+    if (/[A-Za-z0-9\-._~]/.test(c)){ o += c; continue; }
+    const b = utf8Bytes(c);
+    for (let j = 0; j < b.length; j++) o += "%" + ("0" + b[j].toString(16).toUpperCase()).slice(-2);
+  }
+  return o;
+}
+function macroValue(letter, ctx){
+  if (letter === "s") return ctx.sender;
+  if (letter === "l") return ctx.senderLocal;
+  if (letter === "o") return ctx.senderDomain;
+  if (letter === "d") return ctx.domain;
+  if (letter === "i") return ctx.ipIsV6 ? ip6Nibbles(ip6ToWords(ctx.ip) || [0,0,0,0,0,0,0,0]) : ctx.ip;
+  if (letter === "p") return ctx.validatedDomain || "unknown";
+  if (letter === "v") return ctx.ipIsV6 ? "ip6" : "in-addr";
+  if (letter === "h") return ctx.helo;
+  if (letter === "c") return ctx.ip;
+  if (letter === "r") return ctx.receiver || "mx.receiver.example";
+  if (letter === "t") return String(ctx.time == null ? 0 : ctx.time);
+  return null;
+}
+function expandMacro(str, ctx){
+  const s = String(str == null ? "" : str);
+  if (s.indexOf("%") < 0) return s;
+  let out = "";
+  for (let i = 0; i < s.length; i++){
+    const c = s.charAt(i);
+    if (c !== "%"){ out += c; continue; }
+    const n = s.charAt(i + 1);
+    if (n === "%"){ out += "%"; i++; continue; }
+    if (n === "_"){ out += " "; i++; continue; }
+    if (n === "-"){ out += "%20"; i++; continue; }
+    if (n !== "{") throw { spf: "permerror", why: 'bad macro: "%" must be followed by %, _, - or { in "' + s + '"' };
+    const close = s.indexOf("}", i + 2);
+    if (close < 0) throw { spf: "permerror", why: 'unterminated macro in "' + s + '"' };
+    const spec = s.slice(i + 2, close);
+    i = close;
+    const m = spec.match(/^([slodipvhcrtSLODIPVHCRT])([0-9]*)([rR]?)([.\-+,\/_=]*)$/);
+    if (!m) throw { spf: "permerror", why: 'unknown macro %{' + spec + '}' };
+    const letter = m[1];
+    const raw = macroValue(lc(letter), ctx);
+    if (raw === null) throw { spf: "permerror", why: 'unknown macro letter ' + letter };
+    let digits = 0;
+    if (m[2] !== ""){
+      digits = parseInt(m[2], 10);
+      if (digits < 1) throw { spf: "permerror", why: 'macro digit count must be >= 1 in %{' + spec + '}' };
+    }
+    const delims = m[4] === "" ? "." : m[4];
+    let parts = macroSplit(String(raw), delims);
+    if (m[3] !== "") parts = parts.reverse();
+    if (digits > 0 && parts.length > digits) parts = parts.slice(parts.length - digits);
+    const joined = parts.join(".");
+    out += (letter >= "A" && letter <= "Z") ? urlEscape(joined) : joined;
+  }
+  return out;
+}
+function truncate253(d){
+  let s = String(d);
+  while (s.length > 253){ const i = s.indexOf("."); if (i < 0) break; s = s.slice(i + 1); }
+  return s;
+}
+
+/* ------------------------------------------------------------------- DNS */
+function parseZone(text){
+  const zone = {}, errors = [];
+  const lines = String(text == null ? "" : text).split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++){
+    const t = lines[li].trim();
+    if (t === "" || t.charAt(0) === "#") continue;
+    const m = t.match(/^(\S+)[ \t]+([A-Za-z]+)[ \t]*(.*)$/);
+    if (!m){ errors.push("line " + (li + 1) + ": cannot parse"); continue; }
+    const name = normName(m[1]), type = m[2].toUpperCase(), rest = m[3].trim();
+    const node = zone[name] || (zone[name] = {});
+    if (type === "TIMEOUT"){ node.TIMEOUT = true; continue; }
+    if (type === "TXT"){
+      let v = "";
+      const qs = rest.match(/"(?:[^"\\]|\\.)*"/g);
+      if (qs){ for (let k = 0; k < qs.length; k++) v += qs[k].slice(1, -1).replace(/\\(.)/g, "$1"); }
+      else v = rest;
+      (node.TXT || (node.TXT = [])).push(v);
+      continue;
+    }
+    if (type === "MX"){
+      const mm = rest.match(/^([0-9]+)[ \t]+(\S+)$/);
+      if (!mm){ errors.push("line " + (li + 1) + ': MX needs "preference host"'); continue; }
+      (node.MX || (node.MX = [])).push({ pref: parseInt(mm[1], 10), host: normName(mm[2]) });
+      continue;
+    }
+    if (type === "A" || type === "AAAA"){ (node[type] || (node[type] = [])).push(rest); continue; }
+    if (type === "PTR" || type === "CNAME"){ (node[type] || (node[type] = [])).push(normName(rest)); continue; }
+    errors.push("line " + (li + 1) + ": unsupported record type " + type);
+  }
+  return { zone: zone, errors: errors };
+}
+function dnsQuery(zone, name, type){
+  const n = normName(name);
+  const node = (zone && Object.prototype.hasOwnProperty.call(zone, n)) ? zone[n] : null;
+  if (node === null) return { rcode: "NXDOMAIN", records: [], isVoid: true,  name: n, type: type };
+  if (node.TIMEOUT)  return { rcode: "TIMEOUT",  records: [], isVoid: false, name: n, type: type };
+  const recs = node[type] ? node[type].slice() : [];
+  return { rcode: "NOERROR", records: recs, isVoid: recs.length === 0, name: n, type: type };
+}
+
+/* ------------------------------------------------------------- SPF parse */
+const QUAL = { "+": "pass", "-": "fail", "~": "softfail", "?": "neutral" };
+const INCLUDE_MAP = { pass: "match", fail: "no-match", softfail: "no-match", neutral: "no-match",
+                      temperror: "temperror", permerror: "permerror", none: "permerror" };
+const LOOKUP_TERMS = { a: 1, mx: 1, ptr: 1, exists: 1, include: 1 };
+function parseDualCidr(rest){
+  if (rest === "" || rest == null) return { p4: null, p6: null };
+  const m = String(rest).match(/^(?:\/([0-9]+))?(?:\/\/([0-9]+))?$/);
+  if (!m || (m[1] === undefined && m[2] === undefined)) return null;
+  let p4 = null, p6 = null;
+  if (m[1] !== undefined){ if (!/^(0|[1-9][0-9]?)$/.test(m[1]) || parseInt(m[1], 10) > 32) return null; p4 = parseInt(m[1], 10); }
+  if (m[2] !== undefined){ if (!/^(0|[1-9][0-9]{0,2})$/.test(m[2]) || parseInt(m[2], 10) > 128) return null; p6 = parseInt(m[2], 10); }
+  return { p4: p4, p6: p6 };
+}
+function validDomain(d){
+  const s = String(d == null ? "" : d);
+  if (s === "" || s.length > 253 || s.indexOf("..") >= 0) return false;
+  const L = s.split(".");
+  if (L.length < 2) return false;
+  for (let i = 0; i < L.length; i++){
+    if (L[i].length < 1 || L[i].length > 63) return false;
+    if (!/^[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?$/.test(L[i])) return false;
+  }
+  return true;
+}
+function parseSpf(txt){
+  const rec = { terms: [], redirect: null, exp: null, hasAll: false, error: null, raw: String(txt == null ? "" : txt) };
+  const toks = rec.raw.trim().split(/[ \t]+/).filter(function(x){ return x !== ""; });
+  if (toks.length === 0 || lc(toks[0]) !== "v=spf1"){ rec.error = 'record does not start with "v=spf1"'; return rec; }
+  for (let i = 1; i < toks.length; i++){
+    const raw = toks[i];
+    const mod = raw.match(/^([A-Za-z][A-Za-z0-9._-]*)=(.*)$/);
+    if (mod){
+      const nm = lc(mod[1]);
+      if (nm === "redirect"){
+        if (rec.redirect !== null){ rec.error = 'duplicate "redirect=" modifier'; return rec; }
+        rec.redirect = mod[2];
+      } else if (nm === "exp"){
+        if (rec.exp !== null){ rec.error = 'duplicate "exp=" modifier'; return rec; }
+        rec.exp = mod[2];
+      }
+      rec.terms.push({ kind: "mod", name: nm, value: mod[2], raw: raw, unknown: (nm !== "redirect" && nm !== "exp") });
+      continue;
+    }
+    let s = raw, qual = "+";
+    const q0 = s.charAt(0);
+    if (q0 === "+" || q0 === "-" || q0 === "~" || q0 === "?"){ qual = q0; s = s.slice(1); }
+    const nmm = s.match(/^[A-Za-z][A-Za-z0-9]*/);      // "ip4"/"ip6" carry a digit
+    if (!nmm){ rec.error = "unrecognised term: " + raw; return rec; }
+    const name = lc(nmm[0]);
+    let rest = s.slice(nmm[0].length);
+    const t = { kind: "mech", qual: qual, name: name, raw: raw, domain: null, addr: null, p4: null, p6: null };
+    if (name === "all"){
+      if (rest !== ""){ rec.error = 'the "all" mechanism takes no argument: ' + raw; return rec; }
+      rec.hasAll = true;
+    } else if (name === "ip4" || name === "ip6"){
+      if (rest.charAt(0) !== ":"){ rec.error = name + " requires an address: " + raw; return rec; }
+      let v = rest.slice(1), pfx = null;
+      const sl = v.indexOf("/");
+      if (sl >= 0){ pfx = v.slice(sl + 1); v = v.slice(0, sl); }
+      if (name === "ip4"){
+        if (ip4ToInt(v) === null){ rec.error = "bad IPv4 address in " + raw; return rec; }
+        let p = 32;
+        if (pfx !== null){ if (!/^(0|[1-9][0-9]?)$/.test(pfx) || parseInt(pfx, 10) > 32){ rec.error = "bad ip4 CIDR length in " + raw; return rec; } p = parseInt(pfx, 10); }
+        t.addr = v; t.p4 = p;
+      } else {
+        if (ip6ToWords(v) === null){ rec.error = "bad IPv6 address in " + raw; return rec; }
+        let p = 128;
+        if (pfx !== null){ if (!/^(0|[1-9][0-9]{0,2})$/.test(pfx) || parseInt(pfx, 10) > 128){ rec.error = "bad ip6 CIDR length in " + raw; return rec; } p = parseInt(pfx, 10); }
+        t.addr = v; t.p6 = p;
+      }
+    } else if (name === "a" || name === "mx"){
+      let dom = null;
+      if (rest.charAt(0) === ":"){
+        rest = rest.slice(1);
+        const sl = rest.indexOf("/");
+        dom = sl >= 0 ? rest.slice(0, sl) : rest;
+        rest = sl >= 0 ? rest.slice(sl) : "";
+        if (dom === ""){ rec.error = name + ": needs a domain in " + raw; return rec; }
+      }
+      const dc = parseDualCidr(rest);
+      if (!dc){ rec.error = "bad CIDR length in " + raw; return rec; }
+      t.domain = dom; t.p4 = dc.p4; t.p6 = dc.p6;
+    } else if (name === "ptr"){
+      if (rest === "") t.domain = null;
+      else if (rest.charAt(0) === ":" && rest.length > 1) t.domain = rest.slice(1);
+      else { rec.error = "bad ptr mechanism: " + raw; return rec; }
+    } else if (name === "exists" || name === "include"){
+      if (rest.charAt(0) !== ":" || rest.length < 2){ rec.error = name + " requires a domain: " + raw; return rec; }
+      t.domain = rest.slice(1);
+    } else {
+      rec.error = "unknown mechanism: " + raw; return rec;
+    }
+    rec.terms.push(t);
+  }
+  return rec;
+}
+
+/* -------------------------------------------------------------- SPF eval */
+function spfContext(ctx){
+  const ip = String(ctx.ip == null ? "" : ctx.ip).trim();
+  const helo = normName(ctx.helo || "");
+  let sender = String(ctx.sender == null ? "" : ctx.sender).trim();
+  if (sender === "") sender = "postmaster@" + helo;
+  const at = sender.lastIndexOf("@");
+  let local = at >= 0 ? sender.slice(0, at) : "postmaster";
+  if (local === "") local = "postmaster";
+  const sdom = normName(at >= 0 ? sender.slice(at + 1) : sender);
+  return { ip: ip, ipIsV6: looksV6(ip), sender: local + "@" + sdom, senderLocal: local,
+           senderDomain: sdom, helo: helo, domain: normName(ctx.domain || sdom),
+           validatedDomain: null, time: ctx.time == null ? 0 : ctx.time, receiver: ctx.receiver || null };
+}
+function traceAdd(st, depth, term, detail, match, note){
+  st.trace.push({ n: ++st.seq, depth: depth, term: term, detail: detail || "", match: match, lookups: st.lookups, note: note || "" });
+}
+function spend(st, what){
+  st.lookups += 1;
+  if (st.lookups > 10) throw { spf: "permerror", why: "over the 10 DNS-lookup-term limit (" + what + " would be number " + st.lookups + ") — RFC 7208 4.6.4" };
+}
+function spfDns(st, name, type, countVoid){
+  const q = dnsQuery(st.zone, name, type);
+  if (q.rcode === "TIMEOUT") throw { spf: "temperror", why: "DNS timeout resolving " + normName(name) };
+  if (countVoid && q.isVoid){
+    st.voids += 1;
+    if (st.voids > 2) throw { spf: "permerror", why: "more than 2 void DNS lookups — RFC 7208 4.6.4" };
+  }
+  return q;
+}
+function ipInside(ctx, addr, prefix){
+  return ctx.ipIsV6 ? ip6InCidr(ctx.ip, addr, prefix) : ip4InCidr(ctx.ip, addr, prefix);
+}
+function sameIp(ctx, addr){ return ipInside(ctx, addr, ctx.ipIsV6 ? 128 : 32); }
+function reverseName(ctx){
+  if (ctx.ipIsV6){
+    const w = ip6ToWords(ctx.ip);
+    if (w === null) return "invalid.ip6.arpa";
+    return ip6Nibbles(w).split(".").reverse().join(".") + ".ip6.arpa";
+  }
+  return String(ctx.ip).split(".").reverse().join(".") + ".in-addr.arpa";
+}
+function within(name, target){
+  const a = normName(name), b = normName(target);
+  return a === b || (a.length > b.length && a.slice(a.length - b.length - 1) === "." + b);
+}
+function matchMech(st, ctx, t, depth){
+  const name = t.name;
+  if (name === "all") return { match: true, detail: "matches every client, unconditionally" };
+  if (name === "ip4"){
+    if (ctx.ipIsV6) return { match: false, detail: t.addr + "/" + t.p4, note: "client is IPv6, ip4 can never match" };
+    return { match: ip4InCidr(ctx.ip, t.addr, t.p4), detail: t.addr + "/" + t.p4 + "  (no DNS)" };
+  }
+  if (name === "ip6"){
+    if (!ctx.ipIsV6) return { match: false, detail: t.addr + "/" + t.p6, note: "client is IPv4, ip6 can never match" };
+    return { match: ip6InCidr(ctx.ip, t.addr, t.p6), detail: t.addr + "/" + t.p6 + "  (no DNS)" };
+  }
+  const type = ctx.ipIsV6 ? "AAAA" : "A";
+  const cidr = ctx.ipIsV6 ? (t.p6 == null ? 128 : t.p6) : (t.p4 == null ? 32 : t.p4);
+  if (name === "a"){
+    spend(st, "a");
+    const target = truncate253(t.domain ? expandMacro(t.domain, ctx) : ctx.domain);
+    const q = spfDns(st, target, type, true);
+    let hit = false;
+    for (let i = 0; i < q.records.length; i++) if (ipInside(ctx, q.records[i], cidr)){ hit = true; break; }
+    return { match: hit, detail: target + " " + type + " = " + (q.records.join(", ") || "(none)") + "  /" + cidr };
+  }
+  if (name === "mx"){
+    spend(st, "mx");
+    const target = truncate253(t.domain ? expandMacro(t.domain, ctx) : ctx.domain);
+    const q = spfDns(st, target, "MX", true);
+    const mxs = q.records.slice().sort(function(a, b){ return a.pref - b.pref; });
+    if (mxs.length > 10) throw { spf: "permerror", why: "mx: more than 10 MX records at " + target + " — RFC 7208 4.6.4" };
+    let hit = false; const seen = [];
+    for (let i = 0; i < mxs.length && !hit; i++){
+      const a = spfDns(st, mxs[i].host, type, false);       // address lookups are free of the 10-term budget
+      for (let j = 0; j < a.records.length; j++){
+        seen.push(mxs[i].host + "=" + a.records[j]);
+        if (ipInside(ctx, a.records[j], cidr)){ hit = true; break; }
+      }
+    }
+    return { match: hit, detail: target + " MX = " + (mxs.map(function(x){ return x.pref + " " + x.host; }).join(", ") || "(none)") + (seen.length ? "  [" + seen.join(", ") + "]" : "") + "  /" + cidr };
+  }
+  if (name === "ptr"){
+    spend(st, "ptr");
+    const target = truncate253(t.domain ? expandMacro(t.domain, ctx) : ctx.domain);
+    const rev = reverseName(ctx);
+    const q = spfDns(st, rev, "PTR", true);
+    const names = q.records.slice(0, 10);                   // at most 10 PTR names, RFC 7208 4.6.4
+    let hit = false; const validated = [];
+    for (let i = 0; i < names.length; i++){
+      const a = dnsQuery(st.zone, names[i], type);
+      let ok = false;
+      for (let j = 0; j < a.records.length; j++) if (sameIp(ctx, a.records[j])){ ok = true; break; }
+      if (!ok) continue;
+      validated.push(names[i]);
+      if (within(names[i], target)){ hit = true; ctx.validatedDomain = names[i]; break; }
+    }
+    return { match: hit, detail: rev + " PTR = " + (names.join(", ") || "(none)") + (validated.length ? "  validated: " + validated.join(", ") : "  validated: none"),
+             note: "ptr is deprecated — RFC 7208 5.5 says do not publish it" };
+  }
+  if (name === "exists"){
+    spend(st, "exists");
+    const target = truncate253(expandMacro(t.domain, ctx));
+    const q = spfDns(st, target, "A", true);
+    return { match: q.records.length > 0, detail: target + " A = " + (q.records.join(", ") || "(none)"),
+             note: t.domain.indexOf("%") >= 0 ? "macro expanded to " + target : "" };
+  }
+  if (name === "include"){
+    spend(st, "include");
+    const target = truncate253(expandMacro(t.domain, ctx));
+    traceAdd(st, depth, t.raw, "→ check_host(" + target + ")", "...", "");
+    const sub = spfContext({ ip: ctx.ip, helo: ctx.helo, sender: ctx.sender, domain: target, time: ctx.time });
+    const inner = checkHost(st, sub, depth + 1);
+    const map = INCLUDE_MAP[inner.result];
+    if (map === "permerror") throw { spf: "permerror", why: "include:" + target + " returned " + inner.result + " — RFC 7208 5.2 maps that to permerror" };
+    if (map === "temperror") throw { spf: "temperror", why: "include:" + target + " returned temperror" };
+    return { match: map === "match", detail: target + " returned " + inner.result,
+             note: map === "match" ? "" : "an inner " + inner.result + " means NO MATCH, not fail — keep walking" };
+  }
+  throw { spf: "permerror", why: "unknown mechanism " + t.raw };
+}
+function checkHost(st, ctx, depth){
+  if (depth > 12) throw { spf: "permerror", why: "include/redirect nested more than 12 deep" };
+  if (!validDomain(ctx.domain)) return { result: "none", why: 'malformed domain "' + ctx.domain + '"' };
+  const q = spfDns(st, ctx.domain, "TXT", false);
+  const recs = [];
+  for (let i = 0; i < q.records.length; i++){
+    const r = String(q.records[i]).trim();
+    if (/^v=spf1(\s|$)/i.test(r)) recs.push(r);
+  }
+  if (recs.length === 0) return { result: "none", why: "no v=spf1 TXT record at " + ctx.domain };
+  if (recs.length > 1) return { result: "permerror", why: recs.length + " v=spf1 records at " + ctx.domain + " — RFC 7208 4.5 requires exactly one" };
+  const rec = parseSpf(recs[0]);
+  traceAdd(st, depth, "TXT " + ctx.domain, recs[0], "-", "");
+  if (rec.error) return { result: "permerror", why: rec.error };
+  for (let i = 0; i < rec.terms.length; i++){
+    const t = rec.terms[i];
+    if (t.kind === "mod"){
+      const d = t.name === "redirect" ? "modifier — used only if no mechanism matches"
+              : t.name === "exp" ? "modifier — fetched after the verdict, and only on fail (no lookup cost)"
+              : "unknown modifier — ignored, not an error";
+      traceAdd(st, depth, t.raw, d, "-", "");
+      continue;
+    }
+    const m = matchMech(st, ctx, t, depth);
+    traceAdd(st, depth, t.raw, m.detail, m.match ? "yes" : "no", m.note || "");
+    if (m.match){
+      if (QUAL[t.qual] === "fail" && rec.exp) st.expFrom = { exp: rec.exp, ctx: ctx };
+      return { result: QUAL[t.qual], why: "term " + t.raw + " matched", term: t, domain: ctx.domain };
+    }
+  }
+  if (rec.redirect !== null){
+    if (rec.hasAll){
+      traceAdd(st, depth, "redirect=" + rec.redirect, 'ignored: this record also has an "all" mechanism — RFC 7208 6.1', "-", "");
+    } else {
+      spend(st, "redirect");
+      const target = truncate253(expandMacro(rec.redirect, ctx));
+      traceAdd(st, depth, "redirect=" + rec.redirect, "→ check_host(" + target + ")", "...", "");
+      const sub = spfContext({ ip: ctx.ip, helo: ctx.helo, sender: ctx.sender, domain: target, time: ctx.time });
+      const inner = checkHost(st, sub, depth + 1);
+      if (inner.result === "none") return { result: "permerror", why: "redirect=" + target + " has no SPF record — RFC 7208 6.1" };
+      return { result: inner.result, why: "redirected to " + target, term: inner.term, domain: target };
+    }
+  }
+  return { result: "neutral", why: "no mechanism matched and there is no redirect — the default is neutral", domain: ctx.domain };
+}
+function evalSpf(zone, ctxIn){
+  const ctx = spfContext(ctxIn || {});
+  const st = { zone: zone || {}, lookups: 0, voids: 0, trace: [], seq: 0, expFrom: null };
+  let out;
+  try { out = checkHost(st, ctx, 0); }
+  catch (e){
+    if (e && e.spf) out = { result: e.spf, why: e.why };
+    else throw e;
+  }
+  let explanation = null;
+  if (out.result === "fail" && st.expFrom){
+    try {
+      const target = truncate253(expandMacro(st.expFrom.exp, st.expFrom.ctx));
+      const q = dnsQuery(st.zone, target, "TXT");           // exp costs NO lookup budget
+      if (q.records.length === 1) explanation = expandMacro(String(q.records[0]), st.expFrom.ctx);
+    } catch (e2){ explanation = null; }
+  }
+  return { result: out.result, why: out.why || "", term: out.term || null, domain: out.domain || ctx.domain,
+           trace: st.trace, lookups: st.lookups, voids: st.voids, explanation: explanation, ctx: ctx };
+}
+
+/* ------------------------------------------------------------------ DKIM */
+function toCRLF(s){ return String(s == null ? "" : s).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "\r\n"); }
+function splitMessage(raw){
+  const t = toCRLF(raw);
+  const idx = t.indexOf("\r\n\r\n");
+  const headBlock = idx < 0 ? t : t.slice(0, idx);
+  const body = idx < 0 ? "" : t.slice(idx + 4);
+  const headers = [];
+  const lines = headBlock === "" ? [] : headBlock.split("\r\n");
+  let cur = null;
+  for (let i = 0; i < lines.length; i++){
+    const line = lines[i];
+    if (/^[ \t]/.test(line) && cur !== null){ cur.raw += "\r\n" + line; continue; }
+    const ci = line.indexOf(":");
+    if (ci <= 0){ if (cur !== null) cur.raw += "\r\n" + line; continue; }
+    cur = { name: lc(line.slice(0, ci).trim()), raw: line };
+    headers.push(cur);
+  }
+  return { headers: headers, body: body, headerBlock: headBlock, hasBlankLine: idx >= 0 };
+}
+function canonHeaderOne(raw, mode){
+  if (mode !== "relaxed") return raw + "\r\n";
+  const ci = raw.indexOf(":");
+  if (ci < 0) return lc(raw.trim()) + ":\r\n";
+  const name = lc(raw.slice(0, ci).trim());
+  const v = raw.slice(ci + 1)
+               .replace(/\r\n/g, "")
+               .replace(/[ \t]+/g, " ")
+               .replace(/^[ \t]+/, "")
+               .replace(/[ \t]+$/, "");
+  return name + ":" + v + "\r\n";
+}
+function stripBTag(raw){
+  const ci = raw.indexOf(":");
+  if (ci < 0) return raw;
+  const parts = raw.slice(ci + 1).split(";");
+  for (let i = 0; i < parts.length; i++){
+    const m = parts[i].match(/^([ \t\r\n]*)b([ \t\r\n]*=)/);
+    if (m) parts[i] = m[1] + "b" + m[2];
+  }
+  return raw.slice(0, ci + 1) + parts.join(";");
+}
+function headerPlan(headers, hList){
+  const used = {}, plan = [];
+  const names = String(hList == null ? "" : hList).split(":");
+  for (let k = 0; k < names.length; k++){
+    const w = lc(names[k].trim());
+    if (w === "") continue;
+    const skip = used[w] || 0;
+    let idx = -1, seen = 0;
+    for (let i = headers.length - 1; i >= 0; i--){
+      if (headers[i].name === w){ if (seen === skip) { idx = i; break; } seen++; }
+    }
+    used[w] = skip + 1;
+    plan.push(idx < 0 ? { name: w, missing: true, index: -1 } : { name: w, missing: false, index: idx, raw: headers[idx].raw });
+  }
+  return plan;
+}
+function canonHeaders(headers, hList, mode, sigRaw){
+  const plan = headerPlan(headers, hList);
+  let out = "";
+  for (let i = 0; i < plan.length; i++){
+    if (plan[i].missing) continue;                        // a missing field contributes nothing
+    out += canonHeaderOne(plan[i].raw, mode);
+  }
+  if (sigRaw !== null && sigRaw !== undefined){
+    out += canonHeaderOne(stripBTag(sigRaw), mode).replace(/\r\n$/, "");   // no trailing CRLF
+  }
+  return out;
+}
+function canonBody(body, mode, l){
+  let b = toCRLF(body);
+  if (mode === "relaxed"){
+    const lines = b.split("\r\n");
+    for (let i = 0; i < lines.length; i++) lines[i] = lines[i].replace(/[ \t]+/g, " ").replace(/[ \t]+$/, "");
+    b = lines.join("\r\n").replace(/(?:\r\n)+$/, "");
+    b = (b === "") ? "" : b + "\r\n";
+  } else {
+    b = b.replace(/(?:\r\n)+$/, "");
+    b = (b === "") ? "\r\n" : b + "\r\n";
+  }
+  if (l !== null && l !== undefined && !isNaN(l) && l >= 0 && l < b.length) b = b.slice(0, l);
+  return b;
+}
+function parseTagList(v){
+  const out = {}, order = [];
+  const parts = String(v == null ? "" : v).split(";");
+  for (let i = 0; i < parts.length; i++){
+    const s = parts[i].replace(/\r\n/g, "");
+    if (s.trim() === "") continue;
+    const eq = s.indexOf("=");
+    if (eq < 0){ out.__bad = (out.__bad || 0) + 1; continue; }
+    const k = s.slice(0, eq).trim();
+    if (k === "") continue;
+    if (!Object.prototype.hasOwnProperty.call(out, k)) out[k] = s.slice(eq + 1).trim();
+    order.push(k);
+  }
+  out.__order = order;
+  return out;
+}
+function parseDkimSig(raw){
+  const ci = String(raw).indexOf(":");
+  const tags = parseTagList(ci < 0 ? "" : String(raw).slice(ci + 1));
+  const sig = { raw: String(raw), tags: tags, errors: [] };
+  sig.v = tags.v === undefined ? null : tags.v.trim();
+  sig.a = lc(tags.a === undefined ? "" : tags.a);
+  sig.d = normName(tags.d === undefined ? "" : tags.d);
+  sig.s = lc(tags.s === undefined ? "" : tags.s).replace(/\s+/g, "");
+  sig.h = (tags.h === undefined ? "" : tags.h).replace(/\s+/g, "");
+  sig.bh = (tags.bh === undefined ? "" : tags.bh).replace(/\s+/g, "");
+  sig.b = (tags.b === undefined ? "" : tags.b).replace(/\s+/g, "");
+  sig.i = tags.i === undefined ? null : tags.i.replace(/\s+/g, "");
+  sig.l = tags.l === undefined ? null : (/^[0-9]+$/.test(tags.l) ? parseInt(tags.l, 10) : NaN);
+  sig.t = tags.t === undefined ? null : (/^[0-9]+$/.test(tags.t) ? parseInt(tags.t, 10) : NaN);
+  sig.x = tags.x === undefined ? null : (/^[0-9]+$/.test(tags.x) ? parseInt(tags.x, 10) : NaN);
+  const c = lc(tags.c === undefined ? "simple/simple" : tags.c).replace(/\s+/g, "").split("/");
+  sig.ch = (c[0] === "" || c[0] === undefined) ? "simple" : c[0];
+  sig.cb = (c.length > 1 && c[1] !== "") ? c[1] : "simple";
+  sig.hash = /sha1$/.test(sig.a) ? "sha1" : "sha256";
+  if (sig.v !== "1") sig.errors.push('v= must be "1"');
+  if (["rsa-sha256", "rsa-sha1", "ed25519-sha256"].indexOf(sig.a) < 0) sig.errors.push("unsupported a=" + (sig.a || "(missing)"));
+  if (sig.d === "") sig.errors.push("d= is required");
+  if (sig.s === "") sig.errors.push("s= is required");
+  if (sig.h === "") sig.errors.push("h= is required");
+  if (sig.bh === "") sig.errors.push("bh= is required");
+  if (sig.b === "") sig.errors.push("b= is required");
+  if (["simple", "relaxed"].indexOf(sig.ch) < 0) sig.errors.push("unknown header canonicalisation " + sig.ch);
+  if (["simple", "relaxed"].indexOf(sig.cb) < 0) sig.errors.push("unknown body canonicalisation " + sig.cb);
+  if (sig.h !== "" && sig.h.split(":").map(lc).indexOf("from") < 0) sig.errors.push('h= must include "from" — RFC 6376 5.4');
+  if (sig.l !== null && isNaN(sig.l)) sig.errors.push("l= must be a number");
+  if (sig.x !== null && isNaN(sig.x)) sig.errors.push("x= must be a number");
+  if (sig.i !== null && sig.d !== ""){
+    const at = sig.i.lastIndexOf("@");
+    const idom = normName(at >= 0 ? sig.i.slice(at + 1) : sig.i);
+    if (!within(idom, sig.d)) sig.errors.push("i= domain " + idom + " is not d= or a subdomain of it");
+  }
+  return sig;
+}
+function parseDkimKey(txt){
+  const tags = parseTagList(txt);
+  const key = { v: tags.v === undefined ? "DKIM1" : tags.v.trim(), k: lc(tags.k === undefined ? "rsa" : tags.k),
+                p: (tags.p === undefined ? null : tags.p.replace(/\s+/g, "")), t: lc(tags.t === undefined ? "" : tags.t),
+                h: lc(tags.h === undefined ? "" : tags.h), s: lc(tags.s === undefined ? "" : tags.s), raw: String(txt) };
+  key.revoked = (key.p !== null && key.p === "");
+  key.testing = key.t.split(":").indexOf("y") >= 0;
+  return key;
+}
+function dkimPrepare(zone, parsed, sigRaw){
+  const sig = parseDkimSig(sigRaw);
+  const out = { sig: sig, plan: [], headerCanon: "", bodyCanon: "", bodyCanonOther: "",
+                key: null, keyName: "", keyState: "missing", errors: sig.errors.slice(), truncated: false };
+  out.plan = headerPlan(parsed.headers, sig.h);
+  const hm = (["simple", "relaxed"].indexOf(sig.ch) >= 0) ? sig.ch : "simple";
+  const bm = (["simple", "relaxed"].indexOf(sig.cb) >= 0) ? sig.cb : "simple";
+  out.headerCanon = canonHeaders(parsed.headers, sig.h, hm, sigRaw);
+  const full = canonBody(parsed.body, bm, null);
+  out.bodyCanon = canonBody(parsed.body, bm, sig.l);
+  out.bodyCanonOther = canonBody(parsed.body, bm === "relaxed" ? "simple" : "relaxed", sig.l);
+  out.otherMode = bm === "relaxed" ? "simple" : "relaxed";
+  out.truncated = (sig.l !== null && !isNaN(sig.l) && sig.l < full.length);
+  out.keyName = (sig.s || "(no selector)") + "._domainkey." + (sig.d || "(no domain)");
+  if (sig.s !== "" && sig.d !== ""){
+    const q = dnsQuery(zone, out.keyName, "TXT");
+    const hits = [];
+    for (let i = 0; i < q.records.length; i++){
+      const r = String(q.records[i]).trim();
+      if (/^v\s*=\s*DKIM1/i.test(r) || r.indexOf("p=") >= 0) hits.push(r);
+    }
+    if (q.rcode === "TIMEOUT") out.keyState = "temperror";
+    else if (hits.length === 0) out.keyState = "missing";
+    else { out.key = parseDkimKey(hits[0]); out.keyState = out.key.revoked ? "revoked" : "ok"; }
+  }
+  return out;
+}
+function dkimVerdict(prep, computedBh, now){
+  if (prep.errors.length) return { result: "permerror", why: prep.errors[0] };
+  if (prep.keyState === "temperror") return { result: "temperror", why: "DNS timeout fetching " + prep.keyName };
+  if (prep.keyState === "missing")   return { result: "permerror", why: "no key record at " + prep.keyName };
+  if (prep.keyState === "revoked")   return { result: "permerror", why: "the key record has an empty p= — the key is revoked" };
+  if (prep.sig.x !== null && !isNaN(prep.sig.x) && now != null && now > prep.sig.x)
+    return { result: "fail", why: "the signature expired (x=" + prep.sig.x + ")" };
+  if (computedBh !== prep.sig.bh) return { result: "fail", why: "body hash mismatch — the body changed after signing" };
+  return { result: "pass", why: "body hash and canonicalisation verified (b= not checked here)" };
+}
+
+/* ----------------------------------------------------------------- DMARC */
+const PUBLIC_SUFFIXES = ["com","net","org","edu","gov","mil","int","info","biz","name","pro","io","dev","app","xyz","online","site","email","cloud","ai","co","me","tv","example","uk","de","fr","nl","it","es","se","no","dk","fi","pl","ru","in","au","nz","jp","cn","kr","sg","hk","br","mx","ar","za","ca","us","ie","ch","at","be","pt","gr","cz","tr","il","ae","ua","id","my","ph","th","vn","pk","bd","ng","ke","eg","sa","tw","co.uk","org.uk","ac.uk","gov.uk","me.uk","net.uk","ltd.uk","plc.uk","co.in","net.in","org.in","gen.in","firm.in","ind.in","ac.in","edu.in","gov.in","com.au","net.au","org.au","edu.au","gov.au","id.au","co.jp","ne.jp","or.jp","ac.jp","go.jp","com.br","net.br","org.br","gov.br","co.nz","net.nz","org.nz","govt.nz","co.za","org.za","net.za","com.mx","org.mx","com.sg","edu.sg","co.il","org.il","com.tr","com.cn","net.cn","org.cn","gov.cn","co.kr","or.kr","com.hk","org.hk","com.ar","com.ua","co.id","com.my","com.ph","co.th","com.vn","com.pk","com.bd","com.ng","co.ke","com.eg","com.sa","com.tw","com.es","com.pt","com.pl","com.ru","co.ma"];
+function orgDomain(d, psl){
+  const s = normName(d);
+  if (s === "") return "";
+  const list = psl || PUBLIC_SUFFIXES;
+  const has = (typeof list.indexOf === "function") ? function(x){ return list.indexOf(x) >= 0; } : function(x){ return list.has(x); };
+  const L = s.split(".");
+  let n = 0;
+  for (let i = 0; i < L.length; i++){ if (has(L.slice(i).join("."))){ n = L.length - i; break; } }
+  if (n === 0) n = 1;                                   // unknown TLD: treat the last label as the suffix
+  const take = Math.min(L.length, n + 1);
+  return L.slice(L.length - take).join(".");
+}
+function aligned(child, from, mode, psl){
+  const c = normName(child), f = normName(from);
+  if (c === "" || f === "") return false;
+  if (mode === "s") return c === f;
+  return orgDomain(c, psl) === orgDomain(f, psl);
+}
+function parseDmarc(txt){
+  const rec = { v: null, p: null, sp: null, adkim: "r", aspf: "r", pct: 100, rua: null, ruf: null,
+                fo: "0", rf: "afrf", ri: 86400, error: null, raw: String(txt == null ? "" : txt) };
+  const parts = rec.raw.split(";");
+  let first = true;
+  for (let i = 0; i < parts.length; i++){
+    const s = parts[i].trim();
+    if (s === "") continue;
+    const eq = s.indexOf("=");
+    if (eq < 0){ rec.error = "malformed tag: " + s; return rec; }
+    const k = lc(s.slice(0, eq).trim()), v = s.slice(eq + 1).trim();
+    if (first && k !== "v"){ rec.error = 'the first tag must be "v"'; return rec; }
+    first = false;
+    if (k === "v"){ if (rec.v === null) rec.v = v; }
+    else if (k === "p"){ if (rec.p === null) rec.p = lc(v); }
+    else if (k === "sp"){ if (rec.sp === null) rec.sp = lc(v); }
+    else if (k === "adkim") rec.adkim = lc(v);
+    else if (k === "aspf") rec.aspf = lc(v);
+    else if (k === "pct") rec.pct = /^[0-9]+$/.test(v) ? Math.min(100, parseInt(v, 10)) : NaN;
+    else if (k === "rua") rec.rua = v;
+    else if (k === "ruf") rec.ruf = v;
+    else if (k === "fo") rec.fo = v;
+    else if (k === "rf") rec.rf = lc(v);
+    else if (k === "ri") rec.ri = /^[0-9]+$/.test(v) ? parseInt(v, 10) : NaN;
+  }
+  if (lc(rec.v || "") !== "dmarc1"){ rec.error = 'record does not start with "v=DMARC1"'; return rec; }
+  if (rec.p === null){ rec.error = 'the required "p=" tag is missing'; return rec; }
+  if (["none", "quarantine", "reject"].indexOf(rec.p) < 0){ rec.error = "invalid p=" + rec.p; return rec; }
+  if (rec.sp !== null && ["none", "quarantine", "reject"].indexOf(rec.sp) < 0){ rec.error = "invalid sp=" + rec.sp; return rec; }
+  if (["r", "s"].indexOf(rec.adkim) < 0) rec.adkim = "r";
+  if (["r", "s"].indexOf(rec.aspf) < 0) rec.aspf = "r";
+  if (isNaN(rec.pct)) rec.pct = 100;
+  if (isNaN(rec.ri)) rec.ri = 86400;
+  return rec;
+}
+function lookupDmarc(zone, fromDomain, psl){
+  const fd = normName(fromDomain);
+  const org = orgDomain(fd, psl);
+  const out = { found: false, record: null, at: null, org: org, queried: [], txt: null, error: null };
+  const tryAt = function(name, tag){
+    out.queried.push("_dmarc." + name);
+    const q = dnsQuery(zone, "_dmarc." + name, "TXT");
+    const hits = [];
+    for (let i = 0; i < q.records.length; i++){
+      const r = String(q.records[i]).trim();
+      if (/^v\s*=\s*DMARC1(\s*;|\s*$)/i.test(r)) hits.push(r);
+    }
+    if (hits.length !== 1) return false;                  // 0 or >1: RFC 7489 6.6.3 says do not apply
+    out.txt = hits[0]; out.at = tag;
+    const rec = parseDmarc(hits[0]);
+    if (rec.error){ out.error = rec.error; return true; }
+    out.record = rec; out.found = true;
+    return true;
+  };
+  if (tryAt(fd, "domain")) return out;
+  if (org !== fd && tryAt(org, "org")) return out;
+  return out;
+}
+function downgrade(p){ return p === "reject" ? "quarantine" : "none"; }
+function dmarcEvaluate(a){
+  const out = { evaluated: false, result: "none", pass: false, spfAligned: false, spfPass: false,
+                dkimAligned: false, dkimPass: false, policy: null, disposition: "none", residual: "none",
+                pct: 100, spUsed: false, isSubdomain: false, why: "" };
+  if (!a || !a.record || a.record.error){ out.why = (a && a.record && a.record.error) ? a.record.error : "no usable DMARC record"; return out; }
+  const psl = a.psl || PUBLIC_SUFFIXES;
+  const aspf = a.record.aspf === "s" ? "s" : "r";
+  const adkim = a.record.adkim === "s" ? "s" : "r";
+  out.evaluated = true;
+  out.spfAligned = (a.spf && a.spf.domain) ? aligned(a.spf.domain, a.fromDomain, aspf, psl) : false;
+  out.spfPass = !!(a.spf && a.spf.result === "pass" && out.spfAligned);
+  const sigs = a.dkim || [];
+  for (let i = 0; i < sigs.length; i++){
+    const al = aligned(sigs[i].d, a.fromDomain, adkim, psl);
+    if (al) out.dkimAligned = true;
+    if (al && sigs[i].result === "pass") out.dkimPass = true;
+  }
+  out.pass = out.spfPass || out.dkimPass;
+  out.result = out.pass ? "pass" : "fail";
+  out.isSubdomain = (a.at === "org" && normName(a.fromDomain) !== normName(a.orgFrom || orgDomain(a.fromDomain, psl)));
+  out.spUsed = out.isSubdomain && a.record.sp !== null && a.record.sp !== undefined;
+  out.policy = out.spUsed ? a.record.sp : a.record.p;
+  out.pct = (a.record.pct === null || a.record.pct === undefined || isNaN(a.record.pct)) ? 100 : a.record.pct;
+  if (out.pass){ out.disposition = "none"; out.residual = "none"; }
+  else if (out.pct >= 100){ out.disposition = out.policy; out.residual = out.policy; }
+  else if (out.pct <= 0){ out.disposition = downgrade(out.policy); out.residual = downgrade(out.policy); }
+  else { out.disposition = out.policy; out.residual = downgrade(out.policy); }
+  out.why = out.pass ? (out.spfPass ? "SPF passed and is aligned" : "DKIM passed and is aligned")
+                     : "neither an aligned SPF pass nor an aligned DKIM pass";
+  return out;
+}
+
+const ENGINE_EXPORTS = {
+  lc: lc, normName: normName,
+  ip4ToInt: ip4ToInt, ip4InCidr: ip4InCidr, ip6ToWords: ip6ToWords, ip6InCidr: ip6InCidr, ip6Nibbles: ip6Nibbles,
+  macroSplit: macroSplit, urlEscape: urlEscape, expandMacro: expandMacro, truncate253: truncate253,
+  parseZone: parseZone, dnsQuery: dnsQuery,
+  parseSpf: parseSpf, parseDualCidr: parseDualCidr, validDomain: validDomain, evalSpf: evalSpf,
+  QUAL: QUAL, INCLUDE_MAP: INCLUDE_MAP, LOOKUP_TERMS: LOOKUP_TERMS,
+  toCRLF: toCRLF, splitMessage: splitMessage, canonHeaderOne: canonHeaderOne, canonHeaders: canonHeaders,
+  headerPlan: headerPlan, canonBody: canonBody, stripBTag: stripBTag,
+  parseDkimSig: parseDkimSig, parseDkimKey: parseDkimKey, dkimPrepare: dkimPrepare, dkimVerdict: dkimVerdict,
+  PUBLIC_SUFFIXES: PUBLIC_SUFFIXES, orgDomain: orgDomain, aligned: aligned,
+  parseDmarc: parseDmarc, lookupDmarc: lookupDmarc, dmarcEvaluate: dmarcEvaluate, downgrade: downgrade
+};
+// ===== ENGINE:END =====
+
+// ================= presets =================
+const NOW = 1786003200;                       // a fixed clock, so results are reproducible
+const BH1 = "40jO6zfScbyc0nIJXpkBybaI03ipnRUxxdRkcwHhoq8=";
+const BH4 = "mml1WCZ/6BmC8QxPxjrWPhqg0xOD1dKq22cAIxw/Xn4=";
+
+const ZONE_BASE = [
+"# ---- example.com: one MTA, one bulk vendor, DKIM key + DMARC ------------",
+'example.com.            TXT   "v=spf1 mx include:_spf.mailer.example -all"',
+"example.com.            MX    10 mail.example.com.",
+"mail.example.com.       A     192.0.2.25",
+'_spf.mailer.example.    TXT   "v=spf1 ip4:198.51.100.0/24 exists:%{ir}.%{v}._ok.mailer.example ~all"',
+'25.2.0.192.in-addr._ok.mailer.example. A 127.0.0.1',
+'mail2026._domainkey.example.com. TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq7fk"',
+'_dmarc.example.com.     TXT   "v=DMARC1; p=reject; adkim=r; aspf=r; pct=100; rua=mailto:dmarc@example.com"',
+"",
+"# ---- the receiving side, which also forwards -----------------------------",
+"partner.example.        MX    10 mx.partner.example.",
+"mx.partner.example.     A     203.0.113.10"
+].join("\n");
+
+const MSG_SIGNED =
+"DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com;\n" +
+" s=mail2026; t=1786000000; h=from:to:subject:date:message-id;\n" +
+" bh=" + BH1 + ";\n" +
+" b=QmFzZTY0LXNpZ25hdHVyZS1ieXRlcy10aGlzLXBhZ2UtZG9lcy1ub3QtdmVyaWZ5\n" +
+"From: Ada Lovelace <ada@example.com>\n" +
+"To: ops@partner.example\n" +
+"Subject: Quarterly numbers\n" +
+"Date: Wed, 12 Aug 2026 09:14:22 +0000\n" +
+"Message-ID: <a1b2c3d4@example.com>\n" +
+"\n" +
+"The Q3 figures are attached.\n" +
+"\n" +
+"Ada\n";
+
+const MSG_FORWARDED =
+"Received: from mail.example.com (mail.example.com [192.0.2.25])\n" +
+" by mx.partner.example with ESMTPS id 4Xy2Qk; Wed, 12 Aug 2026 09:14:25 +0000\n" +
+MSG_SIGNED;
+
+const MSG_BROKEN =
+"Received: from mail.example.com (mail.example.com [192.0.2.25])\n" +
+" by lists.partner.example with ESMTPS id 7Kd1Zp; Wed, 12 Aug 2026 09:14:31 +0000\n" +
+"DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=example.com;\n" +
+" s=mail2026; t=1786000000; h=from:to:subject:date:message-id;\n" +
+" bh=" + BH1 + ";\n" +
+" b=QmFzZTY0LXNpZ25hdHVyZS1ieXRlcy10aGlzLXBhZ2UtZG9lcy1ub3QtdmVyaWZ5\n" +
+"From: Ada Lovelace <ada@example.com>\n" +
+"To: ops@partner.example\n" +
+"Subject: Quarterly numbers\n" +
+"Date: Wed, 12 Aug 2026 09:14:22 +0000\n" +
+"Message-ID: <a1b2c3d4@example.com>\n" +
+"\n" +
+"The Q3 figures are attached. \n" +
+"\n" +
+"Ada\n";
+
+const MSG_PLAIN =
+"From: Ada Lovelace <ada@example.com>\n" +
+"To: ops@partner.example\n" +
+"Subject: Quarterly numbers\n" +
+"Date: Wed, 12 Aug 2026 09:14:22 +0000\n" +
+"Message-ID: <a1b2c3d4@example.com>\n" +
+"\n" +
+"The Q3 figures are attached.\n" +
+"\n" +
+"Ada\n";
+
+const MSG_SPOOF =
+"DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=examp1e-mail.net;\n" +
+" s=bulk; t=1786000200; h=from:to:subject:date:message-id;\n" +
+" bh=" + BH4 + ";\n" +
+" b=QW5vdGhlci1iYXNlNjQtc2lnbmF0dXJlLW5vdC12ZXJpZmllZC1oZXJl\n" +
+"From: Ada Lovelace <ada@example.com>\n" +
+"To: finance@partner.example\n" +
+"Subject: URGENT: updated bank details\n" +
+"Date: Wed, 12 Aug 2026 09:18:03 +0000\n" +
+"Message-ID: <9f8e7d6c@examp1e-mail.net>\n" +
+"\n" +
+"Please update our payment details before Friday.\n" +
+"\n" +
+"Finance\n";
+
+function over10Zone(){
+  const rows = ["# ---- eleven vendors, and the eleventh one is fatal ----------------------"];
+  let spf = "v=spf1";
+  for (let i = 1; i <= 11; i++) spf += " include:v" + (i < 10 ? "0" : "") + i + ".example";
+  spf += " -all";
+  rows.push('example.com.            TXT   "' + spf + '"');
+  for (let i = 1; i <= 11; i++){
+    const n = "v" + (i < 10 ? "0" : "") + i + ".example.";
+    rows.push(n + '            TXT   "v=spf1 ip4:198.51.100.' + i + ' -all"');
+  }
+  rows.push("");
+  rows.push('_dmarc.example.com.     TXT   "v=DMARC1; p=quarantine; pct=50; rua=mailto:dmarc@example.com"');
+  return rows.join("\n");
+}
+
+const PRESETS = {
+  well: { zone: ZONE_BASE, msg: MSG_SIGNED, ip: "192.0.2.25", helo: "mail.example.com",
+          mfrom: "ada@example.com", from: "example.com" },
+  forward: { zone: ZONE_BASE, msg: MSG_FORWARDED, ip: "203.0.113.10", helo: "mx.partner.example",
+             mfrom: "ada@example.com", from: "example.com" },
+  broken: { zone: ZONE_BASE, msg: MSG_BROKEN, ip: "203.0.113.10", helo: "lists.partner.example",
+            mfrom: "ada@example.com", from: "example.com" },
+  spoof: { zone: ZONE_BASE + "\n\n" + [
+      "# ---- the attacker's own domain, immaculately configured -----------------",
+      'examp1e-mail.net.       TXT   "v=spf1 ip4:203.0.113.64/26 -all"',
+      'bulk._domainkey.examp1e-mail.net. TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr3xz"',
+      '_dmarc.examp1e-mail.net. TXT  "v=DMARC1; p=none"'
+    ].join("\n"),
+    msg: MSG_SPOOF, ip: "203.0.113.66", helo: "mta7.examp1e-mail.net",
+    mfrom: "bounce@examp1e-mail.net", from: "example.com" },
+  over10: { zone: over10Zone(), msg: MSG_PLAIN, ip: "203.0.113.99", helo: "relay.example",
+            mfrom: "ada@example.com", from: "example.com" },
+  subdomain: { zone: [
+      "# ---- p=none on the parent protects the parent and nothing else ----------",
+      'example.com.            TXT   "v=spf1 mx -all"',
+      "example.com.            MX    10 mail.example.com.",
+      "mail.example.com.       A     192.0.2.25",
+      'mail.example.com.       TXT   "v=spf1 ip4:192.0.2.25 -all"',
+      '_dmarc.example.com.     TXT   "v=DMARC1; p=none; sp=reject; adkim=s; aspf=s; rua=mailto:dmarc@example.com"',
+      "",
+      "# there is deliberately no _dmarc.mail.example.com record here"
+    ].join("\n"),
+    msg: "From: Billing <noreply@mail.example.com>\nTo: ada@partner.example\nSubject: Invoice 8841\nDate: Wed, 12 Aug 2026 10:02:00 +0000\nMessage-ID: <inv8841@mail.example.com>\n\nYour invoice is ready.\n",
+    ip: "203.0.113.7", helo: "out7.saas.example", mfrom: "bounce@mail.example.com", from: "mail.example.com" },
+  plusall: { zone: [
+      "# ---- the record that authorises the entire internet ---------------------",
+      'example.net.            TXT   "v=spf1 +all"',
+      "example.net.            MX    10 mail.example.net.",
+      "mail.example.net.       A     192.0.2.40",
+      '_dmarc.example.net.     TXT   "v=DMARC1; p=none; rua=mailto:dmarc@example.net"'
+    ].join("\n"),
+    msg: "From: Chief Executive <ceo@example.net>\nTo: payroll@example.net\nSubject: wire transfer, today\nDate: Wed, 12 Aug 2026 11:41:09 +0000\nMessage-ID: <urgent01@example.net>\n\nPlease process the attached transfer before close of business.\n",
+    ip: "203.0.113.66", helo: "mail.evil.example", mfrom: "ceo@example.net", from: "example.net" }
+};
+
+// ================= browser glue =================
+const ENG = ENGINE_EXPORTS;
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function b64(bytes){ let s = ""; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
+async function sha(str, alg){
+  const enc = new TextEncoder().encode(str);
+  const d = await crypto.subtle.digest(alg === "sha1" ? "SHA-1" : "SHA-256", enc);
+  return b64(new Uint8Array(d));
+}
+function copy(btn){
+  const pre = btn.parentElement.querySelector("pre");
+  const t = pre ? pre.textContent : "";
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t);
+  const old = btn.textContent; btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = old; }, 1200);
+}
+function showBytes(s, max){
+  const cut = s.length > max;
+  const t = cut ? s.slice(0, max) : s;
+  const lines = t.split("\r\n");
+  let out = "";
+  for (let i = 0; i < lines.length; i++){
+    const L = lines[i];
+    const m = L.match(/[ \t]+$/);
+    const head = m ? L.slice(0, L.length - m[0].length) : L;
+    out += esc(head).replace(/\t/g, '<span class="ws">&rarr;</span>');
+    if (m) out += '<span class="ws">' + m[0].replace(/ /g, "&middot;").replace(/\t/g, "&rarr;") + "</span>";
+    if (i < lines.length - 1) out += '<span class="crlf">&#8629;</span>\n';
+  }
+  if (t === "") out = '<span class="crlf">(empty)</span>';
+  if (cut) out += '\n<span class="crlf">... ' + (s.length - max) + " more bytes</span>";
+  return out;
+}
+function domainOfAddress(rawHeader){
+  if (!rawHeader) return "";
+  const v = rawHeader.slice(rawHeader.indexOf(":") + 1).replace(/\r\n[ \t]+/g, " ");
+  const m = v.match(/<([^>]*)>/);
+  const addr = (m ? m[1] : v).trim();
+  const at = addr.lastIndexOf("@");
+  if (at < 0) return "";
+  return ENG.normName(addr.slice(at + 1).replace(/[>,;].*$/, "").split(/\s/)[0]);
+}
+function resPill(r){ return '<span class="res ' + esc(r) + '">' + esc(r) + "</span>"; }
+
+// ================= the budget table (static) =================
+(function renderBudget(){
+  const rows = [
+    ["include:", "yes", "runs a whole nested check_host()"],
+    ["a", "yes", "one A or AAAA query"],
+    ["mx", "yes", "one MX query, plus up to 10 free address lookups"],
+    ["ptr", "yes", "one PTR query, plus up to 10 free validations"],
+    ["exists:", "yes", "one A query on the expanded name"],
+    ["redirect=", "yes", "runs a nested check_host() at the end"],
+    ["ip4:", "no", "answered from the record already in hand"],
+    ["ip6:", "no", "answered from the record already in hand"],
+    ["all", "no", "no name to resolve"],
+    ["exp=", "no", "fetched after the verdict, only on fail"]
+  ];
+  let h = "";
+  for (let i = 0; i < rows.length; i++){
+    h += "<tr><td>" + esc(rows[i][0]) + '</td><td class="' + (rows[i][1] === "yes" ? "no" : "yes") + '">' + rows[i][1] +
+         '</td><td class="wrap dim">' + esc(rows[i][2]) + "</td></tr>";
+  }
+  $("budgetBody").innerHTML = h;
+})();
+
+// ================= main recompute =================
+let runSeq = 0;
+async function recompute(){
+  const my = ++runSeq;
+  const zp = ENG.parseZone($("zoneText").value);
+  const zone = zp.zone;
+  const msg = ENG.splitMessage($("msgText").value);
+  const ip = $("ctxIp").value.trim();
+  const helo = $("ctxHelo").value.trim();
+  const mfrom = $("ctxMfrom").value.trim();
+
+  let headerFromRaw = "";
+  for (let i = 0; i < msg.headers.length; i++) if (msg.headers[i].name === "from"){ headerFromRaw = msg.headers[i].raw; break; }
+  const headerFromDom = domainOfAddress(headerFromRaw);
+  let fromDom = ENG.normName($("ctxFrom").value);
+  if (fromDom === ""){ fromDom = headerFromDom; $("ctxFrom").value = fromDom; }
+
+  const spf = ENG.evalSpf(zone, { ip: ip, helo: helo, sender: mfrom, domain: null, time: NOW });
+
+  const sigRaws = [];
+  for (let i = 0; i < msg.headers.length; i++) if (msg.headers[i].name === "dkim-signature") sigRaws.push(msg.headers[i].raw);
+  const dk = [];
+  for (let i = 0; i < sigRaws.length; i++){
+    const prep = ENG.dkimPrepare(zone, msg, sigRaws[i]);
+    const bh = await sha(prep.bodyCanon, prep.sig.hash);
+    const bhOther = await sha(prep.bodyCanonOther, prep.sig.hash);
+    dk.push({ prep: prep, bh: bh, bhOther: bhOther, verdict: ENG.dkimVerdict(prep, bh, NOW) });
+  }
+  if (my !== runSeq) return;                      // a newer keystroke superseded this run
+
+  const look = ENG.lookupDmarc(zone, fromDom, ENG.PUBLIC_SUFFIXES);
+  const dmarc = ENG.dmarcEvaluate({
+    record: look.record, at: look.at, fromDomain: fromDom, orgFrom: look.org,
+    spf: { result: spf.result, domain: spf.ctx.senderDomain },
+    dkim: dk.map(function(x){ return { d: x.prep.sig.d, result: x.verdict.result }; }),
+    psl: ENG.PUBLIC_SUFFIXES
+  });
+
+  renderStats(spf, dk, dmarc, look, fromDom, zp);
+  renderVerdict(spf, dk, dmarc, look, fromDom, headerFromDom, zp);
+  renderSpf(spf);
+  renderDkim(dk, fromDom, look);
+  renderDmarc(dmarc, look, spf, dk, fromDom);
+  renderAuthRes(spf, dk, dmarc, fromDom);
+  renderMacro(spf.ctx);
+  renderCidr();
+}
+
+function renderStats(spf, dk, dmarc, look, fromDom, zp){
+  const dkRes = dk.length === 0 ? "none" : dk[0].verdict.result;
+  const cls = function(r){ return r === "pass" ? "good" : (r === "none" || r === "neutral") ? "" : "bad"; };
+  const items = [
+    ["SPF", spf.result, spf.ctx.senderDomain || "(no envelope domain)", cls(spf.result)],
+    ["DKIM (body hash)", dkRes, dk.length ? "d=" + (dk[0].prep.sig.d || "?") + " s=" + (dk[0].prep.sig.s || "?") : "no DKIM-Signature header", cls(dkRes)],
+    ["DMARC", dmarc.evaluated ? dmarc.result : "none", look.found ? "record at _dmarc." + (look.at === "org" ? look.org : fromDom) : "no DMARC record", dmarc.evaluated ? cls(dmarc.result) : ""],
+    ["Disposition", dmarc.evaluated ? dmarc.disposition : "none", dmarc.evaluated ? ("policy " + (dmarc.spUsed ? "sp=" : "p=") + dmarc.policy + ", pct=" + dmarc.pct) : "nothing to apply", dmarc.evaluated && dmarc.disposition !== "none" ? "bad" : ""],
+    ["DNS lookup terms", spf.lookups + " / 10", spf.lookups > 10 ? "over budget" : "within budget", spf.lookups > 10 ? "bad" : spf.lookups >= 8 ? "hi" : ""],
+    ["Void lookups", spf.voids + " / 2", "empty answers and NXDOMAIN", spf.voids > 2 ? "bad" : ""],
+    ["From: domain", fromDom || "(none)", "org domain " + (ENG.orgDomain(fromDom, ENG.PUBLIC_SUFFIXES) || "-"), ""],
+    ["Zone", Object.keys(zp.zone).length + " names", zp.errors.length ? zp.errors.length + " parse errors" : "parsed cleanly", zp.errors.length ? "bad" : ""]
+  ];
+  let h = "";
+  for (let i = 0; i < items.length; i++){
+    h += '<div class="stat ' + items[i][3] + '"><div class="k">' + esc(items[i][0]) + '</div><div class="v">' +
+         esc(items[i][1]) + '</div><div class="s">' + esc(items[i][2]) + "</div></div>";
+  }
+  $("statBox").innerHTML = h;
+}
+
+function renderVerdict(spf, dk, dmarc, look, fromDom, headerFromDom, zp){
+  const box = $("verdict");
+  const bits = [];
+  if (zp.errors.length) bits.push("Zone: " + esc(zp.errors[0]) + ".");
+  if (headerFromDom && fromDom && headerFromDom !== fromDom)
+    bits.push('The From: header says <b>' + esc(headerFromDom) + '</b> but alignment is being tested against <b>' + esc(fromDom) + "</b>.");
+  if (!dmarc.evaluated){
+    box.className = "notice warn";
+    box.innerHTML = "SPF " + resPill(spf.result) + " &middot; DKIM " + resPill(dk.length ? dk[0].verdict.result : "none") +
+      " &middot; <b>no DMARC record was found for " + esc(fromDom || "(no From domain)") +
+      "</b>, so neither result is tied to the address the recipient sees. " +
+      (look.queried.length ? "Queried " + esc(look.queried.join(" then ")) + "." : "") + " " + bits.join(" ");
+    return;
+  }
+  const pass = dmarc.pass;
+  box.className = "notice " + (pass ? (dmarc.spfPass && dmarc.dkimPass ? "ok" : "ok") : "err");
+  let msg = "SPF " + resPill(spf.result) + (dmarc.spfAligned ? " aligned" : " <b>not aligned</b>") +
+            " &middot; DKIM " + resPill(dk.length ? dk[0].verdict.result : "none") +
+            (dk.length ? (dmarc.dkimAligned ? " aligned" : " <b>not aligned</b>") : "") +
+            " &middot; DMARC " + resPill(dmarc.result) + " &rarr; " + resPill(dmarc.disposition) + ". ";
+  if (pass){
+    msg += dmarc.spfPass && dmarc.dkimPass ? "Both identifiers pass and align."
+         : dmarc.spfPass ? "SPF alone carries it: the envelope domain authenticates and aligns with From:."
+         : "DKIM alone carries it: SPF did not pass, but the signature did and its d= aligns with From: — which is exactly the case DMARC's OR exists for.";
+  } else {
+    msg += "Nothing that passed is aligned with <b>" + esc(fromDom) + "</b>, so the receiver applies " +
+           (dmarc.spUsed ? "sp=" : "p=") + dmarc.policy +
+           (dmarc.pct < 100 ? " to " + dmarc.pct + "% of this mail and " + dmarc.residual + " to the rest" : "") + ".";
+  }
+  if (spf.result === "permerror") msg += " An SPF permerror can never become a pass, so SPF cannot rescue this message no matter which IP sends it.";
+  if (spf.result === "pass" && !dmarc.spfAligned) msg += " Note that SPF passing here proves only that the sending IP is allowed to use <b>" + esc(spf.ctx.senderDomain) + "</b> as a bounce address.";
+  box.innerHTML = msg + " " + bits.join(" ");
+}
+
+function renderSpf(spf){
+  let h = "";
+  for (let i = 0; i < spf.trace.length; i++){
+    const t = spf.trace[i];
+    const dcls = t.depth > 0 ? (" d" + Math.min(3, t.depth)) : "";
+    const mark = t.match === "yes" ? '<span class="yes">match</span>'
+               : t.match === "no" ? '<span class="no">no</span>'
+               : '<span class="dim">' + esc(t.match) + "</span>";
+    h += '<tr class="' + (t.match === "yes" ? "win" : t.term.indexOf("TXT ") === 0 ? "head" : "") + '">' +
+         "<td>" + t.n + '</td><td class="' + dcls + '">' + esc(t.term) + '</td><td class="wrap dim">' + esc(t.detail) +
+         (t.note ? '<div class="dim" style="color:#b45309">' + esc(t.note) + "</div>" : "") +
+         "</td><td>" + mark + "</td><td>" + t.lookups + "</td></tr>";
+  }
+  if (h === "") h = '<tr><td colspan="5" class="dim">no terms were evaluated</td></tr>';
+  $("spfBody").innerHTML = h;
+  const n = $("spfNote");
+  n.className = "notice " + (spf.result === "pass" ? "ok" : spf.result === "permerror" || spf.result === "temperror" ? "err" : "warn");
+  n.innerHTML = "Result " + resPill(spf.result) + " &mdash; " + esc(spf.why) +
+    ". Spent <b>" + spf.lookups + "</b> of the 10 DNS-lookup terms and <b>" + spf.voids + "</b> of the 2 void lookups." +
+    (spf.explanation ? '<div style="margin-top:6px">exp= says: <i>' + esc(spf.explanation) + "</i></div>" : "");
+}
+
+function renderDkim(dk, fromDom, look){
+  const box = $("dkimBox");
+  if (dk.length === 0){
+    box.innerHTML = '<div class="notice warn">This message carries no <code>DKIM-Signature</code> header, so DKIM contributes ' +
+      resPill("none") + ' and DMARC has only SPF to work with. That is the fragile configuration: any forward, any list, any relay breaks it.</div>';
+    return;
+  }
+  let h = "";
+  for (let i = 0; i < dk.length; i++){
+    const x = dk[i], p = x.prep, s = p.sig, v = x.verdict;
+    const ok = v.result === "pass";
+    const alignMode = (look.record && look.record.adkim === "s") ? "s" : "r";
+    const al = ENG.aligned(s.d, fromDom, alignMode, ENG.PUBLIC_SUFFIXES);
+    h += '<div class="rounded-xl border ' + (ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50") + ' p-3">';
+    h += '<div class="hashline mb-2">' + resPill(v.result) + " &nbsp; <b>d=" + esc(s.d || "?") + "</b> &nbsp; s=" + esc(s.s || "?") +
+         " &nbsp; a=" + esc(s.a || "?") + " &nbsp; c=" + esc(s.ch) + "/" + esc(s.cb) +
+         (s.l !== null && !isNaN(s.l) ? " &nbsp; l=" + s.l : "") + "</div>";
+    h += '<div class="text-xs mono text-slate-600 mb-2">' + esc(v.why) + " &middot; key record <code>" + esc(p.keyName) + "</code> is <b>" + esc(p.keyState) + "</b>" +
+         (p.key && p.key.testing ? " (t=y, testing mode: receivers must not act on a failure)" : "") + "</div>";
+    h += '<div class="text-xs mono mb-1"><b>bh= claimed</b> &nbsp;<span class="hashline">' + esc(s.bh || "(missing)") + "</span></div>";
+    h += '<div class="text-xs mono mb-2"><b>bh= computed</b> <span class="hashline ' + (ok || x.bh === s.bh ? "yes" : "no") + '">' + esc(x.bh) + "</span></div>";
+    if (x.bh !== s.bh && x.bhOther === s.bh){
+      h += '<div class="notice warn mb-2">The hash matches under <b>' + esc(p.otherMode) + '</b> body canonicalisation. The signature says <code>c=' +
+           esc(s.ch) + "/" + esc(s.cb) + '</code> — change the body half to <code>' + esc(p.otherMode) +
+           '</code> and it verifies. This is the whole reason relaxed exists: something in transit edited whitespace, and simple canonicalisation notices every byte of it.</div>';
+    }
+    h += '<div class="fieldlabel mt-2">Canonicalised body (' + esc(s.cb) + ') &mdash; ' + x.prep.bodyCanon.length + ' bytes' +
+         (p.truncated ? ", truncated by l=" : "") + "</div>";
+    h += '<div class="canon">' + showBytes(p.bodyCanon, 900) + "</div>";
+    h += '<div class="fieldlabel mt-3">Canonicalised header set (' + esc(s.ch) + ') &mdash; h=' + esc(s.h) + "</div>";
+    h += '<div class="canon">' + showBytes(p.headerCanon, 1400) + "</div>";
+    const miss = p.plan.filter(function(q){ return q.missing; }).map(function(q){ return q.name; });
+    h += '<div class="text-xs mono text-slate-500 mt-2">The <code>DKIM-Signature</code> field is contributed last, with the <code>b=</code> value emptied and no trailing CRLF. ' +
+         (miss.length ? "Named in h= but absent from the message: <b>" + esc(miss.join(", ")) + "</b> — those contribute nothing, which is how a signer pins a header as <i>must not be added later</i>." : "Every field named in h= was present.") + "</div>";
+    h += '<div class="text-xs mono mt-2">alignment with <b>' + esc(fromDom || "?") + "</b> (" + (alignMode === "s" ? "strict" : "relaxed") + "): " +
+         (al ? '<span class="yes">aligned</span>' : '<span class="no">NOT aligned</span>') +
+         " &middot; org(" + esc(s.d) + ")=" + esc(ENG.orgDomain(s.d, ENG.PUBLIC_SUFFIXES)) +
+         " vs org(" + esc(fromDom) + ")=" + esc(ENG.orgDomain(fromDom, ENG.PUBLIC_SUFFIXES)) + "</div>";
+    h += "</div>";
+  }
+  h += '<div class="text-xs mono text-slate-500">The <code>b=</code> signature itself is not verified here: that needs the RSA or Ed25519 public key from the selector record and real asymmetric crypto. Everything above is what fails first in practice.</div>';
+  box.innerHTML = h;
+}
+
+function renderDmarc(dmarc, look, spf, dk, fromDom){
+  const box = $("dmarcBox");
+  if (!look.found){
+    box.innerHTML = '<div class="notice warn">No usable DMARC record. Queried <code>' + esc(look.queried.join("</code> then <code>")) +
+      "</code>. Without one, a receiver has two authentication results and no instruction connecting either of them to <b>" + esc(fromDom || "?") +
+      "</b>, so both are advisory." + (look.error ? " The record that was found is invalid: " + esc(look.error) : "") + "</div>";
+    return;
+  }
+  const r = look.record;
+  let h = '<pre style="white-space:pre-wrap;word-break:break-all">' + esc(look.txt) + "</pre>";
+  h += '<div class="scrollbox" style="max-height:none"><table class="t"><thead><tr><th>Identifier</th><th>Value</th><th>Result</th><th>Mode</th><th>Aligned</th></tr></thead><tbody>';
+  const spfDom = spf.ctx.senderDomain;
+  h += "<tr><td>SPF (envelope)</td><td>" + esc(spfDom || "-") + "</td><td>" + resPill(spf.result) + "</td><td>aspf=" + esc(r.aspf) +
+       "</td><td>" + (dmarc.spfAligned ? '<span class="yes">yes</span>' : '<span class="no">no</span>') + "</td></tr>";
+  if (dk.length === 0){
+    h += '<tr><td>DKIM (d=)</td><td class="dim">none</td><td>' + resPill("none") + "</td><td>adkim=" + esc(r.adkim) + '</td><td class="dim">-</td></tr>';
+  } else {
+    for (let i = 0; i < dk.length; i++){
+      const d = dk[i].prep.sig.d;
+      const al = ENG.aligned(d, fromDom, r.adkim === "s" ? "s" : "r", ENG.PUBLIC_SUFFIXES);
+      h += "<tr><td>DKIM (d=)</td><td>" + esc(d || "-") + "</td><td>" + resPill(dk[i].verdict.result) + "</td><td>adkim=" + esc(r.adkim) +
+           "</td><td>" + (al ? '<span class="yes">yes</span>' : '<span class="no">no</span>') + "</td></tr>";
+    }
+  }
+  h += "</tbody></table></div>";
+  h += '<div class="notice ' + (dmarc.pass ? "ok" : "err") + '">DMARC ' + resPill(dmarc.result) + " &mdash; " + esc(dmarc.why) +
+       ". The record was found at <code>_dmarc." + esc(look.at === "org" ? look.org : fromDom) + "</code>" +
+       (dmarc.isSubdomain ? " while the From: domain is the subdomain <b>" + esc(fromDom) + "</b>, so " + (dmarc.spUsed ? "<b>sp=" + esc(r.sp) + "</b> overrides p=" + esc(r.p) : "there is no sp= and p=" + esc(r.p) + " applies") : "") +
+       ". Disposition " + resPill(dmarc.disposition) +
+       (dmarc.pct < 100 ? " for " + dmarc.pct + "% of this mail, " + resPill(dmarc.residual) + " for the remaining " + (100 - dmarc.pct) + "% — pct is a ramp, not a filter" : "") + ".</div>";
+  h += '<div class="text-xs mono text-slate-500">Relaxed alignment compares organizational domains, computed with an embedded public-suffix list: org(' +
+       esc(fromDom) + ") = <b>" + esc(ENG.orgDomain(fromDom, ENG.PUBLIC_SUFFIXES)) + "</b>. Strict alignment compares the full names, so a subdomain never aligns strictly with its parent.</div>";
+  box.innerHTML = h;
+}
+
+function renderAuthRes(spf, dk, dmarc, fromDom){
+  const lines = ["Authentication-Results: mx.receiver.example;"];
+  lines.push("  spf=" + spf.result + " smtp.mailfrom=" + (spf.ctx.senderDomain || "-") + " smtp.helo=" + (spf.ctx.helo || "-") + ";");
+  if (dk.length === 0) lines.push("  dkim=none;");
+  else for (let i = 0; i < dk.length; i++)
+    lines.push("  dkim=" + dk[i].verdict.result + " header.d=" + (dk[i].prep.sig.d || "-") + " header.s=" + (dk[i].prep.sig.s || "-") + " (body hash only);");
+  lines.push("  dmarc=" + (dmarc.evaluated ? dmarc.result : "none") + " header.from=" + (fromDom || "-") +
+             (dmarc.evaluated ? " policy.disposition=" + dmarc.disposition : ""));
+  $("authRes").textContent = lines.join("\n");
+}
+
+function renderMacro(ctx){
+  const src = $("macIn").value;
+  const out = $("macOut");
+  try {
+    const v = ENG.expandMacro(src, ctx);
+    out.className = "notice ok";
+    out.innerHTML = "<b>" + esc(v) + "</b>" + (v.length > 253 ? " &mdash; over 253 chars, labels get dropped from the left" : "") +
+      '<div class="text-xs mt-1" style="font-weight:700">with i=' + esc(ctx.ip) + ", s=" + esc(ctx.sender) + ", d=" + esc(ctx.domain) + ", h=" + esc(ctx.helo) + "</div>";
+  } catch (e){
+    out.className = "notice err";
+    out.textContent = (e && e.why) ? e.why : String(e);
+  }
+}
+
+function renderCidr(){
+  const ip = $("cidrIp").value.trim();
+  const netSpec = $("cidrNet").value.trim();
+  const out = $("cidrOut");
+  const sl = netSpec.indexOf("/");
+  const net = sl >= 0 ? netSpec.slice(0, sl) : netSpec;
+  const pfxRaw = sl >= 0 ? netSpec.slice(sl + 1) : null;
+  const v6 = ip.indexOf(":") >= 0 || net.indexOf(":") >= 0;
+  const pfx = pfxRaw === null ? (v6 ? 128 : 32) : parseInt(pfxRaw, 10);
+  if (isNaN(pfx)){ out.className = "notice err"; out.textContent = "prefix length is not a number"; return; }
+  const hit = v6 ? ENG.ip6InCidr(ip, net, pfx) : ENG.ip4InCidr(ip, net, pfx);
+  const parsedOk = v6 ? (ENG.ip6ToWords(ip) !== null && ENG.ip6ToWords(net) !== null)
+                      : (ENG.ip4ToInt(ip) !== null && ENG.ip4ToInt(net) !== null);
+  if (!parsedOk){ out.className = "notice err"; out.textContent = "one of those is not a valid " + (v6 ? "IPv6" : "IPv4") + " address"; return; }
+  out.className = "notice " + (hit ? "ok" : "warn");
+  let detail;
+  if (v6){
+    const w = ENG.ip6ToWords(net);
+    detail = "compared as 8 x 16-bit words, " + pfx + " bits of prefix = " + Math.floor(pfx / 16) + " whole words plus " + (pfx % 16) + " bits";
+  } else {
+    const mask = pfx === 0 ? 0 : ((0xFFFFFFFF << (32 - pfx)) >>> 0);
+    const m = [(mask >>> 24) & 255, (mask >>> 16) & 255, (mask >>> 8) & 255, mask & 255].join(".");
+    detail = "mask " + m + (pfx === 0 ? "  (every address on the internet)" : "") + ", " + Math.pow(2, 32 - pfx) + " addresses";
+  }
+  out.innerHTML = "<b>" + esc(ip) + "</b> is " + (hit ? "" : "<b>not</b> ") + "inside <b>" + esc(net) + "/" + pfx +
+    '</b><div class="text-xs mt-1" style="font-weight:700">' + esc(detail) + "</div>";
+}
+
+// ================= wiring =================
+function loadPreset(k){
+  const p = PRESETS[k];
+  if (!p) return;
+  $("zoneText").value = p.zone;
+  $("msgText").value = p.msg;
+  $("ctxIp").value = p.ip;
+  $("ctxHelo").value = p.helo;
+  $("ctxMfrom").value = p.mfrom;
+  $("ctxFrom").value = p.from;
+  document.querySelectorAll("[data-preset]").forEach(function(b){ b.classList.toggle("on", b.dataset.preset === k); });
+  recompute();
+}
+let deb = null;
+function schedule(){ if (deb) clearTimeout(deb); deb = setTimeout(function(){ deb = null; recompute(); }, 160); }
+["zoneText", "msgText", "ctxIp", "ctxHelo", "ctxMfrom", "ctxFrom"].forEach(function(id){ $(id).addEventListener("input", schedule); });
+document.querySelectorAll("[data-preset]").forEach(function(b){ b.onclick = function(){ loadPreset(b.dataset.preset); }; });
+$("macIn").addEventListener("input", function(){ schedule(); });
+document.querySelectorAll("[data-mac]").forEach(function(b){ b.onclick = function(){ $("macIn").value = b.dataset.mac; recompute(); }; });
+["cidrIp", "cidrNet"].forEach(function(id){ $(id).addEventListener("input", renderCidr); });
+document.querySelectorAll("[data-cidr]").forEach(function(b){ b.onclick = function(){ const p = b.dataset.cidr.split("|"); $("cidrIp").value = p[0]; $("cidrNet").value = p[1]; renderCidr(); }; });
+
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(function(t){ t.onclick = function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  $(t.dataset.tab).classList.remove("hidden");
+}; });
+
+// ================= UNDERSTAND step engine =================
+const STEPS = [
+ { title:"1. Every email has two From addresses and you only ever see one",
+   why:"SMTP carries the envelope sender in the MAIL FROM command during the conversation, and the message carries a From: header inside its own body of text. They are set independently, by different parties, for different purposes: the envelope is where bounces go, the header is what a mail client renders. Nothing in SMTP requires them to match, and plenty of legitimate mail relies on them differing — a mailing list, a bounce processor, a ticketing system. SPF checks the envelope. So an SPF pass is a statement about an address the recipient will never see, and on its own it cannot tell you anything at all about the name in their inbox. Every serious discussion of email authentication starts here, because if you skip it you will keep asking why a phishing message had spf=pass.",
+   concept:`<div class="text-center text-sm space-y-2"><div><span class="pill s">MAIL FROM:</span> <span class="pill a">bounce@examp1e-mail.net</span> <span class="pill b">SPF checks this</span></div><div class="text-xs text-slate-400">invisible to the recipient, used for bounces</div><div class="pt-2"><span class="pill s">From:</span> <span class="pill r">Ada &lt;ada@example.com&gt;</span> <span class="pill g">the human reads this</span></div><div class="text-xs text-slate-400 pt-1">DMARC exists to force these two into the same domain</div></div>`,
+   code:`S: MAIL FROM:<bounce@examp1e-mail.net>   <- SPF is evaluated against THIS
+S: RCPT TO:<finance@partner.example>
+S: DATA
+   From: Ada Lovelace <ada@example.com>   <- the mail client shows THIS
+   Subject: URGENT: updated bank details` },
+
+ { title:"2. An SPF record is a TXT record and a loop that stops at the first match",
+   why:"Publish one TXT record at the domain, starting with the exact token v=spf1, and a receiver walks its terms left to right. The FIRST mechanism that matches decides the result, and everything after it is never evaluated. This is the opposite of a gitignore, where the last match wins, and mixing them up produces confident wrong answers. Two consequences follow immediately. Putting -all early kills the entire remainder of the record. And the DNS lookups belonging to terms after the winner are never spent, so the same record can cost a different number of lookups for different senders. Exactly one v=spf1 record is allowed; two is a permerror, which is a real outage caused by pasting a second record instead of merging.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">v=spf1</span> <span class="pill b">mx</span> <span class="pill b">include:_spf.vendor</span> <span class="pill r">-all</span></div><div class="text-xs text-slate-400 pt-1">evaluated left to right &rarr; first match returns</div><div class="pt-2"><span class="pill a">two v=spf1 records at one name</span> &rarr; <span class="pill p">permerror</span></div></div>`,
+   code:`for (const term of rec.terms){
+  if (term.kind !== "mech") continue;
+  if (matchMechanism(term, st).match)
+    return QUAL[term.qual];        // STOP. Nothing after this runs.
+}
+return rec.redirect ? followRedirect() : "neutral";` },
+
+ { title:"3. The four qualifiers, and what -all really buys you",
+   why:"Every mechanism carries an optional qualifier: + is pass and is the default, - is fail, ~ is softfail, ? is neutral. They are not severities inside SPF; each one simply names the result returned when that mechanism matches. Standalone, -all asks receivers to reject unauthorised senders and ~all asks them to accept and mark. In practice ~all is where domains sit while they discover the senders they forgot about. But under DMARC the distinction almost vanishes: DMARC only asks whether SPF returned pass, so softfail and fail are equally not-a-pass, and the action comes from p= instead. A domain running ~all with p=reject rejects. The qualifier matters for receivers who ignore DMARC, and for your own ability to read your reports.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">+</span> pass &nbsp; <span class="pill r">-</span> fail &nbsp; <span class="pill a">~</span> softfail &nbsp; <span class="pill s">?</span> neutral</div><div class="text-xs text-slate-400 pt-2">under DMARC:</div><div><span class="pill r">fail</span> = <span class="pill a">softfail</span> = <span class="pill s">neutral</span> = <span class="pill p">not a pass</span></div><div class="text-xs text-slate-400 pt-1">the disposition comes from p=, not from the qualifier</div></div>`,
+   code:`const QUAL = { "+":"pass", "-":"fail", "~":"softfail", "?":"neutral" };
+
+// "~all" + "p=reject"  ->  DMARC fails  ->  the message is REJECTED
+// the softfail was never the deciding factor` },
+
+ { title:"4. The mechanisms, and the dual-CIDR syntax nobody reads",
+   why:"There are eight. all matches everything. ip4 and ip6 match an address or a CIDR block and cost no DNS at all. a and mx resolve a name and compare the client address against the answers, with optional prefix lengths. exists resolves a name and matches if anything at all answers, which is how per-sender and per-IP policies get built. include runs a nested evaluation. ptr does a reverse lookup and then forward-validates it, and RFC 7208 section 5.5 tells you plainly not to publish it: it is slow, it is unreliable, and it puts the answer in the hands of whoever controls the reverse zone. The syntax detail worth knowing is the dual-CIDR form on a and mx, where /24 sets the IPv4 prefix, //64 sets the IPv6 one, and both can appear together.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">ip4:192.0.2.0/24</span> <span class="pill g">no DNS</span></div><div><span class="pill b">a:mail.example.com/24//64</span> <span class="pill a">1 lookup</span></div><div><span class="pill b">mx/24</span> <span class="pill a">1 lookup + 10 free</span></div><div><span class="pill b">exists:%{ir}.%{v}._spf.%{d}</span> <span class="pill a">1 lookup</span></div><div><span class="pill r">ptr</span> <span class="pill s">do not publish this</span></div></div>`,
+   code:`a                 // the A/AAAA records of <domain> itself
+a:mail.example.com
+a:mail.example.com/24      // IPv4 prefix
+a:mail.example.com//64     // IPv6 prefix
+a:mail.example.com/24//64  // both, and that is the only legal double slash
+
+mx/24             // every MX host of <domain>, matched as a /24` },
+
+ { title:"5. include is a nested check_host, not a text paste",
+   why:"include:vendor.net runs a complete, independent SPF evaluation against vendor.net and then collapses seven possible results into two. Only pass counts as a match. A nested fail, softfail or neutral all mean the same thing to the outer record — no match, keep walking — which is why the vendor's -all is completely invisible to you and cannot make your record fail. That surprises people who assume including a strict vendor makes their own record strict. The dangerous half is the other direction: a nested none, meaning the vendor's record has vanished, or a nested permerror, becomes YOUR permerror. One vendor deleting a TXT record can take your domain's authentication down without touching your zone.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">pass</span> &rarr; <span class="pill g">match</span></div><div><span class="pill r">fail</span> <span class="pill a">softfail</span> <span class="pill s">neutral</span> &rarr; <span class="pill s">no match, keep going</span></div><div><span class="pill p">none</span> <span class="pill p">permerror</span> &rarr; <span class="pill p">YOUR permerror</span></div><div><span class="pill b">temperror</span> &rarr; <span class="pill b">temperror</span></div><div class="text-xs text-slate-400 pt-1">the vendor&#39;s &quot;-all&quot; can never reach you</div></div>`,
+   code:`const INCLUDE_MAP = {          // RFC 7208 section 5.2
+  pass:"match", fail:"no-match", softfail:"no-match", neutral:"no-match",
+  temperror:"temperror", permerror:"permerror", none:"permerror"
+};
+
+// include:dead-vendor.example  where the vendor deleted their record
+//   -> inner "none" -> YOUR record is a permerror -> DMARC cannot pass on SPF` },
+
+ { title:"6. redirect= is not include, and an all mechanism silences it",
+   why:"redirect= looks like include and behaves nothing like it. It is a modifier, not a mechanism, so it has no qualifier and no position: it applies only after every mechanism in the record has failed to match, wherever it was written. Its result becomes the result of the whole record rather than a match or no-match, so a redirect target that fails makes you fail. If the target has no SPF record the answer is permerror, not none — different from include only in the message it produces. And RFC 7208 section 6.1 says a redirect MUST be ignored when the record also contains an all mechanism, which in practice means it is dead code, because all always matches and the evaluation returns before the redirect could ever be consulted.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">include:x</span> &rarr; match / no match, then <b>keep reading</b></div><div><span class="pill p">redirect=x</span> &rarr; the <b>entire result</b>, and reading stops</div><div class="text-xs text-slate-400 pt-2">v=spf1 ip4:... <span class="pill r">-all</span> <span class="pill s">redirect=y</span></div><div class="text-xs text-slate-400">the redirect is unreachable: -all already matched</div></div>`,
+   code:`// after every mechanism has failed to match:
+if (rec.redirect !== null && !rec.hasAll){
+  spend(st, "redirect");                       // yes, it costs a lookup
+  const inner = checkHost(subContext(ctx, expandMacro(rec.redirect, ctx)));
+  if (inner.result === "none") return "permerror";   // NOT "none"
+  return inner.result;                               // the whole record's answer
+}
+return "neutral";` },
+
+ { title:"7. Ten lookups, counted globally, along the path actually taken",
+   why:"Six terms cost a lookup: include, a, mx, ptr, exists and redirect. Three do not: ip4, ip6 and all, because they are answered from the record already in hand. exp does not either, because it is fetched after the verdict and only when the result is fail. The counter is global across the whole recursion, so a vendor include that itself includes three more spends four of your ten. And it counts terms evaluated, not terms written, so a record can be within budget for one sender and over it for another depending on which mechanism matched first. Two sub-limits sit alongside: an mx may resolve at most ten hostnames, a ptr may examine at most ten names, and at most two lookups may come back empty or NXDOMAIN. Exceeding any of them is a permerror, and a permerror can never satisfy DMARC.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill a">include a mx ptr exists redirect</span> <span class="pill r">cost 1 each</span></div><div><span class="pill g">ip4 ip6 all exp</span> <span class="pill g">free</span></div><div class="text-xs text-slate-400 pt-2">budget is shared down the whole include tree</div><div><span class="pill s">10 = fine</span> <span class="pill p">11 = permerror</span></div></div>`,
+   code:`function spend(st, what){          // ONE counter, threaded through every include
+  st.lookups += 1;
+  if (st.lookups > 10) throw { spf:"permerror", why:"over the 10-term limit" };
+}
+
+// mx  : <= 10 address lookups for the MX names   (a separate budget)
+// ptr : <= 10 PTR names examined                 (a separate budget)
+// void: <= 2 empty-or-NXDOMAIN answers           (a separate budget)` },
+
+ { title:"8. SPF has a macro language, and exists: is what it is for",
+   why:"Any domain argument may contain macros expanded at query time. %{i} is the client IP, %{s} the envelope sender, %{l} its local part, %{o} its domain, %{d} the domain being evaluated, %{h} the HELO, %{v} the literal in-addr or ip6. Transformers do the real work: a digit keeps the rightmost N parts after splitting, r reverses the order, and trailing punctuation changes what counts as a separator. The canonical idiom is exists:%{ir}.%{v}._spf.%{d2}, which turns a connecting address into a name and asks DNS whether that specific IP is allowed — one lookup, unlimited senders, no record-length problem. An uppercase letter URL-escapes the output, which only matters inside exp= text that ends up in a bounce message.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">%{ir}.%{v}._spf.%{d2}</span></div><div class="text-xs text-slate-400">with i=192.0.2.25 and d=mail.example.com</div><div><span class="pill g">25.2.0.192.in-addr._spf.example.com</span></div><div class="text-xs text-slate-400 pt-2">r reverses &middot; a digit keeps the RIGHTMOST n &middot; parts always rejoin with &quot;.&quot;</div></div>`,
+   code:`%{i}    192.0.2.25            %{s}   ada@example.com
+%{ir}   25.2.0.192            %{l}   ada
+%{v}    in-addr               %{o}   example.com
+%{d2}   example.com           %{h}   mail.example.com
+
+%%  ->  "%"        %_  ->  " "        %-  ->  "%20"
+// over 253 characters? drop whole labels from the LEFT until it fits` },
+
+ { title:"9. DKIM signs a canonical rendering, not the message you can see",
+   why:"A signer picks a set of header fields, names them in h=, canonicalises those fields and the body, hashes the body into bh=, then signs the hash of the header block into b= with a private key whose public half sits in DNS at selector._domainkey.domain. A verifier repeats the whole construction and compares. Nothing about this involves the connecting IP, so a DKIM signature survives forwarding, relaying and store-and-forward intact — which is precisely the property SPF lacks. The two parts fail for different reasons and it is worth separating them: bh= fails when the body changed in transit, b= fails when a signed header changed or the key does not match. In production the first is overwhelmingly more common, and it needs no crypto at all to diagnose.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">canonicalise body</span> &rarr; <span class="pill b">SHA-256</span> &rarr; <span class="pill a">bh=</span></div><div><span class="pill s">canonicalise h= fields + this signature</span> &rarr; <span class="pill b">SHA-256</span> &rarr; <span class="pill p">sign</span> &rarr; <span class="pill a">b=</span></div><div class="text-xs text-slate-400 pt-2">public key at <span class="mono">selector._domainkey.d</span></div><div class="text-xs text-slate-400">no IP anywhere &rarr; survives forwarding</div></div>`,
+   code:`DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com;
+  s=mail2026; h=from:to:subject:date:message-id;
+  bh=<base64 SHA-256 of the canonicalised body>;
+  b=<base64 signature over the canonicalised header set>
+
+// verification order: fetch key -> check bh -> check b
+// bh is the one you can check in a browser, and the one that usually breaks` },
+
+ { title:"10. simple and relaxed, and the trailing space that decides",
+   why:"There are two canonicalisations for headers and two for the body, written as c=header/body. simple means change nothing at all, which is honest and unbelievably brittle — a single space added by a gateway invalidates the signature. relaxed lowercases field names, unfolds continuation lines, collapses every run of spaces and tabs into one space, deletes trailing whitespace and removes the space around the colon. Both body algorithms drop trailing empty lines and add a final CRLF when the body has content without one. The asymmetry worth memorising: an empty body canonicalises to CRLF under simple and to the empty string under relaxed, so the same nothing yields two different well-known hashes. Almost everything signs relaxed/relaxed now, and this is why.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill s">&quot;D&nbsp;&rarr;&nbsp;E&quot;</span> simple &rarr; <span class="pill r">unchanged, hash breaks</span></div><div><span class="pill s">&quot;D&nbsp;&rarr;&nbsp;E&quot;</span> relaxed &rarr; <span class="pill g">&quot;D E&quot;, hash survives</span></div><div class="text-xs text-slate-400 pt-2">empty body:</div><div>simple &rarr; <span class="pill a">CRLF</span> &nbsp; relaxed &rarr; <span class="pill b">&quot;&quot;</span></div></div>`,
+   code:`// RFC 6376 3.4.6, example 1 -- printed byte by byte in the spec
+// input:   "A: X<CRLF>B : Y<HTAB><CRLF><HTAB>Z<SP><SP><CRLF>"
+// relaxed: "a:X<CRLF>b:Y<SP>Z<CRLF>"
+// simple:  unchanged
+
+// published empty-body hashes:
+// simple   frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=
+// relaxed  47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=` },
+
+ { title:"11. The h= list, the emptied b=, and the l= foot-gun",
+   why:"Header selection has rules that only bite once you implement them. Fields are processed in the order written in h=, and each name picks the LAST unused instance counting from the bottom of the message, which is what lets a forwarder prepend another Received: without breaking anything. Naming a header that does not exist contributes nothing, and signers exploit that deliberately: listing subject twice when there is one Subject pins it as must-not-be-added-later. The DKIM-Signature field itself is appended last with its b= value emptied but the tag kept, and with no trailing CRLF. And l= caps how many octets of the canonical body are hashed, which sounds like a kindness to mailing lists and is really an invitation: anything after the limit is unsigned and can be replaced by anyone.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill b">h=from:to:subject</span> &rarr; last unused instance, bottom up</div><div><span class="pill a">b=abc123</span> &rarr; <span class="pill a">b=</span> <span class="text-xs text-slate-400">value emptied, tag kept</span></div><div class="text-xs text-slate-400">and the signature field gets NO trailing CRLF</div><div class="pt-2"><span class="pill r">l=200</span> <span class="text-xs">everything past byte 200 is unsigned</span></div></div>`,
+   code:`// pick the LAST unused instance of each name, from the bottom up
+for (let i = headers.length - 1; i >= 0; i--)
+  if (headers[i].name === want && seen++ === alreadyUsed) return headers[i];
+
+// the signature contributes itself, minus its own b= value, minus the CRLF
+input += canonHeader(stripBTag(sigRaw), mode).replace(/\\r\\n$/, "");` },
+
+ { title:"12. DMARC: alignment is the idea, p / sp / pct is the lever",
+   why:"DMARC asks one question the other two cannot: does an authenticated identifier match the domain the human sees? SPF alignment compares the envelope domain to the From: domain; DKIM alignment compares d= to the From: domain. Relaxed, the default, compares organizational domains — the longest public suffix plus one label, which is why you need a suffix list and not a rule about the last two labels. Strict compares the full names. DMARC passes if EITHER identifier passes AND aligns, never requiring both, precisely because forwarding kills SPF and list footers kill DKIM. Then policy: the receiver reads _dmarc at the From: domain, falls back to the organizational domain, applies sp= instead of p= if it landed on the parent for a subdomain, and pct= ramps the policy in rather than filtering mail.",
+   concept:`<div class="text-center text-sm mono space-y-1"><div><span class="pill g">SPF pass</span> + <span class="pill g">aligned</span> &nbsp;<b>OR</b>&nbsp; <span class="pill g">DKIM pass</span> + <span class="pill g">aligned</span></div><div class="text-xs text-slate-400 pt-1">either one is enough. never both.</div><div class="pt-2"><span class="pill b">relaxed</span> org(mail.example.com) = org(example.com) &check;</div><div><span class="pill p">strict</span> mail.example.com &ne; example.com &cross;</div><div class="text-xs text-slate-400 pt-1">p=none on the parent + sp=reject &rarr; subdomains still get rejected</div></div>`,
+   code:`_dmarc.example.com  TXT  "v=DMARC1; p=reject; sp=quarantine; adkim=r;
+                            aspf=r; pct=100; rua=mailto:dmarc@example.com"
+
+pass = (spf === "pass" && aligned(envDomain, fromDomain, aspf))
+    || (dkim === "pass" && aligned(sigDomain, fromDomain, adkim));
+
+policy = (foundAtOrgDomain && fromIsSubdomain && sp !== null) ? sp : p;` }
+];
+
+const stepsEl = $("steps");
+const prevB = $("prev"), nextB = $("next-btn"), autoB = $("auto");
+let curStep = 0;
+STEPS.forEach(function(s, i){
+  const bn = document.createElement("button");
+  bn.className = "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  bn.innerHTML = '<div class="font-semibold">' + s.title + "</div>";
+  bn.onclick = function(){ show(i); };
+  stepsEl.appendChild(bn);
+});
+function show(i){
+  curStep = i;
+  const s = STEPS[i];
+  $("concept").innerHTML = '<div class="fade-in w-full flex items-center justify-center">' + s.concept + "</div>";
+  $("why").innerHTML = '<span class="fade-in inline-block">' + s.why + "</span>";
+  $("code").textContent = s.code;
+  stepsEl.querySelectorAll("button").forEach(function(bn, idx){
+    bn.className = idx === i ? "w-full text-left p-3 rounded-lg border-2 border-amber-500 bg-amber-50 text-sm font-semibold"
+                             : "w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:border-amber-400 text-sm";
+  });
+}
+prevB.onclick = function(){ show(Math.max(0, curStep - 1)); };
+nextB.onclick = function(){ show(Math.min(STEPS.length - 1, curStep + 1)); };
+let tm = null;
+autoB.onclick = function(){
+  if (tm){ clearInterval(tm); tm = null; autoB.textContent = "▶ Auto-play"; return; }
+  autoB.textContent = "⏸ Pause"; show(0);
+  tm = setInterval(function(){
+    if (curStep >= STEPS.length - 1){ clearInterval(tm); tm = null; autoB.textContent = "▶ Replay"; return; }
+    show(curStep + 1);
+  }, 5200);
+};
+show(0);
+
+// ================= self-test (a subset of what the node verifier asserts) =================
+(function selfTest(){
+  const E = ENG;
+  console.assert(E.ip4InCidr("192.0.2.130", "192.0.2.128", 26) === true, "inside a /26");
+  console.assert(E.ip4InCidr("192.0.2.191", "192.0.2.128", 26) === true, "last address of a /26");
+  console.assert(E.ip4InCidr("192.0.2.192", "192.0.2.128", 26) === false, "first address past a /26");
+  console.assert(E.ip4InCidr("203.0.113.9", "0.0.0.0", 0) === true, "/0 matches everything");
+  console.assert(E.ip4InCidr("192.0.2.1", "192.0.2.1", 32) === true, "/32 matches itself");
+  console.assert(E.ip4ToInt("192.0.02.1") === null, "leading zeros are not a valid quad");
+  console.assert(E.ip6InCidr("2001:db8:1::5", "2001:db8:1::", 48) === true, "inside a v6 /48");
+  console.assert(E.ip6InCidr("2001:db8:2::5", "2001:db8:1::", 48) === false, "outside a v6 /48");
+  console.assert(E.ip6ToWords("::ffff:192.0.2.25")[7] === 0x0219, "embedded IPv4 in v6");
+
+  const ctx = { ip: "192.0.2.25", ipIsV6: false, sender: "ada@example.com", senderLocal: "ada",
+                senderDomain: "example.com", domain: "mail.example.com", helo: "mail.example.com",
+                validatedDomain: null, time: 0 };
+  console.assert(E.expandMacro("%{ir}.%{v}._spf.%{d2}", ctx) === "25.2.0.192.in-addr._spf.example.com", "the canonical macro idiom");
+  console.assert(E.expandMacro("%{l}._at_.%{o}", ctx) === "ada._at_.example.com", "local part and sender domain");
+  console.assert(E.expandMacro("%{d3}", ctx) === "mail.example.com", "digits keep the rightmost n parts");
+  console.assert(E.expandMacro("%%%_%-", ctx) === "% %20", "the three literal escapes");
+
+  // RFC 6376 section 3.4.6, example 1 -- external ground truth
+  const RAW = "A: X\r\nB : Y\t\r\n\tZ  \r\n\r\n C \r\nD \t E\r\n\r\n\r\n";
+  const P = E.splitMessage(RAW);
+  console.assert(E.canonHeaders(P.headers, "a:b", "relaxed", null) === "a:X\r\nb:Y Z\r\n", "RFC 6376 relaxed header vector");
+  console.assert(E.canonHeaders(P.headers, "a:b", "simple", null) === "A: X\r\nB : Y\t\r\n\tZ  \r\n", "RFC 6376 simple header vector");
+  console.assert(E.canonBody(P.body, "relaxed", null) === " C\r\nD E\r\n", "RFC 6376 relaxed body vector");
+  console.assert(E.canonBody(P.body, "simple", null) === " C \r\nD \t E\r\n", "RFC 6376 simple body vector");
+  console.assert(E.canonBody("", "simple", null) === "\r\n" && E.canonBody("", "relaxed", null) === "", "empty body differs by algorithm");
+  console.assert(E.stripBTag("DKIM-Signature: v=1; bh=AAA; b=BBB").indexOf("bh=AAA") >= 0 &&
+                 E.stripBTag("DKIM-Signature: v=1; bh=AAA; b=BBB").indexOf("BBB") < 0, "b= emptied, bh= untouched");
+
+  console.assert(E.orgDomain("a.b.co.uk", E.PUBLIC_SUFFIXES) === "b.co.uk", "multi-label public suffix");
+  console.assert(E.orgDomain("mail.example.com", E.PUBLIC_SUFFIXES) === "example.com", "ordinary org domain");
+  console.assert(E.aligned("mail.example.com", "example.com", "r", E.PUBLIC_SUFFIXES) === true, "relaxed alignment");
+  console.assert(E.aligned("mail.example.com", "example.com", "s", E.PUBLIC_SUFFIXES) === false, "strict alignment");
+
+  const z = E.parseZone('a.example. TXT "v=spf1 ip4:192.0.2.0/24 -all"\nb.example. TXT "v=spf1 include:a.example ~all"').zone;
+  console.assert(E.evalSpf(z, { ip: "192.0.2.5", sender: "x@a.example" }).result === "pass", "ip4 match");
+  console.assert(E.evalSpf(z, { ip: "203.0.113.5", sender: "x@a.example" }).result === "fail", "-all");
+  const inc = E.evalSpf(z, { ip: "203.0.113.5", sender: "x@b.example" });
+  console.assert(inc.result === "softfail" && inc.lookups === 1, "an inner fail is no-match, and include costs 1");
+  console.assert(E.evalSpf(z, { ip: "1.2.3.4", sender: "x@missing.example" }).result === "none", "no record is none");
+})();
+
+// ================= boot =================
+loadPreset("well");
+</script>
+</body>
+</html>
