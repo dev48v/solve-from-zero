@@ -64,6 +64,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 60 — Semver Range Tester](https://dev48v.infy.uk/solve/day60-semver-range-tester.html) — `day60-semver-range-tester.html`
 - [SolveFromZero · Day 61 — .gitignore Pattern Tester](https://dev48v.infy.uk/solve/day61-gitignore-tester.html) — `day61-gitignore-tester.html`
 - [SolveFromZero · Day 62 — SPF / DKIM / DMARC Checker](https://dev48v.infy.uk/solve/day62-spf-dmarc-checker.html) — `day62-spf-dmarc-checker.html`
+- [SolveFromZero · Day 63 — HTTP cache simulator](https://dev48v.infy.uk/solve/day63-http-cache-simulator.html) — `day63-http-cache-simulator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

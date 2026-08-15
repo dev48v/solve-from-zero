@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 63 — HTTP Cache Simulator (Cache-Control, ETag, Vary)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  .ev { border-left:3px solid #cbd5e1; padding:6px 10px; font-size:12px; }
+  .ev.hit  { border-color:#16a34a; background:#f0fdf4; }
+  .ev.rev  { border-color:#2563eb; background:#eff6ff; }
+  .ev.miss { border-color:#dc2626; background:#fef2f2; }
+  .ev.stale{ border-color:#d97706; background:#fffbeb; }
+  input[type=text]{ border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:12px; width:100%; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-teal-700 mb-2">SOLVEFROMZERO · DAY 63</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🗄️ HTTP cache simulator — paste real response headers and watch a hand-written cache decide,
+      request by request, whether it may serve without asking. It implements the actual
+      <strong>RFC 9111 freshness calculation</strong>: <code>freshness_lifetime</code> from
+      <code>s-maxage</code> → <code>max-age</code> → <code>Expires</code> → a heuristic from
+      <code>Last-Modified</code>, and <code>current_age</code> from
+      <code>age_value</code>, <code>date_value</code>, <code>request_time</code> and
+      <code>response_time</code> — which is <em>not</em> "now minus Date", and the difference is
+      exactly why a response that looks fresh gets served stale behind a slow proxy. Then
+      conditional revalidation with <code>ETag</code>/<code>If-None-Match</code> and
+      <code>304</code>, the difference between <strong>no-cache</strong> (revalidate every time) and
+      <strong>no-store</strong> (never write it down) that almost everyone gets backwards, and
+      <code>Vary</code> — the header that silently makes your cache useless or, worse, serves one
+      user's response to another. Vanilla JS, no network, nothing leaves the page.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🗄️ SIMULATE</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5 grid md:grid-cols-2 gap-5">
+        <div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">RESPONSE HEADERS</p>
+          <textarea id="hdrs" rows="8" class="w-full font-mono text-xs border border-slate-300 rounded-lg p-2">Cache-Control: max-age=60
+Date: Tue, 16 Aug 2026 10:00:00 GMT
+ETag: "v1"
+Last-Modified: Tue, 16 Aug 2026 08:00:00 GMT
+Vary: Accept-Encoding</textarea>
+          <p class="text-xs text-slate-500 mt-2">
+            Paste real headers from your own service. The parser is the one on the BUILD tab.
+          </p>
+        </div>
+        <div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">REQUEST TIMELINE</p>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <label>network delay each way (s)
+              <input id="rtt" type="number" value="0" min="0" max="120" class="w-full border border-slate-300 rounded px-2 py-1">
+            </label>
+            <label>upstream Age header (s)
+              <input id="age" type="number" value="0" min="0" max="600" class="w-full border border-slate-300 rounded px-2 py-1">
+            </label>
+          </div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mt-3 mb-1">REQUESTS AT t = (seconds)</p>
+          <input id="times" type="text" value="0, 30, 61, 90, 200">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mt-3 mb-1">REQUEST HEADERS (per request, optional)</p>
+          <input id="reqh" type="text" value="Accept-Encoding: gzip">
+          <button id="runBtn" class="mt-3 px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold">Run the timeline</button>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">FRESHNESS LIFETIME</p>
+          <p class="text-3xl font-black tabular-nums" id="fl">—</p>
+          <p class="text-xs text-slate-500" id="flWhy">—</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">CORRECTED INITIAL AGE</p>
+          <p class="text-3xl font-black tabular-nums" id="ia">—</p>
+          <p class="text-xs text-slate-500">Not zero. This is the bit people skip.</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">HITS / REVALIDATIONS</p>
+          <p class="text-3xl font-black tabular-nums"><span id="nHit">0</span> / <span id="nRev">0</span></p>
+          <p class="text-xs text-slate-500">304s cost a round-trip but not a body.</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">BODIES TRANSFERRED</p>
+          <p class="text-3xl font-black tabular-nums" id="nBody">0</p>
+          <p class="text-xs text-slate-500">The number your bandwidth bill actually sees.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">WHAT THE CACHE DID, AND WHY</p>
+        <div id="log" class="space-y-1"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">THE FOUR DIRECTIVES PEOPLE MIX UP</p>
+        <table class="w-full text-sm">
+          <thead class="text-xs uppercase text-slate-500 text-left">
+            <tr><th class="py-1">directive</th><th>stored?</th><th>served without asking?</th><th>what it is actually for</th></tr>
+          </thead>
+          <tbody id="dirTable" class="align-top"></tbody>
+        </table>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">VARY — THE HEADER THAT LEAKS</p>
+        <p class="text-sm text-slate-600 mb-3">
+          A cache keyed only on URL will hand a gzip body to a client that cannot decode it, or an
+          English page to a French speaker — and with <code>Vary: Cookie</code> on a personalised
+          page, one user's response to another. This runs both keying strategies over the same
+          request stream and counts the wrong answers.
+        </p>
+        <button id="varyBtn" class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold">Run 200 mixed requests</button>
+        <pre id="varyOut" class="mt-3 hidden"></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">A cache answers one question: may I serve this without asking?</h2>
+
+      <p>Everything in HTTP caching is that question. The answer has two halves — is the stored
+      response still <em>fresh</em>, and if not, can I cheaply <em>revalidate</em> it.</p>
+
+      <div class="bg-slate-100 rounded-xl p-4">
+        <p class="font-mono text-sm">fresh  ⟺  current_age &lt; freshness_lifetime</p>
+      </div>
+
+      <h3 class="text-xl font-bold">freshness_lifetime, in strict order</h3>
+      <ol class="list-decimal ml-6 space-y-1">
+        <li><code>s-maxage</code> — shared caches only, and it <strong>beats</strong> max-age.</li>
+        <li><code>max-age</code></li>
+        <li><code>Expires</code> − <code>Date</code></li>
+        <li>a <strong>heuristic</strong> — typically 10% of (Date − Last-Modified)</li>
+      </ol>
+      <p>That last one surprises people: a response with <em>no</em> caching headers at all is still
+      cacheable, and a CDN may hold it for hours. "I didn't set a cache header" is not the same as
+      "it will not be cached".</p>
+
+      <h3 class="text-xl font-bold">current_age is not "now minus Date"</h3>
+      <p>This is the part that gets skipped, and it is the reason for stale-looking bugs behind
+      proxies. RFC 9111 computes:</p>
+      <pre>apparent_age    = max(0, response_time − date_value)
+corrected_age   = max(apparent_age, age_value)          // trust the bigger one
+resident_time   = now − response_time
+current_age     = corrected_age + resident_time</pre>
+      <p>Two consequences. A response that spent 50 seconds in an upstream CDN arrives with
+      <code>Age: 50</code> and, under <code>max-age=60</code>, is fresh for <strong>10 more
+      seconds</strong>, not 60. And a slow request inflates <code>apparent_age</code>, so a response
+      can be born already half-expired. Set the delay slider on the SIMULATE tab and watch the first
+      request come back stale before it is even stored.</p>
+
+      <h3 class="text-xl font-bold">no-cache ≠ no-store</h3>
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm"><strong><code>no-cache</code> means "store it, but ask me before every
+        use".</strong> The response is written to disk. <strong><code>no-store</code> means "never
+        write it down"</strong> — that is the one for the bank statement. Shipping
+        <code>no-cache</code> when you meant <code>no-store</code> leaves private content sitting in
+        a shared cache, and it is the single most common mix-up in this whole area.</p>
+      </div>
+
+      <h3 class="text-xl font-bold">Revalidation is the cheap path, not the failure path</h3>
+      <p>Stale does not mean "download it again". If you stored an <code>ETag</code>, send
+      <code>If-None-Match</code>; the server compares and replies <code>304 Not Modified</code> with
+      <strong>no body</strong>. You pay one round-trip and zero bytes of payload, and the cache
+      refreshes its stored response with the new headers.</p>
+      <p>The counters on the SIMULATE tab separate revalidations from full misses for exactly this
+      reason — a cache with a 0% "hit rate" that is doing nothing but 304s is performing fine.</p>
+
+      <h3 class="text-xl font-bold">Vary, and the cache key</h3>
+      <p>The cache key is not the URL. It is the URL <em>plus</em> the request headers named in
+      <code>Vary</code>. Get this wrong and you do not get a slow site, you get a
+      <strong>wrong</strong> one: compressed bodies to clients that asked for none,
+      or — with <code>Vary: Cookie</code> — one user's page served to another.</p>
+      <p><code>Vary: *</code> means the response is effectively uncacheable. And every value you add
+      multiplies the number of stored variants, which is how a cache with a 99% configured hit rate
+      ends up never hitting anything.</p>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 Build it yourself</h2>
+
+      <h3 class="text-xl font-bold">1. Parse Cache-Control properly</h3>
+      <p>It is a comma-separated list where some members carry values and some do not, values may be
+      quoted, and names are case-insensitive. Splitting on <code>","</code> and comparing strings
+      will bite you on <code>max-age="60"</code>.</p>
+      <pre>function parseCC(v){
+  const out = {};
+  for (const part of String(v || "").split(",")){
+    const [rawK, ...rest] = part.trim().split("=");
+    if (!rawK) continue;
+    const k = rawK.toLowerCase();
+    let val = rest.join("=").trim();
+    if (val.startsWith('"') &amp;&amp; val.endsWith('"')) val = val.slice(1, -1);
+    out[k] = val === "" ? true : (isNaN(+val) ? val : +val);
+  }
+  return out;
+}</pre>
+
+      <h3 class="text-xl font-bold">2. freshness_lifetime, in the RFC's order</h3>
+      <pre>function freshnessLifetime(h, shared){
+  const cc = parseCC(h["cache-control"]);
+  if (shared &amp;&amp; typeof cc["s-maxage"] === "number") return { s: cc["s-maxage"], why: "s-maxage" };
+  if (typeof cc["max-age"] === "number")              return { s: cc["max-age"],   why: "max-age" };
+  if (h["expires"] &amp;&amp; h["date"])
+    return { s: (Date.parse(h["expires"]) - Date.parse(h["date"])) / 1000, why: "Expires - Date" };
+  if (h["last-modified"] &amp;&amp; h["date"])                       // the heuristic
+    return { s: 0.1 * (Date.parse(h["date"]) - Date.parse(h["last-modified"])) / 1000,
+             why: "heuristic, 10% of Date - Last-Modified" };
+  return { s: 0, why: "nothing to go on" };
+}</pre>
+
+      <h3 class="text-xl font-bold">3. current_age — write it exactly as specified</h3>
+      <pre>function currentAge(h, requestTime, responseTime, now){
+  const dateValue = Date.parse(h["date"]) / 1000;
+  const ageValue  = +(h["age"] || 0);
+  const apparentAge   = Math.max(0, responseTime - dateValue);
+  const correctedAge  = Math.max(apparentAge, ageValue);
+  const residentTime  = now - responseTime;
+  return correctedAge + residentTime;
+}</pre>
+      <p>Do not simplify this. Every term is carrying a real case, and the shortcut
+      <code>now - Date</code> silently drops both the upstream Age and the transit time.</p>
+
+      <h3 class="text-xl font-bold">4. The decision, as one function</h3>
+      <pre>function decide(entry, req, now, shared){
+  const cc = parseCC(entry.headers["cache-control"]);
+  if (cc["no-store"]) return { action: "MISS", why: "no-store: never written down" };
+  if (!varyMatches(entry, req)) return { action: "MISS", why: "Vary key mismatch" };
+
+  const age = currentAge(entry.headers, entry.requestTime, entry.responseTime, now);
+  const fl  = freshnessLifetime(entry.headers, shared).s;
+
+  if (cc["no-cache"]) return { action: "REVALIDATE", why: "no-cache: must ask every time" };
+  if (age &lt; fl)       return { action: "HIT", why: `age ${age|0}s &lt; lifetime ${fl|0}s` };
+  if (entry.headers["etag"] || entry.headers["last-modified"])
+    return { action: "REVALIDATE", why: `stale by ${(age-fl)|0}s, but revalidatable` };
+  return { action: "MISS", why: "stale and nothing to revalidate with" };
+}</pre>
+
+      <h3 class="text-xl font-bold">5. The Vary key</h3>
+      <pre>function varyKey(varyHeader, reqHeaders){
+  const names = String(varyHeader || "").split(",").map(s =&gt; s.trim().toLowerCase()).filter(Boolean);
+  if (names.includes("*")) return null;                  // never reusable
+  return names.map(n =&gt; n + "=" + (reqHeaders[n] || "")).join("&amp;");
+}</pre>
+      <p>Store this alongside the response and compare it on every lookup. A cache that skips it is
+      not slightly wrong, it is <em>serving the wrong body</em> — which the SIMULATE tab counts for
+      you.</p>
+
+      <h3 class="text-xl font-bold">6. Test the thing that is easy to get backwards</h3>
+      <pre>// no-cache MUST still be stored; no-store MUST NOT be.
+assert(store({"cache-control":"no-cache"}).stored === true);
+assert(store({"cache-control":"no-store"}).stored === false);
+
+// Age from upstream eats into max-age.
+const d = decide(entryWith({ "cache-control":"max-age=60", age:"50" }), req, t0 + 15);
+assert(d.action !== "HIT");            // 50 + 15 &gt; 60</pre>
+
+      <h3 class="text-xl font-bold">🎉 Day 63 of SolveFromZero.</h3>
+      <p class="text-slate-600">Tomorrow: a content-negotiation explainer — q-values, and why
+      <code>Accept</code> almost never means what people think.</p>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// Pure, DOM-free HTTP cache core following RFC 9111. No network anywhere.
+function parseHeaders(text){
+  const out = {};
+  String(text).split(/\r?\n/).forEach(function(line){
+    const i = line.indexOf(":");
+    if (i < 0) return;
+    const k = line.slice(0, i).trim().toLowerCase();
+    if (!k) return;
+    out[k] = line.slice(i + 1).trim();
+  });
+  return out;
+}
+
+function parseCC(v){
+  const out = {};
+  String(v || "").split(",").forEach(function(part){
+    const bits = part.trim().split("=");
+    const rawK = bits.shift();
+    if (!rawK) return;
+    const k = rawK.trim().toLowerCase();
+    let val = bits.join("=").trim();
+    if (val.length > 1 && val.charAt(0) === '"' && val.charAt(val.length-1) === '"') val = val.slice(1, -1);
+    out[k] = val === "" ? true : (isNaN(+val) ? val : +val);
+  });
+  return out;
+}
+
+function freshnessLifetime(h, shared){
+  const cc = parseCC(h["cache-control"]);
+  if (shared && typeof cc["s-maxage"] === "number") return { s: cc["s-maxage"], why: "s-maxage (shared cache)" };
+  if (typeof cc["max-age"] === "number")            return { s: cc["max-age"],  why: "max-age" };
+  if (h["expires"] && h["date"]){
+    const e = Date.parse(h["expires"]), d = Date.parse(h["date"]);
+    if (!isNaN(e) && !isNaN(d)) return { s: (e - d) / 1000, why: "Expires minus Date" };
+  }
+  if (h["last-modified"] && h["date"]){
+    const lm = Date.parse(h["last-modified"]), d = Date.parse(h["date"]);
+    if (!isNaN(lm) && !isNaN(d)) return { s: 0.1 * (d - lm) / 1000, why: "heuristic: 10% of Date - Last-Modified" };
+  }
+  return { s: 0, why: "no freshness information" };
+}
+
+// RFC 9111 age calculation - deliberately NOT simplified to (now - Date)
+function currentAge(h, requestTime, responseTime, now){
+  const dateValue = Date.parse(h["date"]) / 1000;
+  const ageValue = +(h["age"] || 0);
+  const apparentAge = isNaN(dateValue) ? 0 : Math.max(0, responseTime - dateValue);
+  const correctedAge = Math.max(apparentAge, ageValue);
+  const residentTime = now - responseTime;
+  return correctedAge + residentTime;
+}
+
+function varyKey(varyHeader, reqHeaders){
+  const names = String(varyHeader || "").split(",").map(function(s){ return s.trim().toLowerCase(); })
+                                        .filter(function(s){ return s; });
+  if (names.indexOf("*") >= 0) return null;              // never reusable
+  return names.map(function(n){ return n + "=" + (reqHeaders[n] === undefined ? "" : reqHeaders[n]); }).join("&");
+}
+
+function mayStore(h){
+  const cc = parseCC(h["cache-control"]);
+  if (cc["no-store"]) return false;
+  return true;                                            // no-cache IS stored
+}
+
+function decide(entry, reqHeaders, now, shared){
+  const h = entry.headers;
+  const cc = parseCC(h["cache-control"]);
+  if (cc["no-store"]) return { action: "MISS", why: "no-store: never written down" };
+
+  const wantKey = varyKey(h["vary"], reqHeaders);
+  if (wantKey === null) return { action: "MISS", why: "Vary: * - not reusable" };
+  if (wantKey !== entry.varyKey) return { action: "MISS", why: "Vary key mismatch" };
+
+  const age = currentAge(h, entry.requestTime, entry.responseTime, now);
+  const fl = freshnessLifetime(h, shared).s;
+
+  if (cc["no-cache"]) return { action: "REVALIDATE", why: "no-cache: revalidate before every use", age: age, fl: fl };
+  if (age < fl) return { action: "HIT", why: "age " + Math.round(age) + "s < lifetime " + Math.round(fl) + "s", age: age, fl: fl };
+  if (h["etag"] || h["last-modified"])
+    return { action: "REVALIDATE", why: "stale by " + Math.round(age - fl) + "s, revalidatable", age: age, fl: fl };
+  return { action: "MISS", why: "stale with nothing to revalidate against", age: age, fl: fl };
+}
+
+// run a timeline of requests against one origin response
+function simulate(headerText, times, reqHeaders, opts){
+  opts = opts || {};
+  const rtt = opts.rtt || 0;
+  const shared = opts.shared !== false;
+  const h = parseHeaders(headerText);
+  if (opts.ageOverride) h["age"] = String(opts.ageOverride);
+
+  const events = [];
+  let entry = null;
+  let hits = 0, revs = 0, misses = 0, bodies = 0;
+
+  times.forEach(function(t){
+    if (entry){
+      const d = decide(entry, reqHeaders, t, shared);
+      if (d.action === "HIT"){ hits++; events.push({ t: t, kind: "hit", why: d.why }); return; }
+      if (d.action === "REVALIDATE"){
+        revs++;
+        // 304: no body, refresh the stored response's timing
+        entry.requestTime = t; entry.responseTime = t + rtt;
+        events.push({ t: t, kind: "rev", why: d.why + " -> 304, no body" });
+        return;
+      }
+      misses++; bodies++;
+      events.push({ t: t, kind: "miss", why: d.why + " -> full response" });
+    } else {
+      misses++; bodies++;
+      events.push({ t: t, kind: "miss", why: "cold cache -> full response" });
+    }
+    if (mayStore(h)){
+      entry = { headers: h, requestTime: t, responseTime: t + rtt, varyKey: varyKey(h["vary"], reqHeaders) };
+    } else {
+      entry = null;
+    }
+  });
+
+  const fl = freshnessLifetime(h, shared);
+  const initialAge = entry ? currentAge(h, entry.requestTime, entry.responseTime, entry.responseTime) : 0;
+  return { events: events, hits: hits, revalidations: revs, misses: misses, bodies: bodies,
+           freshness: fl, initialAge: initialAge, headers: h };
+}
+
+// two cache keying strategies over the same stream - url-only is the buggy one
+function varyExperiment(requests, varyHeader, bodyFor){
+  const urlOnly = {}, withVary = {};
+  let wrongUrlOnly = 0, wrongWithVary = 0, servedU = 0, servedV = 0;
+  requests.forEach(function(r){
+    const correct = bodyFor(r.headers);
+    const k = varyKey(varyHeader, r.headers);
+    if (urlOnly["/x"] !== undefined){
+      servedU++;
+      if (urlOnly["/x"] !== correct) wrongUrlOnly++;
+    } else urlOnly["/x"] = correct;
+    const kk = "/x|" + k;
+    if (withVary[kk] !== undefined){
+      servedV++;
+      if (withVary[kk] !== correct) wrongWithVary++;
+    } else withVary[kk] = correct;
+  });
+  return { servedFromUrlOnly: servedU, wrongUrlOnly: wrongUrlOnly,
+           servedWithVary: servedV, wrongWithVary: wrongWithVary,
+           variants: Object.keys(withVary).length };
+}
+
+const DIRECTIVES = [
+  { name: "no-store",        stored: false, servedBlind: false,
+    use: "Never write it down. The one for private data." },
+  { name: "no-cache",        stored: true,  servedBlind: false,
+    use: "Store it, but revalidate before EVERY use. Not the same as no-store." },
+  { name: "max-age=N",       stored: true,  servedBlind: true,
+    use: "Serve without asking for N seconds after it was generated." },
+  { name: "must-revalidate", stored: true,  servedBlind: true,
+    use: "Once stale, you may NOT serve it while the origin is unreachable." }
+];
+// ===== ENGINE:END =====
+
+/* ---------------- UI ---------------- */
+function parseTimes(s){
+  return String(s).split(",").map(function(x){ return parseFloat(x.trim()); })
+                  .filter(function(x){ return !isNaN(x); });
+}
+
+function run(){
+  const headerText = document.getElementById("hdrs").value;
+  const times = parseTimes(document.getElementById("times").value);
+  const reqHeaders = parseHeaders(document.getElementById("reqh").value.split(",").join("\n"));
+  const rtt = +document.getElementById("rtt").value || 0;
+  const ageO = +document.getElementById("age").value || 0;
+
+  const r = simulate(headerText, times, reqHeaders, { rtt: rtt, ageOverride: ageO, shared: true });
+
+  document.getElementById("fl").textContent = Math.round(r.freshness.s) + "s";
+  document.getElementById("flWhy").textContent = "from " + r.freshness.why;
+  document.getElementById("ia").textContent = Math.round(r.initialAge) + "s";
+  document.getElementById("nHit").textContent = r.hits;
+  document.getElementById("nRev").textContent = r.revalidations;
+  document.getElementById("nBody").textContent = r.bodies;
+
+  document.getElementById("log").innerHTML = r.events.map(function(e){
+    return "<div class='ev " + e.kind + "'><strong>t=" + e.t + "s</strong> · " +
+      e.kind.toUpperCase() + " — " + e.why + "</div>";
+  }).join("");
+
+  document.getElementById("dirTable").innerHTML = DIRECTIVES.map(function(d){
+    return "<tr class='border-t border-slate-100'><td class='py-2 font-mono text-xs'>" + d.name + "</td>" +
+      "<td class='font-bold " + (d.stored ? "text-emerald-600'>yes" : "text-rose-600'>no") + "</td>" +
+      "<td class='font-bold " + (d.servedBlind ? "text-emerald-600'>yes" : "text-rose-600'>no") + "</td>" +
+      "<td class='text-slate-600'>" + d.use + "</td></tr>";
+  }).join("");
+}
+
+document.getElementById("runBtn").addEventListener("click", run);
+["hdrs","times","reqh","rtt","age"].forEach(function(id){
+  document.getElementById(id).addEventListener("input", run);
+});
+
+document.getElementById("varyBtn").addEventListener("click", function(){
+  const out = document.getElementById("varyOut");
+  out.classList.remove("hidden");
+  const encs = ["gzip", "br", "identity"];
+  const reqs = [];
+  let seed = 7;
+  const rnd = function(){ return (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; };
+  for (let i = 0; i < 200; i++){
+    reqs.push({ headers: { "accept-encoding": encs[Math.floor(rnd() * encs.length)] } });
+  }
+  const res = varyExperiment(reqs, "Accept-Encoding", function(h){ return "body:" + h["accept-encoding"]; });
+  out.textContent =
+    "requests                     : 200\n" +
+    "distinct encodings requested : 3\n\n" +
+    "keyed on URL only\n" +
+    "  served from cache          : " + res.servedFromUrlOnly + "\n" +
+    "  WRONG body served          : " + res.wrongUrlOnly + "   <- undecodable for that client\n\n" +
+    "keyed on URL + Vary\n" +
+    "  stored variants            : " + res.variants + "\n" +
+    "  served from cache          : " + res.servedWithVary + "\n" +
+    "  WRONG body served          : " + res.wrongWithVary;
+});
+
+run();
+</script>
+</body>
+</html>
