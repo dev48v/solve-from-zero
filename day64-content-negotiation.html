@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 64 — Content negotiation &amp; q-values</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  input[type=text]{ border:1px solid #cbd5e1; border-radius:6px; padding:6px 8px; font-size:12px;
+                    width:100%; font-family:ui-monospace,monospace; }
+  td,th { font-size:12px; padding:4px 6px; }
+  .win { background:#dcfce7; font-weight:700; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-teal-700 mb-2">SOLVEFROMZERO · DAY 64</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🤝 Content negotiation — paste a real <code>Accept</code> header and watch a hand-written
+      RFC 9110 matcher pick the representation, showing its working. Almost nobody reads these
+      headers correctly, because the rules are not "highest q wins". <strong>Specificity is sorted
+      before q</strong>: <code>text/html</code> beats <code>text/*</code> beats <code>*/*</code>,
+      and a parameter count breaks ties above that — so
+      <code>text/html;level=1</code> outranks plain <code>text/html</code> regardless of the q
+      values. A <strong>q of 0 is not a preference, it is a prohibition</strong>: it means "never
+      send me this", and a server that treats it as "low priority" will cheerfully return a
+      representation the client explicitly refused. Browsers ship headers like
+      <code>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</code>, and this page
+      shows exactly why that produces HTML rather than XML. The same algorithm then runs for
+      <code>Accept-Language</code> (with the basic-filtering prefix rules from RFC 4647, where
+      <code>en</code> matches <code>en-GB</code> but never the reverse), <code>Accept-Encoding</code>
+      (with its special <code>identity</code> rule), and <code>Accept-Charset</code>. Vanilla JS,
+      no network.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🤝 NEGOTIATE</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-5xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5 grid md:grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">ACCEPT HEADER</p>
+          <input id="accept" type="text" value="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8">
+          <div class="flex flex-wrap gap-1 mt-2" id="presets"></div>
+        </div>
+        <div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">WHAT THE SERVER CAN PRODUCE</p>
+          <input id="offers" type="text" value="text/html, application/json, application/xml, text/plain">
+          <p class="text-xs text-slate-500 mt-2">
+            Order matters only as a tiebreak — the server's own preference, used when the client
+            is indifferent.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">CHOSEN</p>
+          <p class="text-2xl font-black" id="chosen">—</p>
+          <p class="text-xs text-slate-500" id="chosenWhy">—</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">EXPLICITLY REFUSED</p>
+          <p class="text-2xl font-black text-rose-600" id="refused">—</p>
+          <p class="text-xs text-slate-500">q=0 means never send this, not "send it last".</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-4">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">STATUS</p>
+          <p class="text-2xl font-black" id="status">—</p>
+          <p class="text-xs text-slate-500">406 when nothing acceptable is on offer.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5 overflow-auto">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">EVERY OFFER, SCORED</p>
+        <table class="w-full">
+          <thead class="text-left text-slate-500">
+            <tr><th>offer</th><th>best matching range</th><th>specificity</th><th>params</th><th>q</th><th>verdict</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p class="text-xs text-slate-500 mt-3">
+          Specificity: 3 = exact type/subtype, 2 = <code>type/*</code>, 1 = <code>*/*</code>.
+          The comparison is <strong>specificity first, then parameter count, then q</strong> — which is
+          why a lower-q exact match beats a higher-q wildcard.
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">THE OTHER THREE HEADERS</p>
+        <div class="grid md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-xs font-bold text-slate-500 mb-1">ACCEPT-LANGUAGE</p>
+            <input id="lang" type="text" value="en-GB,en;q=0.9,bn;q=0.8,*;q=0.1">
+            <p class="mt-1">have: <code>en-US, bn-IN, fr</code></p>
+            <p class="mt-1 font-bold" id="langOut">—</p>
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-500 mb-1">ACCEPT-ENCODING</p>
+            <input id="enc" type="text" value="br;q=1.0, gzip;q=0.8, *;q=0.1">
+            <p class="mt-1">have: <code>gzip, identity</code></p>
+            <p class="mt-1 font-bold" id="encOut">—</p>
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-500 mb-1">ACCEPT-CHARSET</p>
+            <input id="cs" type="text" value="utf-8, iso-8859-1;q=0.5, *;q=0">
+            <p class="mt-1">have: <code>utf-8, iso-8859-1</code></p>
+            <p class="mt-1 font-bold" id="csOut">—</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">CHECK IT AGAINST REAL BROWSER HEADERS</p>
+        <p class="text-sm text-slate-600 mb-3">
+          These are the headers browsers actually send. Each has a known correct outcome — if the
+          matcher disagrees with any of them, it is wrong, not clever.
+        </p>
+        <button id="proveBtn" class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold">Run the reference cases</button>
+        <pre id="proveOut" class="mt-3 hidden"></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">It is not "highest q wins"</h2>
+
+      <p>Almost every hand-rolled <code>Accept</code> parser sorts by q and takes the top. That is
+      wrong, and the header every browser sends proves it:</p>
+
+      <pre>Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</pre>
+
+      <p>Sort by q and <code>text/html</code> (q=1, implied) ties with
+      <code>application/xhtml+xml</code>, and <code>*/*</code> at q=0.8 loses to both — fine so far.
+      But now consider a server offering only <code>application/json</code>. It matches
+      <code>*/*</code> at q=0.8. Should it be served? Yes. And a server offering both
+      <code>application/xml</code> and <code>text/html</code>? HTML, because
+      <strong>specificity outranks q</strong>.</p>
+
+      <div class="bg-slate-100 rounded-xl p-4">
+        <p class="font-bold mb-2">The actual comparison order</p>
+        <ol class="list-decimal ml-6 text-sm space-y-1">
+          <li><strong>Specificity</strong> — exact <code>type/subtype</code> beats <code>type/*</code> beats <code>*/*</code></li>
+          <li><strong>Parameter count</strong> — <code>text/html;level=1</code> beats plain <code>text/html</code></li>
+          <li><strong>q value</strong> — only now does the weight matter</li>
+        </ol>
+      </div>
+
+      <p>So a client saying <code>text/plain;q=0.1, */*;q=1.0</code> and a server offering
+      <code>text/plain</code> gets <strong>text/plain</strong>, at q=0.1, even though the wildcard
+      carries q=1.0 — because the exact match is more specific. That result surprises people, and it
+      is unambiguously correct.</p>
+
+      <h3 class="text-xl font-bold">q=0 is a prohibition</h3>
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm">A quality of zero means <strong>"not acceptable"</strong> — never send it.
+        It is not "low priority". Treat it as a weight and you will happily return a representation
+        the client explicitly forbade, which is how <code>Accept-Charset: *;q=0</code> ends up
+        serving a charset that was refused. This page counts refusals separately for exactly that
+        reason.</p>
+      </div>
+
+      <h3 class="text-xl font-bold">406 is real, and rarer than you think</h3>
+      <p>When nothing on offer is acceptable, the correct answer is <strong>406 Not Acceptable</strong>.
+      In practice a <code>*/*</code> in the header means it almost never fires — which is why the
+      status only appears when the client sent a genuinely closed list, or refused everything with
+      q=0.</p>
+
+      <h3 class="text-xl font-bold">Languages match by prefix, in one direction</h3>
+      <p>RFC 4647 basic filtering: the range <code>en</code> matches the tag <code>en-GB</code>,
+      because <code>en-GB</code> is a <em>refinement</em> of <code>en</code>. The reverse is not true —
+      a client asking for <code>en-GB</code> is not automatically satisfied by <code>en-US</code>.</p>
+      <p>The match must also fall on a subtag boundary: <code>en</code> matches <code>en-GB</code>
+      but must not match <code>eng</code>. Comparing with <code>startsWith</code> and forgetting the
+      hyphen is the classic bug here.</p>
+
+      <h3 class="text-xl font-bold">Encoding has a rule of its own</h3>
+      <p><code>identity</code> — meaning no compression — is <strong>always acceptable unless
+      explicitly refused</strong>, even if it is not listed. That is a special case in the spec, and
+      omitting it produces a server that 406s a client which simply forgot to mention it.</p>
+
+      <h3 class="text-xl font-bold">And whatever you negotiate on, you must Vary on</h3>
+      <p>If the response depends on <code>Accept-Language</code>, the response must carry
+      <code>Vary: Accept-Language</code>, or a cache will serve one visitor's language to another.
+      Negotiation without <code>Vary</code> is not a partial implementation; it is a correctness bug
+      that only appears once a cache is in front of you.</p>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 Build it yourself</h2>
+
+      <h3 class="text-xl font-bold">1. Parse one range at a time</h3>
+      <pre>function parseRange(part){
+  const bits = part.trim().split(";");
+  const [type, subtype] = bits.shift().trim().toLowerCase().split("/");
+  let q = 1, params = 0;
+  for (const bit of bits){
+    const [k, v] = bit.trim().split("=");
+    if (k.trim().toLowerCase() === "q") q = clamp01(parseFloat(v));
+    else params++;                       // media-type params, NOT accept-params
+  }
+  return { type, subtype: subtype || "*", q, params };
+}</pre>
+      <p>Everything after <code>q</code> is an accept-param and does not count toward specificity.
+      Counting them is a common and quiet mistake.</p>
+
+      <h3 class="text-xl font-bold">2. Specificity as a number</h3>
+      <pre>function specificity(r){
+  if (r.type === "*") return 1;          // */*
+  if (r.subtype === "*") return 2;       // type/*
+  return 3;                              // type/subtype
+}</pre>
+
+      <h3 class="text-xl font-bold">3. Pick the best matching range for one offer</h3>
+      <pre>function bestRangeFor(offer, ranges){
+  const [ot, os] = offer.toLowerCase().split("/");
+  let best = null;
+  for (const r of ranges){
+    const matches = (r.type === "*")
+      || (r.type === ot &amp;&amp; (r.subtype === "*" || r.subtype === os));
+    if (!matches) continue;
+    if (!best || better(r, best)) best = r;
+  }
+  return best;
+}
+
+// specificity, THEN params, THEN q - in that order
+function better(a, b){
+  if (specificity(a) !== specificity(b)) return specificity(a) &gt; specificity(b);
+  if (a.params !== b.params)             return a.params &gt; b.params;
+  return a.q &gt; b.q;
+}</pre>
+
+      <h3 class="text-xl font-bold">4. Choose, and honour the prohibition</h3>
+      <pre>function negotiate(header, offers){
+  const ranges = parseAccept(header);
+  let winner = null, winnerRange = null;
+  for (const offer of offers){            // server order = the tiebreak
+    const r = bestRangeFor(offer, ranges);
+    if (!r) continue;                     // nothing matched at all
+    if (r.q === 0) continue;              // EXPLICITLY refused - never send it
+    if (!winner || r.q &gt; winnerRange.q) { winner = offer; winnerRange = r; }
+  }
+  return winner ? { offer: winner, q: winnerRange.q, status: 200 }
+                : { offer: null, status: 406 };
+}</pre>
+      <p>Note the two different <code>continue</code>s. "No range matched" and "a range matched and
+      said no" are different situations, and collapsing them loses the ability to report why.</p>
+
+      <h3 class="text-xl font-bold">5. Language matching, on subtag boundaries</h3>
+      <pre>function langMatches(range, tag){
+  if (range === "*") return true;
+  const r = range.toLowerCase(), t = tag.toLowerCase();
+  if (r === t) return true;
+  return t.startsWith(r + "-");           // 'en' matches 'en-GB', never 'eng'
+}</pre>
+      <p>The <code>+ "-"</code> is the whole rule. Without it <code>en</code> matches
+      <code>eng</code>, and you serve English to someone who asked for Engenni.</p>
+
+      <h3 class="text-xl font-bold">6. The identity special case</h3>
+      <pre>function negotiateEncoding(header, offers){
+  const ranges = parseAccept(normaliseEncoding(header));
+  // identity is acceptable unless explicitly refused, even if unlisted
+  const identityRange = ranges.find(r =&gt; r.type === "identity");
+  const star = ranges.find(r =&gt; r.type === "*");
+  const identityOk = identityRange ? identityRange.q &gt; 0
+                   : (star ? star.q &gt; 0 : true);
+  ...
+}</pre>
+
+      <h3 class="text-xl font-bold">7. Test against headers browsers actually send</h3>
+      <pre>const REFERENCE = [
+  { accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    offers: ["application/json"],                 expect: "application/json" },  // via */*
+  { accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    offers: ["application/xml", "text/html"],     expect: "text/html" },         // specificity
+  { accept: "text/plain;q=0.1, */*;q=1.0",
+    offers: ["text/plain"],                       expect: "text/plain" },        // exact &gt; wildcard
+  { accept: "application/json;q=0, */*;q=0.5",
+    offers: ["application/json"],                 expect: null },                // q=0 forbids
+];</pre>
+      <p>A parser that passes a synthetic test and fails a real browser header is not a parser. These
+      cases are the spec's own examples plus the ones that catch the "sort by q" shortcut.</p>
+
+      <h3 class="text-xl font-bold">🎉 Day 64 of SolveFromZero.</h3>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// Pure, DOM-free RFC 9110 content negotiation. No network anywhere.
+function clamp01(x){
+  if (isNaN(x)) return 1;
+  return x < 0 ? 0 : (x > 1 ? 1 : x);
+}
+
+function parseRange(part){
+  const bits = String(part).trim().split(";");
+  const media = bits.shift().trim().toLowerCase();
+  const slash = media.indexOf("/");
+  const type = slash < 0 ? media : media.slice(0, slash);
+  const subtype = slash < 0 ? "*" : media.slice(slash + 1);
+  let q = 1, params = 0, seenQ = false;
+  for (let i = 0; i < bits.length; i++){
+    const kv = bits[i].trim().split("=");
+    const k = kv[0].trim().toLowerCase();
+    if (k === "q"){ q = clamp01(parseFloat(kv[1])); seenQ = true; continue; }
+    // params BEFORE q are media-type parameters and count toward specificity;
+    // anything after q is an accept-param and does not.
+    if (!seenQ) params++;
+  }
+  return { type: type, subtype: subtype || "*", q: q, params: params, raw: String(part).trim() };
+}
+
+function parseAccept(header){
+  const out = [];
+  String(header || "").split(",").forEach(function(part){
+    if (part.trim()) out.push(parseRange(part));
+  });
+  return out;
+}
+
+function specificity(r){
+  if (r.type === "*") return 1;
+  if (r.subtype === "*") return 2;
+  return 3;
+}
+
+// specificity, THEN parameter count, THEN q. This order is the whole subject.
+function better(a, b){
+  if (specificity(a) !== specificity(b)) return specificity(a) > specificity(b);
+  if (a.params !== b.params) return a.params > b.params;
+  return a.q > b.q;
+}
+
+function rangeMatches(r, type, subtype){
+  if (r.type === "*") return true;
+  if (r.type !== type) return false;
+  return r.subtype === "*" || r.subtype === subtype;
+}
+
+function bestRangeFor(offer, ranges){
+  const media = String(offer).toLowerCase();
+  const slash = media.indexOf("/");
+  const type = slash < 0 ? media : media.slice(0, slash);
+  const subtype = slash < 0 ? "*" : media.slice(slash + 1);
+  let best = null;
+  for (let i = 0; i < ranges.length; i++){
+    const r = ranges[i];
+    if (!rangeMatches(r, type, subtype)) continue;
+    if (!best || better(r, best)) best = r;
+  }
+  return best;
+}
+
+function negotiate(header, offers){
+  const ranges = parseAccept(header);
+  const scored = [];
+  let winner = null, winnerQ = -1, refused = 0;
+  for (let i = 0; i < offers.length; i++){
+    const offer = String(offers[i]).trim();
+    if (!offer) continue;
+    const r = bestRangeFor(offer, ranges);
+    const row = { offer: offer, range: r, q: r ? r.q : null,
+                  spec: r ? specificity(r) : 0, params: r ? r.params : 0,
+                  verdict: "" };
+    if (!r){ row.verdict = "no matching range"; }
+    else if (r.q === 0){ row.verdict = "REFUSED (q=0)"; refused++; }
+    else {
+      row.verdict = "acceptable";
+      if (r.q > winnerQ){ winner = offer; winnerQ = r.q; }
+    }
+    scored.push(row);
+  }
+  for (let i = 0; i < scored.length; i++)
+    if (scored[i].offer === winner) scored[i].verdict = "CHOSEN";
+  return { offer: winner, q: winner ? winnerQ : null,
+           status: winner ? 200 : 406, refused: refused, rows: scored };
+}
+
+// RFC 4647 basic filtering: 'en' matches 'en-GB' but never 'eng', and never the reverse.
+function langMatches(range, tag){
+  if (range === "*") return true;
+  const r = String(range).toLowerCase(), t = String(tag).toLowerCase();
+  if (r === t) return true;
+  return t.indexOf(r + "-") === 0;
+}
+
+function negotiateLanguage(header, tags){
+  const ranges = parseAccept(header).map(function(r){
+    return { tag: r.raw.split(";")[0].trim().toLowerCase(), q: r.q };
+  });
+  // Exactly as for media types: find the MOST SPECIFIC matching range FIRST,
+  // then read its q. Scanning for the highest q instead lets a broad "*;q=0.5"
+  // override an explicit "fr;q=0" and serve a language the client forbade.
+  function bestRange(tag){
+    let best = null, bestLen = -1;
+    for (let k = 0; k < ranges.length; k++){
+      const r = ranges[k];
+      if (!langMatches(r.tag, tag)) continue;
+      const len = r.tag === "*" ? 0 : r.tag.length;
+      if (len > bestLen){ best = r; bestLen = len; }
+    }
+    return best;
+  }
+  let best = null, bestQ = -1;
+  for (let i = 0; i < tags.length; i++){
+    const tag = String(tags[i]).trim();
+    const r = bestRange(tag);
+    if (!r) continue;
+    if (r.q === 0) continue;                         // the specific range forbids it
+    if (r.q > bestQ){ best = tag; bestQ = r.q; }
+  }
+  return { tag: best, q: best ? bestQ : null, status: best ? 200 : 406 };
+}
+
+// identity is acceptable unless EXPLICITLY refused, even when unlisted.
+function negotiateEncoding(header, offers){
+  const ranges = parseAccept(header).map(function(r){
+    return { name: r.raw.split(";")[0].trim().toLowerCase(), q: r.q };
+  });
+  const find = n => ranges.filter(function(r){ return r.name === n; })[0];
+  const star = find("*");
+  let best = null, bestQ = -1;
+  for (let i = 0; i < offers.length; i++){
+    const name = String(offers[i]).trim().toLowerCase();
+    let r = find(name) || star;
+    let q;
+    if (r) q = r.q;
+    else if (name === "identity") q = 0.001;        // implicit acceptability
+    else continue;
+    if (name === "identity" && !find("identity") && !star) q = 0.001;
+    if (q === 0) continue;
+    if (q > bestQ){ best = name; bestQ = q; }
+  }
+  return { encoding: best, q: best ? bestQ : null, status: best ? 200 : 406 };
+}
+
+// The cases browsers actually produce, each with a known-correct outcome.
+const REFERENCE = [
+  { name: "browser header, only JSON on offer",
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    offers: ["application/json"], expect: "application/json" },
+  { name: "browser header, HTML beats XML on specificity",
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    offers: ["application/xml", "text/html"], expect: "text/html" },
+  { name: "exact low-q beats high-q wildcard",
+    accept: "text/plain;q=0.1, */*;q=1.0",
+    offers: ["text/plain"], expect: "text/plain" },
+  { name: "q=0 forbids, it is not low priority",
+    accept: "application/json;q=0, */*;q=0.5",
+    offers: ["application/json"], expect: null },
+  { name: "type/* beats */*",
+    accept: "text/*;q=0.5, */*;q=0.9",
+    offers: ["text/plain"], expect: "text/plain" },
+  { name: "nothing acceptable -> 406",
+    accept: "application/json",
+    offers: ["text/html"], expect: null },
+  { name: "curl default */* takes whatever is first",
+    accept: "*/*",
+    offers: ["text/html", "application/json"], expect: "text/html" },
+  { name: "parameters outrank q",
+    accept: "text/html;level=1;q=0.3, text/html;q=0.9",
+    offers: ["text/html"], expect: "text/html" }
+];
+// ===== ENGINE:END =====
+
+/* ---------------- UI ---------------- */
+const PRESETS = [
+  ["Chrome", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"],
+  ["curl", "*/*"],
+  ["API client", "application/json"],
+  ["refuses JSON", "application/json;q=0, */*;q=0.5"],
+  ["exact vs wildcard", "text/plain;q=0.1, */*;q=1.0"]
+];
+document.getElementById("presets").innerHTML = PRESETS.map(function(p, i){
+  return '<button data-i="' + i + '" class="px-2 py-1 rounded bg-slate-100 text-[11px] font-semibold">' + p[0] + '</button>';
+}).join("");
+document.querySelectorAll("#presets button").forEach(function(b){
+  b.addEventListener("click", function(){
+    document.getElementById("accept").value = PRESETS[+b.dataset.i][1];
+    run();
+  });
+});
+
+function run(){
+  const header = document.getElementById("accept").value;
+  const offers = document.getElementById("offers").value.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
+  const r = negotiate(header, offers);
+
+  document.getElementById("chosen").textContent = r.offer || "none";
+  document.getElementById("chosenWhy").textContent = r.offer
+    ? "matched " + (r.rows.filter(function(x){ return x.offer === r.offer; })[0].range.raw) + " at q=" + r.q
+    : "no acceptable representation";
+  document.getElementById("refused").textContent = r.refused;
+  const st = document.getElementById("status");
+  st.textContent = r.status;
+  st.className = "text-2xl font-black " + (r.status === 200 ? "text-emerald-600" : "text-rose-600");
+
+  document.getElementById("rows").innerHTML = r.rows.map(function(row){
+    return "<tr class='border-t border-slate-100 " + (row.verdict === "CHOSEN" ? "win" : "") + "'>" +
+      "<td>" + row.offer + "</td>" +
+      "<td class='font-mono'>" + (row.range ? row.range.raw : "—") + "</td>" +
+      "<td>" + (row.range ? row.spec : "—") + "</td>" +
+      "<td>" + (row.range ? row.params : "—") + "</td>" +
+      "<td>" + (row.range ? row.q : "—") + "</td>" +
+      "<td>" + row.verdict + "</td></tr>";
+  }).join("");
+
+  const l = negotiateLanguage(document.getElementById("lang").value, ["en-US", "bn-IN", "fr"]);
+  document.getElementById("langOut").textContent = l.tag ? l.tag + "  (q=" + l.q + ")" : "406";
+  const e = negotiateEncoding(document.getElementById("enc").value, ["gzip", "identity"]);
+  document.getElementById("encOut").textContent = e.encoding ? e.encoding + "  (q=" + e.q + ")" : "406";
+  const c = negotiate(document.getElementById("cs").value.split(",").map(function(s){
+    return s.trim().indexOf("/") < 0 ? s.trim().replace(/^([^;]+)/, "charset/$1") : s.trim();
+  }).join(","), ["charset/utf-8", "charset/iso-8859-1"]);
+  document.getElementById("csOut").textContent = c.offer ? c.offer.replace("charset/", "") + "  (q=" + c.q + ")" : "406";
+}
+
+["accept","offers","lang","enc","cs"].forEach(function(id){
+  document.getElementById(id).addEventListener("input", run);
+});
+
+document.getElementById("proveBtn").addEventListener("click", function(){
+  const out = document.getElementById("proveOut");
+  out.classList.remove("hidden");
+  const lines = [];
+  let bad = 0;
+  REFERENCE.forEach(function(c){
+    const got = negotiate(c.accept, c.offers).offer;
+    const ok = got === c.expect;
+    if (!ok) bad++;
+    lines.push((ok ? "  ok   " : "  FAIL ") + c.name +
+               "\n         expected " + JSON.stringify(c.expect) + ", got " + JSON.stringify(got));
+  });
+  lines.push("");
+  lines.push("  " + (REFERENCE.length - bad) + "/" + REFERENCE.length + " reference cases pass" +
+             (bad === 0 ? "" : "   <- BUG"));
+  out.textContent = lines.join("\n");
+});
+
+run();
+</script>
+</body>
+</html>
