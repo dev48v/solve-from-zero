@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 65 — CSP evaluator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  textarea { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px; width:100%;
+             font-family:ui-monospace,monospace; line-height:1.6; }
+  table.num td, table.num th { padding:5px 9px; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700; }
+  table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+  .verdict { font-weight:900; font-size:12px; padding:2px 8px; border-radius:99px; white-space:nowrap; }
+  .allow { background:#dcfce7; color:#166534; }
+  .block { background:#fee2e2; color:#991b1b; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  .sev { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:800; }
+  .sev.high { background:#fee2e2; color:#991b1b; }
+  .sev.med { background:#fef3c7; color:#92400e; }
+  .sev.ok { background:#dcfce7; color:#166534; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-cyan-700 mb-2">SOLVEFROMZERO · DAY 65</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🛡️ Content-Security-Policy evaluator — a real CSP engine, not a linter. Paste a policy and a
+      resource load, and it answers the only question that matters: <strong>does the browser fetch
+      this?</strong> Source-list matching is fiddlier than it reads — a scheme-only source matches
+      everything on that scheme, <code>*</code> deliberately does <em>not</em> cover
+      <code>data:</code> or <code>blob:</code>, a host source with no scheme inherits the
+      document's and then upgrades http→https but never the reverse, and <code>*.example.com</code>
+      matches a subdomain but <strong>not</strong> <code>example.com</code> itself. Then the two
+      clauses that decide whether a policy is real security or decoration:
+      <code>'unsafe-inline'</code> is <strong>ignored</strong> when a nonce or hash is present —
+      by design, so you can ship a fallback for old browsers — and <code>'strict-dynamic'</code>
+      throws away your entire host allowlist &mdash; and <code>'self'</code> with it, which is the one my first implementation kept and the tests caught. Directive fallback is implemented as the actual
+      chain (<code>img-src → default-src</code>, but <code>frame-ancestors</code> and
+      <code>base-uri</code> fall back to nothing), and the evaluator is checked against
+      <strong>60 reference cases</strong> plus a bypass scanner that finds the classic
+      <code>'self'</code>-plus-a-CDN hole. Pure vanilla JavaScript, one file, offline.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🛡️ EVALUATE</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">POLICY</p>
+            <textarea id="policy" rows="6">default-src 'self';
+script-src 'self' 'nonce-r4nd0m' 'unsafe-inline' https://cdn.example.com;
+img-src * data:;
+style-src 'self' 'unsafe-inline';
+frame-ancestors 'none'</textarea>
+          </div>
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">DOCUMENT ORIGIN</p>
+            <input id="origin" value="https://app.example.com"
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mono">
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1 mt-3">PRESETS</p>
+            <div class="flex gap-2 flex-wrap" id="presets"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">DOES THE BROWSER FETCH IT?</p>
+        <div class="overflow-x-auto">
+          <table class="num w-full">
+            <thead><tr><th>load</th><th>directive used</th><th>verdict</th><th>why</th></tr></thead>
+            <tbody id="loads"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">POLICY AUDIT</p>
+          <div id="audit" class="space-y-2 text-sm"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">THE PARSED POLICY</p>
+          <pre id="parsed" style="margin:0"></pre>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-2">SOURCE MATCHING, ONE SOURCE AT A TIME</p>
+        <p class="text-sm text-slate-600 mb-3">
+          Every source expression in <code>script-src</code>, tested against a URL you choose.
+          Green means that single source would allow it — the directive allows the load if
+          <em>any</em> row is green.
+        </p>
+        <input id="probe" value="https://cdn.example.com/lib.js"
+               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mono mb-3">
+        <div class="overflow-x-auto">
+          <table class="num w-full">
+            <thead><tr><th>source expression</th><th>matches?</th><th>rule that decided it</th></tr></thead>
+            <tbody id="srcTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">Most CSP headers are decoration, and the reason is two clauses</h2>
+
+      <p>A CSP looks like a firewall rule and behaves like one — mostly. The gap between "I wrote a
+      policy" and "I have a policy" is almost always one of two lines in the spec.</p>
+
+      <h3 class="text-xl font-bold">1. <code>'unsafe-inline'</code> is ignored when a nonce is present</h3>
+
+      <pre>script-src 'self' 'nonce-r4nd0m' 'unsafe-inline'</pre>
+
+      <p>Read that as a human and it says "allow inline scripts". Read it as a browser and the
+      <code>'unsafe-inline'</code> is <strong>discarded</strong>, because a nonce or hash is also
+      present. Only nonced scripts run.</p>
+
+      <p>This is deliberate and it is the best-designed clause in the spec: it lets you ship
+      <code>'unsafe-inline'</code> as a fallback for browsers too old to understand nonces, without
+      weakening the policy for browsers that do. The old browser gets a permissive policy; the
+      modern one silently ignores it.</p>
+
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm">The failure mode is the reverse: somebody adds
+        <code>'unsafe-inline'</code> to "fix" a broken widget, sees no change, and concludes CSP is
+        not working. It is working. The nonce is overriding them, and the fix they actually needed
+        was to nonce the widget.</p>
+      </div>
+
+      <h3 class="text-xl font-bold">2. <code>'strict-dynamic'</code> discards your allowlist entirely</h3>
+
+      <pre>script-src 'nonce-abc' 'strict-dynamic' https://cdn.example.com 'self'</pre>
+
+      <p>Every host in that line is <strong>ignored</strong>. With <code>'strict-dynamic'</code>,
+      trust propagates by <em>provenance</em>: a script you noncedmay load further scripts, and
+      hosts, schemes and <code>'self'</code> stop meaning anything.</p>
+
+      <p>That is usually what you want — host allowlists are famously bypassable — but a policy
+      that lists ten CDNs next to <code>'strict-dynamic'</code> is a policy whose author expected
+      those CDNs to matter, and they do not.</p>
+
+      <h3 class="text-xl font-bold">The wildcard has holes, on purpose</h3>
+
+      <p><code>img-src *</code> does not mean "any image". <code>*</code> matches network schemes
+      only — it deliberately excludes <code>data:</code>, <code>blob:</code> and
+      <code>filesystem:</code>, because those are the ones an attacker can construct without
+      controlling a host. You have to list <code>data:</code> explicitly, and once you do,
+      <code>img-src * data:</code> allows <code>&lt;img src="data:image/svg+xml,…"&gt;</code> —
+      which is a script vector in some contexts.</p>
+
+      <h3 class="text-xl font-bold">Host matching is stricter than a glob</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><code>*.example.com</code> matches <code>a.example.com</code> and
+        <code>a.b.example.com</code>, but <strong>not</strong> <code>example.com</code>.</li>
+        <li><code>example.com</code> matches any port and any path, but not a subdomain.</li>
+        <li>A source with no scheme inherits the document's, and then http upgrades to https —
+        <em>never</em> the other way. On an https page, <code>example.com</code> allows
+        <code>https://example.com</code> and refuses <code>http://example.com</code>.</li>
+        <li>A path in the source is a <em>prefix</em> match, and a source ending in
+        <code>/</code> matches that whole directory.</li>
+      </ul>
+
+      <h3 class="text-xl font-bold">Fallback is a chain, and it stops</h3>
+
+      <p><code>img-src</code> missing? Fall back to <code>default-src</code>. But
+      <code>frame-ancestors</code>, <code>base-uri</code>, <code>form-action</code> and
+      <code>report-uri</code> do <strong>not</strong> fall back — a policy with only
+      <code>default-src 'self'</code> does not restrict framing at all, which surprises people who
+      believe they have replaced <code>X-Frame-Options</code>.</p>
+
+      <p>Two more links in the chain are easy to miss: <code>script-src-elem</code> and
+      <code>script-src-attr</code> fall back to <code>script-src</code> before reaching
+      <code>default-src</code>, and <code>worker-src</code> falls back to
+      <code>child-src</code> first.</p>
+
+      <h3 class="text-xl font-bold">The bypass that ships most often</h3>
+
+      <p><code>script-src 'self' https://some-cdn.example</code> reads as tight. If that CDN hosts
+      user-uploaded files, or an old AngularJS build, or a JSONP endpoint, the policy is
+      <em>over</em> — an attacker points a script tag at the allowed host and CSP approves it. The
+      audit panel on this page flags exactly this shape, because it is the single most common way a
+      real policy turns out to be decorative.</p>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 How it is built</h2>
+
+      <h3 class="text-xl font-bold">1. Parse to a map, keeping duplicates out</h3>
+      <pre>function parsePolicy(text){
+  const out = {};
+  for (const part of text.split(';')){
+    const tok = part.trim().split(/\s+/).filter(Boolean);
+    if (!tok.length) continue;
+    const name = tok[0].toLowerCase();
+    if (name in out) continue;       // FIRST occurrence wins - later ones are ignored
+    out[name] = tok.slice(1);
+  }
+  return out;
+}</pre>
+      <p>First occurrence wins. Repeat a directive and the browser keeps the first and drops the
+      rest — so a policy that "fixes" a directive by appending a looser copy at the end changes
+      nothing, which is the second most common misconception after the nonce one.</p>
+
+      <h3 class="text-xl font-bold">2. Fallback is a table, not an if-chain</h3>
+      <pre>const FALLBACK = {
+  "script-src-elem": ["script-src", "default-src"],
+  "script-src-attr": ["script-src", "default-src"],
+  "worker-src":      ["child-src", "script-src", "default-src"],
+  "img-src":         ["default-src"],
+  "frame-ancestors": [],      // does NOT fall back
+  "base-uri":        [],
+  "form-action":     []
+};</pre>
+      <p>Written as data, so the empty arrays are visible. As an if-chain the missing cases look
+      like omissions; as a table they look like what they are — the spec saying "no fallback here".</p>
+
+      <h3 class="text-xl font-bold">3. The two clauses that rewrite the source list</h3>
+      <pre>function effectiveSources(list){
+  const hasNonceOrHash = list.some(s =&gt; /^'(nonce|sha(256|384|512))-/.test(s));
+  const strictDynamic  = list.includes("'strict-dynamic'");
+
+  let out = list.slice();
+  if (hasNonceOrHash) out = out.filter(s =&gt; s !== "'unsafe-inline'");   // spec: ignored
+  if (strictDynamic)  out = out.filter(s =&gt; survivesStrictDynamic(s));  // see below
+  return out;
+}</pre>
+      <p>Both filters run <em>before</em> any matching, which is why the page can show you the
+      effective list next to the one you wrote.</p>
+      <p>The second filter was written as <code>isKeyword(s)</code> first, and the tests caught it.
+      That drops hosts and schemes — and keeps <strong><code>'self'</code></strong>, because
+      <code>'self'</code> is a keyword. Under <code>'strict-dynamic'</code> the browser ignores
+      <code>'self'</code> too, so the evaluator would have reported a policy as protected by an
+      origin the browser was not consulting:</p>
+      <pre>const survivesStrictDynamic = s =&gt;
+  isNonce(s) || isHash(s) ||
+  ["'strict-dynamic'","'unsafe-eval'","'wasm-unsafe-eval'",
+   "'unsafe-hashes'","'report-sample'","'none'"].includes(s.toLowerCase());
+// NOT 'self', and NOT 'unsafe-inline' - both are ignored under strict-dynamic</pre>
+      <p>An allowlist again, for the same reason as the schemes: the failure mode of a denylist here
+      is silently trusting something.</p>
+
+      <h3 class="text-xl font-bold">4. Host matching, with the three traps</h3>
+      <pre>if (src.host.startsWith("*.")){
+  const suffix = src.host.slice(1);                 // ".example.com"
+  if (!url.host.endsWith(suffix)) return false;     // and NOT example.com itself
+} else if (src.host !== url.host) return false;
+
+// scheme: inherit the document's, then allow the http -&gt; https upgrade only
+if (!src.scheme){
+  if (url.scheme !== docScheme &amp;&amp; !(docScheme === "http" &amp;&amp; url.scheme === "https"))
+    return false;
+}
+
+// path is a PREFIX, and a trailing slash means the whole directory
+if (src.path &amp;&amp; !url.path.startsWith(src.path)) return false;</pre>
+      <p>The <code>slice(1)</code> keeps the leading dot, which is the entire reason
+      <code>*.example.com</code> refuses <code>example.com</code>. Drop the dot and you have written
+      a policy one <code>notexample.com</code> away from useless.</p>
+
+      <h3 class="text-xl font-bold">5. The wildcard's exclusions are explicit</h3>
+      <pre>const NETWORK_SCHEMES = ["http", "https", "ws", "wss", "ftp"];
+
+if (src.raw === "*") return NETWORK_SCHEMES.includes(url.scheme);
+// data:, blob:, filesystem: are NOT covered by * - they must be listed by name</pre>
+      <p>An allowlist of schemes rather than a denylist. A denylist would silently admit whatever
+      scheme the platform adds next, which is the wrong default for a security control.</p>
+
+      <h3 class="text-xl font-bold">6. Sixty reference cases, and an audit that finds real holes</h3>
+      <pre>// each case: policy, document origin, load, expected verdict
+{ p: "script-src 'self' 'nonce-x' 'unsafe-inline'", doc: "https://a.com",
+  load: { type: "script", inline: true, nonce: null }, want: "BLOCK",
+  why: "'unsafe-inline' is ignored because a nonce is present" }</pre>
+      <p>The reference set is where the traps live: nonce-overrides-unsafe-inline,
+      strict-dynamic-discards-hosts, <code>*</code>-excludes-<code>data:</code>,
+      <code>*.example.com</code>-refuses-the-apex, scheme upgrade one way only, and
+      <code>frame-ancestors</code> not falling back. Every one of them is a case where a plausible
+      implementation gives the opposite answer.</p>
+
+      <h3 class="text-xl font-bold">🎉 SolveFromZero Day 65 shipped.</h3>
+      <p class="text-slate-600">A header that everyone copies and few people evaluate.</p>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// A CSP evaluator. Answers "does the browser fetch this?", not "does this look tidy?".
+
+const NETWORK_SCHEMES = ["http", "https", "ws", "wss", "ftp"];
+
+// Written as DATA so the empty arrays are visible: those directives do not fall back.
+const FALLBACK = {
+  "script-src-elem": ["script-src", "default-src"],
+  "script-src-attr": ["script-src", "default-src"],
+  "style-src-elem":  ["style-src", "default-src"],
+  "style-src-attr":  ["style-src", "default-src"],
+  "worker-src":      ["child-src", "script-src", "default-src"],
+  "frame-src":       ["child-src", "default-src"],
+  "script-src":      ["default-src"],
+  "style-src":       ["default-src"],
+  "img-src":         ["default-src"],
+  "connect-src":     ["default-src"],
+  "font-src":        ["default-src"],
+  "media-src":       ["default-src"],
+  "object-src":      ["default-src"],
+  "manifest-src":    ["default-src"],
+  "child-src":       ["default-src"],
+  "frame-ancestors": [],
+  "base-uri":        [],
+  "form-action":     [],
+  "report-uri":      [],
+  "report-to":       []
+};
+
+const KEYWORDS = ["'self'", "'none'", "'unsafe-inline'", "'unsafe-eval'", "'strict-dynamic'",
+                  "'unsafe-hashes'", "'wasm-unsafe-eval'", "'report-sample'", "'inline-speculation-rules'"];
+
+const isNonce = s => /^'nonce-[^']+'$/i.test(s);
+const isHash = s => /^'sha(256|384|512)-[^']+'$/i.test(s);
+const isKeyword = s => KEYWORDS.indexOf(s.toLowerCase()) >= 0 || isNonce(s) || isHash(s);
+
+function parseUrl(u){
+  const m = String(u).match(/^(?:([a-z][a-z0-9+.-]*):)?(?:\/\/)?([^\/?#:]*)(?::(\d+|\*))?([^?#]*)/i);
+  if (!m) return { scheme: "", host: "", port: "", path: "" };
+  return { scheme: (m[1] || "").toLowerCase(), host: (m[2] || "").toLowerCase(),
+           port: m[3] || "", path: m[4] || "" };
+}
+
+function parseSource(raw){
+  const s = String(raw).trim();
+  if (isKeyword(s)) return { raw: s, keyword: true };
+  if (s === "*") return { raw: s, wildcard: true };
+  if (/^[a-z][a-z0-9+.-]*:$/i.test(s)) return { raw: s, schemeOnly: s.slice(0, -1).toLowerCase() };
+  const u = parseUrl(s);
+  return { raw: s, scheme: u.scheme, host: u.host, port: u.port, path: u.path };
+}
+
+function parsePolicy(text){
+  const out = {}, order = [], dupes = [];
+  for (const part of String(text).split(";")){
+    const tok = part.trim().split(/\s+/).filter(Boolean);
+    if (!tok.length) continue;
+    const name = tok[0].toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(out, name)) { dupes.push(name); continue; }
+    out[name] = tok.slice(1);          // FIRST occurrence wins; later ones are dropped
+    order.push(name);
+  }
+  return { directives: out, order: order, duplicates: dupes };
+}
+
+// The two clauses that rewrite the list before anything is matched against it.
+function effectiveSources(list){
+  const hasNonceOrHash = list.some(function(s){ return isNonce(s) || isHash(s); });
+  const strictDynamic = list.some(function(s){ return s.toLowerCase() === "'strict-dynamic'"; });
+  let out = list.slice();
+  const dropped = [];
+  if (hasNonceOrHash){
+    out = out.filter(function(s){
+      const drop = s.toLowerCase() === "'unsafe-inline'";
+      if (drop) dropped.push({ src: s, why: "a nonce or hash is present, so 'unsafe-inline' is ignored" });
+      return !drop;
+    });
+  }
+  if (strictDynamic){
+    // CSP3: with 'strict-dynamic' the browser ignores host-source, scheme-source, 'self'
+    // AND 'unsafe-inline'. Only nonces, hashes and the eval keywords keep working.
+    // Filtering on "not a keyword" is the tempting version and it leaves 'self' alive.
+    out = out.filter(function(s){
+      const k = s.toLowerCase();
+      const survives = isNonce(s) || isHash(s) ||
+        k === "'strict-dynamic'" || k === "'unsafe-eval'" || k === "'wasm-unsafe-eval'" ||
+        k === "'unsafe-hashes'" || k === "'report-sample'" || k === "'none'";
+      if (!survives) dropped.push({ src: s, why: "'strict-dynamic' discards hosts, schemes, 'self' and 'unsafe-inline'" });
+      return survives;
+    });
+  }
+  return { sources: out, dropped: dropped, hasNonceOrHash: hasNonceOrHash, strictDynamic: strictDynamic };
+}
+
+function directiveFor(policy, name){
+  if (Object.prototype.hasOwnProperty.call(policy.directives, name))
+    return { name: name, list: policy.directives[name], via: name };
+  const chain = FALLBACK[name] || [];
+  for (const alt of chain)
+    if (Object.prototype.hasOwnProperty.call(policy.directives, alt))
+      return { name: alt, list: policy.directives[alt], via: alt };
+  return null;                                     // nothing applies -> the load is allowed
+}
+
+// Does ONE source expression allow this URL?
+function sourceMatches(srcRaw, urlStr, docOrigin){
+  const src = parseSource(srcRaw);
+  const url = parseUrl(urlStr);
+  const doc = parseUrl(docOrigin);
+
+  if (src.keyword){
+    if (src.raw.toLowerCase() === "'self'"){
+      const sameScheme = url.scheme === doc.scheme ||
+                         (doc.scheme === "http" && url.scheme === "https");
+      return { ok: sameScheme && url.host === doc.host && (url.port || "") === (doc.port || ""),
+               rule: "'self' = exact scheme/host/port of the document" };
+    }
+    return { ok: false, rule: "keyword, not a URL source" };
+  }
+
+  if (src.wildcard)
+    return { ok: NETWORK_SCHEMES.indexOf(url.scheme) >= 0,
+             rule: "* covers network schemes only - not data:, blob: or filesystem:" };
+
+  if (src.schemeOnly)
+    return { ok: url.scheme === src.schemeOnly,
+             rule: "scheme-only source matches every URL on that scheme" };
+
+  // host
+  if (src.host.indexOf("*.") === 0){
+    const suffix = src.host.slice(1);              // keeps the dot: ".example.com"
+    if (!(url.host.length > suffix.length && url.host.slice(-suffix.length) === suffix))
+      return { ok: false, rule: "*.host matches subdomains, and NOT the apex domain" };
+  } else if (src.host !== url.host){
+    return { ok: false, rule: "host mismatch" };
+  }
+
+  // scheme: inherit the document's, then allow http -> https only
+  if (!src.scheme){
+    if (url.scheme !== doc.scheme && !(doc.scheme === "http" && url.scheme === "https"))
+      return { ok: false, rule: "no scheme in the source: inherits the document's, http upgrades to https, never the reverse" };
+  } else if (src.scheme !== url.scheme){
+    if (!(src.scheme === "http" && url.scheme === "https"))
+      return { ok: false, rule: "scheme mismatch (http in a source also allows https)" };
+  }
+
+  // port
+  if (src.port && src.port !== "*" && src.port !== (url.port || defaultPort(url.scheme)))
+    return { ok: false, rule: "port mismatch" };
+
+  // path is a prefix; a trailing slash means the whole directory
+  if (src.path && src.path !== "/"){
+    if (src.path.slice(-1) === "/"){
+      if (url.path.indexOf(src.path) !== 0) return { ok: false, rule: "path prefix (directory) mismatch" };
+    } else if (url.path !== src.path && url.path.indexOf(src.path + "/") !== 0){
+      return { ok: false, rule: "path must match exactly or as a directory prefix" };
+    }
+  }
+  return { ok: true, rule: "host source matched" };
+}
+
+function defaultPort(scheme){
+  return scheme === "https" || scheme === "wss" ? "443"
+       : scheme === "http" || scheme === "ws" ? "80"
+       : scheme === "ftp" ? "21" : "";
+}
+
+// The question that matters.
+function evaluate(policyText, docOrigin, load){
+  const policy = parsePolicy(policyText);
+  const dir = directiveFor(policy, load.directive);
+  if (!dir) return { allowed: true, directive: null,
+                     why: "no directive applies and there is no fallback, so CSP does not restrict this" };
+
+  const eff = effectiveSources(dir.list);
+
+  if (eff.sources.some(function(s){ return s.toLowerCase() === "'none'"; }))
+    return { allowed: false, directive: dir.via, why: "'none' blocks everything in this directive" };
+
+  if (load.inline){
+    if (load.nonce){
+      const match = eff.sources.some(function(s){ return isNonce(s) && s.slice(7, -1) === load.nonce; });
+      return { allowed: match, directive: dir.via,
+               why: match ? "the inline element carries a matching nonce"
+                          : "the inline element's nonce is not in the policy" };
+    }
+    if (load.hash){
+      const match = eff.sources.some(function(s){ return isHash(s) && s.toLowerCase().indexOf(load.hash.toLowerCase()) >= 0; });
+      return { allowed: match, directive: dir.via,
+               why: match ? "the inline content hash is listed" : "no matching hash in the policy" };
+    }
+    const unsafeInline = eff.sources.some(function(s){ return s.toLowerCase() === "'unsafe-inline'"; });
+    return { allowed: unsafeInline, directive: dir.via,
+             why: unsafeInline ? "'unsafe-inline' is in force"
+                  : (eff.hasNonceOrHash
+                     ? "'unsafe-inline' was IGNORED because a nonce or hash is present"
+                     : "inline content needs 'unsafe-inline', a nonce, or a hash") };
+  }
+
+  if (load.eval){
+    const ok = eff.sources.some(function(s){ return s.toLowerCase() === "'unsafe-eval'"; });
+    return { allowed: ok, directive: dir.via,
+             why: ok ? "'unsafe-eval' is in force" : "eval() requires 'unsafe-eval'" };
+  }
+
+  // an external load under strict-dynamic: hosts are gone, only provenance counts
+  if (eff.strictDynamic && !load.parserInserted)
+    return { allowed: true, directive: dir.via,
+             why: "'strict-dynamic': a trusted script inserted this, so host sources are irrelevant" };
+
+  for (const s of eff.sources){
+    const m = sourceMatches(s, load.url, docOrigin);
+    if (m.ok) return { allowed: true, directive: dir.via, matched: s, why: s + " - " + m.rule };
+  }
+  return { allowed: false, directive: dir.via,
+           why: eff.dropped.length
+             ? "no source matched (" + eff.dropped.length + " source(s) were discarded before matching)"
+             : "no source in the directive matched" };
+}
+
+// ---- audit: the shapes that make a policy decorative -------------------------
+const RISKY_HOSTS = ["*", "https:", "http:", "data:", "*.googleapis.com", "*.cloudflare.com",
+                     "unpkg.com", "cdn.jsdelivr.net", "*.amazonaws.com"];
+
+function auditPolicy(policyText){
+  const policy = parsePolicy(policyText);
+  const out = [];
+  const d = policy.directives;
+
+  if (!d["default-src"] && !d["script-src"])
+    out.push({ sev: "high", msg: "no script-src and no default-src: scripts are unrestricted" });
+
+  const scriptDir = directiveFor(policy, "script-src");
+  if (scriptDir){
+    const eff = effectiveSources(scriptDir.list);
+    if (eff.sources.some(function(s){ return s.toLowerCase() === "'unsafe-inline'"; }))
+      out.push({ sev: "high", msg: "script-src allows 'unsafe-inline' with no nonce or hash to override it - this is the XSS vector CSP exists to close" });
+    if (eff.sources.some(function(s){ return s.toLowerCase() === "'unsafe-eval'"; }))
+      out.push({ sev: "med", msg: "script-src allows 'unsafe-eval'" });
+    if (eff.hasNonceOrHash && scriptDir.list.some(function(s){ return s.toLowerCase() === "'unsafe-inline'"; }))
+      out.push({ sev: "ok", msg: "'unsafe-inline' is present but IGNORED (a nonce or hash is in the list) - correct old-browser fallback" });
+    const wildcardHosts = eff.sources.filter(function(s){
+      return !isKeyword(s) && (s === "*" || s.indexOf("*.") === 0 || /^https?:$/.test(s));
+    });
+    if (wildcardHosts.length)
+      out.push({ sev: "high", msg: "script-src contains a wildcard source (" + wildcardHosts.join(", ") + ") - any file on any matching host becomes executable" });
+    // read the WRITTEN list here, not the effective one - the whole point of the second
+    // finding is that these sources were discarded and still look protective on screen
+    const cdnHosts = scriptDir.list.filter(function(s){ return !isKeyword(s) && s !== "*" && !/^https?:$/.test(s); });
+    if (cdnHosts.length && !eff.strictDynamic)
+      out.push({ sev: "med", msg: "host allowlist in script-src (" + cdnHosts.join(", ") + "): if any of these serves user content, JSONP, or an old AngularJS, the policy is bypassable. 'strict-dynamic' removes this class of hole" });
+    if (eff.strictDynamic && cdnHosts.length)
+      out.push({ sev: "med", msg: "'strict-dynamic' is present, so these host sources are DISCARDED and only look protective: " + cdnHosts.join(", ") });
+  }
+
+  if (!d["object-src"] && !d["default-src"])
+    out.push({ sev: "med", msg: "no object-src: plugin content is unrestricted (object-src 'none' is the usual line)" });
+  if (!d["base-uri"])
+    out.push({ sev: "med", msg: "no base-uri: an injected <base> tag can re-point every relative script URL, and base-uri does NOT fall back to default-src" });
+  if (!d["frame-ancestors"])
+    out.push({ sev: "med", msg: "no frame-ancestors: framing is unrestricted, and it does NOT fall back to default-src" });
+  if (policy.duplicates.length)
+    out.push({ sev: "med", msg: "duplicate directive(s) ignored (first occurrence wins): " + policy.duplicates.join(", ") });
+  if (!out.length) out.push({ sev: "ok", msg: "nothing flagged" });
+  return out;
+}
+
+// ---- 60 reference cases ------------------------------------------------------
+function referenceCases(){
+  const A = "https://app.example.com";
+  const c = (p, load, want, why, doc) => ({ p, doc: doc || A, load, want, why });
+  const ext = (url, directive) => ({ directive: directive || "script-src", url });
+  const inl = (o) => Object.assign({ directive: "script-src", inline: true }, o || {});
+  return [
+    // 'self'
+    c("script-src 'self'", ext("https://app.example.com/a.js"), "ALLOW", "'self' matches the document origin"),
+    c("script-src 'self'", ext("https://other.example.com/a.js"), "BLOCK", "'self' is exact, not a suffix"),
+    c("script-src 'self'", ext("https://app.example.com:8443/a.js"), "BLOCK", "'self' includes the port"),
+    c("script-src 'self'", ext("http://app.example.com/a.js"), "BLOCK", "https document, http load - no downgrade"),
+    c("script-src 'self'", ext("https://app.example.com/deep/path/a.js"), "ALLOW", "'self' ignores the path"),
+    // nonce overrides unsafe-inline
+    c("script-src 'self' 'nonce-abc' 'unsafe-inline'", inl(), "BLOCK", "'unsafe-inline' ignored because a nonce is present"),
+    c("script-src 'self' 'nonce-abc' 'unsafe-inline'", inl({ nonce: "abc" }), "ALLOW", "matching nonce"),
+    c("script-src 'self' 'nonce-abc' 'unsafe-inline'", inl({ nonce: "wrong" }), "BLOCK", "nonce mismatch"),
+    c("script-src 'self' 'unsafe-inline'", inl(), "ALLOW", "no nonce present, so 'unsafe-inline' applies"),
+    c("script-src 'self' 'sha256-xyz' 'unsafe-inline'", inl(), "BLOCK", "a hash also disables 'unsafe-inline'"),
+    c("script-src 'self' 'sha256-xyz'", inl({ hash: "sha256-xyz" }), "ALLOW", "matching hash"),
+    // strict-dynamic
+    c("script-src 'nonce-a' 'strict-dynamic' https://cdn.example.com", ext("https://cdn.example.com/x.js"), "ALLOW", "strict-dynamic: provenance, not hosts"),
+    c("script-src 'nonce-a' 'strict-dynamic' https://cdn.example.com",
+      { directive: "script-src", url: "https://cdn.example.com/x.js", parserInserted: true }, "BLOCK",
+      "strict-dynamic discards the host allowlist for parser-inserted scripts"),
+    c("script-src 'strict-dynamic' 'self'",
+      { directive: "script-src", url: "https://app.example.com/a.js", parserInserted: true }, "BLOCK",
+      "'self' is discarded under strict-dynamic too"),
+    // wildcard and schemes
+    c("img-src *", ext("https://anything.test/a.png", "img-src"), "ALLOW", "* covers network schemes"),
+    c("img-src *", ext("data:image/png;base64,AAA", "img-src"), "BLOCK", "* deliberately excludes data:"),
+    c("img-src * data:", ext("data:image/png;base64,AAA", "img-src"), "ALLOW", "data: listed explicitly"),
+    c("img-src *", ext("blob:https://app.example.com/x", "img-src"), "BLOCK", "* excludes blob:"),
+    c("img-src https:", ext("https://anything.test/a.png", "img-src"), "ALLOW", "scheme-only source"),
+    c("img-src https:", ext("http://anything.test/a.png", "img-src"), "BLOCK", "https: does not cover http:"),
+    // subdomain wildcard
+    c("script-src *.example.com", ext("https://a.example.com/x.js"), "ALLOW", "subdomain matches"),
+    c("script-src *.example.com", ext("https://a.b.example.com/x.js"), "ALLOW", "deep subdomain matches"),
+    c("script-src *.example.com", ext("https://example.com/x.js"), "BLOCK", "the apex is NOT covered"),
+    c("script-src *.example.com", ext("https://notexample.com/x.js"), "BLOCK", "suffix match must respect the dot"),
+    c("script-src example.com", ext("https://a.example.com/x.js"), "BLOCK", "a bare host does not cover subdomains"),
+    // scheme inheritance and the upgrade
+    c("script-src cdn.example.com", ext("https://cdn.example.com/x.js"), "ALLOW", "inherits the document scheme"),
+    c("script-src cdn.example.com", ext("http://cdn.example.com/x.js"), "BLOCK", "no downgrade from an https document"),
+    c("script-src http://cdn.example.com", ext("https://cdn.example.com/x.js"), "ALLOW", "http in a source also allows https"),
+    c("script-src https://cdn.example.com", ext("http://cdn.example.com/x.js"), "BLOCK", "https in a source does not allow http"),
+    c("script-src cdn.example.com", ext("http://cdn.example.com/x.js"), "ALLOW", "http document, http load", "http://app.example.com"),
+    // paths
+    c("script-src https://cdn.example.com/lib/", ext("https://cdn.example.com/lib/a.js"), "ALLOW", "directory prefix"),
+    c("script-src https://cdn.example.com/lib/", ext("https://cdn.example.com/other/a.js"), "BLOCK", "outside the directory"),
+    c("script-src https://cdn.example.com/lib/a.js", ext("https://cdn.example.com/lib/a.js"), "ALLOW", "exact path"),
+    c("script-src https://cdn.example.com/lib/a.js", ext("https://cdn.example.com/lib/b.js"), "BLOCK", "different file"),
+    // 'none'
+    c("script-src 'none'", ext("https://app.example.com/a.js"), "BLOCK", "'none' blocks everything"),
+    c("script-src 'none' 'self'", ext("https://app.example.com/a.js"), "BLOCK", "'none' wins even beside other sources"),
+    // fallback chain
+    c("default-src 'self'", ext("https://app.example.com/a.png", "img-src"), "ALLOW", "img-src falls back to default-src"),
+    c("default-src 'self'", ext("https://other.test/a.png", "img-src"), "BLOCK", "fallback still applies 'self'"),
+    c("default-src 'self'; img-src *", ext("https://other.test/a.png", "img-src"), "ALLOW", "img-src overrides default-src"),
+    c("default-src 'none'; script-src 'self'", ext("https://app.example.com/a.js"), "ALLOW", "the specific directive wins"),
+    c("default-src 'self'", ext("https://evil.test/", "frame-ancestors"), "ALLOW", "frame-ancestors does NOT fall back"),
+    c("default-src 'self'", ext("https://evil.test/", "base-uri"), "ALLOW", "base-uri does NOT fall back"),
+    c("default-src 'self'", ext("https://evil.test/", "form-action"), "ALLOW", "form-action does NOT fall back"),
+    c("script-src 'self'", ext("https://app.example.com/w.js", "script-src-elem"), "ALLOW", "script-src-elem falls back to script-src"),
+    c("default-src 'self'", ext("https://app.example.com/w.js", "worker-src"), "ALLOW", "worker-src reaches default-src"),
+    c("child-src 'none'; default-src 'self'", ext("https://app.example.com/w.js", "worker-src"), "BLOCK", "worker-src hits child-src first"),
+    // eval
+    c("script-src 'self'", { directive: "script-src", eval: true }, "BLOCK", "eval needs 'unsafe-eval'"),
+    c("script-src 'self' 'unsafe-eval'", { directive: "script-src", eval: true }, "ALLOW", "'unsafe-eval' present"),
+    // duplicates: first wins
+    c("script-src 'none'; script-src 'self'", ext("https://app.example.com/a.js"), "BLOCK", "first occurrence wins"),
+    c("script-src 'self'; script-src 'none'", ext("https://app.example.com/a.js"), "ALLOW", "the later duplicate is ignored"),
+    // no directive at all
+    c("img-src 'self'", ext("https://anywhere.test/a.js"), "ALLOW", "no script-src, no default-src, so nothing restricts it"),
+    // case insensitivity
+    c("SCRIPT-SRC 'SELF'", ext("https://app.example.com/a.js"), "ALLOW", "directive and keyword names are case-insensitive"),
+    c("script-src 'self'", ext("HTTPS://APP.EXAMPLE.COM/a.js"), "ALLOW", "scheme and host comparison is case-insensitive"),
+    // ports
+    c("script-src https://cdn.example.com:8443", ext("https://cdn.example.com:8443/a.js"), "ALLOW", "explicit port matches"),
+    c("script-src https://cdn.example.com:8443", ext("https://cdn.example.com/a.js"), "BLOCK", "default port is not 8443"),
+    c("script-src https://cdn.example.com:*", ext("https://cdn.example.com:9999/a.js"), "ALLOW", "port wildcard"),
+    c("script-src https://cdn.example.com", ext("https://cdn.example.com:443/a.js"), "ALLOW", "explicit default port matches"),
+    // ws / connect
+    c("connect-src wss://api.example.com", ext("wss://api.example.com/socket", "connect-src"), "ALLOW", "websocket scheme"),
+    c("connect-src 'self'", ext("wss://app.example.com/socket", "connect-src"), "BLOCK", "'self' requires the same scheme"),
+    c("default-src *", ext("data:text/javascript,alert(1)"), "BLOCK", "* never covers data:, in any directive")
+  ];
+}
+
+function runReferenceCases(){
+  const cases = referenceCases();
+  const failures = [];
+  for (const t of cases){
+    const r = evaluate(t.p, t.doc, t.load);
+    const got = r.allowed ? "ALLOW" : "BLOCK";
+    if (got !== t.want) failures.push({ want: t.want, got: got, why: t.why, policy: t.p, load: t.load, said: r.why });
+  }
+  return { total: cases.length, failures: failures };
+}
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+
+const LOADS = [
+  { label: '<script src="https://cdn.example.com/lib.js">', directive: "script-src", url: "https://cdn.example.com/lib.js" },
+  { label: '<script src="https://evil.test/x.js">', directive: "script-src", url: "https://evil.test/x.js" },
+  { label: "inline <script> with no nonce", directive: "script-src", inline: true },
+  { label: "inline <script nonce=\"r4nd0m\">", directive: "script-src", inline: true, nonce: "r4nd0m" },
+  { label: "eval(\"1+1\")", directive: "script-src", eval: true },
+  { label: '<img src="https://images.test/a.png">', directive: "img-src", url: "https://images.test/a.png" },
+  { label: '<img src="data:image/svg+xml,...">', directive: "img-src", url: "data:image/svg+xml,x" },
+  { label: 'inline style="color:red"', directive: "style-src", inline: true },
+  { label: "framed by https://evil.test", directive: "frame-ancestors", url: "https://evil.test/" },
+  { label: '<base href="https://evil.test/">', directive: "base-uri", url: "https://evil.test/" },
+  { label: 'fetch("https://api.example.com/v1")', directive: "connect-src", url: "https://api.example.com/v1" }
+];
+
+const PRESETS = {
+  "typical (weak)": "default-src 'self';\nscript-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.example.com;\nimg-src * data:",
+  "nonce + fallback": "default-src 'self';\nscript-src 'self' 'nonce-r4nd0m' 'unsafe-inline' https://cdn.example.com;\nimg-src * data:;\nstyle-src 'self' 'unsafe-inline';\nframe-ancestors 'none'",
+  "strict-dynamic": "default-src 'none';\nscript-src 'nonce-r4nd0m' 'strict-dynamic' https://cdn.example.com 'self';\nimg-src 'self' data:;\nstyle-src 'self';\nbase-uri 'none';\nobject-src 'none';\nframe-ancestors 'none'",
+  "lockdown": "default-src 'none';\nscript-src 'self';\nstyle-src 'self';\nimg-src 'self';\nconnect-src 'self';\nbase-uri 'none';\nobject-src 'none';\nframe-ancestors 'none';\nform-action 'self'"
+};
+
+$("presets").innerHTML = Object.keys(PRESETS).map(function(k){
+  return '<button data-p="' + k + '" class="px-3 py-1.5 rounded-lg bg-slate-100 font-semibold text-xs">' + k + '</button>';
+}).join("");
+$("presets").addEventListener("click", function(e){
+  const k = e.target.dataset.p;
+  if (!k) return;
+  $("policy").value = PRESETS[k];
+  render();
+});
+
+function render(){
+  const p = $("policy").value, origin = $("origin").value;
+
+  $("loads").innerHTML = LOADS.map(function(l){
+    const r = evaluate(p, origin, l);
+    return "<tr><td class='mono'>" + l.label.replace(/</g, "&lt;") + "</td>" +
+      "<td class='mono'>" + (r.directive || "<span class='text-slate-400'>none applies</span>") + "</td>" +
+      "<td><span class='verdict " + (r.allowed ? "allow" : "block") + "'>" +
+      (r.allowed ? "ALLOWED" : "BLOCKED") + "</span></td>" +
+      "<td class='text-slate-600'>" + r.why + "</td></tr>";
+  }).join("");
+
+  const parsed = parsePolicy(p);
+  let txt = "";
+  for (const name of parsed.order){
+    const eff = effectiveSources(parsed.directives[name]);
+    txt += name + "\n  written   " + (parsed.directives[name].join(" ") || "(empty)") + "\n" +
+           "  effective " + (eff.sources.join(" ") || "(empty)") + "\n";
+    for (const d of eff.dropped) txt += "  DROPPED   " + d.src + "  <- " + d.why + "\n";
+  }
+  if (parsed.duplicates.length) txt += "\nignored duplicate directives: " + parsed.duplicates.join(", ");
+  $("parsed").textContent = txt || "(empty policy)";
+
+  $("audit").innerHTML = auditPolicy(p).map(function(a){
+    return "<div><span class='sev " + a.sev + "'>" +
+      (a.sev === "high" ? "HIGH" : a.sev === "med" ? "REVIEW" : "OK") + "</span> " + a.msg + "</div>";
+  }).join("");
+
+  const dir = directiveFor(parsed, "script-src");
+  const probe = $("probe").value;
+  if (dir){
+    const eff = effectiveSources(dir.list);
+    $("srcTable").innerHTML = dir.list.map(function(s){
+      const dropped = eff.dropped.filter(function(d){ return d.src === s; })[0];
+      if (dropped)
+        return "<tr><td class='mono'>" + s + "</td><td><span class='verdict block'>DISCARDED</span></td>" +
+               "<td class='text-slate-600'>" + dropped.why + "</td></tr>";
+      const m = sourceMatches(s, probe, origin);
+      return "<tr><td class='mono'>" + s + "</td><td><span class='verdict " + (m.ok ? "allow" : "block") + "'>" +
+        (m.ok ? "MATCHES" : "no") + "</span></td><td class='text-slate-600'>" + m.rule + "</td></tr>";
+    }).join("");
+  } else $("srcTable").innerHTML = "<tr><td colspan='3' class='text-slate-500'>no script-src and no default-src</td></tr>";
+}
+
+["policy", "origin", "probe"].forEach(function(id){
+  $(id).addEventListener("input", render);
+});
+render();
+</script>
+</body>
+</html>

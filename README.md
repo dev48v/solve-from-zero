@@ -66,6 +66,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 62 — SPF / DKIM / DMARC Checker](https://dev48v.infy.uk/solve/day62-spf-dmarc-checker.html) — `day62-spf-dmarc-checker.html`
 - [SolveFromZero · Day 63 — HTTP cache simulator](https://dev48v.infy.uk/solve/day63-http-cache-simulator.html) — `day63-http-cache-simulator.html`
 - [SolveFromZero · Day 64 — Content negotiation and q-values](https://dev48v.infy.uk/solve/day64-content-negotiation.html) — `day64-content-negotiation.html`
+- [SolveFromZero · Day 65 — Content-Security-Policy evaluator](https://dev48.infy.uk/solve/day65-csp-evaluator.html) — `day65-csp-evaluator.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
