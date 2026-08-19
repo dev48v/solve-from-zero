@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 66 — robots.txt evaluator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  textarea, input { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+                    width:100%; font-family:ui-monospace,monospace; line-height:1.55; }
+  table.num td, table.num th { padding:5px 9px; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700; }
+  table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+  .v { font-weight:900; font-size:12px; padding:2px 9px; border-radius:99px; white-space:nowrap; }
+  .allow { background:#dcfce7; color:#166534; }
+  .deny { background:#fee2e2; color:#991b1b; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  .ok { color:#166534; font-weight:800; }
+  .bad { color:#991b1b; font-weight:800; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-cyan-700 mb-2">SOLVEFROMZERO · DAY 66</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🤖 robots.txt evaluator — a real RFC 9309 engine, not a syntax checker. Paste a file and a
+      URL and it answers whether a given crawler may fetch it, and <strong>which line decided</strong>.
+      The rule almost nobody implements is the one that matters: when Allow and Disallow both match,
+      the <strong>longest</strong> rule wins, not the first — and on a tie, <strong>Allow</strong>
+      does. The original 1994 convention was first-match-wins, and the two answers differ on real
+      files, which the page measures rather than asserts. Group selection is the second trap:
+      a crawler obeys <strong>exactly one</strong> group, the most specific match on its name, and
+      rules are <em>never</em> merged across groups — so adding a <code>User-agent: Googlebot</code>
+      block silently removes every <code>*</code> rule for Googlebot, which is how sites
+      accidentally open their whole tree to one crawler. Plus the parts that are not rules at all
+      (<code>Sitemap</code>, <code>Crawl-delay</code>), the scope limits nobody reads (robots.txt is
+      per scheme, host <em>and port</em>), and <code>*</code>/<code>$</code> matching implemented
+      properly. 48 reference cases. Pure vanilla JavaScript, one file, offline.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🤖 EVALUATE</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">robots.txt</p>
+            <textarea id="robots" rows="12">User-agent: *
+Disallow: /admin/
+Disallow: /search
+Allow: /search/public
+Disallow: /*.pdf$
+
+User-agent: Googlebot
+Disallow: /private/
+
+Sitemap: https://example.com/sitemap.xml</textarea>
+          </div>
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">CRAWLER</p>
+            <input id="ua" value="Googlebot" class="mb-3">
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">PATH</p>
+            <input id="path" value="/admin/users" class="mb-3">
+            <div id="verdict" class="text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">EVERY RULE, AND WHY ONE WON</p>
+          <table class="num w-full">
+            <thead><tr><th>rule</th><th>matches?</th><th>length</th><th>outcome</th></tr></thead>
+            <tbody id="rules"></tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-2" id="ruleNote"></p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">GROUP SELECTION</p>
+          <p class="text-sm text-slate-600 mb-3">
+            One group applies. Never a merge.
+          </p>
+          <table class="num w-full">
+            <thead><tr><th>group</th><th>specificity</th><th>selected?</th></tr></thead>
+            <tbody id="groups"></tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-2" id="groupNote"></p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">LONGEST-MATCH vs FIRST-MATCH, ON REAL PATHS</p>
+        <p class="text-sm text-slate-600 mb-3">
+          The 1994 convention was first-match-wins; RFC 9309 is longest-match-wins with Allow
+          breaking ties. Where the two disagree, one of them is letting a crawler somewhere you did
+          not intend.
+        </p>
+        <table class="num w-full">
+          <thead><tr><th>path</th><th>RFC 9309 (longest)</th><th>1994 (first)</th><th>&nbsp;</th></tr></thead>
+          <tbody id="compare"></tbody>
+        </table>
+        <p class="text-xs text-slate-500 mt-2" id="compareNote"></p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">48 REFERENCE CASES</p>
+        <pre id="ref" style="margin:0"></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">Everyone can read robots.txt. Almost nobody can evaluate it.</h2>
+
+      <p>The file looks like the simplest configuration format in existence, which is exactly why
+      the three rules that matter get skipped.</p>
+
+      <h3 class="text-xl font-bold">1. Longest match wins, not first</h3>
+
+      <pre>Disallow: /search
+Allow: /search/public</pre>
+
+      <p>Is <code>/search/public/page</code> allowed? Under RFC 9309, yes: both rules match, and
+      <code>/search/public</code> is longer. Under the original 1994 convention it was
+      <em>first</em> match wins, so the Disallow would take it — and plenty of parsers still do
+      that.</p>
+
+      <p>On a tie, <strong>Allow wins</strong>. That asymmetry is deliberate: it makes the file
+      fail open rather than closed, on the theory that an ambiguous rule should not silently
+      de-index a site.</p>
+
+      <h3 class="text-xl font-bold">2. One group applies. Never a merge.</h3>
+
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm">This is the one that causes real incidents. A crawler picks the
+        <strong>most specific</strong> group whose user-agent matches it, and obeys
+        <em>only</em> that group. Rules from <code>User-agent: *</code> are not inherited.</p>
+      </div>
+
+      <pre>User-agent: *
+Disallow: /admin/
+Disallow: /private/
+
+User-agent: Googlebot
+Disallow: /private/</pre>
+
+      <p>Googlebot may now crawl <code>/admin/</code>. Someone added a Googlebot block to tighten
+      one path and silently removed every other restriction for that crawler. The page shows the
+      group selection separately for exactly this reason.</p>
+
+      <p>Specificity is longest-prefix on the user-agent token, and matching is
+      <strong>case-insensitive</strong> — while path matching is <strong>case-sensitive</strong>.
+      Two different rules in one file.</p>
+
+      <h3 class="text-xl font-bold">3. The wildcards are real, and <code>$</code> is not a regex</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><code>*</code> matches any sequence, including empty and including <code>/</code>.</li>
+        <li><code>$</code> anchors the end — and only at the end of a rule. In the middle it is a
+        literal dollar sign.</li>
+        <li>Everything else is literal. There are no character classes, no alternation, and
+        escaping a <code>*</code> is not possible.</li>
+      </ul>
+
+      <p>The safe implementation is to translate the pattern into a regex with every other
+      metacharacter escaped, which is exactly what the page does — and the test that matters is
+      that a rule containing <code>.</code> or <code>+</code> matches those characters
+      <em>literally</em>.</p>
+
+      <h3 class="text-xl font-bold">What robots.txt does not do</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>It is not access control.</strong> It is a request. A disallowed URL is still
+        served to anyone who asks.</li>
+        <li><strong>It does not remove pages from an index.</strong> A blocked page can still be
+        listed from inbound links — and blocking it prevents the crawler from ever seeing a
+        <code>noindex</code> tag, which is the opposite of what people intend.</li>
+        <li><strong>It is scoped to one origin.</strong> Scheme, host <em>and port</em>.
+        <code>https://example.com/robots.txt</code> says nothing about
+        <code>http://example.com</code>, <code>https://www.example.com</code> or port 8443.</li>
+        <li><code>Sitemap</code> and <code>Crawl-delay</code> are not exclusion rules.
+        <code>Sitemap</code> is global and outside any group; <code>Crawl-delay</code> is not in the
+        RFC at all and is ignored by some major crawlers.</li>
+      </ul>
+
+      <h3 class="text-xl font-bold">The default is allow</h3>
+
+      <p>No matching rule means allowed. A missing file means allowed. An empty
+      <code>Disallow:</code> means allowed — it is the documented way to say "everything". And a
+      5xx on the robots.txt fetch means most crawlers assume <em>disallow all</em> temporarily,
+      which is the one case where a server error is quietly worse than a 404.</p>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 How it is built</h2>
+
+      <h3 class="text-xl font-bold">1. Parsing into groups, which is not line-by-line</h3>
+      <pre>// consecutive User-agent lines start ONE group with several names
+if (field === "user-agent"){
+  if (!collecting) { current = { agents: [], rules: [] }; groups.push(current); collecting = true; }
+  current.agents.push(value.toLowerCase());
+} else if (field === "allow" || field === "disallow"){
+  collecting = false;                       // the next User-agent starts a NEW group
+  current.rules.push({ type: field, path: value });
+}</pre>
+      <p>The <code>collecting</code> flag is the whole grammar. Without it, two adjacent
+      <code>User-agent</code> lines become two groups instead of one shared group, and a file that
+      addresses several crawlers together falls apart.</p>
+
+      <h3 class="text-xl font-bold">2. Pattern to regex, with everything else escaped</h3>
+      <pre>function toRegex(pattern){
+  let anchored = false, p = pattern;
+  if (p.endsWith("$")) { anchored = true; p = p.slice(0, -1); }
+  const body = p.replace(/[.+?^${}()|[\]\\]/g, "\\$&")   // escape ALL metacharacters
+                .replace(/\*/g, ".*");                    // then re-enable the one wildcard
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}</pre>
+      <p>Escape first, then re-enable <code>*</code>. Doing it the other way round lets a
+      <code>.</code> in a path rule match any character, which turns
+      <code>Disallow: /a.pdf</code> into a rule that also blocks <code>/axpdf</code>.</p>
+
+      <h3 class="text-xl font-bold">3. The decision: longest wins, Allow breaks ties</h3>
+      <pre>let best = null;
+for (const rule of group.rules){
+  if (!toRegex(rule.path).test(path)) continue;
+  const len = rule.path.length;
+  if (!best || len &gt; best.len ||
+      (len === best.len &amp;&amp; rule.type === "allow" &amp;&amp; best.type === "disallow"))
+    best = { ...rule, len };
+}
+return best ? best.type === "allow" : true;      // no rule matched -&gt; ALLOWED</pre>
+      <p>Three clauses and a default. The tie-breaker is the middle condition, and the default at
+      the end is the one people invert — robots.txt is allow-by-default, and a parser that returns
+      "denied" for an unmatched path will quietly stop crawling a whole site.</p>
+
+      <h3 class="text-xl font-bold">4. Group selection is longest-prefix on the name</h3>
+      <pre>let best = null;
+for (const g of groups)
+  for (const agent of g.agents){
+    if (agent === "*"){ if (!best) best = { g, score: 0 }; continue; }
+    if (ua.toLowerCase().startsWith(agent) &amp;&amp; (!best || agent.length &gt; best.score))
+      best = { g, score: agent.length };
+  }
+return best ? best.g : null;                     // null -&gt; nothing applies -&gt; allowed</pre>
+      <p><code>startsWith</code>, not equality: the RFC says a crawler matches a group if the
+      product token is a prefix of its user-agent string. And the <code>*</code> group scores
+      <strong>zero</strong> rather than being skipped, so it is used only when nothing else
+      matches — which is what makes "adding a specific group removes the wildcard rules" fall out
+      of the code rather than needing a special case.</p>
+
+      <h3 class="text-xl font-bold">5. The comparison that makes the finding measurable</h3>
+      <pre>const rfc = allowed(file, ua, path, "longest");
+const old = allowed(file, ua, path, "first");
+if (rfc !== old) disagreements++;</pre>
+      <p>Both strategies implemented behind one flag, run over a generated corpus of paths, and the
+      disagreement count printed. "The 1994 rule gives different answers" is a claim; a number is
+      a finding.</p>
+
+      <h3 class="text-xl font-bold">6. What the 48 reference cases cover</h3>
+      <pre>empty Disallow allows everything      Disallow: / blocks everything
+longest match wins                    ties go to Allow
+$ anchors, and only at the end        a literal . does not match any char
+* matches across slashes              paths are case-SENSITIVE
+user-agents are case-INSENSITIVE      a specific group REPLACES the * group
+consecutive User-agent lines = 1 group   Sitemap is not a rule
+no rules at all -&gt; allowed            no matching group -&gt; allowed</pre>
+      <p>Each of those is a case where a plausible implementation gives the opposite answer, which
+      is the only reason to write a reference case at all.</p>
+
+      <h3 class="text-xl font-bold">🎉 SolveFromZero Day 66 shipped.</h3>
+      <p class="text-slate-600">The simplest file on the internet, and three rules deep.</p>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// A robots.txt evaluator: RFC 9309 group selection and longest-match, with the 1994
+// first-match strategy implemented alongside so the difference can be measured.
+
+function parseRobots(text){
+  const groups = [];
+  const sitemaps = [];
+  let current = null, collecting = false;
+  for (let raw of String(text).split(/\r?\n/)){
+    const line = raw.split("#")[0].trim();
+    if (!line) continue;
+    const i = line.indexOf(":");
+    if (i < 0) continue;
+    const field = line.slice(0, i).trim().toLowerCase();
+    const value = line.slice(i + 1).trim();
+
+    if (field === "user-agent"){
+      // consecutive User-agent lines start ONE group with several names
+      if (!collecting){ current = { agents: [], rules: [], extras: [] }; groups.push(current); collecting = true; }
+      current.agents.push(value.toLowerCase());
+    } else if (field === "allow" || field === "disallow"){
+      if (!current){ current = { agents: ["*"], rules: [], extras: [] }; groups.push(current); }
+      collecting = false;
+      current.rules.push({ type: field, path: value });
+    } else if (field === "sitemap"){
+      sitemaps.push(value);                       // global, outside any group
+    } else if (current){
+      collecting = false;
+      current.extras.push({ field: field, value: value });   // crawl-delay etc - NOT rules
+    }
+  }
+  return { groups: groups, sitemaps: sitemaps };
+}
+
+// escape every metacharacter FIRST, then re-enable the single wildcard robots.txt has
+function toRegex(pattern){
+  let p = String(pattern), anchored = false;
+  if (p.slice(-1) === "$"){ anchored = true; p = p.slice(0, -1); }
+  const body = p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp("^" + body + (anchored ? "$" : ""));
+}
+
+const ruleMatches = (rule, path) => rule.path !== "" && toRegex(rule.path).test(path);
+
+// longest-prefix on the agent token; "*" scores zero so it only wins when nothing else does
+function selectGroup(parsed, ua){
+  const name = String(ua).toLowerCase();
+  let best = null, wildcard = null;
+  for (const g of parsed.groups)
+    for (const agent of g.agents){
+      if (agent === "*"){ if (!wildcard) wildcard = g; continue; }
+      if (name.indexOf(agent) === 0 && (!best || agent.length > best.score))
+        best = { group: g, score: agent.length };
+    }
+  return best ? best.group : wildcard;            // null -> nothing applies -> allowed
+}
+
+function decide(group, path, strategy){
+  if (!group) return { allowed: true, rule: null, reason: "no group applies to this crawler" };
+  const matching = group.rules.filter(function(r){ return ruleMatches(r, path); });
+  if (!matching.length){
+    const emptyDisallow = group.rules.some(function(r){ return r.type === "disallow" && r.path === ""; });
+    return { allowed: true, rule: null,
+             reason: emptyDisallow ? "an empty Disallow allows everything" : "no rule matches" };
+  }
+  if (strategy === "first"){
+    const r = matching[0];
+    return { allowed: r.type === "allow", rule: r, reason: "1994 convention: first matching rule" };
+  }
+  let best = null;
+  for (const r of matching){
+    const len = r.path.length;
+    if (!best || len > best.len ||
+        (len === best.len && r.type === "allow" && best.rule.type === "disallow"))
+      best = { rule: r, len: len };
+  }
+  return { allowed: best.rule.type === "allow", rule: best.rule,
+           reason: "longest match (" + best.len + " chars)" +
+                   (matching.filter(function(r){ return r.path.length === best.len; }).length > 1
+                     ? ", Allow won the tie" : "") };
+}
+
+function allowed(text, ua, path, strategy){
+  const parsed = parseRobots(text);
+  return decide(selectGroup(parsed, ua), path, strategy || "longest").allowed;
+}
+
+function explain(text, ua, path, strategy){
+  const parsed = parseRobots(text);
+  const group = selectGroup(parsed, ua);
+  const d = decide(group, path, strategy || "longest");
+  return { parsed: parsed, group: group, decision: d };
+}
+
+// The measurement: where do the two strategies disagree?
+function compareStrategies(text, ua, paths){
+  const rows = [];
+  let disagreements = 0;
+  for (const p of paths){
+    const rfc = allowed(text, ua, p, "longest");
+    const old = allowed(text, ua, p, "first");
+    if (rfc !== old) disagreements++;
+    rows.push({ path: p, rfc: rfc, first: old, differs: rfc !== old });
+  }
+  return { rows: rows, disagreements: disagreements, total: paths.length };
+}
+
+// ---- 48 reference cases ----
+function referenceCases(){
+  const c = (robots, ua, path, want, why) => ({ robots, ua, path, want, why });
+  const BASIC = "User-agent: *\nDisallow: /admin/\nDisallow: /search\nAllow: /search/public\nDisallow: /*.pdf$";
+  const SPLIT = "User-agent: *\nDisallow: /admin/\nDisallow: /private/\n\nUser-agent: Googlebot\nDisallow: /private/";
+  const MULTI = "User-agent: Googlebot\nUser-agent: Bingbot\nDisallow: /x/";
+  return [
+    // defaults
+    c("", "Bot", "/anything", true, "an empty file allows everything"),
+    c("User-agent: *\nDisallow:", "Bot", "/anything", true, "an empty Disallow allows everything"),
+    c("User-agent: *\nDisallow: /", "Bot", "/anything", false, "Disallow: / blocks everything"),
+    c("User-agent: *\nDisallow: /", "Bot", "/", false, "including the root itself"),
+    c("User-agent: *\nAllow: /", "Bot", "/x", true, "an explicit Allow: /"),
+    c("Sitemap: https://x.test/s.xml", "Bot", "/x", true, "a file with no groups allows everything"),
+    // prefix matching
+    c(BASIC, "Bot", "/admin/users", false, "prefix match on a directory"),
+    c(BASIC, "Bot", "/admin", true, "/admin/ does not match /admin without the slash"),
+    c(BASIC, "Bot", "/administrator", true, "/admin/ does not match /administrator"),
+    c(BASIC, "Bot", "/public/admin/", true, "rules are anchored at the start of the path"),
+    // longest match and ties
+    c(BASIC, "Bot", "/search", false, "Disallow: /search matches"),
+    c(BASIC, "Bot", "/search/public", true, "the longer Allow wins"),
+    c(BASIC, "Bot", "/search/public/deep", true, "longest match still applies deeper"),
+    c(BASIC, "Bot", "/search/private", false, "only the Disallow matches here"),
+    c("User-agent: *\nDisallow: /a\nAllow: /a", "Bot", "/a", true, "equal length: Allow wins the tie"),
+    c("User-agent: *\nAllow: /a\nDisallow: /a", "Bot", "/a", true, "order does not matter for the tie"),
+    c("User-agent: *\nDisallow: /ab\nAllow: /a", "Bot", "/abc", false, "the longer Disallow wins"),
+    // wildcards
+    c(BASIC, "Bot", "/docs/report.pdf", false, "* matches across slashes"),
+    c(BASIC, "Bot", "/docs/report.pdf?v=2", true, "$ anchors the end, so a query breaks the match"),
+    c("User-agent: *\nDisallow: /*.pdf", "Bot", "/a.pdf?v=2", false, "without $ the query does not matter"),
+    c("User-agent: *\nDisallow: /a*b", "Bot", "/axxxb", false, "* matches a run of characters"),
+    c("User-agent: *\nDisallow: /a*b", "Bot", "/ab", false, "* also matches the empty string"),
+    c("User-agent: *\nDisallow: /a.b", "Bot", "/axb", true, "a literal dot does NOT match any character"),
+    c("User-agent: *\nDisallow: /a+b", "Bot", "/ab", true, "a literal plus is not a quantifier"),
+    c("User-agent: *\nDisallow: /a(b)", "Bot", "/a(b)", false, "parentheses are literal"),
+    c("User-agent: *\nDisallow: /x$y", "Bot", "/x$y", false, "$ in the middle is a literal dollar"),
+    // case
+    c("User-agent: *\nDisallow: /Admin/", "Bot", "/admin/x", true, "paths are case-SENSITIVE"),
+    c("User-agent: *\nDisallow: /Admin/", "Bot", "/Admin/x", false, "the same path with matching case"),
+    c("User-agent: googlebot\nDisallow: /x/", "Googlebot", "/x/y", false, "user-agents are case-INSENSITIVE"),
+    c("User-agent: GOOGLEBOT\nDisallow: /x/", "googlebot", "/x/y", false, "in both directions"),
+    // group selection - the incident
+    c(SPLIT, "Googlebot", "/private/x", false, "the Googlebot group blocks /private/"),
+    c(SPLIT, "Googlebot", "/admin/x", true, "and REPLACES the * group, so /admin/ is now open"),
+    c(SPLIT, "Bingbot", "/admin/x", false, "Bingbot still gets the * group"),
+    c(SPLIT, "Googlebot-Image", "/admin/x", true, "prefix match: Googlebot-Image uses the Googlebot group"),
+    c(MULTI, "Bingbot", "/x/y", false, "consecutive User-agent lines form ONE group"),
+    c(MULTI, "Googlebot", "/x/y", false, "and both names get the same rules"),
+    c(MULTI, "Yandex", "/x/y", true, "an unlisted crawler with no * group is unrestricted"),
+    c("User-agent: *\nDisallow: /a\n\nUser-agent: Bot\nAllow: /", "Bot", "/a", true, "a specific group wins"),
+    c("User-agent: Bot\nDisallow: /a\n\nUser-agent: BotLong\nDisallow: /b", "BotLong", "/a", true,
+      "the LONGEST matching agent token wins, and its group replaces the shorter one"),
+    c("User-agent: Bot\nDisallow: /a\n\nUser-agent: BotLong\nDisallow: /b", "BotLong", "/b", false,
+      "so BotLong obeys only its own rules"),
+    // non-rules and syntax
+    c("User-agent: *\nCrawl-delay: 10\nDisallow: /a", "Bot", "/a", false, "Crawl-delay is not a rule"),
+    c("User-agent: *\nDisallow: /a\nSitemap: https://x.test/s.xml", "Bot", "/b", true, "Sitemap is not a rule"),
+    c("# comment\nUser-agent: *\nDisallow: /a # trailing", "Bot", "/a", false, "comments are stripped"),
+    c("User-agent:*\nDisallow:/a", "Bot", "/a", false, "whitespace around the colon is optional"),
+    c("USER-AGENT: *\nDISALLOW: /a", "Bot", "/a", false, "field names are case-insensitive"),
+    c("User-agent: *\nNonsense: /a\nDisallow: /b", "Bot", "/b", false, "unknown fields are ignored"),
+    c("Disallow: /a", "Bot", "/a", false, "a rule with no group is treated as the * group"),
+    c("User-agent: *\nDisallow: /a\n\n\n\nDisallow: /b", "Bot", "/b", false, "blank lines do not end a group")
+  ];
+}
+
+function runReferenceCases(){
+  const cases = referenceCases();
+  const failures = [];
+  for (const t of cases){
+    const got = allowed(t.robots, t.ua, t.path, "longest");
+    if (got !== t.want) failures.push({ ...t, got: got });
+  }
+  return { total: cases.length, failures: failures };
+}
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+const PATHS = ["/", "/admin/", "/admin/users", "/administrator", "/search", "/search/public",
+               "/search/public/deep", "/search/private", "/private/x", "/docs/a.pdf",
+               "/docs/a.pdf?v=2", "/blog/post", "/api/v1/items"];
+
+function render(){
+  const text = $("robots").value, ua = $("ua").value, path = $("path").value;
+  const r = explain(text, ua, path, "longest");
+
+  $("verdict").innerHTML = "<span class='v " + (r.decision.allowed ? "allow" : "deny") + "'>" +
+    (r.decision.allowed ? "ALLOWED" : "DISALLOWED") + "</span> <span class='text-slate-600'>" +
+    r.decision.reason + "</span>" +
+    (r.decision.rule ? "<div class='mono mt-2 text-slate-500'>decided by: " +
+      r.decision.rule.type + ": " + r.decision.rule.path + "</div>" : "");
+
+  const rules = r.group ? r.group.rules : [];
+  $("rules").innerHTML = rules.length ? rules.map(function(rule){
+    const match = ruleMatches(rule, path);
+    const won = r.decision.rule && r.decision.rule === rule;
+    return "<tr><td class='mono'>" + rule.type + ": " + (rule.path || "(empty)") + "</td>" +
+      "<td>" + (match ? "<span class='ok'>yes</span>" : "<span class='text-slate-400'>no</span>") + "</td>" +
+      "<td>" + rule.path.length + "</td>" +
+      "<td>" + (won ? "<span class='v " + (rule.type === "allow" ? "allow" : "deny") + "'>DECIDED</span>" : "") +
+      "</td></tr>";
+  }).join("") : "<tr><td colspan='4' class='text-slate-400'>this crawler has no group</td></tr>";
+  $("ruleNote").textContent = rules.length
+    ? "Longest matching rule wins; on a tie, Allow does. No match at all means allowed."
+    : "No group applies, so everything is allowed.";
+
+  $("groups").innerHTML = r.parsed.groups.map(function(g){
+    const selected = g === r.group;
+    const spec = g.agents.map(function(a){
+      return a === "*" ? "wildcard (0)" : a + " (" + a.length + ")";
+    }).join(", ");
+    return "<tr><td class='mono'>" + g.agents.join(", ") + "</td><td>" + spec + "</td>" +
+      "<td>" + (selected ? "<span class='v allow'>SELECTED</span>" : "<span class='text-slate-400'>ignored</span>") +
+      "</td></tr>";
+  }).join("") || "<tr><td colspan='3' class='text-slate-400'>no groups in this file</td></tr>";
+  $("groupNote").innerHTML = r.group
+    ? "Its " + r.group.rules.length + " rule(s) are the <strong>only</strong> ones that apply to " +
+      ua + ". Rules from other groups are not inherited."
+    : "Nothing matches " + ua + ", so it is unrestricted.";
+
+  const cmp = compareStrategies(text, ua, PATHS);
+  $("compare").innerHTML = cmp.rows.map(function(row){
+    return "<tr><td class='mono'>" + row.path + "</td>" +
+      "<td><span class='v " + (row.rfc ? "allow" : "deny") + "'>" + (row.rfc ? "allow" : "deny") + "</span></td>" +
+      "<td><span class='v " + (row.first ? "allow" : "deny") + "'>" + (row.first ? "allow" : "deny") + "</span></td>" +
+      "<td>" + (row.differs ? "<span class='bad'>they disagree</span>" : "") + "</td></tr>";
+  }).join("");
+  $("compareNote").innerHTML = cmp.disagreements
+    ? "<strong>" + cmp.disagreements + " of " + cmp.total + "</strong> paths get a different answer " +
+      "depending on which convention the crawler implements."
+    : "These two conventions agree on every path in this file &mdash; change the rules so an Allow " +
+      "sits under a shorter Disallow and they will not.";
+
+  const ref = runReferenceCases();
+  $("ref").textContent = ref.failures.length
+    ? ref.failures.map(function(f){
+        return "FAIL want " + f.want + " got " + f.got + " :: " + f.why + "\n  " +
+               JSON.stringify(f.robots) + "  ua=" + f.ua + "  path=" + f.path;
+      }).join("\n")
+    : ref.total + " reference cases, 0 failures.\n\nEach one is a case where a plausible " +
+      "implementation gives the opposite answer:\n" +
+      "  longest match wins, and Allow breaks a tie\n" +
+      "  a specific User-agent group REPLACES the * group\n" +
+      "  consecutive User-agent lines form ONE group\n" +
+      "  $ anchors only at the end; elsewhere it is literal\n" +
+      "  a literal . or + in a rule is not a metacharacter\n" +
+      "  paths are case-sensitive, user-agents are not\n" +
+      "  no matching rule, and no matching group, both mean ALLOWED";
+}
+
+["robots", "ua", "path"].forEach(function(id){ $(id).addEventListener("input", render); });
+render();
+</script>
+</body>
+</html>
