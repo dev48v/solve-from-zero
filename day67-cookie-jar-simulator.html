@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero · Day 67 — cookie jar simulator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+                    width:100%; font-family:ui-monospace,monospace; line-height:1.55; background:#fff; }
+  table.num td, table.num th { padding:5px 9px; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700; }
+  table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+  .v { font-weight:900; font-size:12px; padding:2px 9px; border-radius:99px; white-space:nowrap; }
+  .allow { background:#dcfce7; color:#166534; }
+  .deny { background:#fee2e2; color:#991b1b; }
+  .warn { background:#fef3c7; color:#92400e; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  .ok { color:#166534; font-weight:800; }
+  .bad { color:#991b1b; font-weight:800; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-cyan-700 mb-2">SOLVEFROMZERO · DAY 67</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🍪 cookie jar simulator — a real RFC 6265 engine with <strong>state</strong>. Feed it the
+      <code>Set-Cookie</code> headers a server sent, then ask for a URL, and it computes the exact
+      <code>Cookie:</code> request header a browser would send — in the right order, naming
+      <strong>which rule dropped every cookie that did not make it</strong>. The trap at the centre
+      is a token that is legally two different things depending only on where it sits:
+      <code>Set-Cookie: Secure=1</code> is a cookie <em>named</em> Secure that goes over plain HTTP,
+      while <code>Set-Cookie: a=b; Secure</code> is a flag — same nine characters, opposite meaning.
+      Then the rules people invert: the default <code>Path</code> is <strong>not</strong>
+      <code>/</code>, path matching is <strong>not</strong> a string prefix, and adding
+      <code>Domain=example.com</code> makes a cookie <em>broader</em> than leaving it off. The jar
+      key is (name, domain, path), so two cookies can share a name and both get sent. RFC 6265
+      (2011) and RFC 6265bis (what browsers do now) disagree on 7 of 12 scenarios, counted live
+      rather than asserted. 76 reference cases. Pure vanilla JavaScript, one file, offline.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🍪 SIMULATE</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">
+              RESPONSE ORIGIN &mdash; where these Set-Cookie headers arrived from</p>
+            <input id="origin" value="https://example.com/app/login" class="mb-3">
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">SET-COOKIE HEADERS (one per line)</p>
+            <textarea id="headers" rows="9">sid=abc123; Secure; HttpOnly; Path=/
+theme=dark
+cart=7; Domain=example.com
+Secure=notaflag
+tracker=1; SameSite=None; Secure
+old=x; Expires=Wed, 09 Jun 2021 10:18:14 GMT</textarea>
+          </div>
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">REQUEST URL</p>
+            <input id="request" value="http://example.com/app/dashboard" class="mb-3">
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">SITE</p>
+                <select id="site"><option value="same-site">same-site</option><option value="cross-site">cross-site</option></select>
+              </div>
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">METHOD</p>
+                <select id="method"><option>GET</option><option>POST</option></select>
+              </div>
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">REQUEST KIND</p>
+                <select id="toplevel"><option value="1">top-level navigation</option><option value="">subresource / fetch</option></select>
+              </div>
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">READER</p>
+                <select id="api"><option value="http">network (Cookie header)</option><option value="script">document.cookie</option></select>
+              </div>
+              <div class="col-span-2">
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">SPEC</p>
+                <select id="mode">
+                  <option value="bis">RFC 6265bis &mdash; what browsers do now</option>
+                  <option value="rfc6265">RFC 6265 (2011) &mdash; the original</option>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">RESULTING REQUEST HEADER</p>
+            <div id="verdict" class="text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">WHAT THE JAR DID WITH EACH HEADER</p>
+          <table class="num w-full">
+            <thead><tr><th>Set-Cookie</th><th>action</th><th>because</th></tr></thead>
+            <tbody id="log"></tbody>
+          </table>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">THE JAR, AND WHY EACH COOKIE WAS SENT OR DROPPED</p>
+          <table class="num w-full">
+            <thead><tr><th>cookie</th><th>key (name, domain, path)</th><th>sent?</th></tr></thead>
+            <tbody id="jar"></tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-2" id="jarNote"></p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">RFC 6265 (2011) vs RFC 6265bis, ON THE SAME SCENARIOS</p>
+        <p class="text-sm text-slate-600 mb-3">
+          Every rule below was added <em>after</em> the original spec. Where the two columns differ,
+          a server written against RFC 6265 and a browser shipped this year do not agree about what
+          is stored or what is sent.
+        </p>
+        <table class="num w-full">
+          <thead><tr><th>scenario</th><th>RFC 6265 (2011)</th><th>RFC 6265bis</th><th>&nbsp;</th></tr></thead>
+          <tbody id="compare"></tbody>
+        </table>
+        <p class="text-xs text-slate-500 mt-2" id="compareNote"></p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">76 REFERENCE CASES</p>
+        <pre id="ref" style="margin:0"></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">A cookie is four lines of syntax and eight rules of state.</h2>
+
+      <p>Everyone can read a <code>Set-Cookie</code> header. Almost nobody can predict the
+      <code>Cookie</code> header that comes back, because the answer depends on a stored jar, and
+      the storage rules are where the surprises live.</p>
+
+      <h3 class="text-xl font-bold">1. The same token is a name or a flag, depending on position</h3>
+
+      <pre>Set-Cookie: Secure=1; Path=/     &rarr; a cookie NAMED "Secure". Not secure. Goes over http.
+Set-Cookie: a=b; Secure          &rarr; the flag. The cookie never leaves https.</pre>
+
+      <p>The parser splits on the <strong>first</strong> semicolon and takes everything before it as
+      the name-value pair, unconditionally. Whatever is in that slot is a name, even if it spells
+      <code>Secure</code>, <code>HttpOnly</code> or <code>Domain</code>. Everything after the first
+      semicolon is an attribute, even if it looks like a cookie.</p>
+
+      <p>Which produces the other half of the same trap:</p>
+
+      <pre>Set-Cookie: a=b; c=d             &rarr; ONE cookie. "c" is an unknown attribute, silently ignored.</pre>
+
+      <p>One header sets one cookie. There is no syntax for two. Code that "sets several cookies in
+      one header" is setting one and discarding the rest with no error anywhere.</p>
+
+      <h3 class="text-xl font-bold">2. The comma that eats the date</h3>
+
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm">HTTP lets you fold repeated headers into one comma-separated line. Every
+        header <em>except this one</em>. <code>Expires=Wed, 09 Jun 2021 10:18:14 GMT</code> contains
+        a comma inside a value, so folding two <code>Set-Cookie</code> headers together and splitting
+        them apart again produces garbage &mdash; and never an error.</p>
+      </div>
+
+      <pre>Set-Cookie: a=b, c=d             &rarr; ONE cookie, name "a", value "b, c=d".</pre>
+
+      <p>This is why <code>Set-Cookie</code> is carved out by name in RFC 9110 as the field that
+      cannot be combined, and why every HTTP library has a special case for it.</p>
+
+      <h3 class="text-xl font-bold">3. The default Path is not <code>/</code></h3>
+
+      <p>Omit <code>Path</code> and the cookie does not get the whole site. It gets the
+      <em>directory</em> of the URL that set it: everything up to but not including the last slash.</p>
+
+      <pre>set at /app/login   &rarr; Path=/app        set at /app/       &rarr; Path=/app
+set at /login       &rarr; Path=/           set at /            &rarr; Path=/</pre>
+
+      <p>So a session cookie set by <code>POST /app/login</code> is invisible to <code>/</code>, and
+      the bug reads as "the user is logged out on the home page only".</p>
+
+      <h3 class="text-xl font-bold">4. Path matching is not a prefix test</h3>
+
+      <p><code>Path=/foo</code> does <strong>not</strong> match <code>/foobar</code>. The rule has
+      three branches: exact equality, or a prefix where the cookie path already ends in
+      <code>/</code>, or a prefix where the next character of the request path <em>is</em> a
+      <code>/</code>. A plain <code>startsWith</code> leaks <code>/admin</code> cookies to
+      <code>/administrator</code>.</p>
+
+      <h3 class="text-xl font-bold">5. <code>Domain</code> widens. It never narrows.</h3>
+
+      <pre>Set-Cookie: a=b                       &rarr; host-only. ONLY example.com.
+Set-Cookie: a=b; Domain=example.com   &rarr; example.com AND every subdomain.</pre>
+
+      <p>Adding the attribute you thought was a restriction is the thing that shares your cookie
+      with every subdomain you do not control. And you cannot go the other way: a page on
+      <code>example.com</code> setting <code>Domain=shop.example.com</code> is rejected outright.</p>
+
+      <p>The leading dot in <code>Domain=.example.com</code> is <strong>dropped</strong>. It is not a
+      "include subdomains" switch &mdash; it is a fossil from the 1994 Netscape spec, where the
+      absence of a dot meant host-only. RFC 6265 made subdomains the behaviour for both forms and
+      kept the dot only so old headers keep parsing.</p>
+
+      <p>Finally, <code>Domain=com</code> is refused, and so is <code>Domain=co.uk</code>: a
+      <em>public suffix</em> may not be claimed, or one site could set a cookie for every site under
+      it. That check needs the Public Suffix List &mdash; roughly ten thousand entries maintained by
+      hand, because there is no algorithm that separates <code>co.uk</code> from
+      <code>example.com</code>. This page embeds a small subset of it.</p>
+
+      <h3 class="text-xl font-bold">6. The jar key is (name, domain, path)</h3>
+
+      <p>Not the name. Two cookies called <code>sid</code> at <code>/</code> and <code>/admin</code>
+      are two rows in the jar, and both are sent, in one header, with the longer path first:</p>
+
+      <pre>Cookie: sid=admin-value; sid=root-value</pre>
+
+      <p>A server reading only the first value gets whichever cookie has the longest path, which is
+      a property of the jar and not of anything the server did. This is the classic "I logged out
+      and I am still logged in" bug: the delete removed one row and the other one is still there,
+      because a delete only matches if the domain and path match too.</p>
+
+      <p>And the rule that hides inside an overwrite: when a cookie replaces one with the same key,
+      it inherits the <strong>old creation time</strong>. Ordering in the header uses creation time
+      as its tiebreak, so refreshing a cookie does not move it to the end &mdash; a detail that only
+      becomes visible when two cookies share a name.</p>
+
+      <h3 class="text-xl font-bold">7. Max-Age beats Expires, and 0 is a value</h3>
+
+      <p>If both are present, <code>Max-Age</code> wins regardless of order. <code>Max-Age=0</code>
+      and any past <code>Expires</code> both mean <em>delete now</em> &mdash; and <code>0</code> is
+      the number that <code>if (maxAge)</code> quietly skips, so the delete never happens and the
+      session never ends. An unparseable value in either attribute is <em>ignored</em>, not an
+      error: the cookie is stored as a session cookie and outlives what you meant.</p>
+
+      <h3 class="text-xl font-bold">8. What 2011 did not have</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>SameSite.</strong> Absent from RFC 6265 entirely. Modern browsers treat a cookie
+        with no <code>SameSite</code> attribute as <code>Lax</code>: sent on same-site requests and
+        on top-level <em>safe</em> navigations, withheld from cross-site subresources and from
+        cross-site POSTs. That default is the single biggest behaviour change in the header's
+        history, and it is invisible in the header itself.</li>
+        <li><strong>SameSite=None requires Secure.</strong> Without it the cookie is rejected, so
+        the "opt out of the new default" fix fails silently on http.</li>
+        <li><strong>Cookie prefixes.</strong> <code>__Secure-</code> requires <code>Secure</code>;
+        <code>__Host-</code> additionally requires no <code>Domain</code> and
+        <code>Path=/</code>. They are enforced by name, which is the point &mdash; the guarantee
+        survives being read back by code that never saw the header.</li>
+        <li><strong>Only a secure origin may set a Secure cookie</strong>, and a non-secure origin
+        may not overwrite one.</li>
+      </ul>
+
+      <p>RFC 6265bis also adds the host-only flag to the jar key, which this page does not model
+      &mdash; it keeps RFC 6265's (name, domain, path).</p>
+
+      <h3 class="text-xl font-bold">What a cookie is not</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>Not scoped by port.</strong> Unlike almost everything else in the browser,
+        cookies ignore the port. <code>:3000</code> and <code>:8080</code> share a jar.</li>
+        <li><strong>Not scoped by scheme</strong> under RFC 6265 &mdash; without
+        <code>Secure</code>, an http page reads a cookie an https page set.</li>
+        <li><strong>Not integrity-protected.</strong> <code>HttpOnly</code> hides a cookie from
+        <code>document.cookie</code>; it does nothing about a network attacker or about the user
+        editing the jar by hand.</li>
+      </ul>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 How it is built</h2>
+
+      <h3 class="text-xl font-bold">1. The split that creates the trap</h3>
+      <pre>const semi = s.indexOf(";");
+const nv   = semi &lt; 0 ? s : s.slice(0, semi);   // the name-value pair, WHATEVER it spells
+const rest = semi &lt; 0 ? "" : s.slice(semi + 1);
+const eq   = nv.indexOf("=");                   // the FIRST '=', so a value may contain more
+if (eq &lt; 0) return { ok:false, reason:"no '=' in the pair, ignore the whole header" };</pre>
+      <p>Four lines, and three of the page's reference cases fall out of them.
+      <code>indexOf(";")</code> before anything else is why <code>Secure=1</code> is a name.
+      <code>indexOf("=")</code> rather than <code>split("=")</code> is why
+      <code>token=a=b=c</code> keeps its value. And never splitting on <code>,</code> is why a
+      folded <code>Expires</code> date survives &mdash; as one cookie with a strange value, which is
+      the honest outcome.</p>
+
+      <h3 class="text-xl font-bold">2. default-path, which is a directory and not a root</h3>
+      <pre>function defaultPath(uriPath){
+  const p = String(uriPath || "");
+  if (!p || p.charAt(0) !== "/") return "/";
+  const i = p.lastIndexOf("/");
+  return i === 0 ? "/" : p.slice(0, i);   // everything BEFORE the last slash
+}</pre>
+      <p><code>/app/login</code> becomes <code>/app</code>. The <code>i === 0</code> branch is the
+      one that gets dropped, and dropping it turns <code>/login</code> into <code>""</code>, which
+      then matches everything for a completely different reason.</p>
+
+      <h3 class="text-xl font-bold">3. path-match has three branches, not one</h3>
+      <pre>function pathMatch(reqPath, cookiePath){
+  if (reqPath === cookiePath) return true;                       // exact
+  if (reqPath.indexOf(cookiePath) !== 0) return false;           // not even a prefix
+  if (cookiePath.charAt(cookiePath.length - 1) === "/") return true;
+  return reqPath.charAt(cookiePath.length) === "/";              // the boundary test
+}</pre>
+      <p>The last line is the whole rule. Without it, <code>Path=/foo</code> matches
+      <code>/foobar</code> and a cookie scoped to <code>/admin</code> is handed to
+      <code>/administrator</code>.</p>
+
+      <h3 class="text-xl font-bold">4. domain-match, with the same boundary problem</h3>
+      <pre>function domainMatch(host, dom){
+  if (host === dom) return true;
+  if (isIP(host)) return false;                       // an IP matches by equality only
+  if (host.length &lt;= dom.length) return false;
+  if (host.slice(host.length - dom.length) !== dom) return false;
+  return host.charAt(host.length - dom.length - 1) === ".";   // stops notexample.com
+}</pre>
+      <p>Same shape as path-match, same missing line in most implementations: a plain
+      <code>endsWith</code> lets <code>notexample.com</code> match <code>example.com</code>.</p>
+
+      <h3 class="text-xl font-bold">5. Storage: the key, and the creation time that survives</h3>
+      <pre>const idx = jar.cookies.findIndex(k =&gt;
+  k.name === name &amp;&amp; k.domain === domain &amp;&amp; k.path === path);   // all THREE
+let creation = now;
+if (idx &gt;= 0){
+  creation = jar.cookies[idx].creation;    // PRESERVED across an overwrite
+  jar.cookies.splice(idx, 1);
+}
+if (expires !== null &amp;&amp; expires &lt;= now)
+  return { action: idx &gt;= 0 ? "deleted" : "ignored", ... };     // an expiry IS the delete</pre>
+      <p>There is no separate delete operation in the protocol. Setting a cookie whose expiry is in
+      the past is the delete &mdash; and it only works if the name, the domain <em>and</em> the path
+      all match the row you meant to remove.</p>
+
+      <h3 class="text-xl font-bold">6. Retrieval: filter with a reason, then sort</h3>
+      <pre>sent.sort((a, b) =&gt;
+  b.path.length - a.path.length ||     // longest path first
+  a.creation - b.creation ||           // then oldest first
+  a.seq - b.seq);</pre>
+      <p>Every cookie that does not survive the filter is pushed to a <code>skipped</code> list with
+      the sentence that rejected it, which is the only reason the page can answer "why is my cookie
+      not being sent" instead of showing an empty header.</p>
+
+      <h3 class="text-xl font-bold">7. Two specs behind one flag</h3>
+      <pre>function effectiveSameSite(cookie, mode){
+  if (mode === "rfc6265") return "none";      // the attribute did not exist in 2011
+  const v = cookie.sameSite;
+  if (v === "strict" || v === "lax" || v === "none") return v;
+  return "lax";                               // the 6265bis default
+}</pre>
+      <p>The same flag gates the prefix checks, the Secure-origin checks and the
+      overwrite-a-Secure-cookie check, so the disagreement count on the SIMULATE tab is measured by
+      running one scenario list twice rather than being written down.</p>
+
+      <h3 class="text-xl font-bold">8. What the 76 reference cases cover</h3>
+      <pre>Secure=1 is a NAME          a=b; Secure is a FLAG      a=b; c=d is ONE cookie
+a=b, c=d is ONE cookie      token=a=b=c keeps its =    no '=' at all is ignored
+default Path is a DIRECTORY /foo does not match /foobar   Path=foo is ignored
+no Domain = host-only       Domain widens to subdomains   .example.com drops the dot
+Domain=com refused          Domain=co.uk refused          IPs match by equality
+Max-Age beats Expires       Max-Age=0 deletes             a bad value is IGNORED
+the key is name+domain+path an overwrite keeps creation   names are case-SENSITIVE
+attributes are case-INsensitive   the LAST duplicate wins
+SameSite default is Lax     Lax allows top-level GET, not POST
+__Host- forbids Domain      __Host- needs the default path to already be /</pre>
+      <p>Each of those is a case where a plausible implementation returns the opposite answer, which
+      is the only reason to write a reference case at all.</p>
+
+      <h3 class="text-xl font-bold">🎉 SolveFromZero Day 67 shipped.</h3>
+      <p class="text-slate-600">Four lines of parsing, and a header nobody can predict by reading.</p>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// A stateful cookie jar: RFC 6265 storage and retrieval, with the RFC 6265bis additions
+// (SameSite, cookie prefixes, secure-origin rules) behind one mode flag so the two can be
+// run against the same scenarios and the difference counted.
+
+// ---- a deliberately small subset of the Public Suffix List. The real list has ~10,000
+// ---- entries and is maintained by hand, because no algorithm separates co.uk from example.com.
+const PUBLIC_SUFFIXES = ["com","org","net","edu","gov","mil","int","io","dev","app","ai","co",
+  "uk","jp","in","au","br","de","fr","nl","co.uk","org.uk","ac.uk","gov.uk","com.au","net.au",
+  "co.jp","co.in","com.br","github.io","pages.dev","vercel.app","herokuapp.com","s3.amazonaws.com"];
+
+function isPublicSuffix(d){
+  const s = String(d).toLowerCase();
+  for (let i = 0; i < PUBLIC_SUFFIXES.length; i++) if (PUBLIC_SUFFIXES[i] === s) return true;
+  return false;
+}
+
+function isIP(h){
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || String(h).indexOf(":") >= 0;
+}
+
+// scheme, host and path. Cookies ignore the PORT entirely, which is why it is parsed and dropped.
+function parseUrl(url){
+  const m = /^(https?):\/\/([^\/?#:]+)(?::(\d+))?([^?#]*)/i.exec(String(url).trim());
+  if (!m) return null;
+  const scheme = m[1].toLowerCase();
+  let path = m[4] || "";
+  if (path.charAt(0) !== "/") path = "/" + path;
+  return { scheme: scheme, host: m[2].toLowerCase(), port: m[3] || null,
+           secure: scheme === "https", path: path };
+}
+
+// everything up to but NOT including the last slash. /app/login -> /app, /login -> /
+function defaultPath(uriPath){
+  const p = String(uriPath || "");
+  if (!p || p.charAt(0) !== "/") return "/";
+  const i = p.lastIndexOf("/");
+  return i === 0 ? "/" : p.slice(0, i);
+}
+
+// three branches: exact, cookie path already ends in /, or the next character is a /
+function pathMatch(reqPath, cookiePath){
+  const r = String(reqPath), c = String(cookiePath);
+  if (r === c) return true;
+  if (r.indexOf(c) !== 0) return false;
+  if (c.charAt(c.length - 1) === "/") return true;
+  return r.charAt(c.length) === "/";
+}
+
+// suffix PLUS a dot boundary, so notexample.com does not match example.com
+function domainMatch(host, dom){
+  const h = String(host).toLowerCase(), d = String(dom).toLowerCase();
+  if (h === d) return true;
+  if (isIP(h)) return false;
+  if (h.length <= d.length) return false;
+  if (h.slice(h.length - d.length) !== d) return false;
+  return h.charAt(h.length - d.length - 1) === ".";
+}
+
+// the cookie-date grammar is looser than RFC 1123: the old Netscape dashed form still appears
+function parseCookieDate(s){
+  const t = String(s).trim().replace(/-/g, " ");
+  const ms = Date.parse(t);
+  return isNaN(ms) ? null : ms;
+}
+
+// "if the first character is not a DIGIT or a '-', ignore the attribute" - and 0 is legal
+function parseMaxAge(v){
+  const s = String(v).trim();
+  if (!/^-?\d+$/.test(s)) return null;
+  return parseInt(s, 10);
+}
+
+function parseSetCookie(header){
+  const s = String(header);
+  const semi = s.indexOf(";");
+  const nv = semi < 0 ? s : s.slice(0, semi);       // the name-value pair, whatever it spells
+  const rest = semi < 0 ? "" : s.slice(semi + 1);
+  const eq = nv.indexOf("=");                       // the FIRST '=', so a value may contain more
+  if (eq < 0)
+    return { ok: false, reason: "the name-value pair has no '=', so the whole header is ignored" };
+  const name = nv.slice(0, eq).trim();
+  const value = nv.slice(eq + 1).trim();
+  if (name === "" && value === "")
+    return { ok: false, reason: "both the name and the value are empty" };
+
+  const attrs = { domain: null, path: null, secure: false, httponly: false, samesite: null,
+                  expires: null, maxAge: null, seen: [], unknown: [] };
+  if (rest !== ""){
+    const chunks = rest.split(";");
+    for (let i = 0; i < chunks.length; i++){
+      const chunk = chunks[i];
+      const j = chunk.indexOf("=");                 // an attribute VALUE may contain '=' too
+      const an = (j < 0 ? chunk : chunk.slice(0, j)).trim().toLowerCase();
+      const av = (j < 0 ? "" : chunk.slice(j + 1)).trim();
+      if (an === "") continue;
+      attrs.seen.push({ name: an, value: av });
+      // a later occurrence overwrites an earlier one; an UNPARSEABLE value sets nothing at all
+      if (an === "expires"){ const d = parseCookieDate(av); if (d !== null) attrs.expires = d; }
+      else if (an === "max-age"){ const m = parseMaxAge(av); if (m !== null) attrs.maxAge = m; }
+      else if (an === "domain"){ if (av !== "") attrs.domain = av.toLowerCase(); }
+      else if (an === "path"){ if (av.charAt(0) === "/") attrs.path = av; }
+      else if (an === "secure") attrs.secure = true;
+      else if (an === "httponly") attrs.httponly = true;
+      else if (an === "samesite"){
+        const v = av.toLowerCase();
+        attrs.samesite = (v === "strict" || v === "lax" || v === "none") ? v : "unrecognized";
+      }
+      else attrs.unknown.push({ name: an, value: av });
+    }
+  }
+  return { ok: true, name: name, value: value, attrs: attrs };
+}
+
+function newJar(){ return { cookies: [], seq: 0 }; }
+
+function setCookie(jar, url, header, opts){
+  const o = opts || {};
+  const mode = o.mode || "bis";
+  const now = o.now == null ? Date.now() : o.now;
+  const api = o.api || "http";
+  const c = parseUrl(url);
+  if (!c) return { action: "rejected", reason: "the origin URL could not be parsed" };
+  const p = parseSetCookie(header);
+  if (!p.ok) return { action: "rejected", reason: p.reason };
+  const a = p.attrs;
+
+  // ---- domain: absent means HOST-ONLY, present means the host and every subdomain
+  let hostOnly = true, domain = c.host;
+  if (a.domain !== null){
+    let d = a.domain;
+    if (d.charAt(0) === ".") d = d.slice(1);        // the leading dot is DROPPED, not a flag
+    if (isPublicSuffix(d)){
+      if (d !== c.host)
+        return { action: "rejected",
+                 reason: "Domain=" + d + " is a public suffix, which no site may claim" };
+      // a host that IS a public suffix may keep it, but only as a host-only cookie
+    } else if (!domainMatch(c.host, d)){
+      return { action: "rejected",
+               reason: "Domain=" + d + " is neither " + c.host + " nor a parent of it" };
+    } else {
+      hostOnly = false; domain = d;
+    }
+  }
+
+  // ---- path: the attribute, or the DIRECTORY of the request URL
+  const path = (a.path !== null && a.path.charAt(0) === "/") ? a.path : defaultPath(c.path);
+  const secure = a.secure;
+
+  if (mode === "bis" && secure && !c.secure)
+    return { action: "rejected", reason: "only a secure origin may set a Secure cookie" };
+  if (a.httponly && api === "script")
+    return { action: "rejected", reason: "document.cookie may not set HttpOnly" };
+
+  if (mode === "bis"){
+    const lower = p.name.toLowerCase();
+    if (lower.indexOf("__secure-") === 0 && !secure)
+      return { action: "rejected", reason: "the __Secure- prefix requires the Secure attribute" };
+    if (lower.indexOf("__host-") === 0){
+      if (!secure)
+        return { action: "rejected", reason: "the __Host- prefix requires the Secure attribute" };
+      if (!hostOnly)
+        return { action: "rejected", reason: "the __Host- prefix forbids a Domain attribute" };
+      if (path !== "/")
+        return { action: "rejected",
+                 reason: "the __Host- prefix requires Path=/ and this cookie resolved to " + path };
+    }
+    if (a.samesite === "none" && !secure)
+      return { action: "rejected", reason: "SameSite=None requires the Secure attribute" };
+  }
+
+  // ---- lifetime: Max-Age beats Expires whatever the order, and 0 is a real value
+  let expires = null, source = "session";
+  if (a.maxAge !== null){ expires = now + a.maxAge * 1000; source = "Max-Age"; }
+  else if (a.expires !== null){ expires = a.expires; source = "Expires"; }
+
+  // ---- the jar key is (name, domain, path). Not the name.
+  let idx = -1;
+  for (let i = 0; i < jar.cookies.length; i++){
+    const k = jar.cookies[i];
+    if (k.name === p.name && k.domain === domain && k.path === path){ idx = i; break; }
+  }
+  let creation = now;
+  if (idx >= 0){
+    const old = jar.cookies[idx];
+    if (mode === "bis" && old.secure && !c.secure)
+      return { action: "rejected", reason: "a non-secure origin may not overwrite a Secure cookie" };
+    if (old.httpOnly && api === "script")
+      return { action: "rejected", reason: "document.cookie may not overwrite an HttpOnly cookie" };
+    creation = old.creation;                        // PRESERVED across an overwrite
+    jar.cookies.splice(idx, 1);
+  }
+
+  if (expires !== null && expires <= now)
+    return { action: idx >= 0 ? "deleted" : "ignored",
+             reason: idx >= 0
+               ? "the " + source + " is in the past, which IS the delete"
+               : "the " + source + " is already in the past and there was nothing to remove" };
+
+  jar.cookies.push({ name: p.name, value: p.value, domain: domain, hostOnly: hostOnly,
+                     path: path, secure: secure, httpOnly: a.httponly, sameSite: a.samesite,
+                     expires: expires, creation: creation, seq: jar.seq++ });
+  return { action: idx >= 0 ? "updated" : "stored",
+           reason: (hostOnly ? "host-only " : "") + "(" + p.name + ", " + domain + ", " + path +
+                   ")" + (a.path === null ? "  [Path defaulted to the directory of " + c.path + "]" : "") };
+}
+
+function effectiveSameSite(cookie, mode){
+  if (mode === "rfc6265") return "none";            // the attribute did not exist in 2011
+  const v = cookie.sameSite;
+  if (v === "strict" || v === "lax" || v === "none") return v;
+  return "lax";                                     // the 6265bis default
+}
+
+function cookieHeader(jar, url, opts){
+  const o = opts || {};
+  const mode = o.mode || "bis";
+  const now = o.now == null ? Date.now() : o.now;
+  const api = o.api || "http";
+  const crossSite = o.site === "cross-site";
+  const topLevel = !!o.topLevel;
+  const method = String(o.method || "GET").toUpperCase();
+  const safe = method === "GET" || method === "HEAD";
+  const c = parseUrl(url);
+  const sent = [], skipped = [];
+  if (!c) return { header: "", sent: sent, skipped: skipped, error: "unparseable request URL" };
+
+  for (let i = 0; i < jar.cookies.length; i++){
+    const k = jar.cookies[i];
+    let reason = null;
+    if (k.expires !== null && k.expires <= now)
+      reason = "expired";
+    else if (k.hostOnly ? c.host !== k.domain : !domainMatch(c.host, k.domain))
+      reason = k.hostOnly
+        ? "host-only, so only " + k.domain + " exactly"
+        : c.host + " does not domain-match " + k.domain;
+    else if (!pathMatch(c.path, k.path))
+      reason = "Path=" + k.path + " does not path-match " + c.path;
+    else if (k.secure && !c.secure)
+      reason = "Secure, and this request is not https";
+    else if (k.httpOnly && api === "script")
+      reason = "HttpOnly is invisible to document.cookie";
+    else {
+      const eff = effectiveSameSite(k, mode);
+      if (eff === "strict" && crossSite)
+        reason = "SameSite=Strict on a cross-site request";
+      else if (eff === "lax" && crossSite && !(topLevel && safe))
+        reason = "SameSite=Lax" + (k.sameSite ? "" : " (the default)") + " on a cross-site " +
+                 (topLevel ? method + " navigation" : "subresource request");
+    }
+    if (reason) skipped.push({ cookie: k, reason: reason });
+    else sent.push(k);
+  }
+  sent.sort(function(a, b){
+    if (b.path.length !== a.path.length) return b.path.length - a.path.length;
+    if (a.creation !== b.creation) return a.creation - b.creation;
+    return a.seq - b.seq;
+  });
+  return { header: sent.map(function(k){ return k.name + "=" + k.value; }).join("; "),
+           sent: sent, skipped: skipped, error: null };
+}
+
+// ---- run one scenario: a list of Set-Cookie headers, then one request ----
+const T0 = 1700000000000;
+
+function runScenario(sc){
+  const mode = sc.mode || "bis";
+  const jar = newJar();
+  let t = T0, last = null;
+  const log = [];
+  for (let i = 0; i < sc.sets.length; i++){
+    const s = sc.sets[i];
+    t += (s[2] || 0);
+    last = setCookie(jar, s[0], s[1], { mode: mode, now: t, api: s[3] || "http" });
+    log.push({ url: s[0], header: s[1], result: last });
+  }
+  const out = { jar: jar, log: log, action: last ? last.action : null,
+                reason: last ? last.reason : null, header: null, detail: null };
+  if (sc.get){
+    const o = {}; const g = sc.get[1] || {};
+    for (const k in g) o[k] = g[k];
+    o.mode = mode; o.now = t + 1;
+    const r = cookieHeader(jar, sc.get[0], o);
+    out.header = r.header; out.detail = r;
+  }
+  return out;
+}
+
+// ---- 76 reference cases ----
+function referenceCases(){
+  const H     = "https://example.com/";
+  const HTTP  = "http://example.com/";
+  const SHOP  = "https://shop.example.com/";
+  const PAST  = "Wed, 09 Jun 2021 10:18:14 GMT";
+  const FUT   = "Fri, 01 Jan 2100 00:00:00 GMT";
+  // c(sets, get, want, why)  |  s(sets, wantAction, why)
+  const c = (sets, get, want, why, mode) => ({ sets, get, want, why, mode });
+  const s = (sets, wantAction, why, mode) => ({ sets, get: null, wantAction, why, mode });
+  return [
+    // ---- the name/value/attribute split, and the tokens that change meaning by position
+    c([[H, "a=b"]], [H], "a=b", "the baseline: one cookie in, one cookie out"),
+    c([[H, "token=a=b=c"]], [H], "token=a=b=c", "the pair splits on the FIRST '=', so the value keeps its own"),
+    c([[H, "Secure=1; Path=/"]], [HTTP], "Secure=1", "a cookie NAMED Secure is not secure - it goes over http"),
+    c([[H, "a=b; Secure"]], [HTTP], "", "the same token after the first ';' IS the flag"),
+    c([[H, "HttpOnly=x; Path=/"]], [H, { api: "script" }], "HttpOnly=x", "and a cookie named HttpOnly is visible to script"),
+    c([[H, "a=b; c=d"]], [H], "a=b", "'c=d' is an unknown ATTRIBUTE - one header sets one cookie"),
+    s([[H, "justavalue"]], "rejected", "no '=' anywhere, so the whole header is ignored"),
+    c([[H, "a=b, c=d"]], [H], "a=b, c=d", "two headers folded on a comma become ONE cookie with a comma in it"),
+    c([[H, "  a  =  b  "]], [H], "a=b", "whitespace around the name and value is trimmed"),
+    c([[H, "a="]], [H], "a=", "an empty value is legal"),
+    c([[H, "a=b; Path=/x=y"]], ["https://example.com/x=y"], "a=b", "an attribute value may contain '=' too"),
+    c([[H, "a=b; Nonsense=1; Whatever"]], [H], "a=b", "unknown attributes are silently ignored, never an error"),
+
+    // ---- default-path: a DIRECTORY, not the root
+    c([["https://example.com/app/login", "a=b"]], ["https://example.com/app/login"], "a=b", "the cookie is sent back to the URL that set it"),
+    c([["https://example.com/app/login", "a=b"]], ["https://example.com/app"], "a=b", "default-path is /app, and /app matches it exactly"),
+    c([["https://example.com/app/login", "a=b"]], ["https://example.com/"], "", "the default Path is NOT / - the home page never sees it"),
+    c([["https://example.com/app/", "a=b"]], ["https://example.com/app/x"], "a=b", "a trailing slash still yields /app"),
+    c([["https://example.com/login", "a=b"]], ["https://example.com/anything"], "a=b", "one slash in the path means the default IS /"),
+    c([[H, "a=b; Path=relative"]], ["https://example.com/foo"], "a=b", "a Path without a leading slash is ignored, so the default applies"),
+
+    // ---- path-match is not a prefix test
+    c([[H, "a=b; Path=/foo"]], ["https://example.com/foobar"], "", "/foo must NOT match /foobar"),
+    c([[H, "a=b; Path=/foo"]], ["https://example.com/foo/bar"], "a=b", "but it does match /foo/bar"),
+    c([[H, "a=b; Path=/foo"]], ["https://example.com/foo"], "a=b", "and /foo itself, by the exact branch"),
+    c([[H, "a=b; Path=/foo/"]], ["https://example.com/foobar"], "", "a trailing slash does not rescue /foobar"),
+    c([[H, "a=b; Path=/"]], ["https://example.com/deep/page"], "a=b", "Path=/ matches everything"),
+    c([["https://example.com/one", "a=b; Path=/two"]], ["https://example.com/two"], "a=b",
+      "Path is never checked against the URL that set it - a page may claim any path"),
+    s([[H, "=justavalue"]], "stored", "a nameless cookie is legal: the pair only needs an '='"),
+
+    // ---- domain: the attribute WIDENS
+    c([[H, "a=b"]], [SHOP], "", "no Domain means host-only, so a subdomain gets nothing"),
+    c([[H, "a=b; Domain=example.com"]], [SHOP], "a=b", "adding Domain makes the cookie BROADER, not narrower"),
+    c([[H, "a=b; Domain=.example.com"]], [SHOP], "a=b", "the leading dot is dropped - it is not a subdomain switch"),
+    c([[SHOP, "a=b; Domain=example.com"]], [H], "a=b", "a subdomain may set a cookie for its parent"),
+    s([[H, "a=b; Domain=notexample.com"]], "rejected", "a suffix test alone would have accepted notexample.com"),
+    s([[H, "a=b; Domain=shop.example.com"]], "rejected", "you cannot set a cookie for a CHILD domain"),
+    s([[H, "a=b; Domain=com"]], "rejected", "a public suffix may not be claimed"),
+    s([["https://a.example.co.uk/", "a=b; Domain=co.uk"]], "rejected", "and public suffixes are not always one label"),
+    c([["https://a.example.co.uk/", "a=b; Domain=example.co.uk"]], ["https://b.example.co.uk/"], "a=b", "the registrable domain under it is fine"),
+    c([[H, "a=b; Domain=EXAMPLE.COM"]], [SHOP], "a=b", "domains are case-insensitive"),
+    c([["http://127.0.0.1/", "a=b; Domain=127.0.0.1"]], ["http://127.0.0.1/"], "a=b", "an IP host matches itself"),
+    c([["http://127.0.0.1/", "a=b"]], ["http://192.168.0.1/"], "", "but IPs never match by suffix"),
+    c([[H, "a=b"]], ["https://example.com:8443/"], "a=b", "cookies ignore the PORT entirely"),
+
+    // ---- Secure and HttpOnly
+    c([[H, "a=b; Secure"]], [HTTP], "", "a Secure cookie is withheld from http"),
+    c([[H, "a=b; Secure"]], [H], "a=b", "and sent over https"),
+    s([[HTTP, "a=b; Secure"]], "rejected", "only a secure origin may SET a Secure cookie (6265bis)"),
+    s([[HTTP, "a=b; Secure"]], "stored", "which RFC 6265 allowed", "rfc6265"),
+    c([[H, "a=b; HttpOnly"]], [H, { api: "script" }], "", "HttpOnly is invisible to document.cookie"),
+    c([[H, "a=b; HttpOnly"]], [H], "a=b", "but not to the network"),
+    s([[H, "a=b; HttpOnly"], [H, "a=c", 0, "script"]], "rejected", "script may not overwrite an HttpOnly cookie"),
+    s([[H, "a=b; Secure"], [HTTP, "a=c"]], "rejected", "nor may a non-secure origin overwrite a Secure one"),
+
+    // ---- lifetime
+    s([[H, "a=b"], [H, "a=b; Max-Age=0"]], "deleted", "Max-Age=0 is the delete, and 0 is the value if(maxAge) skips"),
+    s([[H, "a=b"], [H, "a=b; Max-Age=-1"]], "deleted", "a negative Max-Age deletes too"),
+    c([[H, "a=b; Max-Age=100; Expires=" + PAST]], [H], "a=b", "Max-Age beats Expires, so the past date loses"),
+    c([[H, "a=b; Expires=" + PAST + "; Max-Age=100"]], [H], "a=b", "and the order they appear in does not matter"),
+    s([[H, "a=b"], [H, "a=b; Expires=" + PAST]], "deleted", "a past Expires IS the delete"),
+    s([[H, "a=b"], [H, "a=b; Expires=Wed, 09-Jun-2021 10:18:14 GMT"]], "deleted", "the old dashed Netscape date still parses"),
+    c([[H, "a=b; Max-Age=abc"]], [H], "a=b", "an unparseable Max-Age is IGNORED, so the cookie outlives what you meant"),
+    c([[H, "a=b; Expires=next tuesday"]], [H], "a=b", "and the same for an unparseable date"),
+    c([[H, "a=b; Expires=" + FUT]], [H], "a=b", "a future date is stored normally"),
+    s([[H, "a=b; Max-Age=0"]], "ignored", "deleting a cookie that was never there is not an error"),
+
+    // ---- the jar key, and ordering
+    c([[H, "id=1"], ["https://example.com/admin", "id=2; Path=/admin"]], ["https://example.com/admin"],
+      "id=2; id=1", "same name, different path: TWO cookies, longest path first"),
+    c([[H, "id=1"], [H, "id=2"]], [H], "id=2", "the same (name, domain, path) key replaces"),
+    c([[SHOP, "id=1; Domain=example.com"], [SHOP, "id=2", 1000]], [SHOP],
+      "id=1; id=2", "different domain key: both sent, and equal paths tie-break on creation time"),
+    c([[H, "a=1"], [H, "b=2", 1000], [H, "a=9", 1000]], [H],
+      "a=9; b=2", "an overwrite KEEPS the original creation time, so 'a' does not move to the end"),
+    c([[H, "A=1"], [H, "a=2"]], [H], "A=1; a=2", "cookie names are case-SENSITIVE"),
+    c([[H, "a=b; PATH=/; SECURE"]], [H], "a=b", "attribute names are case-INSENSITIVE"),
+    c([[H, "a=b; Path=/x; Path=/y"]], ["https://example.com/y"], "a=b", "a repeated attribute: the LAST one wins"),
+
+    // ---- SameSite
+    c([[H, "a=b"]], [H, { site: "cross-site" }], "", "the modern default is Lax, so a cross-site subresource sends nothing"),
+    c([[H, "a=b"]], [H, { site: "cross-site" }], "a=b", "and in 2011 there was no such attribute at all", "rfc6265"),
+    c([[H, "a=b"]], [H, { site: "cross-site", topLevel: true, method: "GET" }], "a=b", "Lax does allow a top-level safe navigation"),
+    c([[H, "a=b"]], [H, { site: "cross-site", topLevel: true, method: "POST" }], "", "but not an unsafe method"),
+    c([[H, "a=b; SameSite=Strict"]], [H, { site: "cross-site", topLevel: true }], "", "Strict withholds even a top-level navigation"),
+    c([[H, "a=b; SameSite=Strict"]], [H], "a=b", "and is irrelevant same-site"),
+    c([[H, "a=b; SameSite=None; Secure"]], [H, { site: "cross-site" }], "a=b", "None is the opt-out, and it needs Secure"),
+    s([[H, "a=b; SameSite=None"]], "rejected", "without Secure the opt-out is rejected outright"),
+
+    // ---- cookie prefixes
+    c([[H, "__Host-sid=1; Secure; Path=/"]], [H], "__Host-sid=1", "a valid __Host- cookie"),
+    s([[H, "__Host-sid=1; Secure; Path=/; Domain=example.com"]], "rejected", "__Host- forbids Domain"),
+    s([["https://example.com/deep/page", "__Host-sid=1; Secure"]], "rejected",
+      "__Host- needs Path=/ and the DEFAULT path here is /deep, so omitting Path fails"),
+    s([[H, "__Secure-sid=1"]], "rejected", "__Secure- requires the Secure attribute"),
+    s([[H, "__Host-sid=1; Secure; Path=/; Domain=example.com"]], "stored", "in 2011 a prefix was just a name", "rfc6265")
+  ];
+}
+
+function runReferenceCases(){
+  const cases = referenceCases();
+  const failures = [];
+  let checks = 0;
+  for (let i = 0; i < cases.length; i++){
+    const t = cases[i];
+    const r = runScenario(t);
+    if (t.want !== undefined && t.want !== null){
+      checks++;
+      if (r.header !== t.want)
+        failures.push({ i: i, why: t.why, want: JSON.stringify(t.want), got: JSON.stringify(r.header) });
+    }
+    if (t.wantAction !== undefined){
+      checks++;
+      if (r.action !== t.wantAction)
+        failures.push({ i: i, why: t.why, want: t.wantAction, got: r.action + " (" + r.reason + ")" });
+    }
+  }
+  return { total: cases.length, checks: checks, failures: failures };
+}
+
+// ---- the measurement: where do the two specs disagree? ----
+function modeScenarios(){
+  const H = "https://example.com/", HTTP = "http://example.com/";
+  return [
+    { label: "a Secure cookie set over http", sets: [[HTTP, "a=b; Secure"]], get: [H] },
+    { label: "SameSite=None with no Secure", sets: [[H, "a=b; SameSite=None"]], get: [H] },
+    { label: "__Host- with a Domain attribute", sets: [[H, "__Host-s=1; Secure; Path=/; Domain=example.com"]], get: [H] },
+    { label: "__Secure- with no Secure", sets: [[H, "__Secure-s=1"]], get: [H] },
+    { label: "no SameSite, cross-site subresource", sets: [[H, "a=b"]], get: [H, { site: "cross-site" }] },
+    { label: "SameSite=Strict, cross-site", sets: [[H, "a=b; SameSite=Strict"]], get: [H, { site: "cross-site" }] },
+    { label: "http overwriting a Secure cookie", sets: [[H, "a=b; Secure"], [HTTP, "a=c"]], get: [H] },
+    { label: "no SameSite, cross-site top-level GET", sets: [[H, "a=b"]], get: [H, { site: "cross-site", topLevel: true }] },
+    { label: "a plain cookie, same-site", sets: [[H, "a=b"]], get: [H] },
+    { label: "Path=/foo against /foobar", sets: [[H, "a=b; Path=/foo"]], get: ["https://example.com/foobar"] },
+    { label: "Domain= widening to a subdomain", sets: [[H, "a=b; Domain=example.com"]], get: ["https://shop.example.com/"] },
+    { label: "Max-Age=0 deleting a cookie", sets: [[H, "a=b"], [H, "a=b; Max-Age=0"]], get: [H] }
+  ];
+}
+
+function compareModes(){
+  const rows = [];
+  let differ = 0;
+  const list = modeScenarios();
+  for (let i = 0; i < list.length; i++){
+    const sc = list[i];
+    const oldR = runScenario({ sets: sc.sets, get: sc.get, mode: "rfc6265" });
+    const newR = runScenario({ sets: sc.sets, get: sc.get, mode: "bis" });
+    const a = oldR.action + " / " + JSON.stringify(oldR.header);
+    const b = newR.action + " / " + JSON.stringify(newR.header);
+    const d = a !== b;
+    if (d) differ++;
+    rows.push({ label: sc.label, old: oldR, now: newR, differs: d });
+  }
+  return { rows: rows, differ: differ, total: list.length };
+}
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+
+function render(){
+  const origin = $("origin").value;
+  const lines = $("headers").value.split(/\r?\n/).filter(l => l.trim() !== "");
+  const mode = $("mode").value;
+  const api = $("api").value;
+  const now = Date.now();
+
+  const jar = newJar();
+  const log = [];
+  for (let i = 0; i < lines.length; i++){
+    const res = setCookie(jar, origin, lines[i], { mode: mode, now: now + i, api: api });
+    log.push({ header: lines[i], result: res });
+  }
+
+  $("log").innerHTML = log.map(function(row){
+    const cls = row.result.action === "stored" || row.result.action === "updated" ? "allow"
+              : row.result.action === "rejected" ? "deny" : "warn";
+    return "<tr><td class='mono' style='max-width:260px;word-break:break-all'>" +
+      esc(row.header) + "</td>" +
+      "<td><span class='v " + cls + "'>" + row.result.action + "</span></td>" +
+      "<td class='text-slate-600'>" + esc(row.result.reason) + "</td></tr>";
+  }).join("") || "<tr><td colspan='3' class='text-slate-400'>no Set-Cookie headers</td></tr>";
+
+  const r = cookieHeader(jar, $("request").value, {
+    mode: mode, now: now + 1000, api: api, site: $("site").value,
+    topLevel: !!$("toplevel").value, method: $("method").value });
+
+  $("verdict").innerHTML = r.error
+    ? "<span class='v deny'>BAD URL</span>"
+    : (r.header
+        ? "<pre style='margin:0'>Cookie: " + esc(r.header) + "</pre>"
+        : "<span class='v deny'>NO COOKIE HEADER SENT</span>") +
+      "<p class='text-xs text-slate-500 mt-2'>" + r.sent.length + " sent, " +
+      r.skipped.length + " withheld &mdash; every one for a named reason below.</p>";
+
+  const rows = r.sent.map(function(k){
+    return "<tr><td class='mono'>" + esc(k.name + "=" + k.value) + "</td>" +
+      "<td class='mono text-slate-500'>" + esc(k.name + ", " + k.domain + (k.hostOnly ? " (host-only)" : "") + ", " + k.path) + "</td>" +
+      "<td><span class='v allow'>SENT</span></td></tr>";
+  }).concat(r.skipped.map(function(x){
+    const k = x.cookie;
+    return "<tr><td class='mono'>" + esc(k.name + "=" + k.value) + "</td>" +
+      "<td class='mono text-slate-500'>" + esc(k.name + ", " + k.domain + (k.hostOnly ? " (host-only)" : "") + ", " + k.path) + "</td>" +
+      "<td><span class='v deny'>DROPPED</span><div class='text-xs text-slate-600 mt-1'>" +
+      esc(x.reason) + "</div></td></tr>";
+  }));
+  $("jar").innerHTML = rows.join("") ||
+    "<tr><td colspan='3' class='text-slate-400'>the jar is empty</td></tr>";
+  $("jarNote").innerHTML = r.sent.length > 1
+    ? "Order is longest <strong>path</strong> first, then oldest creation time &mdash; not the order they were set."
+    : "The jar key is (name, domain, path), so the same name can appear more than once.";
+
+  const cmp = compareModes();
+  $("compare").innerHTML = cmp.rows.map(function(row){
+    const fmt = x => "<span class='v " + (x.header ? "allow" : "deny") + "'>" + x.action + "</span>" +
+      "<div class='mono text-xs mt-1 text-slate-600'>" + (x.header ? esc(x.header) : "(nothing sent)") + "</div>";
+    return "<tr><td>" + esc(row.label) + "</td><td>" + fmt(row.old) + "</td><td>" + fmt(row.now) + "</td>" +
+      "<td>" + (row.differs ? "<span class='bad'>they differ</span>" : "<span class='text-slate-400'>same</span>") +
+      "</td></tr>";
+  }).join("");
+  $("compareNote").innerHTML = "<strong>" + cmp.differ + " of " + cmp.total + "</strong> scenarios " +
+    "get a different outcome depending on which version of the spec is implemented &mdash; and every " +
+    "one of those differences is invisible in the header text itself.";
+
+  const ref = runReferenceCases();
+  $("ref").textContent = ref.failures.length
+    ? ref.failures.map(function(f){
+        return "FAIL #" + f.i + "  want " + f.want + "  got " + f.got + "\n  :: " + f.why;
+      }).join("\n")
+    : ref.total + " reference cases, " + ref.checks + " assertions, 0 failures.\n\n" +
+      "Each one is a case where a plausible implementation gives the opposite answer:\n" +
+      "  Secure=1 is a NAME; a=b; Secure is a FLAG - the same token, decided by position\n" +
+      "  a=b; c=d is ONE cookie, and a=b, c=d is ONE cookie with a comma in its value\n" +
+      "  the default Path is the DIRECTORY of the URL, not /\n" +
+      "  Path=/foo must not match /foobar, and Domain=example.com must not match notexample.com\n" +
+      "  omitting Domain is NARROWER than setting it\n" +
+      "  Max-Age beats Expires, Max-Age=0 deletes, and an unparseable value is ignored\n" +
+      "  the jar key is (name, domain, path), and an overwrite keeps the old creation time\n" +
+      "  cookie names are case-sensitive, attribute names are not\n" +
+      "  the SameSite default is Lax, which allows a top-level GET and not a POST";
+}
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(ch){
+    return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch];
+  });
+}
+
+["origin", "headers", "request"].forEach(function(id){ $(id).addEventListener("input", render); });
+["site", "method", "toplevel", "api", "mode"].forEach(function(id){ $(id).addEventListener("change", render); });
+render();
+</script>
+</body>
+</html>
