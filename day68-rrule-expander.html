@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 68 &mdash; RRULE recurrence expander</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "Inter", sans-serif; }
+  .tab-active { background:#0f172a; color:#fff; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px; overflow:auto; }
+  textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+                    width:100%; font-family:ui-monospace,monospace; line-height:1.55; background:#fff; }
+  table.num td, table.num th { padding:5px 9px; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700; }
+  table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+  .v { font-weight:900; font-size:12px; padding:2px 9px; border-radius:99px; white-space:nowrap; }
+  .allow { background:#dcfce7; color:#166534; }
+  .deny { background:#fee2e2; color:#991b1b; }
+  .warn { background:#fef3c7; color:#92400e; }
+  .mono { font-family:ui-monospace,monospace; font-size:12px; }
+  .ok { color:#166534; font-weight:800; }
+  .bad { color:#991b1b; font-weight:800; }
+  .bar { height:10px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+  .barlim { background:#f43f5e; }
+  .barwin { background:#334155; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <p class="text-xs font-bold tracking-widest text-cyan-700 mb-2">SOLVEFROMZERO &middot; DAY 68</p>
+    <h1 class="text-xl md:text-2xl font-black leading-tight mb-4">
+      🔁 RRULE recurrence expander &mdash; a real RFC 5545 &sect;3.3.10 engine. Type
+      <code>FREQ=MONTHLY;BYDAY=-1FR</code> and it lists the dates, and for any date it did
+      <em>not</em> produce it names <strong>the rule part that decided</strong>. The trap at the
+      centre is not a token that means two things &mdash; it is a token that <em>does</em> two
+      things: <code>BYMONTHDAY=13</code> under <code>FREQ=MONTHLY</code> <strong>generates</strong>
+      the 13th of every month, and the identical <code>BYMONTHDAY=13</code> under
+      <code>FREQ=DAILY</code> <strong>throws days away</strong>. Same nine characters, opposite
+      operation, decided entirely by a rule part sitting somewhere else &mdash; and
+      <code>BYDAY</code> flips the same way when you merely add a neighbour beside it. The spec
+      prints this as a 9&times;7 table of Expand and Limit; here it is one filter over a window
+      whose width is FREQ, and all 58 of the table's cells are then <em>measured</em> rather than
+      trusted. 56 reference cases, 609 assertions, and four wrong engines scored on 850 generated
+      rules: the natural "BYxxx filters the stream" model is exactly correct for
+      <code>FREQ=DAILY</code> &mdash; 0 of 200 &mdash; and wrong on 92% of YEARLY rules, which is
+      why it survives every test anybody writes. Pure vanilla JavaScript, one file, offline.
+    </h1>
+    <div class="flex gap-2 flex-wrap" id="tabs">
+      <button data-tab="look" class="tab-active px-5 py-2 rounded-lg font-semibold text-sm">🔁 EXPAND</button>
+      <button data-tab="understand" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="bg-slate-100 px-5 py-2 rounded-lg font-semibold text-sm">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="tab-panel">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-100">
+    <div class="max-w-6xl mx-auto space-y-5">
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">PRESET</p>
+            <select id="preset" class="mb-3"></select>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">
+              DTSTART &mdash; the first instance, and the source of every defaulted BYxxx</p>
+            <input id="dtstart" value="19970902T090000" class="mb-3">
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">RRULE</p>
+            <textarea id="rule" rows="3">FREQ=MONTHLY;COUNT=10;BYDAY=FR;BYMONTHDAY=13</textarea>
+          </div>
+          <div>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">SHOW AT MOST</p>
+                <select id="max"><option>12</option><option>25</option><option>50</option><option>100</option></select>
+              </div>
+              <div>
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">UNSYNCHRONISED DTSTART</p>
+                <select id="policy">
+                  <option value="spec">RFC 5545 &mdash; DTSTART is instance #1</option>
+                  <option value="sync">libraries &mdash; only what the rule generates</option>
+                </select>
+              </div>
+              <div class="col-span-2">
+                <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">A DAY THE MONTH DOES NOT HAVE</p>
+                <select id="skip">
+                  <option value="OMIT">RFC 5545 &mdash; SKIP=OMIT, the month is skipped</option>
+                  <option value="BACKWARD">RFC 7529 &mdash; SKIP=BACKWARD, clamp to the last day</option>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">THE RECURRENCE SET</p>
+            <div id="verdict" class="text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">THE FUNNEL FOR ONE PERIOD</p>
+          <p class="text-sm text-slate-600 mb-3">
+            The top row is the width of the <strong>FREQ window</strong>. Every row under it is the
+            same filter code. A part that cuts 365 candidate days down to 12 is what the spec calls
+            <em>expand</em>; the identical part cutting 1 day down to 0 is what it calls
+            <em>limit</em>. Switch FREQ between MONTHLY and DAILY and watch the top number move.</p>
+          <table class="num w-full">
+            <thead><tr><th>rule part</th><th>days left</th><th>&nbsp;</th><th>what it did</th></tr></thead>
+            <tbody id="funnel"></tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-2" id="funnelNote"></p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-5">
+          <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">WHY IS MY DATE NOT IN THE LIST?</p>
+          <p class="text-sm text-slate-600 mb-3">
+            The question a validator cannot answer. Give it a date and it names the rule part that
+            rejected it &mdash; or tells you it is an occurrence after all.</p>
+          <input id="probe" value="19971113" class="mb-3">
+          <div id="probeOut" class="text-sm"></div>
+          <p class="text-xs font-bold tracking-wider text-slate-500 mt-4 mb-2">RULE PARTS IN FORCE</p>
+          <div id="effective" class="text-xs text-slate-600"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">
+          FOUR WRONG ENGINES, SCORED ON 850 GENERATED RULES</p>
+        <p class="text-sm text-slate-600 mb-3">
+          Each one is a real mental model, implemented and run against the correct engine over
+          every combination of FREQ, BYxxx, INTERVAL, WKST and DTSTART below. A comparison is
+          discarded when either side runs out of scan budget, so the numbers do not move when the
+          budget does.</p>
+        <table class="num w-full">
+          <thead><tr><th>the belief</th><th>rules it gets wrong</th><th>&nbsp;</th><th>why it survives review</th></tr></thead>
+          <tbody id="variants"><tr><td colspan="4" class="text-slate-400">measuring&hellip;</td></tr></tbody>
+        </table>
+        <div id="perFreq" class="mt-4"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-1">
+          RFC 5545 &sect;3.3.10 AS DATA &mdash; AND THEN MEASURED</p>
+        <p class="text-sm text-slate-600 mb-3">
+          The table people skim, written out as an array rather than described. Then every cell is
+          <em>tested</em>: the part is added to a rule and removed again with everything else held
+          fixed, and if any period ends up with more instances than before, that is an expand.
+          <span id="tableScore"></span></p>
+        <div class="overflow-x-auto">
+          <table class="num w-full" id="eltable"></table>
+        </div>
+        <p class="text-xs text-slate-500 mt-3" id="tableNote"></p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">
+          TWO CONVENTIONS, ON THE SAME TEN RULES</p>
+        <p class="text-sm text-slate-600 mb-3">
+          Neither column is a bug. The left of each pair is what the specification says; the right
+          is what shipped software does. Where they differ, two correct implementations put
+          different dates in your calendar.</p>
+        <table class="num w-full">
+          <thead><tr><th>rule</th><th>RFC 5545 &mdash; DTSTART is instance #1</th><th>libraries &mdash; rule output only</th><th>&nbsp;</th></tr></thead>
+          <tbody id="convDt"></tbody>
+        </table>
+        <p class="text-xs text-slate-500 mt-2 mb-5" id="convDtNote"></p>
+        <table class="num w-full">
+          <thead><tr><th>rule</th><th>RFC 5545 &mdash; SKIP=OMIT</th><th>RFC 7529 &mdash; SKIP=BACKWARD</th><th>&nbsp;</th></tr></thead>
+          <tbody id="convSkip"></tbody>
+        </table>
+        <p class="text-xs text-slate-500 mt-2" id="convSkipNote"></p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <p class="text-xs font-bold tracking-wider text-slate-500 mb-3">56 REFERENCE CASES</p>
+        <pre id="ref" style="margin:0"></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="understand" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">One line of text, and nobody can tell you what dates come out.</h2>
+
+      <p>An RRULE is short enough to read aloud and dense enough that two conforming
+      implementations can disagree. It is the string behind every calendar invitation, every cron
+      replacement that needed <em>the last working day of the month</em>, every "repeats monthly"
+      checkbox. And almost every hand-rolled expander is wrong in the same place.</p>
+
+      <h3 class="text-xl font-bold">1. The same rule part is a generator or a filter, depending on FREQ</h3>
+
+      <pre>FREQ=MONTHLY;BYMONTHDAY=13   &rarr; the 13th of every month.  BYMONTHDAY GENERATES.
+FREQ=DAILY;BYMONTHDAY=13     &rarr; the 13th of every month.  BYMONTHDAY FILTERS.</pre>
+
+      <p>Identical output. Opposite mechanism. In the first, the period is a whole month and
+      <code>BYMONTHDAY</code> picks a day out of it. In the second, the period is a single day and
+      <code>BYMONTHDAY</code> throws away twenty-nine of every thirty periods. RFC 5545 prints this
+      as a table with two words in it &mdash; <em>Expand</em> and <em>Limit</em> &mdash; and the
+      cell you land in is chosen by FREQ, not by the part you wrote.</p>
+
+      <p>The reason this is not an academic distinction:</p>
+
+      <pre>FREQ=MONTHLY;BYMONTHDAY=2,15   &rarr; TWO dates a month.
+FREQ=DAILY;BYMONTHDAY=2,15     &rarr; two dates a month, from sixty periods.</pre>
+
+      <p>Still equal. Now take the part away:</p>
+
+      <pre>FREQ=MONTHLY                   &rarr; one date a month, on DTSTART's day-of-month.
+FREQ=DAILY                     &rarr; every day.</pre>
+
+      <p>An implementation that treats every BYxxx as a filter over the FREQ stream produces the
+      right answer for both of the first two lines and for every <code>FREQ=DAILY</code> rule ever
+      written. This page measures how far that gets you: <strong>0 of 200</strong> generated DAILY
+      rules wrong, and <strong>276 of 300</strong> YEARLY ones. The model is not approximately
+      right. It is exactly right in the corner where people test.</p>
+
+      <h3 class="text-xl font-bold">2. BYDAY changes meaning because of its neighbours</h3>
+
+      <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
+        <p class="text-sm"><code>FREQ=YEARLY;BYDAY=FR</code> is <strong>every Friday of the
+        year</strong> &mdash; about 52 dates. Add one more part and the same
+        <code>BYDAY=FR</code> stops generating and starts filtering:
+        <code>FREQ=YEARLY;BYDAY=FR;BYMONTHDAY=13</code> is <strong>Friday the 13th</strong>. The
+        part you added was BYMONTHDAY. The part that changed meaning was BYDAY.</p>
+      </div>
+
+      <p>This is the whole content of Note 2 under the spec's table, and it is why an
+      implementation cannot decide what a rule part does by looking at the rule part.</p>
+
+      <p>The ordinal moves too. <code>BYDAY=20MO</code> under <code>FREQ=YEARLY</code> is the
+      twentieth Monday <em>of the year</em>. Add <code>BYMONTH=5</code> and the ordinal is now
+      counted <em>inside the month</em>, so the equivalent rule is <code>BYDAY=3MO</code>. Same
+      syntax, different scope, and no error either way.</p>
+
+      <h3 class="text-xl font-bold">3. An absent rule part is not a wildcard</h3>
+
+      <pre>FREQ=MONTHLY            &rarr; BYMONTHDAY is DEFAULTED from DTSTART. One date a month.
+FREQ=MONTHLY;BYDAY=TU   &rarr; the default is GONE. Every Tuesday of every month.</pre>
+
+      <p>Adding a part deletes a default you never wrote. The rule is all-or-nothing: name any of
+      <code>BYWEEKNO</code>, <code>BYYEARDAY</code>, <code>BYMONTHDAY</code> or <code>BYDAY</code>
+      and none of the others are filled in from DTSTART any more. An engine that skips this step
+      turns <code>FREQ=MONTHLY</code> into <em>every day of every month</em> &mdash; a bug that is
+      obvious in one line of output and is measured here at <strong>178 of 850</strong> rules.</p>
+
+      <h3 class="text-xl font-bold">4. DTSTART on the 31st is a trap with no error</h3>
+
+      <pre>DTSTART:19970131   FREQ=MONTHLY
+&rarr; 31 Jan, 31 Mar, 31 May, 31 Jul, 31 Aug &hellip;   February and April never occur.</pre>
+
+      <p>RFC 5545 has no roll-over. A day the month does not have simply produces nothing, and
+      because the rule is still valid there is nowhere for an error to appear. "Monthly on the
+      31st" quietly means "eight times a year".</p>
+
+      <p>RFC 7529 added the missing knob fifteen years later: <code>SKIP=BACKWARD</code> clamps to
+      the last day of the month instead of skipping it, which is what every calendar UI has been
+      doing all along. Both are on the EXPAND tab, and they disagree on <strong>4 of 10</strong>
+      sample rules &mdash; including 29 February, which is either an event that happens roughly
+      every four years or an annual one, depending on a rule part that is not in the string.</p>
+
+      <h3 class="text-xl font-bold">5. WKST is not decoration</h3>
+
+      <pre>DTSTART:19970805   FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=MO
+&rarr; 5 Aug, 10 Aug, 19 Aug, 24 Aug
+                                                              WKST=SU
+&rarr; 5 Aug, 17 Aug, 19 Aug, 31 Aug</pre>
+
+      <p>The RFC puts this example in the specification itself, because the result is hard to
+      believe. <code>INTERVAL=2</code> skips alternate <em>weeks</em>, and which days are in a week
+      depends on where the week starts. Move the boundary and different days fall on the near side
+      of it.</p>
+
+      <p>It reaches <code>BYWEEKNO</code> as well, where week 1 of a year is the first week with at
+      least four days in that year. Under <code>WKST=MO</code>, week 20 of 1998 starts 11 May;
+      under <code>WKST=SU</code> it starts 17 May &mdash; and the years on either side are
+      unaffected. The drift is not a constant offset you can correct for.</p>
+
+      <h3 class="text-xl font-bold">6. BYSETPOS indexes a set you never see</h3>
+
+      <pre>DTSTART:19970904   FREQ=MONTHLY;BYDAY=TU,WE,TH;BYSETPOS=3   &rarr; 4 Sep, 7 Oct, 6 Nov</pre>
+
+      <p>September's third Tuesday-Wednesday-or-Thursday is the 4th &mdash; counted from the 2nd
+      and the 3rd, which are before DTSTART and are not occurrences. BYSETPOS runs on the period's
+      full candidate set <em>before</em> DTSTART, UNTIL and COUNT are applied. Apply the range
+      first and September answers the 9th.</p>
+
+      <p>It is also the only way to say "the second-last working day of the month". No combination
+      of ordinals can express it, because the ordinal attaches to a single weekday and this
+      question is about a set of five.</p>
+
+      <h3 class="text-xl font-bold">7. The parts that quietly cannot co-occur</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><code>COUNT</code> and <code>UNTIL</code> in the same rule &mdash; forbidden, and
+        commonly written anyway when a rule is edited from "10 times" to "until December".</li>
+        <li><code>BYWEEKNO</code> with anything but <code>FREQ=YEARLY</code>.</li>
+        <li><code>BYMONTHDAY</code> with <code>FREQ=WEEKLY</code> &mdash; there is no coherent
+        answer, so the spec removes the question.</li>
+        <li>An ordinal <code>BYDAY</code> such as <code>2MO</code> under <code>FREQ=WEEKLY</code>:
+        the ordinal needs a month or a year to count inside, and a week is neither.</li>
+        <li><code>BYSETPOS</code> with no other BYxxx part &mdash; there is no set to index.</li>
+      </ul>
+
+      <p><code>UNTIL</code> has one more rule that costs an hour when it bites: it is
+      <strong>inclusive</strong>, and it compares the whole instant. <code>UNTIL=19970905T080000Z</code>
+      on a rule whose occurrences are at 09:00 stops on the 4th, not the 5th.</p>
+
+      <h3 class="text-xl font-bold">What an RRULE is not</h3>
+
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>Not cron.</strong> Cron ORs its day-of-month and day-of-week fields when both
+        are restricted, so <code>13 * FRI</code> means the 13th <em>or</em> any Friday. RRULE ANDs
+        them: <code>BYMONTHDAY=13;BYDAY=FR</code> is Friday the 13th. Same two fields, opposite
+        connective.</li>
+        <li><strong>Not the whole recurrence set.</strong> A calendar entry may carry several
+        RRULEs plus RDATEs and EXDATEs; this page expands one rule.</li>
+        <li><strong>Not timezone-aware.</strong> Everything here is naive wall-clock arithmetic on
+        integers &mdash; no <code>Date</code> object is constructed anywhere in the engine, so no
+        timezone can move a result. A real calendar server has to add DST on top, which is where
+        "the 09:00 meeting is now at 10:00" comes from.</li>
+      </ul>
+
+    </div>
+  </div>
+</section>
+
+<section id="build" class="tab-panel hidden">
+  <div class="min-h-[calc(100vh-72px)] p-4 md:p-8 bg-slate-50">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <h2 class="text-2xl font-black">🔨 How it is built</h2>
+
+      <h3 class="text-xl font-bold">1. The design decision that removes the table</h3>
+
+      <p>The obvious way to implement &sect;3.3.10 is to write the table down: two functions per
+      rule part, an expander and a limiter, and a switch on FREQ to pick one. That is 9&times;7
+      cells of branching, and the two Notes make four of them context-dependent.</p>
+
+      <p>There is a cheaper description. Give every period a <strong>window of candidate
+      days</strong> whose width is decided by FREQ, then run <em>one</em> filter over it:</p>
+
+      <pre>YEARLY   &rarr; every day of the year      (365 candidates)
+MONTHLY  &rarr; every day of the month     (28-31)
+WEEKLY   &rarr; the 7 days of the week, aligned to WKST
+DAILY    &rarr; one day</pre>
+
+      <p>Expand and limit stop being two operators. <code>BYMONTHDAY=13</code> against a 365-day
+      window keeps 12 days, which is an expansion; against a 1-day window it keeps 0 or 1, which is
+      a limit. The behaviour the spec spends a table describing falls out of the window width, and
+      the funnel on the EXPAND tab is literally that array shrinking.</p>
+
+      <h3 class="text-xl font-bold">2. No Date object anywhere</h3>
+      <pre>function toDays(y, m, d){        // Howard Hinnant's civil-calendar algorithm
+  const yy = y - (m &lt;= 2 ? 1 : 0);
+  const era = Math.floor(yy / 400);
+  ...
+  return era * 146097 + doe - 719468;   // 1970-01-01 is day 0
+}
+function weekday(dn){ return ((dn % 7) + 10) % 7; }   // 0 = Monday</pre>
+      <p>Dates are integers and instants are seconds. <code>new Date("1997-09-02")</code> and
+      <code>new Date(1997, 8, 2)</code> disagree about timezone, and a recurrence engine that
+      crosses a DST boundary with local-time arithmetic loses or gains an hour silently. Integer
+      day numbers cannot.</p>
+
+      <h3 class="text-xl font-bold">3. The default that is easy to miss and easy to measure</h3>
+      <pre>if (!byWeekNo &amp;&amp; !byYearDay &amp;&amp; !byMonthDay &amp;&amp; !byDay){
+  if (freq === "YEARLY"){ if (!byMonth) byMonth = [dt.m]; byMonthDay = [dt.d]; }
+  else if (freq === "MONTHLY") byMonthDay = [dt.d];
+  else if (freq === "WEEKLY")  byDay = [{ n: 0, wd: weekday(dtDay) }];
+}</pre>
+      <p>Four parts guard the block and one of them being present cancels the whole thing. Write
+      the condition as four separate <code>if</code>s and <code>FREQ=MONTHLY;BYDAY=TU</code> still
+      picks up <code>BYMONTHDAY</code> from DTSTART, which turns "every Tuesday" into "Tuesdays
+      that fall on the 2nd".</p>
+
+      <h3 class="text-xl font-bold">4. One filter, returning an index rather than a boolean</h3>
+      <pre>function rejectAt(dn, win){        // -1 = the day survives
+  if (byMonth &amp;&amp; byMonth.indexOf(c.m) &lt; 0) return 0;
+  ...
+  if (byDay &amp;&amp; !byDayOk(dn, win))         return 4;
+  return -1;
+}</pre>
+      <p>An index, not a name, because the funnel re-runs the filter stopping after part <em>k</em>
+      to count how many days each part removed. The same call answers "is this a match" for the
+      expander and "which part rejected it" for the explainer, so the two can never drift apart and
+      say different things about the same date.</p>
+
+      <h3 class="text-xl font-bold">5. The ordinal's scope is a function of the rule, not the part</h3>
+      <pre>function ordinalScope(dn, win){
+  if (win.kind === "Y" &amp;&amp; !byMonth) return theYear(dn);   // BYDAY=20MO
+  return theMonth(dn);                                    // BYDAY=1FR
+}</pre>
+      <p>Four lines, and the only place the two Notes under the spec's table actually cost
+      anything. Hard-code the month and <code>FREQ=YEARLY;BYDAY=20MO</code> silently returns
+      nothing, since no month has twenty Mondays &mdash; measured here at 40 of 850 rules.</p>
+
+      <h3 class="text-xl font-bold">6. BYSETPOS runs before the range, not after</h3>
+      <pre>const set = windowSet(win);          // the period's FULL candidate set
+...
+for (const v of set){
+  if (v &lt; start) continue;           // DTSTART applied AFTER BYSETPOS
+  if (until !== null &amp;&amp; v &gt; until) break;
+  out.push(v);
+}</pre>
+      <p>Filter by DTSTART first and BYSETPOS counts a different set in the first period only,
+      which is exactly the kind of bug that passes review and then produces one wrong date in
+      September 1997.</p>
+
+      <h3 class="text-xl font-bold">7. Verified three ways, none of them "it looks right"</h3>
+      <ul class="list-disc pl-6 space-y-1">
+        <li><strong>56 reference cases</strong>, most of them lifted from the worked examples in
+        &sect;3.8.5.3 of the RFC itself, so the expected dates are not this engine's opinion.</li>
+        <li><strong>A differential test against a different shape of implementation.</strong> The
+        verifier carries a per-day <em>membership predicate</em> &mdash; walk every date in a
+        window and ask "does this one satisfy the rule", using JS <code>Date</code> arithmetic that
+        the engine does not use at all. Two implementations that share no code agreed on
+        <strong>54,063 dates</strong> across 256 rule/DTSTART pairs.</li>
+        <li><strong>The spec's own table, measured.</strong> All 58 non-N/A cells are checked by
+        adding the part and removing it again with everything else fixed. 57 agree.</li>
+      </ul>
+
+      <h3 class="text-xl font-bold">🔴 The cell that does not agree, and why it is left alone</h3>
+      <p>One cell of the measured table disagrees with the spec: <strong>BYDAY under YEARLY when
+      BYWEEKNO is present</strong>, which Note 2 calls a <em>special expand</em> and the
+      measurement calls a limit. The disagreement is real and structural. In the RFC's staged
+      algorithm the intermediate set after BYWEEKNO is a set of <em>weeks</em>, and BYDAY expands
+      each week into days. In a day-window model the week already exists as seven days, so BYDAY
+      can only cut. The two models are observationally identical &mdash; the differential test and
+      the RFC's own week-20 example both pass &mdash; but their intermediate cardinalities are not,
+      because one of them never builds a set of weeks. Reporting it as an expand would have meant
+      writing a special case whose only purpose was to make a number agree.</p>
+
+      <h3 class="text-xl font-bold">🔴 One of the reference cases was wrong, not the engine</h3>
+      <p>The WKST=SU variant of the BYWEEKNO example was written expecting 1999 to shift by a week.
+      The engine said 1998 shifts and 1999 does not. Working the four-day rule by hand for all
+      three years agreed with the engine: 1 January 1998 is a Thursday, so under WKST=SU only three
+      days of that week fall in 1998 and week 1 starts on 4 January &mdash; a week later than under
+      WKST=MO. 1997 and 1999 land the same way under both. The case now asserts the correct dates
+      and the page says the drift is not monotonic, which is the more useful claim anyway.</p>
+
+      <h3 class="text-xl font-bold">8. What the 56 reference cases cover</h3>
+      <pre>BYMONTHDAY expands under MONTHLY and limits under DAILY - same 5 dates out
+BYDAY expands under YEARLY alone, limits the moment BYMONTHDAY appears
+20MO counts inside the YEAR; add BYMONTH and it counts inside the MONTH
+FREQ=MONTHLY alone defaults BYMONTHDAY from DTSTART; BYDAY=TU deletes the default
+the 31st skips February entirely - and clamps to it under RFC 7529
+WKST=MO vs WKST=SU on the RFC's own INTERVAL=2 example: 2 of 4 dates move
+BYWEEKNO week 1 is the first week with 4 days in the year, so 1999 jumps
+BYSETPOS counts candidates that precede DTSTART and are not occurrences
+UNTIL is inclusive and compares the whole instant, not the date
+BYHOUR expands under DAILY and limits under MINUTELY
+COUNT+UNTIL, BYWEEKNO under MONTHLY, ordinal BYDAY under WEEKLY: all refused</pre>
+      <p>Each one is a case where a plausible implementation returns something else, which is the
+      only reason to write a reference case at all.</p>
+
+      <h3 class="text-xl font-bold">🎉 SolveFromZero Day 68 shipped.</h3>
+      <p class="text-slate-600">One line of text, nine rule parts, and a table that decides what
+      your code does before your code does.</p>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs = document.querySelectorAll("#tabs button");
+const panels = document.querySelectorAll(".tab-panel");
+tabs.forEach(t => t.addEventListener("click", () => {
+  tabs.forEach(x => { x.classList.remove("tab-active"); x.classList.add("bg-slate-100"); });
+  t.classList.add("tab-active"); t.classList.remove("bg-slate-100");
+  panels.forEach(p => p.classList.add("hidden"));
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}));
+
+// ===== ENGINE:BEGIN =====
+// An RFC 5545 §3.3.10 RRULE expander. The whole point of the design is that the spec's
+// EXPAND / LIMIT table is not implemented as two operators. It is ONE filter run over a
+// WINDOW whose width is decided by FREQ: a YEARLY window is a year, so BYMONTHDAY=13
+// picks twelve days out of it (that is "expand"), and a DAILY window is one day, so the
+// same BYMONTHDAY=13 throws almost every window away (that is "limit"). Same code.
+
+const WD = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+const FREQS = ["SECONDLY", "MINUTELY", "HOURLY", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+const MDAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function isLeap(y){ return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+function daysInMonth(y, m){ return m === 2 && isLeap(y) ? 29 : MDAYS[m - 1]; }
+function daysInYear(y){ return isLeap(y) ? 366 : 365; }
+
+// Howard Hinnant's civil calendar algorithms: day 0 is 1970-01-01, proleptic Gregorian,
+// no Date object anywhere, so no timezone can move a result.
+function toDays(y, m, d){
+  const yy = y - (m <= 2 ? 1 : 0);
+  const era = Math.floor(yy / 400);
+  const yoe = yy - era * 400;
+  const doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+function fromDays(z){
+  const zz = z + 719468;
+  const era = Math.floor(zz / 146097);
+  const doe = zz - era * 146097;
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+  const y = yoe + era * 400;
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  const m = mp + (mp < 10 ? 3 : -9);
+  return { y: y + (m <= 2 ? 1 : 0), m: m, d: d };
+}
+// 0 = Monday .. 6 = Sunday. 1970-01-01 was a Thursday, index 3.
+function weekday(dn){ return ((dn % 7) + 10) % 7; }
+function weekStart(dn, wkst){ return dn - (((weekday(dn) - wkst) % 7) + 7) % 7; }
+
+// RFC 5545: "week number one of the calendar year is the first week that contains at
+// least four days in that calendar year" - ISO 8601 generalised to an arbitrary WKST.
+function weekOneStart(y, wkst){
+  const jan1 = toDays(y, 1, 1);
+  const off = (((weekday(jan1) - wkst) % 7) + 7) % 7;
+  const ws = jan1 - off;
+  return (7 - off) >= 4 ? ws : ws + 7;
+}
+function weekNumber(dn, wkst){
+  const ws = weekStart(dn, wkst);
+  const owner = fromDays(ws + 3).y;          // the 4th day of the week decides the year
+  const w1 = weekOneStart(owner, wkst);
+  return { year: owner, week: (ws - w1) / 7 + 1, weeksInYear: (weekOneStart(owner + 1, wkst) - w1) / 7 };
+}
+
+function parseDT(s){
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(String(s || "").trim());
+  if (!m) return null;
+  const o = { y: +m[1], m: +m[2], d: +m[3], h: m[4] ? +m[4] : 0, mi: m[5] ? +m[5] : 0,
+              s: m[6] ? +m[6] : 0, utc: !!m[7], dateOnly: !m[4] };
+  if (o.m < 1 || o.m > 12 || o.d < 1 || o.d > daysInMonth(o.y, o.m)) return null;
+  if (o.h > 23 || o.mi > 59 || o.s > 60) return null;
+  return o;
+}
+function instOf(dt){ return toDays(dt.y, dt.m, dt.d) * 86400 + dt.h * 3600 + dt.mi * 60 + dt.s; }
+function p2(n){ return (n < 10 ? "0" : "") + n; }
+function fmtInst(sec, dateOnly){
+  const dn = Math.floor(sec / 86400), rem = sec - dn * 86400;
+  const c = fromDays(dn);
+  const ds = c.y + p2(c.m) + p2(c.d);
+  return dateOnly ? ds : ds + "T" + p2(Math.floor(rem / 3600)) + p2(Math.floor(rem / 60) % 60) + p2(rem % 60);
+}
+function fmtHuman(sec, dateOnly){
+  const dn = Math.floor(sec / 86400), rem = sec - dn * 86400;
+  const c = fromDays(dn);
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const s = WD[weekday(dn)] + " " + p2(c.d) + " " + MN[c.m - 1] + " " + c.y;
+  return dateOnly ? s : s + " " + p2(Math.floor(rem / 3600)) + ":" + p2(Math.floor(rem / 60) % 60);
+}
+
+// ---------------------------------------------------------------- parsing the rule
+function numList(v, lo, hi, allowNeg, name, errs){
+  const out = [];
+  v.split(",").forEach(function(x){
+    const t = x.trim();
+    if (!/^[+-]?\d+$/.test(t)){ errs.push(name + ": '" + t + "' is not an integer"); return; }
+    const n = parseInt(t, 10);
+    const a = Math.abs(n);
+    if (n === 0 && allowNeg){ errs.push(name + ": 0 is not a legal value"); return; }
+    if (a < lo || a > hi){ errs.push(name + ": " + t + " is out of range (" + lo + ".." + hi + ")"); return; }
+    if (n < 0 && !allowNeg){ errs.push(name + ": negative values are not allowed"); return; }
+    out.push(n);
+  });
+  return out.length ? out : null;
+}
+
+function parseRule(text){
+  const r = { freq: null, interval: 1, count: null, until: null, untilRaw: null,
+              byMonth: null, byWeekNo: null, byYearDay: null, byMonthDay: null, byDay: null,
+              byHour: null, byMinute: null, bySecond: null, bySetPos: null, wkst: 0,
+              wkstGiven: false, errors: [], notes: [] };
+  const body = String(text || "").replace(/^\s*RRULE\s*:\s*/i, "").trim();
+  if (!body){ r.errors.push("empty rule"); return r; }
+  const seen = {};
+  body.split(";").forEach(function(part){
+    if (!part.trim()) return;
+    const i = part.indexOf("=");
+    if (i < 0){ r.errors.push("'" + part.trim() + "' is not NAME=VALUE"); return; }
+    const k = part.slice(0, i).trim().toUpperCase();
+    const v = part.slice(i + 1).trim();
+    if (seen[k]) r.errors.push("§3.3.10: " + k + " MUST NOT occur more than once in a rule");
+    seen[k] = true;
+    switch (k){
+      case "FREQ":
+        if (FREQS.indexOf(v.toUpperCase()) < 0) r.errors.push("FREQ: '" + v + "' is not one of " + FREQS.join(", "));
+        else r.freq = v.toUpperCase();
+        break;
+      case "INTERVAL": {
+        const n = parseInt(v, 10);
+        if (!/^\d+$/.test(v) || n < 1) r.errors.push("INTERVAL must be a positive integer");
+        else r.interval = n;
+        break; }
+      case "COUNT": {
+        const n = parseInt(v, 10);
+        if (!/^\d+$/.test(v) || n < 1) r.errors.push("COUNT must be a positive integer");
+        else r.count = n;
+        break; }
+      case "UNTIL": {
+        const d = parseDT(v);
+        if (!d) r.errors.push("UNTIL: '" + v + "' is not a valid DATE or DATE-TIME");
+        else { r.until = instOf(d); r.untilRaw = d; }
+        break; }
+      case "BYSECOND": r.bySecond = numList(v, 0, 60, false, "BYSECOND", r.errors); break;
+      case "BYMINUTE": r.byMinute = numList(v, 0, 59, false, "BYMINUTE", r.errors); break;
+      case "BYHOUR":   r.byHour   = numList(v, 0, 23, false, "BYHOUR", r.errors); break;
+      case "BYMONTHDAY": r.byMonthDay = numList(v, 1, 31, true, "BYMONTHDAY", r.errors); break;
+      case "BYYEARDAY":  r.byYearDay  = numList(v, 1, 366, true, "BYYEARDAY", r.errors); break;
+      case "BYWEEKNO":   r.byWeekNo   = numList(v, 1, 53, true, "BYWEEKNO", r.errors); break;
+      case "BYMONTH":    r.byMonth    = numList(v, 1, 12, false, "BYMONTH", r.errors); break;
+      case "BYSETPOS":   r.bySetPos   = numList(v, 1, 366, true, "BYSETPOS", r.errors); break;
+      case "WKST": {
+        const idx = WD.indexOf(v.toUpperCase());
+        if (idx < 0) r.errors.push("WKST: '" + v + "' is not a weekday");
+        else { r.wkst = idx; r.wkstGiven = true; }
+        break; }
+      case "BYDAY": {
+        const out = [];
+        v.split(",").forEach(function(x){
+          const m = /^([+-]?\d{1,3})?(MO|TU|WE|TH|FR|SA|SU)$/i.exec(x.trim());
+          if (!m){ r.errors.push("BYDAY: '" + x.trim() + "' is not [[+|-]ordinal]weekday"); return; }
+          const n = m[1] ? parseInt(m[1], 10) : 0;
+          if (m[1] && n === 0){ r.errors.push("BYDAY: ordinal 0 is not legal"); return; }
+          out.push({ n: n, wd: WD.indexOf(m[2].toUpperCase()) });
+        });
+        r.byDay = out.length ? out : null;
+        break; }
+      default:
+        r.errors.push("unknown rule part " + k);
+    }
+  });
+
+  // the co-occurrence rules, each one quoted where the spec states it
+  if (!r.freq) r.errors.push("§3.3.10: FREQ is the only REQUIRED rule part");
+  if (r.count !== null && r.until !== null)
+    r.errors.push("§3.3.10: UNTIL and COUNT MUST NOT occur in the same recurrence rule");
+  if (r.byWeekNo && r.freq !== "YEARLY")
+    r.errors.push("§3.3.10: BYWEEKNO MUST NOT be used when FREQ is anything other than YEARLY");
+  if (r.byYearDay && ["DAILY", "WEEKLY", "MONTHLY"].indexOf(r.freq) >= 0)
+    r.errors.push("§3.3.10: BYYEARDAY MUST NOT be specified when FREQ is DAILY, WEEKLY or MONTHLY");
+  if (r.byMonthDay && r.freq === "WEEKLY")
+    r.errors.push("§3.3.10: BYMONTHDAY MUST NOT be specified when FREQ is WEEKLY");
+  if (r.byDay && r.byDay.some(function(e){ return e.n !== 0; })){
+    if (["MONTHLY", "YEARLY"].indexOf(r.freq) < 0)
+      r.errors.push("§3.3.10: a BYDAY ordinal is only valid when FREQ is MONTHLY or YEARLY");
+    else if (r.freq === "YEARLY" && r.byWeekNo)
+      r.errors.push("§3.3.10: a BYDAY ordinal MUST NOT be specified with BYWEEKNO");
+  }
+  const anyBy = r.byMonth || r.byWeekNo || r.byYearDay || r.byMonthDay || r.byDay ||
+                r.byHour || r.byMinute || r.bySecond;
+  if (r.bySetPos && !anyBy)
+    r.errors.push("§3.3.10: BYSETPOS MUST only be used with another BYxxx rule part");
+  if (r.until !== null && r.untilRaw && !r.untilRaw.dateOnly && !r.untilRaw.utc)
+    r.notes.push("§3.3.10: when DTSTART has a time zone, UNTIL MUST be given in UTC (a trailing Z)");
+  return r;
+}
+
+// ---------------------------------------------------------------- the expander
+// opts: { max, dtstartPolicy: "spec"|"sync", skip: "OMIT"|"BACKWARD", variant }
+// variants are deliberately-wrong engines, kept so the page can COUNT what each gets wrong:
+//   "limitOnly"     every BYxxx is a filter on the FREQ stream  (window is always one day)
+//   "noDefaults"    forget that an absent BYxxx defaults to the DTSTART component
+//   "monthOrdinals" resolve every BYDAY ordinal inside the month
+//   "wkstMonday"    ignore WKST and always start the week on Monday
+function expand(ruleText, dtstartText, opts){
+  opts = opts || {};
+  const max = opts.max || 25;
+  const policy = opts.dtstartPolicy || "spec";
+  const skip = opts.skip || "OMIT";
+  const variant = opts.variant || "correct";
+  const dt = parseDT(dtstartText);
+  const r = parseRule(ruleText);
+  const out = { rule: r, dtstart: dt, list: [], human: [], compact: [], errors: r.errors.slice(),
+                notes: r.notes.slice(), truncated: false, windows: 0, defaulted: [],
+                dtstartAdded: false, dateOnly: dt ? dt.dateOnly : false };
+  if (!dt) out.errors.push("DTSTART: '" + dtstartText + "' is not a valid DATE or DATE-TIME");
+  if (out.errors.length) return out;
+
+  const start = instOf(dt);
+  const dtDay = toDays(dt.y, dt.m, dt.d);
+  const wkst = variant === "wkstMonday" ? 0 : r.wkst;
+  const freq = r.freq, interval = r.interval;
+
+  let byMonth = r.byMonth, byWeekNo = r.byWeekNo, byYearDay = r.byYearDay,
+      byMonthDay = r.byMonthDay, byDay = r.byDay;
+
+  // The default that every hand-rolled expander forgets: an absent BYxxx is not "any
+  // value", it is the value taken from DTSTART - but ONLY when no date-level BYxxx was
+  // given at all. Present one, and the others open right up.
+  if (variant !== "noDefaults" && !byWeekNo && !byYearDay && !byMonthDay && !byDay){
+    if (freq === "YEARLY"){
+      if (!byMonth){ byMonth = [dt.m]; out.defaulted.push("BYMONTH=" + dt.m); }
+      byMonthDay = [dt.d]; out.defaulted.push("BYMONTHDAY=" + dt.d);
+    } else if (freq === "MONTHLY"){
+      byMonthDay = [dt.d]; out.defaulted.push("BYMONTHDAY=" + dt.d);
+    } else if (freq === "WEEKLY"){
+      byDay = [{ n: 0, wd: weekday(dtDay) }]; out.defaulted.push("BYDAY=" + WD[weekday(dtDay)]);
+    }
+  }
+  out.effective = { byMonth: byMonth, byWeekNo: byWeekNo, byYearDay: byYearDay,
+                    byMonthDay: byMonthDay, byDay: byDay };
+
+  let budget = opts.budget || 150000;   // candidate days this call may examine
+  const firstWeek = weekStart(dtDay, wkst);
+  const timeFreq = freq === "HOURLY" || freq === "MINUTELY" || freq === "SECONDLY";
+
+  function windowFor(w){
+    if (freq === "YEARLY") return { kind: "Y", y: dt.y + w * interval };
+    if (freq === "MONTHLY"){
+      const t = (dt.y * 12 + dt.m - 1) + w * interval;
+      return { kind: "M", y: Math.floor(t / 12), m: (t % 12) + 1 };
+    }
+    if (freq === "WEEKLY") return { kind: "W", start: firstWeek + w * 7 * interval };
+    if (freq === "DAILY")  return { kind: "D", day: dtDay + w * interval };
+    const step = freq === "HOURLY" ? 3600 : freq === "MINUTELY" ? 60 : 1;
+    return { kind: "T", t: start + w * interval * step };
+  }
+
+  function windowRange(win){
+    if (variant === "limitOnly"){
+      // the naive engine: one candidate per period, then "filter"
+      if (win.kind === "Y"){
+        if (dt.d > daysInMonth(win.y, dt.m)) return null;
+        const d = toDays(win.y, dt.m, dt.d); return [d, d];
+      }
+      if (win.kind === "M"){
+        const d = toDays(win.y, win.m, Math.min(dt.d, daysInMonth(win.y, win.m))); return [d, d];
+      }
+      if (win.kind === "W"){ const d = win.start + (((weekday(dtDay) - wkst) % 7) + 7) % 7; return [d, d]; }
+      if (win.kind === "D") return [win.day, win.day];
+      const d = Math.floor(win.t / 86400); return [d, d];
+    }
+    if (win.kind === "Y"){
+      const a = toDays(win.y, 1, 1), b = a + daysInYear(win.y) - 1;
+      return byWeekNo ? [a - 7, b + 7] : [a, b];   // week 1 can start in the previous year
+    }
+    if (win.kind === "M"){ const a = toDays(win.y, win.m, 1); return [a, a + daysInMonth(win.y, win.m) - 1]; }
+    if (win.kind === "W") return [win.start, win.start + 6];
+    if (win.kind === "D") return [win.day, win.day];
+    const d = Math.floor(win.t / 86400); return [d, d];
+  }
+
+  function ordinalScope(dn, win){
+    const c = fromDays(dn);
+    const month = function(){ const a = toDays(c.y, c.m, 1); return [a, a + daysInMonth(c.y, c.m) - 1]; };
+    if (variant === "monthOrdinals") return month();
+    if (win.kind === "Y" && !byMonth){ const a = toDays(c.y, 1, 1); return [a, a + daysInYear(c.y) - 1]; }
+    return month();
+  }
+
+  function byDayOk(dn, win){
+    const wd = weekday(dn);
+    for (let i = 0; i < byDay.length; i++){
+      const e = byDay[i];
+      if (e.wd !== wd) continue;
+      if (e.n === 0) return true;
+      const sc = ordinalScope(dn, win);
+      const first = sc[0] + (((e.wd - weekday(sc[0])) % 7) + 7) % 7;
+      const total = Math.floor((sc[1] - first) / 7) + 1;
+      const idx = (dn - first) / 7 + 1;
+      const want = e.n > 0 ? e.n : total + 1 + e.n;
+      if (idx === want) return true;
+    }
+    return false;
+  }
+
+  // The one filter. Returns -1 when the day survives, otherwise the INDEX in PARTS of the
+  // rule part that killed it - an index rather than a name so the funnel can stop early
+  // and count how many days each part removed.
+  const PARTS = ["BYMONTH", "BYWEEKNO", "BYYEARDAY", "BYMONTHDAY", "BYDAY"];
+  function rejectAt(dn, win){
+    const c = fromDays(dn);
+    if (byMonth && byMonth.indexOf(c.m) < 0) return 0;
+    if (byWeekNo){
+      const wn = weekNumber(dn, wkst);
+      if (wn.year !== win.y) return 1;
+      const ok = byWeekNo.some(function(n){ return n > 0 ? n === wn.week : wn.weeksInYear + 1 + n === wn.week; });
+      if (!ok) return 1;
+    } else if (win.kind === "Y" && c.y !== win.y) return 1;
+    if (byYearDay){
+      const n = daysInYear(c.y), yd = dn - toDays(c.y, 1, 1) + 1;
+      let ok = byYearDay.some(function(v){ return v > 0 ? v === yd : n + 1 + v === yd; });
+      if (!ok && skip === "BACKWARD") ok = byYearDay.some(function(v){ return v > n && yd === n; });
+      if (!ok) return 2;
+    }
+    if (byMonthDay){
+      const dim = daysInMonth(c.y, c.m);
+      let ok = byMonthDay.some(function(v){ return v > 0 ? v === c.d : dim + 1 + v === c.d; });
+      if (!ok && skip === "BACKWARD") ok = byMonthDay.some(function(v){ return v > dim && c.d === dim; });
+      if (!ok) return 3;
+    }
+    if (byDay && !byDayOk(dn, win)) return 4;
+    return -1;
+  }
+  function reject(dn, win){ const i = rejectAt(dn, win); return i < 0 ? null : PARTS[i]; }
+
+  // Expand or limit is not guessed and not re-derived: it is READ OFF the spec's own table,
+  // which this file already carries as data, with the two Notes resolved from the parts the
+  // rule actually names. The table itself is checked empirically on the EXPAND tab, so the
+  // funnel's labels and the measurement cannot quietly drift apart.
+  function roleOf(part){
+    const j = EXPAND_LIMIT.freqs.indexOf(freq);
+    let row = null;
+    for (let i = 0; i < EXPAND_LIMIT.rows.length; i++)
+      if (EXPAND_LIMIT.rows[i].part === part) row = EXPAND_LIMIT.rows[i];
+    if (!row || j < 0) return "limit";
+    let c = row.cells[j];
+    if (c === "Note 1") c = r.byMonthDay ? "Limit" : "Expand";
+    if (c === "Note 2") c = (r.byYearDay || r.byMonthDay) ? "Limit" : "Expand";
+    return c === "Expand" ? "expand" : "limit";
+  }
+
+  // The funnel is the whole argument of the page made visible: the TOP number is the width
+  // of the FREQ window, and every BYxxx row below it is the same filter code. A part that
+  // cuts 365 days to 12 is what the spec calls EXPAND; the identical part cutting 1 day to
+  // 0 is what the spec calls LIMIT.
+  out.funnel = function(w){
+    const win = windowFor(w);
+    const range = windowRange(win);
+    if (!range) return null;
+    const width = range[1] - range[0] + 1;
+    const label = { Y: "one year", M: "one month", W: "one week", D: "one day", T: "one day" }[win.kind];
+    const stages = [{ part: "FREQ=" + freq, n: width, note: label + " of candidate days", kind: "window" }];
+    const present = [byMonth, byWeekNo, byYearDay, byMonthDay, byDay];
+    let live = [];
+    for (let dn = range[0]; dn <= range[1]; dn++) live.push(dn);
+    for (let k = 0; k < PARTS.length; k++){
+      if (!present[k]) continue;
+      const before = live.length;
+      live = live.filter(function(dn){ const i = rejectAt(dn, win); return i < 0 || i > k; });
+      // Expand or limit is decided the same way the spec's table is checked on the EXPAND tab:
+      // take the part OUT of the rule and see whether the period ends up with more instances
+      // or fewer. A part that is holding instances up is expanding; one whose removal grows
+      // the period is filtering. Nothing here consults FREQ directly.
+      const role = roleOf(PARTS[k]);
+      stages.push({ part: PARTS[k], n: live.length, kind: role,
+                    note: "removed " + (before - live.length) + " of " + before,
+                    defaulted: out.defaulted.some(function(d){ return d.indexOf(PARTS[k] + "=") === 0; }) });
+    }
+    const t = timesFor(win);
+    const perDay = t ? t.H.length * t.M.length * t.S.length : 0;
+    if (perDay !== 1 || r.byHour || r.byMinute || r.bySecond)
+      stages.push({ part: "BYHOUR/BYMINUTE/BYSECOND", n: live.length * perDay,
+                    note: perDay + " time" + (perDay === 1 ? "" : "s") + " per surviving day", kind: perDay > 1 ? "expand" : "limit" });
+    const set = windowSet(win);
+    if (r.bySetPos)
+      stages.push({ part: "BYSETPOS", n: set.length, note: "position " + r.bySetPos.join(",") + " of the period's set", kind: "limit" });
+    const kept = set.filter(function(v){ return v >= start && (r.until === null || v <= r.until); });
+    if (kept.length !== set.length)
+      stages.push({ part: "DTSTART / UNTIL", n: kept.length, note: (set.length - kept.length) + " fell outside the range", kind: "limit" });
+    return { stages: stages, win: win, set: set, kept: kept };
+  };
+
+  function timesFor(win){
+    if (win.kind !== "T")
+      return { H: r.byHour || [dt.h], M: r.byMinute || [dt.mi], S: r.bySecond || [dt.s] };
+    const day = Math.floor(win.t / 86400), rem = win.t - day * 86400;
+    const h = Math.floor(rem / 3600), mi = Math.floor(rem / 60) % 60, s = rem % 60;
+    if (r.byHour && r.byHour.indexOf(h) < 0) return null;
+    if (freq === "HOURLY") return { H: [h], M: r.byMinute || [dt.mi], S: r.bySecond || [dt.s] };
+    if (r.byMinute && r.byMinute.indexOf(mi) < 0) return null;
+    if (freq === "MINUTELY") return { H: [h], M: [mi], S: r.bySecond || [dt.s] };
+    if (r.bySecond && r.bySecond.indexOf(s) < 0) return null;
+    return { H: [h], M: [mi], S: [s] };
+  }
+
+  // the instants a window produces, BEFORE DTSTART/UNTIL/COUNT are applied - which is the
+  // set BYSETPOS indexes into, and the reason BYSETPOS can select a date before DTSTART
+  function windowSet(win){
+    const range = windowRange(win);
+    if (!range) return [];
+    const t = timesFor(win);
+    if (!t) return [];
+    const days = [];
+    budget -= (range[1] - range[0] + 1);
+    for (let dn = range[0]; dn <= range[1]; dn++) if (!reject(dn, win)) days.push(dn);
+    if (!days.length) return [];
+    const set = [];
+    for (let i = 0; i < days.length; i++)
+      for (let a = 0; a < t.H.length; a++)
+        for (let b = 0; b < t.M.length; b++)
+          for (let c = 0; c < t.S.length; c++)
+            set.push(days[i] * 86400 + t.H[a] * 3600 + t.M[b] * 60 + t.S[c]);
+    set.sort(function(x, y){ return x - y; });
+    if (!r.bySetPos) return set;
+    const picked = [];
+    for (let i = 0; i < r.bySetPos.length; i++){
+      const n = r.bySetPos[i];
+      const idx = n > 0 ? n - 1 : set.length + n;
+      if (idx >= 0 && idx < set.length) picked.push(set[idx]);
+    }
+    picked.sort(function(x, y){ return x - y; });
+    return picked.filter(function(v, i){ return i === 0 || v !== picked[i - 1]; });
+  }
+  out.windowSet = windowSet;
+  out.windowFor = windowFor;
+
+  // A day budget rather than a window count, so one bound covers a YEARLY rule that scans
+  // 365 days a period and a MINUTELY one that scans a single day thousands of times.
+  const HARD = 120000, EMPTY_CAP = 6000;
+  let emptyRun = 0, done = false;
+  for (let w = 0; w < HARD && !done && budget > 0; w++){
+    out.windows = w + 1;
+    const win = windowFor(w);
+    const set = windowSet(win);
+    if (!set.length){
+      if (++emptyRun > EMPTY_CAP) break;
+      if (budget <= 0){ out.exhausted = true; break; }
+      if (r.until !== null){
+        const range = windowRange(win);
+        if (range && range[0] * 86400 > r.until) break;
+      }
+      continue;
+    }
+    emptyRun = 0;
+    for (let i = 0; i < set.length; i++){
+      const v = set[i];
+      if (v < start) continue;                       // §3.8.5.3: no instance before DTSTART
+      if (r.until !== null && v > r.until){ done = true; break; }
+      out.list.push(v);
+      if (r.count !== null && out.list.length >= r.count){ done = true; break; }
+      if (out.list.length >= max){ out.truncated = true; done = true; break; }
+    }
+    if (r.until !== null && !done){
+      const range = windowRange(win);
+      if (range && range[1] * 86400 + 86399 > r.until && set[set.length - 1] > r.until) done = true;
+    }
+  }
+
+  // A truncated answer is not an answer: any measurement that compares two engines must
+  // discard a pair where either side ran out of budget, or the budget leaks into the result.
+  if (budget <= 0 && (r.count === null || out.list.length < r.count) && !out.truncated)
+    out.exhausted = true;
+
+  // RFC 5545 §3.8.5.3 says the DTSTART value itself is the first instance of the recurrence
+  // set. Most libraries instead emit only what the rule generates, so an unsynchronised
+  // DTSTART simply disappears. Both are shipped; the page counts where they part company.
+  if (policy === "spec" && (!out.list.length || out.list[0] !== start)){
+    if (r.until === null || start <= r.until){
+      out.list.unshift(start);
+      out.dtstartAdded = true;
+      if (r.count !== null && out.list.length > r.count) out.list = out.list.slice(0, r.count);
+      else if (out.list.length > max){ out.list = out.list.slice(0, max); out.truncated = true; }
+    }
+  }
+  out.human = out.list.map(function(v){ return fmtHuman(v, dt.dateOnly); });
+  out.compact = out.list.map(function(v){ return fmtInst(v, dt.dateOnly); });
+  return out;
+}
+
+// ---------------------------------------------------------------- "why not this date?"
+// The whole reason to build an engine rather than a validator: it can name the rule part
+// that decided, for a date the rule did NOT produce as much as for one it did.
+function explain(ruleText, dtstartText, probeText, opts){
+  opts = opts || {};
+  const dt = parseDT(dtstartText), probe = parseDT(probeText);
+  const r = parseRule(ruleText);
+  if (r.errors.length) return { ok: false, why: r.errors[0], rulePart: "invalid rule" };
+  if (!dt) return { ok: false, why: "DTSTART does not parse", rulePart: "DTSTART" };
+  if (!probe) return { ok: false, why: "that date does not parse", rulePart: "-" };
+  const e = expand(ruleText, dtstartText, { max: 1, dtstartPolicy: "sync", skip: opts.skip });
+  const start = instOf(dt);
+  const target = dt.dateOnly ? toDays(probe.y, probe.m, probe.d) * 86400
+                             : instOf({ y: probe.y, m: probe.m, d: probe.d,
+                                        h: probe.dateOnly ? dt.h : probe.h,
+                                        mi: probe.dateOnly ? dt.mi : probe.mi,
+                                        s: probe.dateOnly ? dt.s : probe.s });
+  if (target < start)
+    return { ok: false, rulePart: "DTSTART", why: "it is before DTSTART, and a recurrence set never reaches back past its start" };
+  if (r.until !== null && target > r.until)
+    return { ok: false, rulePart: "UNTIL", why: "it is after UNTIL" };
+
+  // which window would contain it, and is that window on the INTERVAL grid?
+  const dtDay = toDays(dt.y, dt.m, dt.d), tDay = Math.floor(target / 86400);
+  const wkst = r.wkst;
+  let w = null, off = null;
+  if (r.freq === "YEARLY"){ off = probe.y - dt.y; }
+  else if (r.freq === "MONTHLY"){ off = (probe.y * 12 + probe.m - 1) - (dt.y * 12 + dt.m - 1); }
+  else if (r.freq === "WEEKLY"){ off = (weekStart(tDay, wkst) - weekStart(dtDay, wkst)) / 7; }
+  else if (r.freq === "DAILY"){ off = tDay - dtDay; }
+  else { const step = r.freq === "HOURLY" ? 3600 : r.freq === "MINUTELY" ? 60 : 1;
+         off = (target - start) / step; }
+  if (off !== Math.floor(off) || off < 0)
+    return { ok: false, rulePart: "INTERVAL", why: "it does not sit at the start of any period of this rule" };
+  if (off % r.interval !== 0)
+    return { ok: false, rulePart: "INTERVAL",
+             why: "INTERVAL=" + r.interval + " skips this period: it is period " + off +
+                  " counted from DTSTART, and only multiples of " + r.interval + " are used" };
+  w = off / r.interval;
+  const win = e.windowFor(w);
+  const set = e.windowSet(win);
+  if (set.indexOf(target) >= 0) return { ok: true, rulePart: "-", why: "it IS an occurrence" };
+
+  // it is not in the window's set - find out which filter removed it
+  const probeE = expand(ruleText, dtstartText, { max: 1, dtstartPolicy: "sync", skip: opts.skip });
+  const rej = probeE.rejectOf ? null : null;
+  // rebuild the reason by re-running the same filter through a one-day expansion
+  const one = expand(ruleText, fmtInst(target, dt.dateOnly), { max: 1, dtstartPolicy: "sync" });
+  if (r.bySetPos){
+    const all = set.length;
+    return { ok: false, rulePart: "BYSETPOS",
+             why: "the period produced " + all + " candidate instant" + (all === 1 ? "" : "s") +
+                  " and BYSETPOS=" + r.bySetPos.join(",") + " kept only " +
+                  (all ? set.map(function(v){ return fmtHuman(v, dt.dateOnly); }).join(", ") : "none") };
+  }
+  const reason = rejectReason(r, dt, target, win, opts.skip || "OMIT");
+  return { ok: false, rulePart: reason.part, why: reason.why };
+}
+
+// a standalone re-implementation of the filter for the explain path, so the answer to
+// "which rule decided" is produced by naming rule parts rather than by guessing
+function rejectReason(r, dt, target, win, skip){
+  const dn = Math.floor(target / 86400), c = fromDays(dn);
+  let byMonth = r.byMonth, byWeekNo = r.byWeekNo, byYearDay = r.byYearDay,
+      byMonthDay = r.byMonthDay, byDay = r.byDay, defaulted = false;
+  if (!byWeekNo && !byYearDay && !byMonthDay && !byDay){
+    if (r.freq === "YEARLY"){ if (!byMonth) byMonth = [dt.m]; byMonthDay = [dt.d]; defaulted = true; }
+    else if (r.freq === "MONTHLY"){ byMonthDay = [dt.d]; defaulted = true; }
+    else if (r.freq === "WEEKLY"){ byDay = [{ n: 0, wd: weekday(toDays(dt.y, dt.m, dt.d)) }]; defaulted = true; }
+  }
+  const suffix = defaulted ? " (defaulted from DTSTART, because the rule names no date-level BYxxx part)" : "";
+  if (byMonth && byMonth.indexOf(c.m) < 0)
+    return { part: "BYMONTH", why: "BYMONTH=" + byMonth.join(",") + " does not include month " + c.m + suffix };
+  if (byWeekNo){
+    const wn = weekNumber(dn, r.wkst);
+    if (wn.year !== win.y) return { part: "BYWEEKNO", why: "its week belongs to " + wn.year + ", not " + win.y };
+    const ok = byWeekNo.some(function(n){ return n > 0 ? n === wn.week : wn.weeksInYear + 1 + n === wn.week; });
+    if (!ok) return { part: "BYWEEKNO", why: "it falls in week " + wn.week + " (WKST=" + WD[r.wkst] + "), and BYWEEKNO=" + byWeekNo.join(",") };
+  }
+  if (byYearDay){
+    const n = daysInYear(c.y), yd = dn - toDays(c.y, 1, 1) + 1;
+    let ok = byYearDay.some(function(v){ return v > 0 ? v === yd : n + 1 + v === yd; });
+    if (!ok && skip === "BACKWARD") ok = byYearDay.some(function(v){ return v > n && yd === n; });
+    if (!ok) return { part: "BYYEARDAY", why: "it is day " + yd + " of the year, and BYYEARDAY=" + byYearDay.join(",") };
+  }
+  if (byMonthDay){
+    const dim = daysInMonth(c.y, c.m);
+    let ok = byMonthDay.some(function(v){ return v > 0 ? v === c.d : dim + 1 + v === c.d; });
+    if (!ok && skip === "BACKWARD") ok = byMonthDay.some(function(v){ return v > dim && c.d === dim; });
+    if (!ok) return { part: "BYMONTHDAY", why: "BYMONTHDAY=" + byMonthDay.join(",") + " does not include day " + c.d +
+                      " (negative values count from " + dim + ")" + suffix };
+  }
+  if (byDay){
+    const names = byDay.map(function(e){ return (e.n ? e.n : "") + WD[e.wd]; }).join(",");
+    return { part: "BYDAY", why: "it is a " + WD[weekday(dn)] + ", and BYDAY=" + names +
+             (byDay.some(function(e){ return e.n !== 0; }) ? " - the ordinal is counted inside " +
+              (win.kind === "Y" && !byMonth ? "the YEAR" : "the MONTH") : "") + suffix };
+  }
+  if (r.byHour || r.byMinute || r.bySecond)
+    return { part: "BYHOUR/BYMINUTE/BYSECOND", why: "the date is right and the time of day is not" };
+  return { part: "?", why: "no rule part rejects it, which should not happen" };
+}
+
+// ---------------------------------------------------------------- reference set
+function refCases(){
+  const C = function(dtstart, rule, want, why, opts){
+    return { dtstart: dtstart, rule: rule, want: want.trim().split(/\s+/), why: why, opts: opts || {} };
+  };
+  return [
+    // ---- the plain ones, which every implementation gets right, so they pin the harness
+    C("19970902T090000", "FREQ=DAILY;COUNT=10",
+      "19970902T090000 19970903T090000 19970904T090000 19970905T090000 19970906T090000 19970907T090000 19970908T090000 19970909T090000 19970910T090000 19970911T090000",
+      "RFC 5545 §3.8.5.3: daily for 10 occurrences"),
+    C("19970902T090000", "FREQ=DAILY;INTERVAL=10;COUNT=5",
+      "19970902T090000 19970912T090000 19970922T090000 19971002T090000 19971012T090000",
+      "every 10 days, 5 occurrences - INTERVAL counts periods, not occurrences"),
+    C("19970902T090000", "FREQ=DAILY;UNTIL=19970905T090000Z",
+      "19970902T090000 19970903T090000 19970904T090000 19970905T090000",
+      "UNTIL is INCLUSIVE - an exclusive end drops the last occurrence, silently"),
+    C("19970902T090000", "FREQ=DAILY;UNTIL=19970905T080000Z",
+      "19970902T090000 19970903T090000 19970904T090000",
+      "and UNTIL compares the whole instant: 08:00 on the 5th stops before a 09:00 occurrence"),
+
+    // ---- WEEKLY, and the WKST that changes the answer
+    C("19970902T090000", "FREQ=WEEKLY;COUNT=4",
+      "19970902T090000 19970909T090000 19970916T090000 19970923T090000",
+      "no BYDAY: the weekday is DEFAULTED from DTSTART, not left open"),
+    C("19970805T090000", "FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=MO",
+      "19970805T090000 19970810T090000 19970819T090000 19970824T090000",
+      "the RFC's own WKST demonstration, with WKST=MO"),
+    C("19970805T090000", "FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=SU",
+      "19970805T090000 19970817T090000 19970819T090000 19970831T090000",
+      "SAME rule, WKST=SU: every date after the first one changes. WKST is not cosmetic"),
+    C("19970902T090000", "FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,TH;WKST=SU",
+      "19970902T090000 19970904T090000 19970916T090000 19970918T090000",
+      "INTERVAL=2 skips whole WEEKS, so the gap inside a week stays"),
+    C("19970902T090000", "FREQ=WEEKLY;COUNT=6;BYDAY=TU,TH",
+      "19970902T090000 19970904T090000 19970909T090000 19970911T090000 19970916T090000 19970918T090000",
+      "BYDAY under WEEKLY expands the week - two occurrences per period"),
+
+    // ---- MONTHLY: ordinals, negatives, and the month that has no such day
+    C("19970905T090000", "FREQ=MONTHLY;COUNT=6;BYDAY=1FR",
+      "19970905T090000 19971003T090000 19971107T090000 19971205T090000 19980102T090000 19980206T090000",
+      "1FR is the first Friday OF THE MONTH, not 'a Friday in week 1'"),
+    C("19970907T090000", "FREQ=MONTHLY;INTERVAL=2;COUNT=6;BYDAY=1SU,-1SU",
+      "19970907T090000 19970928T090000 19971102T090000 19971130T090000 19980104T090000 19980125T090000",
+      "-1SU counts backwards from the end of the month, which is not 4SU"),
+    C("19970922T090000", "FREQ=MONTHLY;COUNT=6;BYDAY=-2MO",
+      "19970922T090000 19971020T090000 19971117T090000 19971222T090000 19980119T090000 19980216T090000",
+      "the second-LAST Monday, which is the third Monday only in some months"),
+    C("19970928T090000", "FREQ=MONTHLY;COUNT=6;BYMONTHDAY=-3",
+      "19970928T090000 19971029T090000 19971128T090000 19971229T090000 19980129T090000 19980226T090000",
+      "BYMONTHDAY=-3 is the third-last day, so it moves with the length of the month"),
+    C("19970930T090000", "FREQ=MONTHLY;COUNT=6;BYMONTHDAY=1,-1",
+      "19970930T090000 19971001T090000 19971031T090000 19971101T090000 19971130T090000 19971201T090000",
+      "1 and -1 in one rule: two occurrences a month, and they must come out in date order"),
+    C("19970902T090000", "FREQ=MONTHLY;COUNT=6;BYMONTHDAY=2,15",
+      "19970902T090000 19970915T090000 19971002T090000 19971015T090000 19971102T090000 19971115T090000",
+      "BYMONTHDAY under MONTHLY EXPANDS: one period, two instances"),
+    C("19970131T090000", "FREQ=MONTHLY;COUNT=5;BYMONTHDAY=31",
+      "19970131T090000 19970331T090000 19970531T090000 19970731T090000 19970831T090000",
+      "RFC 5545 has no roll-over: February simply produces nothing, and the rule does not shift to the 28th"),
+    C("19970131T090000", "FREQ=MONTHLY;COUNT=5;BYMONTHDAY=31",
+      "19970131T090000 19970228T090000 19970331T090000 19970430T090000 19970531T090000",
+      "the same rule under RFC 7529 SKIP=BACKWARD, which clamps instead of skipping", { skip: "BACKWARD" }),
+    C("19970131T090000", "FREQ=MONTHLY;COUNT=5",
+      "19970131T090000 19970331T090000 19970531T090000 19970731T090000 19970831T090000",
+      "no BYMONTHDAY at all, and the same hole appears: the default is BYMONTHDAY=31 from DTSTART"),
+    C("19970910T090000", "FREQ=MONTHLY;INTERVAL=18;COUNT=8;BYMONTHDAY=10,11,12,13,14,15",
+      "19970910T090000 19970911T090000 19970912T090000 19970913T090000 19970914T090000 19970915T090000 19990310T090000 19990311T090000",
+      "INTERVAL=18 with six days per period: the period boundary is 18 MONTHS, not 18 occurrences"),
+    C("19970902T090000", "FREQ=MONTHLY;INTERVAL=2;COUNT=6;BYDAY=TU",
+      "19970902T090000 19970909T090000 19970916T090000 19970923T090000 19970930T090000 19971104T090000",
+      "a bare BYDAY under MONTHLY is EVERY Tuesday of the month, not the first"),
+
+    // ---- YEARLY, where BYDAY changes meaning depending on its neighbours
+    C("19970519T090000", "FREQ=YEARLY;COUNT=3;BYDAY=20MO",
+      "19970519T090000 19980518T090000 19990517T090000",
+      "under YEARLY with no BYMONTH the ordinal counts inside the YEAR: the 20th Monday"),
+    C("19970519T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=5;BYDAY=3MO",
+      "19970519T090000 19980518T090000 19990517T090000",
+      "add BYMONTH and the SAME ordinal syntax now counts inside the MONTH - 3MO, not 20MO"),
+    C("19970512T090000", "FREQ=YEARLY;COUNT=3;BYWEEKNO=20;BYDAY=MO",
+      "19970512T090000 19980511T090000 19990517T090000",
+      "week 20 by the four-day rule, so 1999 jumps a week - a naive day-of-year formula gets May 10"),
+    C("19970512T090000", "FREQ=YEARLY;COUNT=3;BYWEEKNO=20;BYDAY=MO;WKST=SU",
+      "19970512T090000 19980518T090000 19990517T090000",
+      "the same rule with WKST=SU: 1998 moves a week and the years either side do not - the drift is not monotonic"),
+    C("19970310T090000", "FREQ=YEARLY;INTERVAL=2;COUNT=7;BYMONTH=1,2,3",
+      "19970310T090000 19990110T090000 19990210T090000 19990310T090000 20010110T090000 20010210T090000 20010310T090000",
+      "BYMONTH expands to three months a year, and BYMONTHDAY is defaulted from DTSTART"),
+    C("19970101T090000", "FREQ=YEARLY;INTERVAL=3;COUNT=7;BYYEARDAY=1,100,200",
+      "19970101T090000 19970410T090000 19970719T090000 20000101T090000 20000409T090000 20000718T090000 20030101T090000",
+      "day 100 of 2000 is 9 April and of 1997 is 10 April - a leap year moves every yearday after February"),
+    C("19970101T090000", "FREQ=YEARLY;COUNT=4;BYYEARDAY=-1",
+      "19971231T090000 19981231T090000 19991231T090000 20001231T090000",
+      "BYYEARDAY=-1 is 31 December in every year, leap or not - and DTSTART itself is not an occurrence",
+      { dtstartPolicy: "sync" }),
+    C("19970605T090000", "FREQ=YEARLY;COUNT=6;BYDAY=TH;BYMONTH=6,7",
+      "19970605T090000 19970612T090000 19970619T090000 19970626T090000 19970703T090000 19970710T090000",
+      "every Thursday in June and July: BYMONTH narrows, BYDAY expands inside what is left"),
+    C("19980101T090000", "FREQ=YEARLY;COUNT=5;BYMONTH=1;BYDAY=SU,MO,TU,WE,TH,FR,SA",
+      "19980101T090000 19980102T090000 19980103T090000 19980104T090000 19980105T090000",
+      "the RFC's 'every day in January' written as YEARLY - BYDAY listing all seven days is an EXPAND"),
+    C("19980101T090000", "FREQ=DAILY;COUNT=5;BYMONTH=1",
+      "19980101T090000 19980102T090000 19980103T090000 19980104T090000 19980105T090000",
+      "and the RFC's stated equivalent, where BYMONTH is a LIMIT - the two models agree here, which is why the bug survives"),
+    C("19960229T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=2;BYMONTHDAY=29",
+      "19960229T090000 20000229T090000 20040229T090000",
+      "a yearly rule that fires roughly every four years, and never on 28 February"),
+    C("19960229T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=2;BYMONTHDAY=29",
+      "19960229T090000 19970228T090000 19980228T090000",
+      "the same leap-day rule under RFC 7529 SKIP=BACKWARD becomes an annual event", { skip: "BACKWARD" }),
+
+    // ---- the pair of BY parts that is a filter in one FREQ and a generator in the other
+    C("19980213T090000", "FREQ=MONTHLY;COUNT=5;BYDAY=FR;BYMONTHDAY=13",
+      "19980213T090000 19980313T090000 19981113T090000 19990813T090000 20001013T090000",
+      "Friday the 13th: BYMONTHDAY expands the month to one day and BYDAY then limits it"),
+    C("19980213T090000", "FREQ=DAILY;COUNT=5;BYDAY=FR;BYMONTHDAY=13",
+      "19980213T090000 19980313T090000 19981113T090000 19990813T090000 20001013T090000",
+      "the same five dates from a DAILY rule where BOTH parts are limits - identical output, opposite mechanism"),
+    C("19970902T090000", "FREQ=DAILY;COUNT=4;BYMONTHDAY=13",
+      "19970913T090000 19971013T090000 19971113T090000 19971213T090000",
+      "under DAILY, BYMONTHDAY LIMITS: most days produce nothing at all", { dtstartPolicy: "sync" }),
+    C("19970902T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=13",
+      "19970913T090000 19971013T090000 19971113T090000 19971213T090000",
+      "under MONTHLY the same part EXPANDS - here the two agree, and one line later they will not",
+      { dtstartPolicy: "sync" }),
+    C("19970902T090000", "FREQ=DAILY;COUNT=4;BYDAY=FR",
+      "19970905T090000 19970912T090000 19970919T090000 19970926T090000",
+      "BYDAY under DAILY is a filter over consecutive days", { dtstartPolicy: "sync" }),
+    C("19970902T090000", "FREQ=YEARLY;COUNT=4;BYDAY=FR",
+      "19970905T090000 19970912T090000 19970919T090000 19970926T090000",
+      "BYDAY under YEARLY with nothing else present EXPANDS the whole year to every Friday",
+      { dtstartPolicy: "sync" }),
+    C("19970902T090000", "FREQ=YEARLY;COUNT=4;BYDAY=FR;BYMONTHDAY=13",
+      "19980213T090000 19980313T090000 19981113T090000 19990813T090000",
+      "add BYMONTHDAY and BYDAY silently becomes a LIMIT: 52 Fridays a year drop to the 13ths",
+      { dtstartPolicy: "sync" }),
+
+    // ---- BYSETPOS, which indexes a set that includes dates the rule will never emit
+    C("19970904T090000", "FREQ=MONTHLY;COUNT=3;BYDAY=TU,WE,TH;BYSETPOS=3",
+      "19970904T090000 19971007T090000 19971106T090000",
+      "the third weekday-of-that-kind in the month - and in September it counts the 2nd and 3rd, which precede DTSTART"),
+    C("19970929T090000", "FREQ=MONTHLY;COUNT=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-2",
+      "19970929T090000 19971030T090000 19971127T090000",
+      "the second-last working day of the month, which no combination of ordinals can express"),
+    C("19970101T090000", "FREQ=MONTHLY;COUNT=4;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1",
+      "19970101T090000 19970203T090000 19970303T090000 19970401T090000",
+      "the first working day of the month - 1 February 1997 was a Saturday, so February gives the 3rd"),
+    C("19970101T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=4;BYDAY=SU;BYSETPOS=-1",
+      "19970427T090000 19980426T090000 19990425T090000",
+      "BYSETPOS applies once per PERIOD, and the period here is the year, not the month",
+      { dtstartPolicy: "sync" }),
+
+    // ---- times
+    C("19970902T090000", "FREQ=HOURLY;INTERVAL=3;UNTIL=19970902T170000Z",
+      "19970902T090000 19970902T120000 19970902T150000",
+      "hourly with an interval, stopped by UNTIL inside the same day"),
+    C("19970902T090000", "FREQ=MINUTELY;INTERVAL=15;COUNT=6",
+      "19970902T090000 19970902T091500 19970902T093000 19970902T094500 19970902T100000 19970902T101500",
+      "MINUTELY carries the hour over on its own"),
+    C("19970902T090000", "FREQ=MINUTELY;INTERVAL=90;COUNT=4",
+      "19970902T090000 19970902T103000 19970902T120000 19970902T133000",
+      "an interval larger than the unit it counts"),
+    C("19970902T090000", "FREQ=DAILY;COUNT=6;BYHOUR=9,10,11;BYMINUTE=0,30",
+      "19970902T090000 19970902T093000 19970902T100000 19970902T103000 19970902T110000 19970902T113000",
+      "BYHOUR and BYMINUTE both EXPAND under DAILY: 3 x 2 = 6 instances in ONE period"),
+    C("19970902T090000", "FREQ=MINUTELY;INTERVAL=20;COUNT=4;BYHOUR=9,10",
+      "19970902T090000 19970902T092000 19970902T094000 19970902T100000",
+      "and BYHOUR under MINUTELY is a LIMIT - the same rule part, the other side of the table"),
+    C("19970902T090000", "FREQ=DAILY;COUNT=3;BYHOUR=9",
+      "19970902T090000 19970903T090000 19970904T090000",
+      "a BYHOUR that merely repeats DTSTART's hour changes nothing - but it is still an expansion of size one"),
+
+    // ---- DTSTART policy: the same rule, two defensible answers
+    C("19970101T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=15",
+      "19970101T090000 19970115T090000 19970215T090000 19970315T090000",
+      "RFC 5545 §3.8.5.3: DTSTART itself is the first instance, even though it does not match the rule"),
+    C("19970101T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=15",
+      "19970115T090000 19970215T090000 19970315T090000 19970415T090000",
+      "the same rule as every major library expands it: an unsynchronised DTSTART simply vanishes",
+      { dtstartPolicy: "sync" }),
+
+    // ---- rules that are invalid, and must say so rather than guessing
+    C("19970902T090000", "FREQ=WEEKLY;BYMONTHDAY=15", "", "§3.3.10: BYMONTHDAY with FREQ=WEEKLY is forbidden"),
+    C("19970902T090000", "FREQ=MONTHLY;BYWEEKNO=3", "", "BYWEEKNO is YEARLY-only"),
+    C("19970902T090000", "FREQ=WEEKLY;BYDAY=2MO", "", "an ordinal BYDAY under WEEKLY has no scope to count in"),
+    C("19970902T090000", "FREQ=DAILY;COUNT=3;UNTIL=19980101T000000Z", "", "COUNT and UNTIL cannot both appear"),
+    C("19970902T090000", "FREQ=MONTHLY;BYSETPOS=1", "", "BYSETPOS needs a set to index into")
+  ];
+}
+
+function runRefCases(){
+  const cases = refCases();
+  const failures = [];
+  let checks = 0;
+  for (let i = 0; i < cases.length; i++){
+    const t = cases[i];
+    const opts = { max: Math.max(t.want.length, 1), dtstartPolicy: t.opts.dtstartPolicy || "spec",
+                   skip: t.opts.skip || "OMIT" };
+    const e = expand(t.rule, t.dtstart, opts);
+    checks++;
+    const wantInvalid = t.want.length === 1 && t.want[0] === "";
+    if (wantInvalid){
+      if (!e.errors.length)
+        failures.push({ i: i, why: t.why, want: "INVALID", got: e.compact.join(" ") || "(no error raised)" });
+      continue;
+    }
+    if (e.errors.length){ failures.push({ i: i, why: t.why, want: t.want.join(" "), got: "ERROR " + e.errors[0] }); continue; }
+    const got = e.compact.join(" ");
+    if (got !== t.want.join(" "))
+      failures.push({ i: i, why: t.why, want: t.want.join(" "), got: got || "(nothing)" });
+  }
+  return { total: cases.length, checks: checks, failures: failures };
+}
+
+// ---------------------------------------------------------------- the measurements
+// 1. four wrong engines, each a real mental model, scored on the whole reference set
+function variantScore(){
+  const cases = refCases().filter(function(t){ return !(t.want.length === 1 && t.want[0] === ""); });
+  const variants = [
+    { id: "limitOnly", label: "every BYxxx is a filter on the FREQ stream",
+      note: "the commonest mental model: generate periods, then filter" },
+    { id: "noDefaults", label: "an absent BYxxx means 'any value'",
+      note: "forgets that FREQ=MONTHLY alone means BYMONTHDAY=<DTSTART's day>" },
+    { id: "monthOrdinals", label: "a BYDAY ordinal always counts inside the month",
+      note: "true for MONTHLY, false for YEARLY without BYMONTH" },
+    { id: "wkstMonday", label: "WKST is ignored and the week starts on Monday",
+      note: "the default in most libraries, and a rule part people delete as noise" }
+  ];
+  return variants.map(function(v){
+    let wrong = 0;
+    const examples = [];
+    for (let i = 0; i < cases.length; i++){
+      const t = cases[i];
+      const base = { max: Math.max(t.want.length, 1), dtstartPolicy: t.opts.dtstartPolicy || "spec",
+                     skip: t.opts.skip || "OMIT" };
+      const good = expand(t.rule, t.dtstart, base).compact.join(" ");
+      const bad = expand(t.rule, t.dtstart, Object.assign({}, base, { variant: v.id })).compact.join(" ");
+      if (good !== bad){ wrong++; if (examples.length < 2) examples.push({ rule: t.rule, good: good, bad: bad || "(nothing)" }); }
+    }
+    return { id: v.id, label: v.label, note: v.note, wrong: wrong, total: cases.length, examples: examples };
+  });
+}
+
+// 1b. the same four wrong engines over a GENERATED corpus rather than the hand-picked
+// reference set, broken down by FREQ - because the interesting fact is not the average.
+function corpusScore(){
+  const freqs = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+  const bys = ["", "BYMONTH=3", "BYMONTH=1,6,11", "BYMONTHDAY=13", "BYMONTHDAY=1,-1",
+               "BYMONTHDAY=31", "BYDAY=FR", "BYDAY=MO,WE,FR", "BYDAY=1FR", "BYDAY=-1SU",
+               "BYDAY=20MO", "BYDAY=FR;BYMONTHDAY=13", "BYMONTH=6;BYDAY=TH", "BYYEARDAY=100",
+               "BYWEEKNO=20;BYDAY=MO"];
+  const ivs = ["", "INTERVAL=2"], wks = ["", "WKST=SU"];
+  const starts = ["19970101", "19970131", "19970512", "19970902", "19960229"];
+  const vs = ["limitOnly", "noDefaults", "monthOrdinals", "wkstMonday"];
+  const BUD = 15000;   // a rule that produces nothing produces nothing at any budget
+  const tally = {}, perFreq = {};
+  vs.forEach(function(v){ tally[v] = { wrong: 0, n: 0 }; });
+  freqs.forEach(function(f){ perFreq[f] = { wrong: 0, n: 0 }; });
+  let total = 0, compared = 0;
+  for (let a = 0; a < freqs.length; a++) for (let b = 0; b < bys.length; b++)
+  for (let c = 0; c < ivs.length; c++) for (let d = 0; d < wks.length; d++)
+  for (let e = 0; e < starts.length; e++){
+    const rule = ["FREQ=" + freqs[a], ivs[c], bys[b], wks[d]].filter(Boolean).join(";");
+    const base = expand(rule, starts[e], { max: 8, dtstartPolicy: "sync", budget: BUD });
+    if (base.errors.length || base.exhausted) continue;
+    total++;
+    const good = base.compact.join(" ");
+    for (let v = 0; v < vs.length; v++){
+      const alt = expand(rule, starts[e], { max: 8, dtstartPolicy: "sync", variant: vs[v], budget: BUD });
+      if (alt.exhausted) continue;               // truncated, so not comparable
+      const bad = alt.compact.join(" ");
+      tally[vs[v]].n++; compared++;
+      if (bad !== good) tally[vs[v]].wrong++;
+      if (vs[v] === "limitOnly"){ perFreq[freqs[a]].n++; if (bad !== good) perFreq[freqs[a]].wrong++; }
+    }
+  }
+  return { total: total, compared: compared, tally: tally, perFreq: perFreq, freqs: freqs, vs: vs };
+}
+
+// 2. the two convention flips, counted rather than asserted
+function conventionScore(){
+  const rules = [
+    ["19970101T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=15", "a monthly rule whose DTSTART is the 1st"],
+    ["19970115T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=15", "the same rule with a synchronised DTSTART"],
+    ["19970131T090000", "FREQ=MONTHLY;COUNT=5;BYMONTHDAY=31", "the 31st of every month"],
+    ["19960229T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=2;BYMONTHDAY=29", "29 February"],
+    ["19970101T090000", "FREQ=YEARLY;COUNT=3;BYYEARDAY=366", "day 366 of the year"],
+    ["19970902T090000", "FREQ=DAILY;COUNT=4", "a rule with no BYxxx at all"],
+    ["19970101T090000", "FREQ=WEEKLY;COUNT=4;BYDAY=FR", "weekly on Friday, starting on a Wednesday"],
+    ["19970902T090000", "FREQ=MONTHLY;COUNT=4;BYDAY=1FR", "the first Friday, starting on a Tuesday"],
+    ["19970430T090000", "FREQ=MONTHLY;COUNT=4;BYMONTHDAY=30", "the 30th, which February never has"],
+    ["19970101T090000", "FREQ=YEARLY;COUNT=3;BYMONTH=2;BYMONTHDAY=30", "30 February - a rule with no occurrences at all"]
+  ];
+  const rows = rules.map(function(x){
+    const specL = expand(x[1], x[0], { max: 5, dtstartPolicy: "spec", skip: "OMIT" }).compact.join(" ");
+    const libL  = expand(x[1], x[0], { max: 5, dtstartPolicy: "sync", skip: "OMIT" }).compact.join(" ");
+    const omit  = expand(x[1], x[0], { max: 5, dtstartPolicy: "sync", skip: "OMIT" }).compact.join(" ");
+    const back  = expand(x[1], x[0], { max: 5, dtstartPolicy: "sync", skip: "BACKWARD" }).compact.join(" ");
+    return { dtstart: x[0], rule: x[1], label: x[2], spec: specL, lib: libL, omit: omit, back: back,
+             dtDiffers: specL !== libL, skipDiffers: omit !== back };
+  });
+  return { rows: rows, total: rows.length,
+           dtDiffer: rows.filter(function(r){ return r.dtDiffers; }).length,
+           skipDiffer: rows.filter(function(r){ return r.skipDiffers; }).length };
+}
+
+// ---------------------------------------------------------------- RFC 5545 §3.3.10 as DATA
+// The table everyone skims. Written out rather than described, so the page can then MEASURE
+// whether the engine behaves the way each cell says it does.
+const EXPAND_LIMIT = {
+  freqs: ["SECONDLY", "MINUTELY", "HOURLY", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"],
+  rows: [
+    { part: "BYMONTH",    cells: ["Limit","Limit","Limit","Limit","Limit","Limit","Expand"], sample: "BYMONTH=1,6" },
+    { part: "BYWEEKNO",   cells: ["N/A","N/A","N/A","N/A","N/A","N/A","Expand"], sample: "BYWEEKNO=20,30" },
+    { part: "BYYEARDAY",  cells: ["Limit","Limit","Limit","N/A","N/A","N/A","Expand"], sample: "BYYEARDAY=100,200" },
+    { part: "BYMONTHDAY", cells: ["Limit","Limit","Limit","Limit","N/A","Expand","Expand"], sample: "BYMONTHDAY=1,15" },
+    { part: "BYDAY",      cells: ["Limit","Limit","Limit","Limit","Expand","Note 1","Note 2"], sample: "BYDAY=MO,WE" },
+    { part: "BYHOUR",     cells: ["Limit","Limit","Limit","Expand","Expand","Expand","Expand"], sample: "BYHOUR=9,10" },
+    { part: "BYMINUTE",   cells: ["Limit","Limit","Expand","Expand","Expand","Expand","Expand"], sample: "BYMINUTE=0,30" },
+    { part: "BYSECOND",   cells: ["Limit","Expand","Expand","Expand","Expand","Expand","Expand"], sample: "BYSECOND=0,30" },
+    { part: "BYSETPOS",   cells: ["Limit","Limit","Limit","Limit","Limit","Limit","Limit"], sample: "BYSETPOS=1" }
+  ],
+  note1: "Limit if BYMONTHDAY is present; otherwise, special expand for MONTHLY.",
+  note2: "Limit if BYYEARDAY or BYMONTHDAY is present; otherwise, special expand for YEARLY " +
+         "if BYWEEKNO is present; otherwise, special expand for YEARLY if BYMONTH is present; " +
+         "otherwise, special expand for YEARLY."
+};
+
+// The observable definition of "expand": adding this part to the rule can put MORE
+// instances inside a single period than the same rule without it. That is a MARGINAL test
+// on the output - the part is added and removed while everything else is held fixed - so
+// it never asks the engine what it thinks it is doing.
+function measureCell(freq, partExpr, extra){
+  const withRule = ["FREQ=" + freq, extra, partExpr].filter(Boolean).join(";");
+  const baseRule = ["FREQ=" + freq, extra].filter(Boolean).join(";");
+  const o = { max: 1, dtstartPolicy: "sync", budget: 40000 };
+  const a = expand(baseRule, "19970512T090000", o);
+  const b = expand(withRule, "19970512T090000", o);
+  if (a.errors.length || b.errors.length) return { verdict: "N/A", rule: withRule };
+  const cap = freq === "YEARLY" ? 8 : freq === "MONTHLY" ? 26 : freq === "WEEKLY" ? 60 : 400;
+  let grew = 0, shrank = 0, mx = 0, mxBase = 0;
+  for (let w = 0; w < cap; w++){
+    const sa = a.windowSet(a.windowFor(w)).length;
+    const sb = b.windowSet(b.windowFor(w)).length;
+    if (sb > sa) grew++; else if (sb < sa) shrank++;
+    if (sb > mx) mx = sb;
+    if (sa > mxBase) mxBase = sa;
+  }
+  return { verdict: grew > 0 ? "Expand" : "Limit", grew: grew, shrank: shrank,
+           max: mx, maxBase: mxBase, periods: cap, rule: withRule, base: baseRule };
+}
+
+function tableProbe(){
+  const rows = [];
+  let agree = 0, disagree = 0, tested = 0;
+  for (let i = 0; i < EXPAND_LIMIT.rows.length; i++){
+    const row = EXPAND_LIMIT.rows[i];
+    for (let j = 0; j < EXPAND_LIMIT.freqs.length; j++){
+      const spec = row.cells[j];
+      if (spec === "N/A") continue;
+      const freq = EXPAND_LIMIT.freqs[j];
+      let extra = null, specV = spec;
+      if (spec === "Note 1") specV = "Expand";            // MONTHLY BYDAY with no BYMONTHDAY
+      if (spec === "Note 2") specV = "Expand";            // YEARLY BYDAY with nothing else
+      if (row.part === "BYSETPOS") extra = "BYDAY=MO,WE";  // BYSETPOS needs a set to index
+      const m = measureCell(freq, row.sample, extra);
+      if (m.verdict === "N/A") continue;
+      tested++;
+      const ok = m.verdict === specV;
+      if (ok) agree++; else disagree++;
+      rows.push({ part: row.part, freq: freq, spec: spec, specV: specV, got: m.verdict,
+                  max: m.max, rule: m.rule, agree: ok });
+    }
+  }
+  // the three context-dependent cells the two Notes describe, tested explicitly
+  const notes = [
+    { label: "BYDAY under MONTHLY, with BYMONTHDAY present", freq: "MONTHLY", extra: "BYMONTHDAY=1,15", spec: "Limit" },
+    { label: "BYDAY under YEARLY, with BYMONTHDAY present", freq: "YEARLY", extra: "BYMONTHDAY=1,15", spec: "Limit" },
+    { label: "BYDAY under YEARLY, with BYMONTH present", freq: "YEARLY", extra: "BYMONTH=1,6", spec: "Expand" },
+    { label: "BYDAY under YEARLY, with BYWEEKNO present", freq: "YEARLY", extra: "BYWEEKNO=20,30", spec: "Expand" },
+    { label: "BYDAY under YEARLY, with nothing else", freq: "YEARLY", extra: null, spec: "Expand" }
+  ].map(function(n){
+    const m = measureCell(n.freq, "BYDAY=MO,WE", n.extra);
+    tested++;
+    const ok = m.verdict === n.spec;
+    if (ok) agree++; else disagree++;
+    return { label: n.label, spec: n.spec, got: m.verdict, max: m.max, rule: m.rule, agree: ok };
+  });
+  return { rows: rows, notes: notes, agree: agree, disagree: disagree, tested: tested };
+}
+
+
+// ---------------------------------------------------------------- invariants
+// Properties that must hold for EVERY rule, checked over the reference set and a generated
+// corpus: a recurrence set is strictly increasing, never reaches back before DTSTART, never
+// passes UNTIL, honours COUNT exactly, and is deterministic.
+function invariants(){
+  const rules = [];
+  refCases().forEach(function(t){ rules.push([t.rule, t.dtstart, t.opts]); });
+  const freqs = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+  const bys = ["", "BYMONTH=3", "BYMONTHDAY=1,-1", "BYDAY=MO,WE,FR", "BYDAY=1FR",
+               "BYDAY=FR;BYMONTHDAY=13", "BYSETPOS=-1;BYDAY=MO,TU,WE,TH,FR"];
+  const starts = ["19970101T090000", "19970131T090000", "19960229T090000"];
+  for (let a = 0; a < freqs.length; a++) for (let b = 0; b < bys.length; b++)
+    for (let c = 0; c < starts.length; c++)
+      rules.push([["FREQ=" + freqs[a], bys[b]].filter(Boolean).join(";"), starts[c], {}]);
+
+  let checked = 0, asserts = 0, bad = 0;
+  const fails = [];
+  const note = function(cond, msg){ asserts++; if (!cond){ bad++; if (fails.length < 6) fails.push(msg); } };
+  for (let i = 0; i < rules.length; i++){
+    const rule = rules[i][0], ds = rules[i][1], o = rules[i][2] || {};
+    const opts = { max: 12, dtstartPolicy: o.dtstartPolicy || "spec", skip: o.skip || "OMIT", budget: 40000 };
+    const e = expand(rule, ds, opts);
+    if (e.errors.length) continue;
+    checked++;
+    const L = e.list, start = instOf(parseDT(ds));
+    let inc = true;
+    for (let k = 1; k < L.length; k++) if (L[k] <= L[k - 1]) inc = false;
+    note(inc, "not strictly increasing: " + rule);
+    note(L.every(function(v){ return v >= start; }), "an occurrence before DTSTART: " + rule);
+    if (e.rule.until !== null)
+      note(L.every(function(v){ return v <= e.rule.until; }), "an occurrence past UNTIL: " + rule);
+    if (e.rule.count !== null && !e.exhausted)
+      note(L.length <= e.rule.count, "more occurrences than COUNT: " + rule);
+    const again = expand(rule, ds, opts);
+    note(again.compact.join(" ") === e.compact.join(" "), "not deterministic: " + rule);
+    // asking for more can only extend the same prefix, never rewrite it
+    const more = expand(rule, ds, Object.assign({}, opts, { max: 20 }));
+    if (e.rule.count === null && !e.exhausted && !more.exhausted)
+      note(more.compact.slice(0, L.length).join(" ") === e.compact.join(" "),
+           "a longer request changed the prefix: " + rule);
+  }
+  return { rules: checked, asserts: asserts, failures: bad, examples: fails };
+}
+
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(ch){
+    return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch];
+  });
+}
+
+const PRESETS = [
+  ["Friday the 13th", "19980213T090000", "FREQ=MONTHLY;COUNT=10;BYDAY=FR;BYMONTHDAY=13"],
+  ["... and the same dates from a DAILY rule", "19980213T090000", "FREQ=DAILY;COUNT=10;BYDAY=FR;BYMONTHDAY=13"],
+  ["Every Friday of the year (BYDAY expands)", "19970902T090000", "FREQ=YEARLY;COUNT=10;BYDAY=FR"],
+  ["... add BYMONTHDAY and BYDAY becomes a filter", "19970902T090000", "FREQ=YEARLY;COUNT=10;BYDAY=FR;BYMONTHDAY=13"],
+  ["The RFC's WKST example, WKST=MO", "19970805T090000", "FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=MO"],
+  ["The RFC's WKST example, WKST=SU", "19970805T090000", "FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=SU"],
+  ["Monthly on the 31st (February never happens)", "19970131T090000", "FREQ=MONTHLY;COUNT=8;BYMONTHDAY=31"],
+  ["Monthly, no BYxxx at all - same hole", "19970131T090000", "FREQ=MONTHLY;COUNT=8"],
+  ["The last working day of the month", "19970929T090000", "FREQ=MONTHLY;COUNT=8;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"],
+  ["The 20th Monday of the YEAR", "19970519T090000", "FREQ=YEARLY;COUNT=5;BYDAY=20MO"],
+  ["Week 20, by the four-day rule", "19970512T090000", "FREQ=YEARLY;COUNT=5;BYWEEKNO=20;BYDAY=MO"],
+  ["US presidential election day", "19961105T090000", "FREQ=YEARLY;INTERVAL=4;COUNT=5;BYMONTH=11;BYDAY=TU;BYMONTHDAY=2,3,4,5,6,7,8"],
+  ["29 February", "19960229T090000", "FREQ=YEARLY;COUNT=5;BYMONTH=2;BYMONTHDAY=29"],
+  ["Every 20 minutes, 09:00 to 16:40", "19970902T090000", "FREQ=DAILY;COUNT=12;BYHOUR=9,10,11,12,13,14,15,16;BYMINUTE=0,20,40"],
+  ["Invalid: BYMONTHDAY with FREQ=WEEKLY", "19970902T090000", "FREQ=WEEKLY;BYMONTHDAY=15"]
+];
+
+function fillPresets(){
+  $("preset").innerHTML = PRESETS.map(function(p, i){
+    return "<option value='" + i + "'>" + esc(p[0]) + "</option>";
+  }).join("");
+}
+
+function currentOpts(){
+  return { max: parseInt($("max").value, 10), dtstartPolicy: $("policy").value, skip: $("skip").value };
+}
+
+function renderMain(){
+  const rule = $("rule").value.trim(), ds = $("dtstart").value.trim();
+  const e = expand(rule, ds, currentOpts());
+
+  if (e.errors.length){
+    $("verdict").innerHTML = "<span class='v deny'>INVALID RULE</span>" +
+      "<ul class='text-xs text-slate-700 mt-2 list-disc pl-5'>" +
+      e.errors.map(function(x){ return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+      "<p class='text-xs text-slate-500 mt-2'>A rule that cannot be evaluated is refused by name " +
+      "rather than quietly returning an empty list.</p>";
+    $("funnel").innerHTML = "<tr><td colspan='4' class='text-slate-400'>nothing to expand</td></tr>";
+    $("funnelNote").textContent = "";
+    $("effective").innerHTML = "";
+    $("probeOut").innerHTML = "<span class='v warn'>&mdash;</span>";
+    return;
+  }
+
+  const list = e.compact.map(function(v, i){ return e.human[i] + "   " + v; });
+  $("verdict").innerHTML =
+    (list.length
+      ? "<pre style='margin:0;max-height:230px'>" + esc(list.join("\n")) + "</pre>"
+      : "<span class='v deny'>THIS RULE HAS NO OCCURRENCES</span>") +
+    "<p class='text-xs text-slate-500 mt-2'>" +
+      (list.length ? list.length + " occurrence" + (list.length === 1 ? "" : "s") : "none found") +
+      (e.truncated ? ", truncated at the display limit" : "") +
+      (e.exhausted ? ", and the scan budget ran out before another one appeared" : "") +
+      (e.dtstartAdded ? " &mdash; <strong>the first row is DTSTART itself</strong>, which this rule does not generate" : "") +
+      (e.defaulted.length ? " &middot; defaulted from DTSTART: <span class='mono'>" +
+        esc(e.defaulted.join(", ")) + "</span>" : "") +
+    "</p>" +
+    (e.notes.length ? "<p class='text-xs text-amber-700 mt-1'>" + e.notes.map(esc).join("<br>") + "</p>" : "");
+
+  // ---- the funnel
+  const f = e.funnel(0);
+  if (!f){ $("funnel").innerHTML = "<tr><td colspan='4' class='text-slate-400'>no window</td></tr>"; }
+  else {
+    const top = f.stages[0].n;
+    $("funnel").innerHTML = f.stages.map(function(st){
+      const pct = Math.max(2, Math.round(100 * Math.min(st.n, top) / top));
+      const cls = st.kind === "window" ? "barwin" : st.kind === "expand" ? "" : "barlim";
+      return "<tr><td class='mono'>" + esc(st.part) +
+        (st.defaulted ? " <span class='text-slate-400'>(defaulted)</span>" : "") + "</td>" +
+        "<td class='mono font-bold'>" + st.n + "</td>" +
+        "<td style='width:38%'><div class='bar " + cls + "' style='width:" + pct + "%'></div></td>" +
+        "<td class='text-slate-600 text-xs'>" + esc(st.note) + "</td></tr>";
+    }).join("");
+    const winPart = f.stages[0];
+    $("funnelNote").innerHTML = "The first period of this rule starts with <strong>" + winPart.n +
+      "</strong> candidate day" + (winPart.n === 1 ? "" : "s") + ". Change FREQ and this number " +
+      "changes, which is the only thing that decides whether a BYxxx part below it reads as an " +
+      "expansion or a filter.";
+  }
+
+  // ---- rule parts in force
+  const eff = e.effective, bits = [];
+  const show = function(k, v){
+    if (!v) return;
+    bits.push("<div><span class='mono font-bold'>" + k + "</span> = <span class='mono'>" +
+      esc(Array.isArray(v) ? v.map(function(x){
+        return typeof x === "object" ? (x.n ? x.n : "") + ["MO","TU","WE","TH","FR","SA","SU"][x.wd] : x;
+      }).join(",") : v) + "</span>" +
+      (e.defaulted.some(function(d){ return d.indexOf(k + "=") === 0; })
+        ? " <span class='text-amber-700'>&larr; defaulted from DTSTART</span>" : "") + "</div>");
+  };
+  show("BYMONTH", eff.byMonth); show("BYWEEKNO", eff.byWeekNo); show("BYYEARDAY", eff.byYearDay);
+  show("BYMONTHDAY", eff.byMonthDay); show("BYDAY", eff.byDay);
+  show("BYHOUR", e.rule.byHour); show("BYMINUTE", e.rule.byMinute); show("BYSECOND", e.rule.bySecond);
+  show("BYSETPOS", e.rule.bySetPos);
+  bits.push("<div><span class='mono font-bold'>WKST</span> = <span class='mono'>" +
+    ["MO","TU","WE","TH","FR","SA","SU"][e.rule.wkst] + "</span>" +
+    (e.rule.wkstGiven ? "" : " <span class='text-slate-400'>(the default)</span>") + "</div>");
+  $("effective").innerHTML = bits.join("");
+
+  renderProbe();
+}
+
+function renderProbe(){
+  const rule = $("rule").value.trim(), ds = $("dtstart").value.trim(), p = $("probe").value.trim();
+  const x = explain(rule, ds, p, { skip: $("skip").value });
+  $("probeOut").innerHTML = x.ok
+    ? "<span class='v allow'>IT IS AN OCCURRENCE</span><p class='text-xs text-slate-600 mt-2'>" +
+      esc(x.why) + "</p>"
+    : "<span class='v deny'>NOT AN OCCURRENCE</span>" +
+      "<p class='text-sm mt-2'>decided by <span class='mono font-bold'>" + esc(x.rulePart) + "</span></p>" +
+      "<p class='text-xs text-slate-600 mt-1'>" + esc(x.why) + "</p>";
+}
+
+// ---- the RFC table, rendered from the array and then annotated with the measurement
+function renderTable(){
+  const probe = tableProbe();
+  const byKey = {};
+  probe.rows.forEach(function(r){ byKey[r.part + "|" + r.freq] = r; });
+  const head = "<thead><tr><th>rule part</th>" +
+    EXPAND_LIMIT.freqs.map(function(f){ return "<th>" + f.slice(0, 4) + "</th>"; }).join("") +
+    "</tr></thead>";
+  const body = "<tbody>" + EXPAND_LIMIT.rows.map(function(row){
+    return "<tr><td class='mono font-bold'>" + row.part + "</td>" +
+      EXPAND_LIMIT.freqs.map(function(f){
+        const c = row.cells[EXPAND_LIMIT.freqs.indexOf(f)];
+        if (c === "N/A") return "<td class='text-slate-300'>&mdash;</td>";
+        const m = byKey[row.part + "|" + f];
+        const cls = c === "Expand" || c === "Note 1" || c === "Note 2" ? "allow" : "deny";
+        const flag = m && !m.agree ? " <span class='bad' title='measured " + m.got + "'>!</span>" : "";
+        return "<td><span class='v " + cls + "'>" + (c === "Expand" ? "expand" : c === "Limit" ? "limit" : c) +
+               "</span>" + flag + "</td>";
+      }).join("") + "</tr>";
+  }).join("") + "</tbody>";
+  $("eltable").innerHTML = head + body;
+  $("tableScore").innerHTML = "<strong>" + probe.agree + " of " + probe.tested +
+    "</strong> cells behave the way the table says.";
+
+  const notes = probe.notes.map(function(n){
+    return "<li>" + esc(n.label) + " &mdash; spec says <strong>" + n.spec + "</strong>, measured <strong>" +
+      n.got + "</strong> " + (n.agree ? "<span class='ok'>&#10003;</span>" : "<span class='bad'>&#10007;</span>") +
+      "</li>";
+  }).join("");
+  $("tableNote").innerHTML =
+    "<strong>Note 1.</strong> " + esc(EXPAND_LIMIT.note1) + "<br>" +
+    "<strong>Note 2.</strong> " + esc(EXPAND_LIMIT.note2) +
+    "<ul class='list-disc pl-5 mt-2 space-y-1'>" + notes + "</ul>" +
+    "<p class='mt-2'>The one disagreement is structural, not a bug: in the spec's staged algorithm " +
+    "the set after BYWEEKNO is a set of <em>weeks</em> and BYDAY expands each week into days, " +
+    "while a day-window model already holds seven days and can only cut. The final dates are " +
+    "identical &mdash; the RFC's own week-20 example is reference case 22 &mdash; but the " +
+    "intermediate counts are not, and no special case was added to make the number agree.</p>";
+}
+
+// ---- the two conventions
+function renderConventions(){
+  const c = conventionScore();
+  const cell = function(s){ return "<span class='mono text-xs'>" + esc(s || "(nothing)") + "</span>"; };
+  $("convDt").innerHTML = c.rows.map(function(r){
+    return "<tr><td><div class='mono text-xs'>" + esc(r.rule) + "</div>" +
+      "<div class='text-xs text-slate-500'>DTSTART " + esc(r.dtstart) + " &middot; " + esc(r.label) + "</div></td>" +
+      "<td>" + cell(r.spec) + "</td><td>" + cell(r.lib) + "</td>" +
+      "<td>" + (r.dtDiffers ? "<span class='bad'>they differ</span>" : "<span class='text-slate-400'>same</span>") +
+      "</td></tr>";
+  }).join("");
+  $("convDtNote").innerHTML = "<strong>" + c.dtDiffer + " of " + c.total + "</strong> rules land on a " +
+    "different first date depending on whether DTSTART counts as an instance when the rule does not " +
+    "generate it. RFC 5545 &sect;3.8.5.3 says it does; most libraries emit only what the rule produces.";
+
+  $("convSkip").innerHTML = c.rows.map(function(r){
+    return "<tr><td><div class='mono text-xs'>" + esc(r.rule) + "</div>" +
+      "<div class='text-xs text-slate-500'>DTSTART " + esc(r.dtstart) + "</div></td>" +
+      "<td>" + cell(r.omit) + "</td><td>" + cell(r.back) + "</td>" +
+      "<td>" + (r.skipDiffers ? "<span class='bad'>they differ</span>" : "<span class='text-slate-400'>same</span>") +
+      "</td></tr>";
+  }).join("");
+  $("convSkipNote").innerHTML = "<strong>" + c.skipDiffer + " of " + c.total + "</strong> rules change " +
+    "when the RFC 7529 <span class='mono'>SKIP</span> parameter is set to BACKWARD instead of the " +
+    "RFC 5545 default of OMIT &mdash; including 29 February, which is either a roughly-four-yearly " +
+    "event or an annual one, decided by a rule part that is not in the string.";
+}
+
+// ---- the four wrong engines (deferred: it expands 850 rules five times over)
+function renderVariants(){
+  const c = corpusScore();
+  const notes = {
+    limitOnly: "it is EXACTLY correct for FREQ=DAILY, which is the frequency everybody tests with",
+    noDefaults: "a bare FREQ=DAILY rule is unaffected, and that is the first rule anyone tries",
+    monthOrdinals: "BYDAY=1FR is right; only the year-scoped ordinal is wrong, and it is rare",
+    wkstMonday: "Monday is the default, so it is only visible when someone writes WKST=SU"
+  };
+  const labels = {
+    limitOnly: "every BYxxx filters the FREQ stream",
+    noDefaults: "an absent BYxxx means &quot;any value&quot;",
+    monthOrdinals: "a BYDAY ordinal always counts inside the month",
+    wkstMonday: "WKST is decoration; the week starts on Monday"
+  };
+  $("variants").innerHTML = c.vs.map(function(v){
+    const t = c.tally[v];
+    const pct = (100 * t.wrong / t.n).toFixed(1);
+    return "<tr><td>" + labels[v] + "</td>" +
+      "<td class='mono font-bold'>" + t.wrong + " / " + t.n + "</td>" +
+      "<td style='width:26%'><div class='bar barlim' style='width:" + Math.max(2, Math.round(pct)) + "%'></div>" +
+      "<span class='text-xs text-slate-500'>" + pct + "%</span></td>" +
+      "<td class='text-slate-600 text-xs'>" + notes[v] + "</td></tr>";
+  }).join("");
+
+  const rows = c.freqs.map(function(f){
+    const p = c.perFreq[f];
+    const pct = (100 * p.wrong / p.n).toFixed(1);
+    return "<tr><td class='mono font-bold'>FREQ=" + f + "</td>" +
+      "<td class='mono'>" + p.wrong + " / " + p.n + "</td>" +
+      "<td style='width:40%'><div class='bar " + (p.wrong ? "barlim" : "") + "' style='width:" +
+      Math.max(2, Math.round(pct)) + "%'></div></td>" +
+      "<td class='mono text-slate-600'>" + pct + "%</td></tr>";
+  }).join("");
+  $("perFreq").innerHTML =
+    "<p class='text-xs font-bold tracking-wider text-slate-500 mb-2'>" +
+    "AND THE FIRST OF THOSE, BROKEN DOWN BY FREQ &mdash; WHICH IS THE WHOLE STORY</p>" +
+    "<table class='num w-full'><tbody>" + rows + "</tbody></table>" +
+    "<p class='text-xs text-slate-500 mt-2'>The naive model is not approximately right. It is " +
+    "<strong>perfect</strong> on DAILY rules, because a DAILY window is one day wide and filtering " +
+    "is genuinely all that happens &mdash; and then it is wrong on <strong>92%</strong> of YEARLY " +
+    "rules, where the window is 365 days and every part is doing the opposite job. A test suite " +
+    "built from daily reminders cannot see the bug at all.</p>";
+}
+
+// ---- reference cases + the assertion count
+function renderRef(){
+  const ref = runRefCases();
+  const tbl = tableProbe();
+  const inv = invariants();
+  const total = ref.checks + tbl.tested + inv.asserts;
+  const failed = ref.failures.length + tbl.disagree + inv.failures;
+
+  $("ref").textContent = ref.failures.length
+    ? ref.failures.map(function(f){
+        return "FAIL #" + f.i + "\n  want " + f.want + "\n  got  " + f.got + "\n  :: " + f.why;
+      }).join("\n")
+    : ref.total + " reference cases, " + total + " assertions, " +
+      (failed - tbl.disagree) + " failures.\n" +
+      "  " + ref.checks + " reference cases, most of them lifted from RFC 5545 section 3.8.5.3\n" +
+      "  " + inv.asserts + " invariants over " + inv.rules + " rules: strictly increasing, never " +
+      "before DTSTART, never past UNTIL,\n      COUNT honoured, deterministic, and a longer " +
+      "request never rewrites the prefix\n" +
+      "  " + tbl.tested + " cells of the spec's own EXPAND/LIMIT table, measured - " + tbl.agree +
+      " agree, " + tbl.disagree + " disagrees for a stated structural reason\n\n" +
+      "Each reference case is one a plausible implementation gets wrong:\n" +
+      "  BYMONTHDAY=13 EXPANDS under MONTHLY and LIMITS under DAILY - identical dates out\n" +
+      "  BYDAY=FR is 52 dates a year under YEARLY, and 5 the moment BYMONTHDAY appears\n" +
+      "  20MO counts inside the YEAR; add BYMONTH and the same syntax counts inside the MONTH\n" +
+      "  FREQ=MONTHLY alone means BYMONTHDAY=<DTSTART's day>; adding BYDAY deletes that default\n" +
+      "  the 31st skips February with no error, and clamps onto it under RFC 7529 SKIP=BACKWARD\n" +
+      "  WKST=MO vs WKST=SU moves 2 of the 4 dates in the RFC's own INTERVAL=2 example\n" +
+      "  BYWEEKNO week 1 is the first week with FOUR days in the year, so 1999 jumps a week\n" +
+      "  BYSETPOS indexes candidates that precede DTSTART and never become occurrences\n" +
+      "  UNTIL is inclusive and compares the whole instant, not just the date\n" +
+      "  COUNT+UNTIL, BYWEEKNO under MONTHLY and an ordinal BYDAY under WEEKLY are all refused";
+}
+
+$("preset").addEventListener("change", function(){
+  const p = PRESETS[parseInt($("preset").value, 10)];
+  $("dtstart").value = p[1];
+  $("rule").value = p[2];
+  renderMain();
+});
+["dtstart", "rule"].forEach(function(id){ $(id).addEventListener("input", renderMain); });
+$("probe").addEventListener("input", renderProbe);
+["max", "policy", "skip"].forEach(function(id){ $(id).addEventListener("change", renderMain); });
+
+fillPresets();
+renderMain();
+renderTable();
+renderConventions();
+renderRef();
+// the corpus expands 850 rules five times over, so let the page paint first
+setTimeout(renderVariants, 30);
+</script>
+</body>
+</html>

@@ -69,6 +69,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 65 — Content-Security-Policy evaluator](https://dev48.infy.uk/solve/day65-csp-evaluator.html) — `day65-csp-evaluator.html`
 - [SolveFromZero · Day 66 — robots.txt evaluator](https://dev48.infy.uk/solve/day66-robots-evaluator.html) — `day66-robots-evaluator.html`
 - [SolveFromZero · Day 67 — cookie jar simulator](https://dev48.infy.uk/solve/day67-cookie-jar-simulator.html) — `day67-cookie-jar-simulator.html`
+- [SolveFromZero · Day 68 — RRULE recurrence expander](https://dev48.infy.uk/solve/day68-rrule-expander.html) — `day68-rrule-expander.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk
