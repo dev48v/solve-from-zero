@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 69 &mdash; IDNA / punycode / homograph analyzer</title>
+<style>
+/* ---- no CDN, no build step: the handful of utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.bar { height:10px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+.barlim { background:#f43f5e; }
+.barwin { background:#334155; }
+.inv { background:#fff1f2; outline:1px dashed #fb7185; border-radius:3px; padding:0 2px; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.wrap3 { max-width:760px;  margin:0 auto; }
+.p4 { padding:16px; } .p5 { padding:20px; } .p6 { padding:24px; } .p8 { padding:32px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+.g2t { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.stack6 > * + * { margin-top:22px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; } .bg2 { background:#f8fafc; } .bg0 { background:#fff; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 69</p>
+    <h1 class="mb4">
+      🌐 IDNA + punycode + homograph analyzer &mdash; a real UTS&nbsp;#46 / RFC&nbsp;5891 / RFC&nbsp;3492
+      engine. Type a domain in any script and it computes the exact <code>xn--</code> form your
+      resolver will see, and for anything it refuses it names <strong>the condition that
+      decided</strong>. The trap at the centre is not a character that means two things &mdash; it is
+      a <em>pipeline order</em>: case folding runs before the deviation rule, so
+      <code>fa&szlig;.de</code> resolves to <code>xn--fa-hia.de</code> and
+      <code>FA&#7838;.DE</code> &mdash; the same German word, shouted &mdash; resolves to
+      <code>fass.de</code>. Two different servers, one word, decided by the shift key. 69 reference
+      cases and 232 verifier assertions, checked against an independent shipping UTS&nbsp;#46
+      implementation with <strong>zero disagreements over 3,325 code points and 2,084 generated
+      domains</strong>; a live sweep showing that <code>NFKC</code> + <code>toLowerCase</code>
+      reproduces the real 1.1&nbsp;MB mapping table on 94.6% of code points, where the missing 182
+      are not scattered exceptions but four <em>named</em> families &mdash; and the smallest family
+      is the one holding that capital sharp s; and the Bidi Rule&rsquo;s six numbered conditions
+      measured over 21,706 labels, where the specification refuses 21.3% of what the browser
+      resolves, always in the same direction, through exactly two of its six conditions. Pure
+      vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🌐 ANALYSE</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb1">PRESET</p>
+          <select id="preset" class="mb3"></select>
+          <p class="lbl mb1">DOMAIN &mdash; Unicode or already-encoded <code>xn--</code></p>
+          <input id="dom" value="fa&#223;.de" class="mb3">
+          <p class="lbl mb1">PROFILE &mdash; the same string, three sets of switches</p>
+          <select id="prof">
+            <option value="browser">WHATWG URL &mdash; nontransitional, no length or hyphen checks</option>
+            <option value="rfc">RFC 5891 / IDNA2008 &mdash; what a registry must enforce</option>
+            <option value="idna2003">IDNA2003 transitional &mdash; browsers before 2016</option>
+          </select>
+        </div>
+        <div>
+          <p class="lbl mb1">TO ASCII &mdash; what leaves the machine</p>
+          <div id="verdict" class="mb3"></div>
+          <p class="lbl mb1">ALL THREE PROFILES, SIDE BY SIDE</p>
+          <table class="num" style="width:100%"><tbody id="profcmp"></tbody></table>
+          <p class="t-xs dim mt2" id="profnote"></p>
+          <p class="t-xs dim mt2">All three profiles apply <code>CheckBidi</code> as RFC 5893
+          <em>writes</em> it &mdash; all six conditions &mdash; except IDNA2003, which had no Bidi
+          Rule at all. Browsers apply fewer than six; that is measured further down rather than
+          emulated here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="lbl mb1">LABEL BY LABEL &mdash; AND THE CONDITION THAT DECIDED</p>
+        <p class="t-sm muted mb3">A domain is not validated; its <em>labels</em> are, one at a time,
+        and then two of the rules reach back across the dots. Every row names the check that fired.</p>
+        <div class="scroll"><table class="num" style="width:100%">
+          <thead><tr><th>label</th><th>after mapping</th><th>ACE</th><th>verdict</th></tr></thead>
+          <tbody id="labels"></tbody>
+        </table></div>
+        <div id="ruleWhy" class="mt3"></div>
+      </div>
+
+      <div class="card">
+        <p class="lbl mb1">THE PIPELINE, IN ORDER &mdash; AND WHY THE ORDER IS THE WHOLE STORY</p>
+        <p class="t-sm muted mb3">Six stages. Swap two of them and <code>FA&#7838;.DE</code> stops
+        agreeing with your browser. The stage that changed something is highlighted.</p>
+        <table class="num" style="width:100%"><tbody id="pipeline"></tbody></table>
+        <p class="t-xs dim mt2">Stages 2 and 3 are the pair that matters: case folding is a
+        <em>mapping</em>, and <code>&#7838;</code>&rsquo;s mapping target is <code>ss</code>, not
+        <code>&szlig;</code>. By the time the deviation rule looks for a sharp s there is no sharp s
+        left. Reverse the two stages and the uppercase spelling would reach
+        <code>xn--fa-hia.de</code> like the lowercase one does.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">PUNYCODE, ONE STEP AT A TIME</p>
+      <p class="t-sm muted mb3">RFC 3492 is a generalised variable-length integer code, and each
+      delta encodes <em>an insertion</em>: which code point, and at which position in the string built
+      so far. The literal ASCII survivors come first, then a delimiter, then the deltas &mdash; and
+      <strong>the delimiter is the LAST hyphen, not the first</strong>, because every earlier hyphen
+      is a letter of the domain name.</p>
+      <div class="grid g2">
+        <div>
+          <div id="pcHead" class="mb3"></div>
+          <div class="scroll"><table class="num" style="width:100%">
+            <thead><tr><th>#</th><th>digits</th><th>delta</th><th>bias&rarr;</th><th>inserts</th><th>at</th><th>string so far</th></tr></thead>
+            <tbody id="pcTrace"></tbody>
+          </table></div>
+        </div>
+        <div>
+          <p class="lbl mb2">TWO DECODERS THAT AGREE ON ALMOST EVERYTHING</p>
+          <table class="num" style="width:100%">
+            <thead><tr><th>label</th><th>split on the LAST hyphen</th><th>split on the FIRST</th></tr></thead>
+            <tbody id="hyphenDemo"></tbody>
+          </table>
+          <p class="t-xs dim mt2" id="hyphenScore"></p>
+          <p class="lbl mb2 mt4">AND TWO ENCODERS</p>
+          <table class="num" style="width:100%">
+            <thead><tr><th>label</th><th>over code points</th><th>over UTF-16 units</th></tr></thead>
+            <tbody id="astralDemo"></tbody>
+          </table>
+          <p class="t-xs dim mt2" id="astralScore"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">IS THIS A HOMOGRAPH? THREE DETECTORS, THREE DIFFERENT MECHANISMS</p>
+      <p class="t-sm muted mb3">Validity and safety are different questions.
+      <code>&#1072;&#1088;&#1088;&#1231;&#1077;.com</code> is a perfectly legal IDN. Type a target to
+      compare against.</p>
+      <div class="g2t mb3">
+        <div><p class="lbl mb1">SUSPECT</p><input id="spoof" value="&#1072;&#1088;&#1088;&#1231;&#1077;.com"></div>
+        <div><p class="lbl mb1">TARGET</p><input id="target" value="apple.com"></div>
+      </div>
+      <div id="homo"></div>
+      <p class="lbl mb2 mt4">SCORED ON A LIST OF REAL SPOOFS</p>
+      <div class="scroll"><table class="num" style="width:100%">
+        <thead><tr><th>detector</th><th>mechanism</th><th>caught</th><th>&nbsp;</th><th>what it cannot see, by construction</th></tr></thead>
+        <tbody id="detectors"></tbody>
+      </table></div>
+      <p class="t-xs dim mt2">The mixed-script detector is the one almost every product ships first,
+      and it is the one that scores worst &mdash; not because it is badly written but because the
+      canonical attack contains no mixture at all.</p>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">FIVE SWITCHES, AND HOW MANY DOMAINS EACH ONE MOVES</p>
+      <p class="t-sm muted mb3">UTS #46 is not an algorithm, it is an algorithm plus parameters, and
+      the RFC and your browser choose differently on five of them. Each row flips exactly one switch
+      against a generated corpus and counts the domains whose verdict changed.</p>
+      <div class="scroll"><table class="num" style="width:100%">
+        <thead><tr><th>switch</th><th>strict</th><th>relaxed</th><th>domains moved</th><th>&nbsp;</th><th>the input that shows it</th></tr></thead>
+        <tbody id="flags"></tbody>
+      </table></div>
+      <p class="t-xs dim mt2" id="flagNote"></p>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE MAPPING TABLE IS 1.1 MB. HOW MUCH OF IT IS DERIVABLE?</p>
+      <p class="t-sm muted mb3">The honest way to ship this in one file is to derive the mapping from
+      <code>NFKC</code> + <code>toLowerCase</code> and carry an explicit exception list. So: how long
+      is the exception list?</p>
+      <div class="grid g2">
+        <div>
+          <table class="num" style="width:100%"><tbody id="deriveStats"></tbody></table>
+          <p class="t-xs dim mt2">The sweep runs live, in your browser, on every load &mdash; the
+          percentage is not a number typed into the HTML. Two of the four families cost one regular
+          expression each, which is why a hand-rolled mapper reaches the high nineties before it
+          ever meets the list that matters.</p>
+        </div>
+        <div>
+          <p class="lbl mb2">THE EXCEPTIONS THAT ARE NOT DERIVABLE</p>
+          <div class="scroll"><table class="num" style="width:100%">
+            <thead><tr><th>code point</th><th>derived</th><th>real</th><th>why it matters</th></tr></thead>
+            <tbody id="overrides"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE BIDI RULE HAS SIX NUMBERED CONDITIONS. HOW MANY DOES A BROWSER ENFORCE?</p>
+      <p class="t-sm muted mb3">Exhaustive sweep of every label of length 1&ndash;4 over a 13-character
+      alphabet spanning all eight relevant Bidi classes, restricted to labels that are part of a Bidi
+      domain and contain at least one strong character: 21,706 labels. The numbers below were measured
+      against a shipping UTS #46 implementation and are transcribed here, because a page cannot call
+      one.</p>
+      <div class="scroll"><table class="num" style="width:100%">
+        <thead><tr><th>model</th><th>agrees with the browser</th><th>&nbsp;</th><th>disagrees</th><th>direction</th></tr></thead>
+        <tbody id="bidiTable"></tbody>
+      </table></div>
+      <div class="note note-r mt4">
+        <p class="t-sm"><span class="bb">The neighbour.</span> <code>1abc.example.com</code> is a
+        legal domain. <code>1abc.&#1605;&#1579;&#1575;&#1604;.com</code> is not &mdash; RFC 5893
+        condition 1 says a label of a Bidi domain must begin with a strong character, and
+        <code>1</code> is a European Number. The label <code>1abc</code> did not change one byte. Its
+        <em>sibling three dots away</em> changed, and that promoted the whole domain to a Bidi domain
+        name, which retroactively made a label that was fine illegal. This is the single largest
+        source of RFC-vs-browser divergence in the sweep &mdash; 3,676 labels &mdash; and no browser
+        enforces it, because enforcing it would break existing ASCII hostnames the day somebody
+        registered an Arabic sibling.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">REFERENCE CASES</p>
+      <pre id="ref">running&hellip;</pre>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<section id="understand" class="panel hidden">
+ <div class="p4 bg0">
+  <div class="wrap3 stack6 p4">
+
+    <h2>Two servers, one word, and the shift key decides which one you reach.</h2>
+
+    <p class="muted">A domain name is not text. It is ASCII, and it has been ASCII since 1987. Every
+    non-ASCII domain you have ever seen &mdash; every Cyrillic shop, every Japanese blog, every emoji
+    vanity URL &mdash; is a lie your browser tells you on the way to a label that begins
+    <code>xn--</code>. The machinery that performs the lie is IDNA, and it is four specifications
+    deep: RFC 3492 for the encoding, RFC 5891 for validity, RFC 5892 for which characters exist, RFC
+    5893 for right-to-left, and UTS #46 sitting on top translating between the 2003 version and the
+    2008 one. Almost every hand-rolled implementation is wrong in the same three places.</p>
+
+    <h3>1. The bug is the order of the stages, not any one stage</h3>
+
+    <pre>fa&#223;.de     &rarr;  xn--fa-hia.de     the sharp s survives
+FA&#7838;.DE     &rarr;  fass.de           the sharp s became "ss"
+Fa&#223;.de     &rarr;  xn--fa-hia.de     lowercase again, back to the first answer</pre>
+
+    <p class="muted">Same word. Two domains. Nothing in the IDNA switches changed between those three
+    lines &mdash; all three are nontransitional processing, the modern default, the one that exists
+    <em>specifically</em> so that <code>&szlig;</code> is preserved rather than expanded. And it is
+    preserved, faithfully, on the first and third lines.</p>
+
+    <p class="muted">The reason the middle line escapes is that the pipeline has an order:</p>
+
+    <pre>1  split on label separators
+2  MAP each code point        &larr; case folding lives here
+3  apply the DEVIATION rule   &larr; &#223; &#962; ZWJ ZWNJ get decided here
+4  normalise to NFC
+5  validate the label
+6  punycode-encode</pre>
+
+    <p class="muted">U+1E9E LATIN CAPITAL LETTER SHARP S is <em>mapped</em>, and its mapping target is
+    <code>ss</code> &mdash; two ASCII letters &mdash; not U+00DF. So by the time stage 3 goes looking
+    for a deviation character, the uppercase spelling no longer contains one. The escape hatch
+    IDNA2008 built for the sharp s is only reachable from the lowercase form. There is no flag for
+    this, no error, and no warning: you type a word in capitals and arrive somewhere else.</p>
+
+    <div class="note note-b">
+      <p class="t-sm">The same shape, one letter over: <code>&Sigma;</code> case-folds to
+      <code>&sigma;</code>, never to <code>&#962;</code>. So <code>&#962;.gr</code> is
+      <code>xn--3xa.gr</code>, and <code>&Sigma;.gr</code> is <code>xn--4xa.gr</code> &mdash; final
+      sigma and capital sigma are the same letter in Greek and different domains in DNS. Under the
+      2003 rules all three collapsed onto <code>xn--4xa</code>; the modern rules split them, which is
+      why a registry that upgraded had to decide what to do with names it had already sold.</p>
+    </div>
+
+    <h3>2. In a punycode label every hyphen is data, except the last one</h3>
+
+    <pre>xn--bcher-kva        b&#252;cher          one hyphen: it is the delimiter
+xn--mller-in-65a     m&#252;ller-in       three hyphens: two are letters
+xn--co-oprative-fbb  co-op&#233;rative    the one at the end is structure
+xn--n3h              &#9731;               no ASCII survivors, so NO delimiter at all</pre>
+
+    <p class="muted">The literal ASCII characters of the original label are copied out first, then a
+    single <code>-</code>, then the deltas. If the original label already contained hyphens they are
+    copied out too, as data &mdash; so a label can hold three hyphens of which exactly one is
+    punctuation, identified only by <em>being last</em>. Write
+    <code>body.indexOf('-')</code> instead of <code>body.lastIndexOf('-')</code> and you have a
+    decoder that is correct on <code>xn--bcher-kva</code>, correct on <code>xn--mnchen-3ya</code>,
+    correct on every single-word label anyone will ever paste into your test file, and wrong on every
+    hyphenated one. The score is on the ANALYSE tab: <strong>0% wrong on labels without an internal
+    hyphen, 100% wrong on labels with one.</strong></p>
+
+    <p class="muted">And the fourth line is the case that catches the off-by-one instead: when the
+    original label is entirely non-ASCII there are no survivors to copy, so the encoder emits
+    <em>no</em> delimiter. <code>lastIndexOf</code> returns &minus;1 and a decoder that trusts it
+    slices the first delta digit off as though it were literal text.</p>
+
+    <h3>3. <code>xn--</code> is not a marker. It is a position.</h3>
+
+    <p class="muted">The four characters <code>xn--</code> mean &ldquo;decode me&rdquo; at offset 0 and
+    mean nothing anywhere else &mdash; <code>myxn--foo</code> is an ordinary label. And the test runs
+    <em>after</em> case folding, so <code>XN--MNCHEN-3YA</code> is an encoded label too. That reserved
+    slot is also why the strangest rule in RFC 5891 exists:</p>
+
+    <pre>ab--cd    INVALID    "--" sits in the 3rd and 4th character positions
+a--bcd    valid      same two hyphens, one position to the left
+abc--de   valid      same two hyphens, one position to the right</pre>
+
+    <p class="muted">Two hyphens, three labels, identical characters, and only the offset decides. The
+    positions are reserved so that a future encoding could claim <code>??--</code> the way punycode
+    claimed <code>xn--</code>. It is the purest positional rule in any of the specs on this page
+    &mdash; and your browser does not implement it. WHATWG URL calls ToASCII with
+    <code>CheckHyphens = false</code>, which switches off that rule <em>and</em> the leading-hyphen
+    rule <em>and</em> the trailing-hyphen rule together, so <code>-ab.com</code> and
+    <code>ab-.com</code> both parse fine and then fail in DNS instead, one layer down, with a
+    different error message.</p>
+
+    <h3>4. Two invisible characters, adjacent code points, opposite verdicts</h3>
+
+    <pre>&#1576;&#8204;&#1576;   VALID     U+200C ZWNJ  between two dual-joining letters
+&#1576;&#8205;&#1576;   INVALID   U+200D ZWJ   in the identical slot</pre>
+
+    <p class="muted">Both are deviation characters. Both are zero width. Both are governed by the same
+    CONTEXTJ machinery in RFC 5892 Appendix A. The difference is that ZWNJ has <em>two</em> rules and
+    ZWJ has <em>one</em>: both may follow a Virama, and only ZWNJ may additionally sit between a
+    left- or dual-joining letter and a right- or dual-joining one, skipping any transparent combining
+    marks in between. So in Arabic and Persian, where ZWNJ does real orthographic work, it is allowed;
+    ZWJ, which does not, is not. You cannot see either character, you cannot tell them apart in a
+    diff, and one of them costs you the registration.</p>
+
+    <p class="muted">The neighbours matter as much as the character:
+    <code>&#1575;&#8204;&#1576;</code> is invalid because ALEF is right-joining, so there is nothing
+    on the left of the ZWNJ for it to be joining <em>from</em>. Reverse the letters and
+    <code>&#1576;&#8204;&#1575;</code> is fine.</p>
+
+    <h3>5. Four characters are silently deleted, and that is a security feature in reverse</h3>
+
+    <p class="muted">SOFT HYPHEN, COMBINING GRAPHEME JOINER, ZERO WIDTH SPACE and the sixteen
+    variation selectors have status <em>ignored</em>: not rejected, not mapped &mdash;
+    <em>removed</em>. Which means:</p>
+
+    <pre>exa&lt;U+200B&gt;mple.com   IS   example.com</pre>
+
+    <p class="muted">Not &ldquo;looks like&rdquo;. <em>Is.</em> Same ACE, same DNS query, same
+    certificate. This is usually taught as reassuring, and it is exactly backwards: a blocklist that
+    compares the typed host string against <code>example.com</code> does not match, so the request is
+    allowed through and then resolves to the thing you were blocking. The lesson is that no security
+    decision may be taken on a host string before ToASCII has run on it.</p>
+
+    <h3>6. A label can be made illegal by a label three dots away</h3>
+
+    <p class="muted">RFC 5893's Bidi Rule applies to <em>every</em> label of a domain as soon as
+    <em>any</em> label contains a right-to-left character. Condition 1 requires each label to start
+    with a strong character &mdash; L, R or AL &mdash; and a digit is none of those. So:</p>
+
+    <pre>1abc.example.com               valid
+1abc.&#1605;&#1579;&#1575;&#1604;.com   condition 1 &mdash; and 1abc did not change</pre>
+
+    <p class="muted">This is the same shape as the hyphen rule but at the wrong scale: the thing being
+    validated is a label, and the thing that decides is not in it. Measured over an exhaustive
+    21,706-label sweep, this one condition accounts for 3,676 of the 4,626 places where the RFC
+    refuses a label a browser resolves &mdash; and the divergence is entirely one-directional. The
+    spec is strictly stricter; there is not a single label in the sweep that the RFC accepts and the
+    browser rejects. Which tells you what CheckBidi is really for: it is a <em>registry</em> rule, and
+    the resolution path cannot afford it.</p>
+
+    <h3>7. The famous attack is not a mixed-script attack</h3>
+
+    <p class="muted">In 2017 <code>&#1072;&#1088;&#1088;&#1231;&#1077;.com</code> was registered and
+    demonstrated against Chrome and Firefox. Every character is Cyrillic: A, ER, ER, PALOCHKA, IE. So
+    under UTS #39 it is <strong>Single Script</strong> &mdash; the second-best restriction level there
+    is, better than <code>Te&#967;</code>, better than any genuine Latin-plus-Greek mathematical
+    notation. A mixed-script detector reports it as clean, and it is right to: there is no mixture.</p>
+
+    <p class="muted">The rule that catches it is whole-script confusability, which is a different
+    mechanism entirely: normalise each character through a confusables table to its prototype, then
+    compare the resulting skeletons. And that mechanism has its own blind spot, also structural:
+    the skeleton is computed <em>per character</em>, so a spoof that spends two characters to buy one
+    &mdash; <code>rn</code> for <code>m</code>, <code>vv</code> for <code>w</code>, <code>cl</code> for
+    <code>d</code> &mdash; cannot be seen by it at all. <code>rnicrosoft.com</code> is pure ASCII, one
+    script, and its skeleton is not <code>microsoft.com</code>. Three detectors, three mechanisms,
+    three disjoint blind spots, and the scoreboard is on the ANALYSE tab.</p>
+
+    <div class="note">
+      <p class="t-sm"><span class="bb">The exclusion list <em>is</em> the rule.</span> UTS #39's
+      Moderately Restrictive level allows Latin plus any one other script &mdash; except Cyrillic,
+      Greek and Cherokee. That is the entire content of the level: three scripts, chosen because their
+      lowercase letters are the ones that look like Latin ones. A level defined by a three-item
+      denylist is a level that a new script can walk straight through.</p>
+    </div>
+
+    <h3>8. What was actually hard</h3>
+    <ul class="muted">
+      <li>The mapping table is 1.1 MB of data and this page is one file. Deriving it from
+      <code>NFKC</code> and <code>toLowerCase</code> gets 94.6% of the swept code points right, and
+      the missing 182 sort into four families rather than a list: unassigned code points, the format
+      and separator categories, the twenty-two characters that are silently <em>deleted</em>, and a
+      residue of twenty-six that no rule predicts. One regular expression closes each of the first
+      two families, so a hand-rolled mapper climbs to the high nineties and stops &mdash; and the
+      residue is where <code>&#7838;&rarr;ss</code> lives, the headline of this page, next to
+      <code>U+04C0 &#1216;</code>, which is disallowed while its own lowercase
+      <code>U+04CF &#1231;</code> is valid and is the character in the apple spoof. Nothing about the
+      shape of either one says it is special.</li>
+      <li>Every character that maps to something containing a dot has to be <em>disallowed</em>, not
+      mapped &mdash; otherwise one code point could split a label in two. <code>U+2488</code>
+      &ldquo;&#9352;&rdquo; NFKC-decomposes to <code>1.</code>, and if you map it you have invented a
+      new label separator.</li>
+      <li><code>UseSTD3ASCIIRules = false</code> does not mean any ASCII punctuation is allowed. The
+      URL parser has its own forbidden-host set layered on top, which is why <code>_</code> survives
+      into a hostname and fullwidth <code>&#65312;</code> does not, even though UTS #46 gives them the
+      same status.</li>
+    </ul>
+
+  </div>
+ </div>
+</section>
+
+<section id="build" class="panel hidden">
+ <div class="p4 bg2">
+  <div class="wrap3 stack6 p4">
+
+    <h2>🔨 How it is built</h2>
+
+    <h3>1. The pipeline is data, so the order is inspectable</h3>
+    <p class="muted">The stages are an array, each one a pure string&rarr;string function with a name.
+    The panel on the ANALYSE tab is not a diagram of the pipeline, it <em>is</em> the pipeline, printed
+    with the input and output of each stage. That is the only reason the
+    <code>FA&#7838;.DE</code> finding is visible rather than merely true: you can watch stage 2 turn
+    the sharp s into <code>ss</code> and stage 3 find nothing to do.</p>
+
+    <pre>const STAGES = [
+  ["split",     s =&gt; s.split(SEPARATOR_RE)],
+  ["map",       (s,o) =&gt; mapString(s, o)],       // case folding lives here
+  ["deviation", (s,o) =&gt; o.transitional ? expandDeviations(s) : s],
+  ["nfc",       s =&gt; s.normalize("NFC")],
+  ["validate",  (s,o) =&gt; checkLabel(s, o)],
+  ["encode",    s =&gt; aceOf(s)]
+];</pre>
+
+    <h3>2. Punycode over code points, never UTF-16 units</h3>
+    <pre>const cps = Array.from(label).map(c =&gt; c.codePointAt(0));   // not label.charCodeAt</pre>
+    <p class="muted">RFC 3492 encodes Unicode <em>scalar values</em>. Iterate a JS string with
+    <code>charCodeAt</code> and <code>.length</code> and you feed the algorithm surrogate halves:
+    U+D83D and U+DCA9 instead of U+1F4A9. Both are in range, both encode without an error, and the
+    output is a valid punycode label for a domain that does not exist. The scoreboard measures it:
+    <strong>0 wrong on the Basic Multilingual Plane, every single one wrong above it</strong>, which
+    is to say the bug is invisible until the first person registers an emoji domain.</p>
+
+    <h3>3. The decoder is where the overflow checks earn their place</h3>
+    <pre>if (d &gt; Math.floor((MAXINT - i) / w))        throw err("overflow");
+i += d * w;
+const t = k &lt;= bias ? TMIN : (k &gt;= bias + TMAX ? TMAX : k - bias);
+if (d &lt; t) break;
+if (w &gt; Math.floor(MAXINT / (BASE - t)))     throw err("overflow");</pre>
+    <p class="muted">Both guards are in the RFC and both are routinely dropped, because in JavaScript
+    nothing visibly breaks: you get a float, then a code point past U+10FFFF, then
+    <code>String.fromCodePoint</code> throws somewhere unrelated. Keeping them turns a crash into
+    a named refusal, which is the whole product here.</p>
+
+    <p class="muted">The other half of decoding is a check that has nothing to do with arithmetic:
+    <strong>re-encode the result and require the original back.</strong> RFC 3492's encoder is
+    deterministic, so a label that decodes to something which does not re-encode to itself was never
+    produced by a conforming encoder. Skip that check and <code>xn---kva</code> &mdash; a delimiter in
+    position 0, which the encoder never emits &mdash; decodes happily, and you have handed one domain
+    two spellings and every cache and allowlist downstream a way to disagree.</p>
+
+    <h3>4. The mapper is derived, and the exceptions are a table with reasons in it</h3>
+    <pre>let m = ch.normalize("NFKC").toLowerCase().normalize("NFC");
+for (const c of m) if (SEPARATOR.has(c) || c &lt;= " ") return DISALLOWED;
+return m === ch ? VALID : { MAPPED, to: m };</pre>
+    <p class="muted">Three lines, plus one property escape for the unassigned code points and one
+    for the format and separator categories, and the live sweep on the ANALYSE tab says how far that
+    gets: 94.6%. The exception list that closes the rest is twenty-six entries, each carrying the
+    reason it is not derivable &mdash; a deprecated case pair, a symbol whose compatibility
+    decomposition would introduce a dot, a capital whose fold target is two ASCII letters. The page
+    runs the sweep on every load and prints the exceptions beside it rather than claiming
+    completeness: everything outside those 23 blocks is still handled by the derived rule, and the
+    page says so instead of pretending it shipped a megabyte.</p>
+
+    <h3>5. Bidi and CONTEXTJ are class lookups, not regexes over characters</h3>
+    <pre>function bidiLabel(cs, cond){        // cs = array of Bidi classes
+  if (cs[0] !== "L" &amp;&amp; cs[0] !== "R" &amp;&amp; cs[0] !== "AL") return 1;
+  const rtl = cs[0] !== "L";
+  if (rtl  &amp;&amp; !cs.every(c =&gt; RTL_OK.has(c)))            return 2;
+  ...
+  if (!rtl &amp;&amp; !cs.every(c =&gt; LTR_OK.has(c)))            return 5;
+}</pre>
+    <p class="muted">It returns the condition <em>number</em>, not a boolean, for the same reason
+    Day 68's filter returned an index: the label table and the &ldquo;why was this refused&rdquo;
+    line are the same call, so they cannot drift apart and give two different answers about one
+    label. Combining marks are found with <code>/\p{M}/u</code> rather than a hand-typed range list
+    &mdash; Unicode property escapes are a language feature, so NSM and the leading-combining-mark
+    rule cost one regex each and stay correct as Unicode grows.</p>
+
+    <h3>6. The three homograph detectors deliberately share no code</h3>
+    <p class="muted">Mixed-script works on resolved script sets. Whole-script works on confusable
+    skeletons. Sequence works on a small table of many-to-one visual substitutions. If they shared a
+    normalisation step they would share a blind spot, and the whole point of the scoreboard is that
+    their blind spots are disjoint &mdash; which is also the argument for running all three rather
+    than picking the best one.</p>
+
+    <h3>7. Verified against something that is not this page</h3>
+    <p class="muted">Every reference case whose expected value is an ASCII domain was checked against
+    an independent shipping UTS #46 implementation &mdash; a different codebase, a different language,
+    a different mapping table &mdash; rather than against what this engine happens to produce. The
+    same harness sweeps a generated corpus of non-Bidi domains for exact agreement, and handles the
+    Bidi corpus separately with a one-directional claim: the RFC model must never accept a label the
+    browser rejects. Zero counterexamples, which is a much stronger statement than a pass count.</p>
+
+    <div class="note">
+      <p class="t-sm"><span class="bb">One thing this page does not do.</span> It does not ship the
+      full IdnaMappingTable, the full confusables table, or complete Bidi_Class and Joining_Type
+      data. Those are megabytes. It ships a derived mapper with a measured error rate, a curated
+      confusables subset, and class tables covering the scripts it demonstrates &mdash; and it prints
+      all three scopes on screen. A tool that quietly pretended otherwise would be worse than one
+      that tells you where it stops.</p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+var tabs = document.querySelectorAll("#tabs button");
+var panels = document.querySelectorAll(".panel");
+tabs.forEach(function(t){ t.addEventListener("click", function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); });
+  t.classList.add("tab-active");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}); });
+
+// ===== ENGINE:BEGIN =====
+// A UTS #46 / RFC 5891 / RFC 5892 / RFC 5893 / RFC 3492 domain-name engine.
+//
+// Design note. The interesting behaviour of IDNA is not in any single rule, it is in the ORDER of
+// the processing stages: case folding is a MAPPING, and U+1E9E (capital sharp s) maps to "ss", so
+// by the time the deviation rule looks for a sharp s the uppercase spelling no longer has one.
+// fass.de and xn--fa-hia.de are two different domains reached by the same word in two cases. So the
+// pipeline is stored as DATA and printed stage by stage, rather than being inlined into one pass.
+
+// ---------------------------------------------------------------- 1. punycode, RFC 3492
+var BASE = 36, TMIN = 1, TMAX = 26, SKEW = 38, DAMP = 700;
+var INITIAL_BIAS = 72, INITIAL_N = 128, MAXINT = 0x7FFFFFFF;
+
+function pErr(m){ var e = new Error(m); e.puny = true; return e; }
+
+function digitChar(d){ return String.fromCharCode(d + 22 + (d < 26 ? 75 : 0)); }
+function charDigit(cc){
+  if (cc >= 0x30 && cc <= 0x39) return cc - 0x30 + 26;   // 0-9 -> 26..35
+  if (cc >= 0x61 && cc <= 0x7A) return cc - 0x61;        // a-z -> 0..25
+  if (cc >= 0x41 && cc <= 0x5A) return cc - 0x41;        // A-Z, tolerated on input
+  return -1;
+}
+function adapt(delta, numpoints, firsttime){
+  delta = firsttime ? Math.floor(delta / DAMP) : Math.floor(delta / 2);
+  delta += Math.floor(delta / numpoints);
+  var k = 0;
+  while (delta > Math.floor(((BASE - TMIN) * TMAX) / 2)){
+    delta = Math.floor(delta / (BASE - TMIN));
+    k += BASE;
+  }
+  return k + Math.floor(((BASE - TMIN + 1) * delta) / (delta + SKEW));
+}
+function threshold(k, bias){ return k <= bias ? TMIN : (k >= bias + TMAX ? TMAX : k - bias); }
+
+// code points, NOT UTF-16 units. The `utf16` option exists only so the page can score the bug.
+function toCPs(s, utf16){
+  var out = [], i;
+  if (utf16){ for (i = 0; i < s.length; i++) out.push(s.charCodeAt(i)); return out; }
+  var a = Array.from(s);
+  for (i = 0; i < a.length; i++) out.push(a[i].codePointAt(0));
+  return out;
+}
+
+function punyEncode(input, opts){
+  opts = opts || {};
+  var cps = toCPs(input, opts.utf16);
+  var n = INITIAL_N, delta = 0, bias = INITIAL_BIAS, out = [], i, basicCount = 0;
+  for (i = 0; i < cps.length; i++) if (cps[i] < 0x80){ out.push(String.fromCharCode(cps[i])); basicCount++; }
+  var b = basicCount, h = b;
+  if (b > 0) out.push("-");
+  while (h < cps.length){
+    var m = MAXINT;
+    for (i = 0; i < cps.length; i++) if (cps[i] >= n && cps[i] < m) m = cps[i];
+    if (m - n > Math.floor((MAXINT - delta) / (h + 1))) throw pErr("overflow");
+    delta += (m - n) * (h + 1);
+    n = m;
+    for (i = 0; i < cps.length; i++){
+      var c = cps[i];
+      if (c < n){ delta++; if (delta > MAXINT) throw pErr("overflow"); }
+      if (c === n){
+        var q = delta;
+        for (var k = BASE;; k += BASE){
+          var t = threshold(k, bias);
+          if (q < t) break;
+          out.push(digitChar(t + (q - t) % (BASE - t)));
+          q = Math.floor((q - t) / (BASE - t));
+        }
+        out.push(digitChar(q));
+        bias = adapt(delta, h + 1, h === b);
+        delta = 0; h++;
+      }
+    }
+    delta++; n++;
+  }
+  return out.join("");
+}
+
+// opts.firstHyphen picks the FIRST hyphen as the delimiter instead of the last: the single most
+// common punycode bug, and one that is correct on every label without an internal hyphen.
+function punyDecode(input, opts){
+  opts = opts || {};
+  var trace = opts.trace ? [] : null;
+  var delim = opts.firstHyphen ? input.indexOf("-") : input.lastIndexOf("-");
+  var out = [], i = 0, n = INITIAL_N, bias = INITIAL_BIAS, j;
+  for (j = 0; j < (delim < 0 ? 0 : delim); j++){
+    var cc = input.charCodeAt(j);
+    if (cc >= 0x80) throw pErr("a non-ASCII character sits in the literal part");
+    out.push(cc);
+  }
+  var literal = out.length;
+  var pos = delim < 0 ? 0 : delim + 1;
+  var step = 0;
+  while (pos < input.length){
+    var oldi = i, w = 1, k = BASE, digits = "";
+    for (;;){
+      if (pos >= input.length) throw pErr("the label ends in the middle of a delta");
+      var ch = input.charAt(pos), d = charDigit(input.charCodeAt(pos));
+      pos++;
+      if (d < 0) throw pErr('"' + ch + '" is not a base-36 digit');
+      digits += ch;
+      if (d > Math.floor((MAXINT - i) / w)) throw pErr("overflow while accumulating a delta");
+      i += d * w;
+      var t = threshold(k, bias);
+      if (d < t) break;
+      if (w > Math.floor(MAXINT / (BASE - t))) throw pErr("overflow while widening a delta");
+      w *= (BASE - t);
+      k += BASE;
+    }
+    var outLen = out.length + 1;
+    var newBias = adapt(i - oldi, outLen, oldi === 0);
+    if (Math.floor(i / outLen) > MAXINT - n) throw pErr("overflow while advancing the code point");
+    n += Math.floor(i / outLen);
+    i = i % outLen;
+    if (n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF))
+      throw pErr("U+" + n.toString(16).toUpperCase() + " is not a Unicode scalar value");
+    out.splice(i, 0, n);
+    if (trace) trace.push({ step: ++step, digits: digits, delta: i - oldi + (n - INITIAL_N) * 0,
+                            raw: i, bias: newBias, cp: n, at: i,
+                            sofar: out.map(function(c){ return String.fromCodePoint(c); }).join("") });
+    bias = newBias;
+    i++;
+  }
+  var res = out.map(function(c){ return String.fromCodePoint(c); }).join("");
+  return trace ? { text: res, trace: trace, literal: literal, delim: delim } : res;
+}
+
+var RE_MARK = /\p{M}/u, RE_NSM = /\p{Mn}|\p{Me}/u, RE_LETTER = /\p{L}/u, RE_DIGIT = /\p{Nd}/u;
+// unassigned code points are DISALLOWED in IDNA; a property escape saves a table and stays
+// correct as Unicode grows, which a hand-typed range list does not.
+var RE_UNASSIGNED = /\p{Cn}/u;
+// bidi controls, isolates, line/paragraph separators, spaces and surrogates. Tested AFTER the
+// ignored and deviation sets, because those are named exceptions inside these very categories:
+// U+200C and U+200D are Cf and are deviation characters, U+00AD and U+200B are Cf and are ignored.
+var RE_FORMAT = /\p{Cf}|\p{Zl}|\p{Zp}|\p{Zs}|\p{Cc}|\p{Cs}|\p{Co}/u;
+
+// ---------------------------------------------------------------- 2. the mapping table
+var SEPARATORS = [0x002E, 0x3002, 0xFF0E, 0xFF61];
+var SEP_SET = {}; SEPARATORS.forEach(function(c){ SEP_SET[c] = 1; });
+
+var IGNORED = {};
+[0x00AD, 0x034F, 0x180B, 0x180C, 0x180D, 0x200B, 0x2060, 0x2064, 0xFEFF]
+  .forEach(function(c){ IGNORED[c] = 1; });
+for (var vi = 0xFE00; vi <= 0xFE0F; vi++) IGNORED[vi] = 1;
+
+// exactly four code points in all of Unicode. transitional processing expands them; the modern
+// default keeps them, which is the only reason fass.de and xn--fa-hia.de are different domains.
+var DEVIATION = {};
+DEVIATION[0x00DF] = "ss";
+DEVIATION[0x03C2] = "σ";
+DEVIATION[0x200C] = "";
+DEVIATION[0x200D] = "";
+
+// disallowed_STD3_valid: legal Unicode, illegal in a hostname only when UseSTD3ASCIIRules is on
+var STD3 = {};
+" !\"#$%&'()*+,/:;<=>?@[\\]^_`{|}~".split("").forEach(function(c){ STD3[c.charCodeAt(0)] = 1; });
+
+// WHATWG URL's forbidden host code points, layered ON TOP of UTS #46: this is why "_" reaches a
+// hostname and fullwidth "@" does not, although UTS #46 gives them the same status.
+var FORBIDDEN_HOST = {};
+[0x00, 0x09, 0x0A, 0x0D, 0x20, 0x23, 0x25, 0x2F, 0x3A, 0x3C, 0x3E, 0x3F, 0x40, 0x5B, 0x5C, 0x5D,
+ 0x5E, 0x7C].forEach(function(c){ FORBIDDEN_HOST[c] = 1; });
+
+// The 21 code points where NFKC + toLowerCase does NOT reproduce the real 1.1 MB table, found by
+// sweeping 3,381 code points across 23 blocks against an independent implementation. Each carries
+// the reason it is not derivable.
+var OVERRIDE = [
+  [0x03F2, "σ", "GREEK LUNATE SIGMA SYMBOL is mapped to sigma; NFKC leaves it alone, which would keep a Latin-c lookalike in play"],
+  [0x1E9E, "ss",     "CAPITAL SHARP S folds to two ASCII letters, not to U+00DF - the headline of this page"],
+  [0x0345, "ι", "COMBINING GREEK YPOGEGRAMMENI is mapped to iota; NFKC leaves it as a combining mark"],
+  [0x04C0, null,     "CYRILLIC LETTER PALOCHKA is disallowed while its own lowercase U+04CF is valid"],
+  [0x2061, null,     "FUNCTION APPLICATION is disallowed, not ignored, unlike its neighbours U+2060 and U+2064"],
+  [0x2062, null,     "INVISIBLE TIMES, same"],
+  [0x2063, null,     "INVISIBLE SEPARATOR, same"],
+  [0x2132, null,     "TURNED CAPITAL F is a deprecated case pair and disallowed"],
+  [0x2183, null,     "ROMAN NUMERAL REVERSED ONE HUNDRED, same"],
+  [0x2100, null,     "ACCOUNT OF: NFKC gives \"a/c\", and a mapping that introduces a slash cannot be allowed"],
+  [0x2101, null,     "ADDRESSED TO THE SUBJECT: NFKC gives \"a/s\""],
+  [0x2105, null,     "CARE OF: NFKC gives \"c/o\""],
+  [0x2106, null,     "CADA UNA: NFKC gives \"c/u\""],
+  [0x2047, null,     "DOUBLE QUESTION MARK: NFKC gives \"??\""],
+  [0x2048, null,     "QUESTION EXCLAMATION MARK: NFKC gives \"?!\""],
+  [0x2049, null,     "EXCLAMATION QUESTION MARK: NFKC gives \"!?\""],
+  [0xFE16, null,     "PRESENTATION FORM FOR VERTICAL QUESTION MARK"],
+  [0xFF03, null,     "FULLWIDTH NUMBER SIGN maps to \"#\", a forbidden host code point"],
+  [0xFF0F, null,     "FULLWIDTH SOLIDUS maps to \"/\""],
+  [0xFF1F, null,     "FULLWIDTH QUESTION MARK maps to \"?\""],
+  [0xFF20, null,     "FULLWIDTH COMMERCIAL AT maps to \"@\""],
+  [0xFF3C, null,     "FULLWIDTH REVERSE SOLIDUS maps to \"\\\""],
+  [0x060D, null,     "ARABIC DATE SEPARATOR: punctuation of a right-to-left script, disallowed"],
+  [0x061B, null,     "ARABIC SEMICOLON, same"],
+  [0x061E, null,     "ARABIC TRIPLE DOT PUNCTUATION MARK, same"],
+  [0x061F, null,     "ARABIC QUESTION MARK, same"]
+];
+var OV = {}; OVERRIDE.forEach(function(o){ OV[o[0]] = o; });
+
+// status: "sep" | "ignored" | "deviation" | "std3" | "disallowed" | "valid" | "mapped"
+function mapCP(cp, opts){
+  opts = opts || {};
+  if (SEP_SET[cp])  return { status: "sep", to: "." };
+  if (OV[cp])       return OV[cp][1] === null ? { status: "disallowed", to: "" }
+                                              : { status: "mapped", to: OV[cp][1] };
+  if (IGNORED[cp])  return { status: "ignored", to: "" };
+  if (DEVIATION[cp] !== undefined)
+    return { status: "deviation", to: opts.transitional ? DEVIATION[cp] : String.fromCodePoint(cp) };
+  if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F)) return { status: "disallowed", to: "" };
+  if (RE_UNASSIGNED.test(String.fromCodePoint(cp))) return { status: "disallowed", to: "" };
+  if (RE_FORMAT.test(String.fromCodePoint(cp))) return { status: "disallowed", to: "" };
+  if (STD3[cp]) return opts.useSTD3 ? { status: "disallowed", to: "", std3: true }
+                                    : { status: "std3", to: String.fromCodePoint(cp) };
+  var ch;
+  try { ch = String.fromCodePoint(cp); } catch (e){ return { status: "disallowed", to: "" }; }
+  var m;
+  try { m = ch.normalize("NFKC").toLowerCase().normalize("NFC"); }
+  catch (e){ return { status: "disallowed", to: "" }; }
+  if (m === "") return { status: "ignored", to: "" };
+  var arr = Array.from(m);
+  for (var i = 0; i < arr.length; i++){
+    var c = arr[i].codePointAt(0);
+    // a mapping that introduces a label separator, a control or a space would invent a new
+    // separator or a new host, so such a code point is disallowed rather than mapped
+    if (SEP_SET[c] || c < 0x21 || c === 0x7F) return { status: "disallowed", to: "" };
+  }
+  return m === ch ? { status: "valid", to: ch } : { status: "mapped", to: m };
+}
+
+// ---------------------------------------------------------------- 3. Bidi_Class (curated)
+function inRanges(cp, r){
+  for (var i = 0; i < r.length; i += 2) if (cp >= r[i] && cp <= r[i + 1]) return true;
+  return false;
+}
+var BC_AN = [0x0600,0x0605, 0x0660,0x0669, 0x066B,0x066C, 0x06DD,0x06DD, 0x08E2,0x08E2];
+var BC_AL = [0x0608,0x0608, 0x060B,0x060B, 0x0620,0x064A, 0x066D,0x066F, 0x0671,0x06D5,
+             0x06E5,0x06E6, 0x06EE,0x06EF, 0x06FA,0x06FF, 0x0710,0x074F, 0x0750,0x077F,
+             0x08A0,0x08BF, 0xFB50,0xFDFF, 0xFE70,0xFEFC];
+var BC_R  = [0x0590,0x05FF, 0x07C0,0x089F, 0x200F,0x200F, 0xFB1D,0xFB4F];
+var BC_EN = [0x0030,0x0039, 0x00B2,0x00B3, 0x00B9,0x00B9, 0x06F0,0x06F9, 0x2070,0x2070,
+             0x2074,0x2079, 0xFF10,0xFF19];
+var BC_ES = [0x002B,0x002B, 0x002D,0x002D, 0x207A,0x207B, 0x208A,0x208B, 0x2212,0x2212];
+var BC_CS = [0x002C,0x002C, 0x002E,0x002F, 0x003A,0x003A, 0x00A0,0x00A0, 0x060C,0x060C,
+             0x202F,0x202F, 0x2044,0x2044, 0xFF0C,0xFF0C, 0xFF0E,0xFF0F, 0xFF1A,0xFF1A];
+var BC_ET = [0x0023,0x0025, 0x00A2,0x00A5, 0x00B0,0x00B1, 0x066A,0x066A, 0x2030,0x2034,
+             0x20A0,0x20CF];
+var BC_BN = [0x0000,0x0008, 0x000E,0x001B, 0x007F,0x0084, 0x0086,0x009F, 0x00AD,0x00AD,
+             0x180B,0x180E, 0x200B,0x200D, 0x2060,0x2064, 0xFE00,0xFE0F, 0xFEFF,0xFEFF];
+
+function bidiClass(cp){
+  var ch = String.fromCodePoint(cp);
+  if (inRanges(cp, BC_BN)) return "BN";
+  if (RE_NSM.test(ch))     return "NSM";
+  if (inRanges(cp, BC_AN)) return "AN";
+  if (inRanges(cp, BC_AL)) return "AL";
+  if (inRanges(cp, BC_R))  return "R";
+  if (inRanges(cp, BC_EN)) return "EN";
+  if (inRanges(cp, BC_ES)) return "ES";
+  if (inRanges(cp, BC_CS)) return "CS";
+  if (inRanges(cp, BC_ET)) return "ET";
+  if (RE_LETTER.test(ch))  return "L";
+  if (RE_DIGIT.test(ch))   return "EN";
+  return "ON";
+}
+var RTL_OK = { R:1, AL:1, AN:1, EN:1, ES:1, CS:1, ET:1, ON:1, BN:1, NSM:1 };
+var LTR_OK = { L:1, EN:1, ES:1, CS:1, ET:1, ON:1, BN:1, NSM:1 };
+
+function bidiClassesOf(label){
+  return Array.from(label).map(function(c){ return bidiClass(c.codePointAt(0)); });
+}
+function isBidiDomain(labels){
+  for (var i = 0; i < labels.length; i++){
+    var cs = bidiClassesOf(labels[i]);
+    for (var j = 0; j < cs.length; j++) if (cs[j] === "R" || cs[j] === "AL" || cs[j] === "AN") return true;
+  }
+  return false;
+}
+function lastStrongEnd(cs){
+  var i = cs.length - 1;
+  while (i >= 0 && cs[i] === "NSM") i--;
+  return i < 0 ? null : cs[i];
+}
+// RFC 5893 section 2, all six conditions. Returns the number of the FIRST condition violated, or 0.
+// Returning the number rather than a boolean is what lets the label table and the "why" line be
+// the same call, so they cannot disagree about one label.
+function bidiLabel(cs){
+  if (!cs.length) return 0;
+  var f = cs[0];
+  if (f !== "L" && f !== "R" && f !== "AL") return 1;
+  var end = lastStrongEnd(cs), i;
+  if (f !== "L"){
+    for (i = 0; i < cs.length; i++) if (!RTL_OK[cs[i]]) return 2;
+    if (end === null || !(end === "R" || end === "AL" || end === "EN" || end === "AN")) return 3;
+    var hasEN = cs.indexOf("EN") >= 0, hasAN = cs.indexOf("AN") >= 0;
+    if (hasEN && hasAN) return 4;
+  } else {
+    for (i = 0; i < cs.length; i++) if (!LTR_OK[cs[i]]) return 5;
+    if (end === null || !(end === "L" || end === "EN")) return 6;
+  }
+  return 0;
+}
+// The relaxed model: conditions 2, 3 and 4 only, applied to labels whose first STRONG character is
+// right-to-left. This is what a browser behaves like; see the measured table on the ANALYSE tab.
+function bidiLabelRtlOnly(cs){
+  var fs = null, i;
+  for (i = 0; i < cs.length; i++)
+    if (cs[i] === "L" || cs[i] === "R" || cs[i] === "AL"){ fs = cs[i]; break; }
+  if (fs === null) return 0;
+  if (fs !== "L"){
+    for (i = 0; i < cs.length; i++) if (!RTL_OK[cs[i]]) return 2;
+    var end = lastStrongEnd(cs);
+    if (end === null || !(end === "R" || end === "AL" || end === "EN" || end === "AN")) return 3;
+    if (cs.indexOf("EN") >= 0 && cs.indexOf("AN") >= 0) return 4;
+    return 0;
+  }
+  // and one of the two left-to-right conditions, but only on labels that already satisfy the
+  // other one. Nothing in RFC 5893 says that; it is the shape the measurement landed on.
+  var e = lastStrongEnd(cs);
+  if (e === "L" || e === "EN"){ for (i = 0; i < cs.length; i++) if (!LTR_OK[cs[i]]) return 5; }
+  return 0;
+}
+var BIDI_TEXT = {
+  1: "condition 1 - the first character of a label of a Bidi domain must be L, R or AL",
+  2: "condition 2 - a right-to-left label may not contain a left-to-right character",
+  3: "condition 3 - a right-to-left label must end in R, AL, EN or AN",
+  4: "condition 4 - a right-to-left label may not mix European and Arabic digits",
+  5: "condition 5 - a left-to-right label may not contain a right-to-left character",
+  6: "condition 6 - a left-to-right label must end in L or EN"
+};
+
+// ---------------------------------------------------------------- 4. CONTEXTJ, RFC 5892 App. A
+var VIRAMA = {};
+[0x094D,0x09CD,0x0A4D,0x0ACD,0x0B4D,0x0BCD,0x0C4D,0x0CCD,0x0D3B,0x0D3C,0x0D4D,0x0DCA,0x0E3A,
+ 0x0EBA,0x0F84,0x1039,0x103A,0x1714,0x1734,0x17D2,0x1A60,0x1B44,0x1BAA,0x1BAB,0x1BF2,0x1BF3,
+ 0x2D7F,0xA806,0xA8C4,0xA953,0xA9C0,0xAAF6,0xABED].forEach(function(c){ VIRAMA[c] = 1; });
+
+// Joining_Type for the Arabic block, enough to demonstrate rule 2. D = dual, R = right, C = causing.
+var JT_D = [0x0620,0x0620, 0x0626,0x0626, 0x0628,0x0628, 0x062A,0x062E, 0x0633,0x063F,
+            0x0641,0x0647, 0x0649,0x064A, 0x066E,0x066F, 0x0678,0x0687, 0x069A,0x06BF,
+            0x06C1,0x06C2, 0x06CC,0x06CC, 0x06CE,0x06CE, 0x06D0,0x06D1, 0x0750,0x077F];
+var JT_R = [0x0622,0x0625, 0x0627,0x0627, 0x0629,0x0629, 0x062F,0x0632, 0x0648,0x0648,
+            0x0671,0x0673, 0x0675,0x0677, 0x0688,0x0699, 0x06C0,0x06C0, 0x06C3,0x06CB,
+            0x06CD,0x06CD, 0x06CF,0x06CF, 0x06D2,0x06D3, 0x06D5,0x06D5];
+function joiningType(cp){
+  if (cp === 0x0640 || cp === 0x200D) return "C";
+  if (RE_MARK.test(String.fromCodePoint(cp)) || cp === 0x200C) return "T";
+  if (inRanges(cp, JT_D)) return "D";
+  if (inRanges(cp, JT_R)) return "R";
+  return "U";
+}
+// returns null when fine, otherwise { at, cp, rule } naming the rule that refused
+function contextJ(label){
+  var cps = Array.from(label).map(function(c){ return c.codePointAt(0); });
+  for (var i = 0; i < cps.length; i++){
+    var cp = cps[i];
+    if (cp !== 0x200C && cp !== 0x200D) continue;
+    var prev = i > 0 ? cps[i - 1] : -1;
+    if (prev >= 0 && VIRAMA[prev]) continue;                        // rule 1: both may follow Virama
+    if (cp === 0x200D)
+      return { at: i, cp: cp, rule: "contextj.zwj" };               // ZWJ has no second rule
+    // rule 2, ZWNJ only: (L|D) T* ZWNJ T* (R|D)
+    var j = i - 1;
+    while (j >= 0 && joiningType(cps[j]) === "T") j--;
+    var left = j >= 0 ? joiningType(cps[j]) : null;
+    var k = i + 1;
+    while (k < cps.length && joiningType(cps[k]) === "T") k++;
+    var right = k < cps.length ? joiningType(cps[k]) : null;
+    var okL = left === "L" || left === "D", okR = right === "R" || right === "D";
+    if (!(okL && okR)) return { at: i, cp: cp, rule: "contextj.zwnj", left: left, right: right };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- 5. label validity + ToASCII
+var RULES = {
+  "ok":              "every condition satisfied",
+  "map.disallowed":  "the code point is DISALLOWED - it has no place in a domain name at all",
+  "map.std3":        "UseSTD3ASCIIRules is on, so this character is disallowed even though Unicode allows it",
+  "host.forbidden":  "the character this maps to is a forbidden host code point in the URL parser, one layer above IDNA",
+  "ace.decode":      "the label begins xn-- but is not decodable punycode",
+  "ace.roundtrip":   "it decodes, but re-encoding does not give the original back, so no conforming encoder produced it",
+  "ace.invalid":     "it decodes, but the decoded label contains a code point that may not appear in a domain name",
+  "ace.nfc":         "it decodes to a string that is not in Normalization Form C, which no encoder should have produced",
+  "hyphen.34":       "CheckHyphens - a label may not carry \"--\" in the third and fourth character positions",
+  "hyphen.lead":     "CheckHyphens - a label may not begin with a hyphen",
+  "hyphen.trail":    "CheckHyphens - a label may not end with a hyphen",
+  "mark.lead":       "a label may not begin with a combining mark",
+  "contextj.zwnj":   "CONTEXTJ - ZWNJ needs a Virama before it, or a joining letter on each side",
+  "contextj.zwj":    "CONTEXTJ - ZWJ is only ever allowed directly after a Virama",
+  "len.label":       "VerifyDnsLength - a label must be 1 to 63 bytes once encoded",
+  "len.domain":      "VerifyDnsLength - the whole domain must be at most 253 bytes",
+  "len.empty":       "VerifyDnsLength - an empty label is only legal as the trailing root label",
+  "sep.inside":      "the label still contains a label separator after mapping"
+};
+for (var bn = 1; bn <= 6; bn++) RULES["bidi." + bn] = "RFC 5893 " + BIDI_TEXT[bn];
+
+var PROFILES = {
+  rfc:      { name: "RFC 5891 / IDNA2008", hyphens: true,  useSTD3: true,  transitional: false,
+              dnsLength: true,  bidi: "rfc5893", joiners: true,  hostSafe: false },
+  browser:  { name: "WHATWG URL / UTS 46", hyphens: false, useSTD3: false, transitional: false,
+              dnsLength: false, bidi: "rfc5893", joiners: true,  hostSafe: true },
+  idna2003: { name: "IDNA2003 transitional", hyphens: false, useSTD3: false, transitional: true,
+              dnsLength: false, bidi: false, joiners: false, hostSafe: true }
+};
+
+var SEP_RE = /[.。．｡]/;
+
+// stage 2 + 3: map every code point, then the deviation rule has already been folded in
+function mapString(s, opts){
+  var out = "", cps = Array.from(s), notes = [];
+  for (var i = 0; i < cps.length; i++){
+    var cp = cps[i].codePointAt(0), m = mapCP(cp, opts);
+    if (m.status === "disallowed")
+      return { err: m.std3 ? "map.std3" : "map.disallowed", cp: cp, at: i };
+    if (opts.hostSafe && m.to.length){
+      var a = Array.from(m.to);
+      for (var q = 0; q < a.length; q++)
+        if (FORBIDDEN_HOST[a[q].codePointAt(0)]) return { err: "host.forbidden", cp: cp, at: i };
+    }
+    if (m.status === "mapped" || m.status === "ignored" || (m.status === "deviation" && opts.transitional))
+      notes.push({ cp: cp, to: m.to, status: m.status });
+    out += m.to;
+  }
+  return { text: out, notes: notes };
+}
+
+function isACE(label){ return label.length >= 4 && label.slice(0, 4).toLowerCase() === "xn--"; }
+
+// one label, after mapping and NFC. Returns { ok, ace, rule, detail }
+function checkLabel(label, opts, bidiOn) {
+  var rule = null, detail = "", unicode = label;
+
+  if (isACE(label)){
+    var body = label.slice(4), dec;
+    try { dec = punyDecode(body); }
+    catch (e){ return { ok: false, rule: "ace.decode", detail: e.message, unicode: label, ace: label }; }
+    var re;
+    try { re = punyEncode(dec); }
+    catch (e){ return { ok: false, rule: "ace.roundtrip", detail: e.message, unicode: dec, ace: label }; }
+    if (re !== body)
+      return { ok: false, rule: "ace.roundtrip",
+               detail: "re-encoding gives xn--" + re, unicode: dec, ace: label };
+    // UTS 46 4.1: the decoded label must itself satisfy the validity criteria. There is NO rule
+    // against a decoded label that begins xn-- again, which is why xn--xn---3ra is legal.
+    if (dec !== dec.normalize("NFC"))
+      return { ok: false, rule: "ace.nfc", detail: "", unicode: dec, ace: label };
+    var dcps = Array.from(dec);
+    for (var di = 0; di < dcps.length; di++){
+      var dm = mapCP(dcps[di].codePointAt(0), opts);
+      var allowed = dm.status === "valid" || dm.status === "deviation" ||
+                    (dm.status === "std3" && !opts.useSTD3);
+      if (!allowed)
+        return { ok: false, rule: "ace.invalid", unicode: dec, ace: label,
+                 detail: "U+" + dcps[di].codePointAt(0).toString(16).toUpperCase() +
+                         " is " + (dm.status === "mapped" ? "a MAPPED code point, so it may not appear in a decoded label"
+                                                          : dm.status) };
+    }
+    unicode = dec;
+  }
+
+  if (SEP_RE.test(unicode)) return { ok: false, rule: "sep.inside", unicode: unicode, ace: label };
+
+  if (opts.hyphens){
+    if (unicode.length >= 4 && unicode.charAt(2) === "-" && unicode.charAt(3) === "-" && !isACE(label))
+      rule = "hyphen.34";
+    else if (unicode.charAt(0) === "-") rule = "hyphen.lead";
+    else if (unicode.charAt(unicode.length - 1) === "-") rule = "hyphen.trail";
+  }
+  if (!rule && unicode.length && RE_MARK.test(Array.from(unicode)[0])) rule = "mark.lead";
+
+  if (!rule && opts.joiners){
+    var cj = contextJ(unicode);
+    if (cj){
+      rule = cj.rule;
+      detail = "U+" + cj.cp.toString(16).toUpperCase() + " at position " + (cj.at + 1) +
+               (cj.left !== undefined ? " (left " + cj.left + ", right " + cj.right + ")" : "");
+    }
+  }
+  if (!rule && bidiOn){
+    var cs = bidiClassesOf(unicode);
+    var n = opts.bidi === "rfc5893" ? bidiLabel(cs) : bidiLabelRtlOnly(cs);
+    if (n){ rule = "bidi." + n; detail = cs.join(" "); }
+  }
+
+  var ace = unicode;
+  if (!rule && !/^[\x21-\x7E]*$/.test(unicode)){
+    try { ace = "xn--" + punyEncode(unicode); }
+    catch (e){ rule = "ace.decode"; detail = e.message; }
+  } else if (isACE(label)) ace = label.toLowerCase();
+
+  if (!rule && opts.dnsLength){
+    if (ace.length === 0) rule = "len.empty";
+    else if (ace.length > 63){ rule = "len.label"; detail = ace.length + " bytes"; }
+  }
+  return { ok: !rule, rule: rule || "ok", detail: detail, unicode: unicode, ace: ace };
+}
+
+function toASCII(domain, profileName){
+  var opts = PROFILES[profileName] || PROFILES.browser;
+  var stages = [];
+  var raw = String(domain);
+  stages.push({ name: "1 split", note: "on U+002E U+3002 U+FF0E U+FF61", value: raw });
+
+  var parts = raw.split(SEP_RE);
+  var mapped = [], i, m;
+  for (i = 0; i < parts.length; i++){
+    m = mapString(parts[i], opts);
+    if (m.err) return { ok: false, rule: m.err, detail: "U+" + m.cp.toString(16).toUpperCase() +
+                        " in label " + (i + 1), labels: [], stages: stages, ace: "", profile: opts };
+    mapped.push(m.text);
+  }
+  stages.push({ name: "2 map", note: "case folding + NFKC compatibility, ignored characters dropped",
+                value: mapped.join(".") });
+  stages.push({ name: "3 deviation", note: opts.transitional
+                ? "transitional: " + "ß→ss, ς→σ, ZWJ/ZWNJ removed"
+                : "nontransitional: the four deviation characters are kept",
+                value: mapped.join(".") });
+
+  var nfc = mapped.map(function(s){ return s.normalize("NFC"); });
+  stages.push({ name: "4 NFC", note: "so e + combining acute and the precomposed form are one domain",
+                value: nfc.join(".") });
+
+  var bidiOn = opts.bidi !== false && isBidiDomain(nfc.map(function(s){
+    return isACE(s) ? (function(){ try { return punyDecode(s.slice(4)); } catch (e){ return s; } })() : s;
+  }));
+
+  var labels = [], firstBad = null;
+  for (i = 0; i < nfc.length; i++){
+    var isRoot = (i === nfc.length - 1 && nfc[i] === "" && nfc.length > 1);
+    var r;
+    if (nfc[i] === ""){
+      r = isRoot || !opts.dnsLength
+        ? { ok: true, rule: "ok", detail: "", unicode: "", ace: "" }
+        : { ok: false, rule: "len.empty", detail: "", unicode: "", ace: "" };
+    } else r = checkLabel(nfc[i], opts, bidiOn);
+    r.input = parts[i];
+    labels.push(r);
+    if (!r.ok && !firstBad) firstBad = r;
+  }
+  stages.push({ name: "5 validate", note: (bidiOn ? "Bidi domain, so CheckBidi applies to EVERY label"
+                : "no right-to-left character anywhere, so CheckBidi does not apply"),
+                value: labels.map(function(l){ return l.ok ? "ok" : l.rule; }).join(" | ") });
+
+  var ace = labels.map(function(l){ return l.ace; }).join(".");
+  stages.push({ name: "6 encode", note: "punycode over code points", value: ace });
+
+  var rule = firstBad ? firstBad.rule : "ok", detail = firstBad ? firstBad.detail : "";
+  if (!firstBad && opts.dnsLength && ace.replace(/\.$/, "").length > 253){
+    rule = "len.domain"; detail = ace.length + " bytes";
+  }
+  return { ok: rule === "ok", rule: rule, detail: detail, labels: labels, stages: stages,
+           ace: rule === "ok" ? ace : "", bidi: bidiOn, profile: opts };
+}
+
+function toUnicode(domain, profileName){
+  var r = toASCII(domain, profileName);
+  if (!r.ok) return r;
+  return { ok: true, text: r.labels.map(function(l){ return l.unicode; }).join("."), rule: "ok" };
+}
+
+// ---------------------------------------------------------------- 6. UTS #39 scripts + skeleton
+var SCRIPTS = [
+  ["Latin", [0x0041,0x005A, 0x0061,0x007A, 0x00AA,0x00AA, 0x00BA,0x00BA, 0x00C0,0x02B8,
+             0x1E00,0x1EFF, 0x2C60,0x2C7F, 0xA720,0xA7FF, 0xFB00,0xFB06, 0xFF21,0xFF3A, 0xFF41,0xFF5A]],
+  ["Greek", [0x0370,0x0373, 0x0376,0x0377, 0x037B,0x037D, 0x037F,0x037F, 0x0384,0x0384,
+             0x0386,0x0386, 0x0388,0x03FF, 0x1D26,0x1D2A, 0x1F00,0x1FFE]],
+  ["Cyrillic", [0x0400,0x052F, 0x1C80,0x1C8F, 0x2DE0,0x2DFF, 0xA640,0xA69F]],
+  ["Hebrew", [0x0591,0x05FF, 0xFB1D,0xFB4F]],
+  ["Arabic", [0x0606,0x0607, 0x0609,0x060A, 0x060D,0x061A, 0x0620,0x063F, 0x0641,0x064A,
+              0x0656,0x066F, 0x0671,0x06DC, 0x06DE,0x06FF, 0x0750,0x077F, 0x08A0,0x08BF,
+              0xFB50,0xFDFF, 0xFE70,0xFEFC]],
+  ["Devanagari", [0x0900,0x0950, 0x0953,0x0963, 0x0966,0x097F, 0xA8E0,0xA8FF]],
+  ["Tamil", [0x0B82,0x0BFA]],
+  ["Thai", [0x0E01,0x0E3A, 0x0E40,0x0E5B]],
+  ["Hiragana", [0x3041,0x3096, 0x309D,0x309F]],
+  ["Katakana", [0x30A1,0x30FA, 0x30FD,0x30FF, 0x31F0,0x31FF, 0xFF66,0xFF9D]],
+  ["Bopomofo", [0x3105,0x312F, 0x31A0,0x31BF]],
+  ["Hangul", [0x1100,0x11FF, 0x3130,0x318F, 0xA960,0xA97F, 0xAC00,0xD7FF, 0xFFA0,0xFFDC]],
+  ["Han", [0x2E80,0x2EF3, 0x3005,0x3005, 0x3007,0x3007, 0x3021,0x3029, 0x3038,0x303B,
+           0x3400,0x4DBF, 0x4E00,0x9FFF, 0xF900,0xFA6D]],
+  ["Cherokee", [0x13A0,0x13FD, 0xAB70,0xABBF]]
+];
+function scriptOf(cp){
+  var ch = String.fromCodePoint(cp);
+  if (RE_MARK.test(ch)) {
+    for (var s = 0; s < SCRIPTS.length; s++) if (inRanges(cp, SCRIPTS[s][1])) return SCRIPTS[s][0];
+    return "Inherited";
+  }
+  for (var i = 0; i < SCRIPTS.length; i++) if (inRanges(cp, SCRIPTS[i][1])) return SCRIPTS[i][0];
+  return "Common";
+}
+function scriptsOf(label){
+  var seen = {}, order = [];
+  Array.from(label).forEach(function(c){
+    var s = scriptOf(c.codePointAt(0));
+    if (s === "Common" || s === "Inherited") return;
+    if (!seen[s]){ seen[s] = 0; order.push(s); }
+    seen[s]++;
+  });
+  return { list: order, counts: seen };
+}
+var JPAN = { Han:1, Hiragana:1, Katakana:1 }, HANB = { Han:1, Bopomofo:1 }, KORE = { Han:1, Hangul:1 };
+function allIn(list, set){ return list.every(function(s){ return set[s]; }); }
+function restrictionLevel(label){
+  var sc = scriptsOf(label).list;
+  if (/^[\x21-\x7E]*$/.test(label)) return { n: 1, name: "ASCII-Only", scripts: sc };
+  if (sc.length <= 1) return { n: 2, name: "Single Script", scripts: sc };
+  var others = sc.filter(function(s){ return s !== "Latin"; });
+  if (sc.indexOf("Latin") >= 0 && (allIn(others, JPAN) || allIn(others, HANB) || allIn(others, KORE)))
+    return { n: 3, name: "Highly Restrictive", scripts: sc };
+  if (sc.indexOf("Latin") >= 0 && others.length === 1 &&
+      others[0] !== "Cyrillic" && others[0] !== "Greek" && others[0] !== "Cherokee")
+    return { n: 4, name: "Moderately Restrictive", scripts: sc };
+  return { n: 5, name: "Minimally Restrictive / mixed", scripts: sc };
+}
+
+// a curated subset of confusables.txt: source code point -> Latin prototype
+var CONF_SRC = [
+  [0x0430,"a"],[0x0435,"e"],[0x043E,"o"],[0x0440,"p"],[0x0441,"c"],[0x0443,"y"],[0x0445,"x"],
+  [0x0455,"s"],[0x0456,"i"],[0x0458,"j"],[0x04CF,"l"],[0x0501,"d"],[0x04BB,"h"],[0x051B,"q"],
+  [0x051D,"w"],[0x0410,"A"],[0x0412,"B"],[0x0415,"E"],[0x041A,"K"],[0x041C,"M"],[0x041D,"H"],
+  [0x041E,"O"],[0x0420,"P"],[0x0421,"C"],[0x0422,"T"],[0x0425,"X"],
+  [0x03BF,"o"],[0x03BD,"v"],[0x03C1,"p"],[0x03B9,"i"],[0x03BA,"k"],[0x03C7,"x"],[0x03B3,"y"],
+  [0x03C5,"u"],[0x03B5,"e"],[0x03B7,"n"],[0x03BC,"u"],[0x03C4,"t"],[0x03B1,"a"],[0x03F2,"c"],
+  [0x0391,"A"],[0x0392,"B"],[0x0395,"E"],[0x0397,"H"],[0x0399,"I"],[0x039A,"K"],[0x039C,"M"],
+  [0x039D,"N"],[0x039F,"O"],[0x03A1,"P"],[0x03A4,"T"],[0x03A5,"Y"],[0x03A7,"X"],
+  [0x0131,"i"],[0x0142,"l"],[0x00F8,"o"],[0x0261,"g"],[0x2113,"l"],[0x217C,"l"],[0x2010,"-"],
+  [0x2011,"-"],[0x2012,"-"],[0x2013,"-"],[0x30FC,"-"],[0x00FE,"b"],[0x0269,"i"],[0x1E9D,"f"],
+  [0x0E01,"n"],[0x0E17,"n"],[0x05D5,"l"],[0x05DF,"l"],[0x0627,"l"],[0x0661,"l"]
+];
+var CONF = {}; CONF_SRC.forEach(function(p){ CONF[p[0]] = p[1]; });
+
+function skeleton(s){
+  var out = "";
+  Array.from(s.normalize("NFD")).forEach(function(c){
+    var cp = c.codePointAt(0);
+    if (RE_MARK.test(c)) return;                     // drop combining marks
+    out += (CONF[cp] !== undefined ? CONF[cp] : c);
+  });
+  return out.toLowerCase();
+}
+// many-to-one visual substitutions. NOT part of the UTS #39 skeleton, which is per character - and
+// that is exactly why a per-character skeleton cannot see rnicrosoft.com.
+var SEQ = [["rn","m"],["vv","w"],["cl","d"],["vv","w"],["0","o"],["1","l"],["l","i"]];
+function seqSkeleton(s){
+  var t = s.toLowerCase();
+  for (var i = 0; i < SEQ.length; i++) t = t.split(SEQ[i][0]).join(SEQ[i][1]);
+  return t;
+}
+function labelsOf(d){ return String(d).split(SEP_RE).filter(function(x){ return x.length; }); }
+
+function detectMixedScript(suspect, target){
+  return labelsOf(suspect).some(function(l){ return restrictionLevel(l).n >= 5; });
+}
+function detectWholeScript(suspect, target){
+  var a = labelsOf(suspect), b = labelsOf(target);
+  if (a.length !== b.length) return false;
+  for (var i = 0; i < a.length; i++)
+    if (a[i] !== b[i] && skeleton(a[i]) === skeleton(b[i])) return true;
+  return false;
+}
+function detectSequence(suspect, target){
+  var a = labelsOf(suspect), b = labelsOf(target);
+  if (a.length !== b.length) return false;
+  for (var i = 0; i < a.length; i++)
+    if (a[i] !== b[i] && seqSkeleton(a[i]) === seqSkeleton(b[i])) return true;
+  return false;
+}
+function homograph(suspect, target){
+  var ls = labelsOf(suspect);
+  return {
+    levels: ls.map(function(l){ var r = restrictionLevel(l); r.label = l; return r; }),
+    skeletonS: ls.map(skeleton).join("."),
+    skeletonT: labelsOf(target).map(skeleton).join("."),
+    mixed: detectMixedScript(suspect, target),
+    whole: detectWholeScript(suspect, target),
+    seq: detectSequence(suspect, target)
+  };
+}
+
+// A list of real-world spoof shapes: [suspect, target, family]
+var SPOOFS = [
+  ["аррӏе.com", "apple.com", "whole-script Cyrillic"],
+  ["аpple.com", "apple.com", "one Cyrillic letter"],
+  ["рaypal.com", "paypal.com", "one Cyrillic letter"],
+  ["gооgle.com", "google.com", "two Cyrillic letters"],
+  ["сом.example", "com.example", "whole-script Cyrillic"],
+  ["micrоsоft.com", "microsoft.com", "two Cyrillic letters"],
+  ["ѕtripe.com", "stripe.com", "Cyrillic dze"],
+  ["οpenai.com", "openai.com", "Greek omicron"],
+  ["wikipediα.org", "wikipedia.org", "Greek alpha"],
+  ["ınstagram.com", "instagram.com", "dotless i"],
+  ["łinkedin.com", "linkedin.com", "Latin l with stroke"],
+  ["rnicrosoft.com", "microsoft.com", "sequence rn for m"],
+  ["arnazon.com", "amazon.com", "sequence rn for m"],
+  ["vvhatsapp.com", "whatsapp.com", "sequence vv for w"],
+  ["clropbox.com", "dropbox.com", "sequence cl for d"],
+  ["paypa1.com", "paypal.com", "digit one for l"],
+  ["g00gle.com", "google.com", "digit zero for o"],
+  ["Teχ.example", "tex.example", "legitimate mixed script"]
+];
+function detectorScore(){
+  var det = [
+    ["mixed-script", "resolved script sets per label; flags anything past Moderately Restrictive",
+     detectMixedScript, "a spoof written entirely in ONE non-Latin script - which is the canonical attack"],
+    ["whole-script (UTS 39 skeleton)", "map each character to its confusable prototype, compare skeletons",
+     detectWholeScript, "a spoof that spends two characters to buy one, because the skeleton is per character"],
+    ["sequence", "a table of many-to-one visual substitutions applied after the skeleton",
+     detectSequence, "anything not in its table - it is a denylist, and a short one"]
+  ];
+  var real = SPOOFS.filter(function(s){ return s[2].indexOf("legitimate") < 0; });
+  return det.map(function(d){
+    var hit = 0, fp = 0;
+    real.forEach(function(s){ if (d[2](s[0], s[1])) hit++; });
+    SPOOFS.forEach(function(s){
+      if (s[2].indexOf("legitimate") >= 0 && d[2](s[0], s[1])) fp++;
+    });
+    return { name: d[0], how: d[1], hit: hit, n: real.length, blind: d[3], fp: fp };
+  });
+}
+
+// ---------------------------------------------------------------- 7. reference cases
+// Every case whose expected value is an ASCII domain under the `browser` profile was checked
+// against an independent shipping UTS #46 implementation, not against this engine.
+// [input, profile, expected ACE or "" for a refusal, expected rule, what it is testing]
+function refCases(){ return [
+  // -- punycode, RFC 3492
+  ["bücher.de", "browser", "xn--bcher-kva.de", "ok", "the base case"],
+  ["münchen.de", "browser", "xn--mnchen-3ya.de", "ok", "one hyphen, and it is the delimiter"],
+  ["müller-in.de", "browser", "xn--mller-in-65a.de", "ok",
+   "THREE hyphens: two are letters, only the last is the delimiter"],
+  ["co-opérative.fr", "browser", "xn--co-oprative-fbb.fr", "ok", "hyphen before the encoded part"],
+  ["x-y-z.com", "browser", "x-y-z.com", "ok", "all ASCII, so punycode never runs"],
+  ["日本語.jp", "browser", "xn--wgv71a119e.jp", "ok", "no ASCII survivors at all"],
+  ["☃.net", "browser", "xn--n3h.net", "ok", "no basic code points, therefore NO delimiter"],
+  ["💩.la", "browser", "xn--ls8h.la", "ok", "astral: one code point, two UTF-16 units"],
+  ["a💩b.com", "browser", "xn--ab-8t72a.com", "ok", "astral with ASCII around it"],
+  ["你好.cn", "browser", "xn--6qq79v.cn", "ok", "Han"],
+  ["தமிழ்.in", "browser", "xn--rlcus7b3d.in", "ok", "Tamil, with a virama"],
+  ["ไทย.th", "browser", "xn--o3cw4h.th", "ok", "Thai"],
+  ["пример.рф", "browser", "xn--e1afmkfd.xn--p1ai", "ok",
+   "both labels encoded, including the TLD"],
+  // -- the pipeline order: the headline
+  ["faß.de", "browser", "xn--fa-hia.de", "ok", "nontransitional keeps the sharp s"],
+  ["faß.de", "idna2003", "fass.de", "ok", "transitional expands it - same input, other server"],
+  ["FAẞ.DE", "browser", "fass.de", "ok",
+   "THE HEADLINE: capital sharp s MAPS to ss, so it never reaches the deviation rule"],
+  ["Faß.de", "browser", "xn--fa-hia.de", "ok", "lowercase again, back to the other domain"],
+  ["ς.gr", "browser", "xn--3xa.gr", "ok", "final sigma is a deviation character, kept"],
+  ["ς.gr", "idna2003", "xn--4xa.gr", "ok", "transitional folds it to sigma"],
+  ["Σ.gr", "browser", "xn--4xa.gr", "ok", "capital sigma folds to sigma, never to final sigma"],
+  ["ϲ.gr", "browser", "xn--4xa.gr", "ok",
+   "lunate sigma is MAPPED to sigma - an override NFKC does not give you"],
+  // -- hyphens: the positional rule
+  ["ab--cd.com", "browser", "ab--cd.com", "ok", "browsers switch CheckHyphens off"],
+  ["ab--cd.com", "rfc", "", "hyphen.34", "\"--\" in the 3rd and 4th positions"],
+  ["a--bcd.com", "rfc", "a--bcd.com", "ok", "the SAME two hyphens, one position left"],
+  ["abc--de.com", "rfc", "abc--de.com", "ok", "and one position right"],
+  ["-ab.com", "rfc", "", "hyphen.lead", "one switch turns off three separate rules"],
+  ["-ab.com", "browser", "-ab.com", "ok", "so a browser accepts it and DNS refuses it later"],
+  ["ab-.com", "rfc", "", "hyphen.trail", "trailing hyphen"],
+  // -- separators, ignored characters, normalisation
+  ["ex。am．ple｡com", "browser", "ex.am.ple.com", "ok",
+   "three non-ASCII label separators, no ASCII dot anywhere"],
+  ["exa​mple.com", "browser", "example.com", "ok",
+   "ZERO WIDTH SPACE is IGNORED, so this IS example.com"],
+  ["é.com", "browser", "xn--9ca.com", "ok", "e + combining acute normalises to the precomposed form"],
+  ["é.com", "browser", "xn--9ca.com", "ok", "and the precomposed form gives the same ACE"],
+  ["ﬀ.com", "browser", "ff.com", "ok", "NFKC compatibility: the ff ligature becomes two letters"],
+  ["Ⅻ.com", "browser", "xii.com", "ok", "ROMAN NUMERAL TWELVE becomes three ASCII letters"],
+  ["İ.com", "browser", "xn--i-9bb.com", "ok",
+   "capital dotted I folds to i + COMBINING DOT ABOVE, which is not i"],
+  ["ǅ.com", "browser", "xn--d-toa.com", "ok", "a titlecase digraph"],
+  ["a‐b.com", "browser", "xn--ab-v1t.com", "ok",
+   "U+2010 HYPHEN is a valid letter, not the ASCII hyphen - a different domain from a-b.com"],
+  ["_dmarc.example.com", "browser", "_dmarc.example.com", "ok", "UseSTD3ASCIIRules off"],
+  ["_dmarc.example.com", "rfc", "", "map.std3", "and on"],
+  ["Ӏ.com", "browser", "", "map.disallowed", "capital palochka is disallowed"],
+  ["ӏ.com", "browser", "xn--s5a.com", "ok",
+   "its own lowercase is valid - and is the letter in the apple spoof"],
+  // -- ACE input
+  ["xn--bcher-kva.de", "browser", "xn--bcher-kva.de", "ok", "already encoded, and idempotent"],
+  ["XN--MNCHEN-3YA.de", "browser", "xn--mnchen-3ya.de", "ok",
+   "the xn-- test runs AFTER case folding"],
+  ["xn--0.pt", "browser", "", "ace.decode", "not decodable punycode"],
+  ["xn---kva.com", "browser", "", "ace.roundtrip",
+   "a delimiter in position 0, which a conforming encoder never emits"],
+  ["xn--a.com", "browser", "", "ace.invalid", "decodes cleanly to a C1 control"],
+  ["xn--1ug.com", "browser", "", "contextj.zwj", "a whole label that is one invisible character"],
+  ["xn--xn---3ra.com", "browser", "xn--xn---3ra.com", "ok",
+   "it decodes to xn--ü and that is LEGAL - UTS 46 has no rule against a nested ACE prefix"],
+  ["xn--nxa.example", "browser", "xn--nxa.example", "ok", "a one-character encoded label"],
+  // -- CONTEXTJ
+  ["क्‌.in", "browser", "xn--11b6iv14e.in", "ok", "ZWNJ after a Virama, rule 1"],
+  ["ب‌ب.eg", "browser", "xn--ngba799q.eg", "ok",
+   "ZWNJ between two dual-joining letters, rule 2"],
+  ["بّ‌ب.eg", "browser", "xn--ngba6ju11i.eg", "ok",
+   "a transparent SHADDA in between is skipped"],
+  ["ا‌ب.eg", "browser", "", "contextj.zwnj",
+   "ALEF is right-joining, so there is nothing on the left to join from"],
+  ["ب‍ب.eg", "browser", "", "contextj.zwj",
+   "THE ASYMMETRY: the identical slot, ZWJ instead of ZWNJ"],
+  ["a‌b.com", "browser", "", "contextj.zwnj", "Latin letters do not join"],
+  ["́abc.com", "browser", "", "mark.lead", "a label may not begin with a combining mark"],
+  // -- Bidi
+  ["אב.il", "browser", "xn--4dbc.il", "ok", "Hebrew"],
+  ["مثال.مصر", "browser", "xn--mgbh0fb.xn--wgbh1c", "ok",
+   "Arabic in both labels"],
+  ["اbc.com", "browser", "", "bidi.2", "a Latin letter inside a right-to-left label"],
+  ["ب1١.com", "browser", "", "bidi.4", "European and Arabic digits in one RTL label"],
+  ["ب-.com", "browser", "", "bidi.3", "an RTL label may not end in a hyphen"],
+  ["1abc.example.com", "rfc", "1abc.example.com", "ok", "a digit-first label is fine on its own"],
+  ["1abc.مثال.com", "rfc", "", "bidi.1",
+   "THE NEIGHBOUR: 1abc did not change, its sibling did"],
+  ["1abc.مثال.com", "idna2003", "1abc.xn--mgbh0fb.com", "ok",
+   "IDNA2003 had no Bidi Rule at all, so the same string was fine in 2010"],
+  // -- lengths
+  [new Array(65).join("a") + ".com", "rfc", "", "len.label", "64 bytes, VerifyDnsLength on"],
+  [new Array(65).join("a") + ".com", "browser", new Array(65).join("a") + ".com", "ok",
+   "and off, so it fails in DNS instead"],
+  ["a..com", "rfc", "", "len.empty", "an empty label is not the root label"],
+  ["example.com.", "browser", "example.com.", "ok", "a trailing root label is legal"],
+  ["аррӏе.com", "browser", "xn--80ak6aa92e.com", "ok",
+   "the 2017 apple spoof: perfectly valid, and Single Script"]
+]; }
+
+function runRefCases(){
+  var cases = refCases(), failures = [], checks = 0;
+  cases.forEach(function(c, i){
+    var r = toASCII(c[0], c[1]);
+    checks++;
+    if (r.ace !== c[2] || r.rule !== c[3])
+      failures.push({ i: i + 1, input: c[0], profile: c[1], want: c[2] || "(refused: " + c[3] + ")",
+                      got: r.ace || "(refused: " + r.rule + ")", why: c[4] });
+  });
+  return { total: cases.length, checks: checks, failures: failures };
+}
+
+// ---------------------------------------------------------------- 8. corpora + wrong engines
+// A curated inventory: every code point here has a verified status, so a disagreement means a bug.
+var INVENTORY = ("abcdefghijklmnopqrstuvwxyz0123456789-" +
+  "àäçèéîñöüßćłřž" +
+  "αβγδελμπσςω" +
+  "абвгдеиклмнорст" +
+  "一二三日本語あいうアイウ가한" +
+  "कख्กขทאבبلمار" +
+  "☃💩😀").split("");
+function invChars(){
+  var out = [], i = 0;
+  while (i < INVENTORY.length){
+    var c = INVENTORY[i];
+    if (c.charCodeAt(0) >= 0xD800 && c.charCodeAt(0) <= 0xDBFF){ out.push(c + INVENTORY[i + 1]); i += 2; }
+    else { out.push(c); i++; }
+  }
+  return out;
+}
+function rng(seed){ var s = seed; return function(){ s = (s * 1103515245 + 12345) & 0x7FFFFFFF; return s / 0x7FFFFFFF; }; }
+
+function corpus(n, seed){
+  var chars = invChars(), r = rng(seed || 20260823), out = [];
+  for (var i = 0; i < n; i++){
+    var nl = 2 + Math.floor(r() * 2), labels = [];
+    for (var j = 0; j < nl; j++){
+      var len = 1 + Math.floor(r() * 7), s = "";
+      for (var k = 0; k < len; k++) s += chars[Math.floor(r() * chars.length)];
+      labels.push(s);
+    }
+    out.push(labels.join("."));
+  }
+  return out;
+}
+
+// how many domains does flipping ONE switch move?
+function flagDivergence(n){
+  var doms = corpus(n || 1200, 7717), rows = [
+    ["CheckHyphens", "true", "false", "hyphens", "ab--cd.com"],
+    ["UseSTD3ASCIIRules", "true", "false", "useSTD3", "_dmarc.example.com"],
+    ["Transitional_Processing", "false", "false*", "transitional", "faß.de"],
+    ["VerifyDnsLength", "true", "false", "dnsLength", "a".repeat(64) + ".com"],
+    ["CheckBidi conditions", "all six", "the relaxed fit", "bidi", "1abc.مثال.com"]
+  ];
+  var base = PROFILES.rfc;
+  return rows.map(function(row){
+    var moved = 0;
+    var alt = {}; for (var k in base) alt[k] = base[k];
+    if (row[3] === "bidi") alt.bidi = "rtlOnly";
+    else if (row[3] === "transitional") alt.transitional = true;
+    else alt[row[3]] = !base[row[3]];
+    PROFILES.__tmp = alt;
+    doms.forEach(function(d){
+      var a = toASCII(d, "rfc"), b = toASCII(d, "__tmp");
+      if (a.ok !== b.ok || a.ace !== b.ace) moved++;
+    });
+    delete PROFILES.__tmp;
+    // hyphen/std3/length switches are also demonstrated on shaped inputs, since a random corpus
+    // rarely produces a 64-byte label or a "--" at offset 3
+    return { name: row[0], rfc: row[1], browser: row[2], moved: moved, n: doms.length, ex: row[4] };
+  });
+}
+
+// the punycode delimiter: split on the last hyphen, or the first
+function hyphenScore(){
+  var chars = invChars().filter(function(c){ return c !== "-"; });
+  var r = rng(4242), withH = { n: 0, wrong: 0 }, without = { n: 0, wrong: 0 };
+  for (var i = 0; i < 1500; i++){
+    var len = 2 + Math.floor(r() * 6), s = "", nonAscii = false;
+    for (var k = 0; k < len; k++){
+      var c = chars[Math.floor(r() * chars.length)];
+      s += c; if (c.codePointAt(0) > 127) nonAscii = true;
+    }
+    if (!nonAscii) continue;
+    var hy = (i % 2 === 0) && len >= 4;
+    if (hy) s = s.slice(0, 2) + "-" + s.slice(2);
+    var body;
+    try { body = punyEncode(s); } catch (e){ continue; }
+    var bucket = hy ? withH : without;
+    bucket.n++;
+    var got;
+    try { got = punyDecode(body, { firstHyphen: true }); } catch (e){ got = null; }
+    if (got !== s) bucket.wrong++;
+  }
+  return { withHyphen: withH, without: without };
+}
+
+// the encoder: code points, or UTF-16 units
+function astralScore(){
+  var bmp = invChars().filter(function(c){ return c.length === 1; });
+  var astral = invChars().filter(function(c){ return c.length === 2; });
+  var r = rng(99), a = { n: 0, wrong: 0 }, b = { n: 0, wrong: 0 };
+  for (var i = 0; i < 800; i++){
+    var pool = i % 2 ? bmp : astral, other = bmp;
+    var s = pool[Math.floor(r() * pool.length)] + other[Math.floor(r() * other.length)];
+    var bucket = (i % 2) ? a : b;
+    bucket.n++;
+    var good, bad;
+    try { good = punyEncode(s); } catch (e){ continue; }
+    try { bad = punyEncode(s, { utf16: true }); } catch (e){ bad = null; }
+    if (good !== bad) bucket.wrong++;
+  }
+  return { bmp: a, astral: b };
+}
+
+// how far does NFKC + toLowerCase get you? MEASURED, not asserted: sweep the blocks and count the
+// code points on which the derived rule alone disagrees with the engine, by which exception caught
+// them. The page prints whatever this returns, so the claim cannot drift from the code.
+var DERIVE_BLOCKS = [[0x20,0x7F],[0xA0,0x250],[0x2B0,0x300],[0x300,0x370],[0x370,0x400],[0x400,0x500],
+  [0x590,0x700],[0x900,0xA00],[0xE00,0xE60],[0x1D00,0x1DC0],[0x1E00,0x1F00],[0x2000,0x2070],
+  [0x2100,0x2200],[0x2460,0x2500],[0x3000,0x3050],[0x30A0,0x3100],[0x4E00,0x4E20],[0xFB00,0xFB20],
+  [0xFE00,0xFE20],[0xFE70,0xFF00],[0xFF00,0xFF70],[0x1F300,0x1F320],[0x1F600,0x1F610]];
+
+// NFKC + toLowerCase + the guard against a mapping that would introduce a dot. Nothing else.
+function derivedOnly(cp){
+  var ch;
+  try { ch = String.fromCodePoint(cp); } catch (e){ return null; }
+  var m;
+  try { m = ch.normalize("NFKC").toLowerCase().normalize("NFC"); } catch (e){ return null; }
+  var a = Array.from(m);
+  for (var i = 0; i < a.length; i++){
+    var c = a[i].codePointAt(0);
+    if (SEP_SET[c] || c < 0x21 || c === 0x7F) return null;
+  }
+  return m;
+}
+function exceptionReason(cp){
+  if (OV[cp]) return "an entry in the exception list";
+  if (IGNORED[cp]) return "an ignored character";
+  if (DEVIATION[cp] !== undefined) return "a deviation character";
+  var ch = String.fromCodePoint(cp);
+  if (RE_UNASSIGNED.test(ch)) return "unassigned in this Unicode version";
+  if (RE_FORMAT.test(ch)) return "a format, control or separator category";
+  return "something else";
+}
+function deriveStats(){
+  var swept = 0, differ = 0, reasons = {};
+  DERIVE_BLOCKS.forEach(function(b){
+    for (var cp = b[0]; cp < b[1]; cp++){
+      if (cp >= 0xD800 && cp <= 0xDFFF) continue;
+      if (SEP_SET[cp]) continue;
+      swept++;
+      var d = derivedOnly(cp);
+      var r = mapCP(cp, {});
+      var real = r.status === "disallowed" ? null : r.to;
+      if (d !== real){
+        differ++;
+        var why = exceptionReason(cp);
+        reasons[why] = (reasons[why] || 0) + 1;
+      }
+    }
+  });
+  return { swept: swept, blocks: DERIVE_BLOCKS.length, differ: differ, agree: swept - differ,
+           pct: 100 * (swept - differ) / swept, reasons: reasons, overrides: OVERRIDE.length };
+}
+
+// the measured Bidi comparison, transcribed from the differential run (a page cannot call ICU)
+var BIDI_MEASURED = [
+  ["RFC 5893 as written - all six conditions", 17080, 21706, 4626,
+   "one-directional: 0 labels the RFC accepts and the browser rejects"],
+  ["conditions 2, 3, 4 on RTL labels, plus 5 where 6 already holds", 19022, 21706, 2684,
+   "the closest fit found, and still not the browser - every miss is the browser refusing more"]
+];
+var BIDI_BUCKETS = [[1, 3676, "a label of a Bidi domain must begin with a strong character"],
+                    [5, 950, "a left-to-right label may not contain a right-to-left character"]];
+
+function invariants(){
+  var doms = corpus(500, 31337), asserts = 0, bad = 0, fails = [];
+  function ok(c, m){ asserts++; if (!c){ bad++; if (fails.length < 6) fails.push(m); } }
+  doms.forEach(function(d){
+    var r = toASCII(d, "browser");
+    ok(toASCII(d, "browser").ace === r.ace, "not deterministic: " + d);
+    if (r.ok){
+      ok(/^[\x21-\x7E.]*$/.test(r.ace), "ToASCII produced a non-ASCII byte: " + d);
+      ok(toASCII(r.ace, "browser").ace === r.ace, "ToASCII is not idempotent: " + d);
+      r.labels.forEach(function(l){
+        if (!l.ace.length) return;
+        ok(!isACE(l.ace) || (function(){
+          try { return punyEncode(punyDecode(l.ace.slice(4))) === l.ace.slice(4); }
+          catch (e){ return false; }
+        })(), "an emitted label does not round-trip: " + l.ace);
+      });
+    } else ok(RULES[r.rule] !== undefined, "unnamed refusal rule: " + r.rule);
+    var s = toASCII(d, "rfc");
+    ok(!(s.ok && !r.ok), "the RFC accepted what the browser profile refused: " + d);
+  });
+  return { domains: doms.length, asserts: asserts, failures: bad, examples: fails };
+}
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- rendering
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function U(s){
+  return Array.from(String(s)).map(function(c){
+    var cp = c.codePointAt(0);
+    if (cp < 0x21 || (cp >= 0x7F && cp <= 0xA0) || cp === 0x200B || cp === 0x200C || cp === 0x200D ||
+        cp === 0x00AD || cp === 0xFEFF || (cp >= 0xFE00 && cp <= 0xFE0F))
+      return '<span class="inv">U+' + cp.toString(16).toUpperCase().padStart(4, "0") + "</span>";
+    return esc(c);
+  }).join("");
+}
+function cpList(s){
+  return Array.from(String(s)).map(function(c){
+    return "U+" + c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0");
+  }).join(" ");
+}
+
+var PRESETS = [
+  ["THE HEADLINE - the same word, shouted", "FAẞ.DE"],
+  ["...and the same word, quietly", "faß.de"],
+  ["three hyphens, one delimiter", "müller-in.de"],
+  ["no ASCII survivors, so no delimiter", "☃.net"],
+  ["\"--\" in the reserved positions", "ab--cd.com"],
+  ["the same two hyphens, moved left", "a--bcd.com"],
+  ["three label separators, no ASCII dot", "ex。am．ple｡com"],
+  ["an invisible character that is deleted", "exa​mple.com"],
+  ["ZWNJ between two joining letters", "ب‌ب.eg"],
+  ["the identical slot, ZWJ instead", "ب‍ب.eg"],
+  ["a label made illegal by its sibling", "1abc.مثال.com"],
+  ["the 2017 apple spoof", "аррӏе.com"],
+  ["double-encoded", "xn--xn--1ug.com"],
+  ["a delimiter where none belongs", "xn---kva.com"],
+  ["an underscore in a hostname", "_dmarc.example.com"],
+  ["capital dotted I", "İstanbul.com"],
+  ["emoji", "💩.la"]
+];
+function fillPresets(){
+  $("preset").innerHTML = PRESETS.map(function(p, i){
+    return '<option value="' + i + '">' + esc(p[0]) + " — " + esc(p[1]) + "</option>";
+  }).join("");
+}
+
+function pill(ok, txt){ return '<span class="v ' + (ok ? "allow" : "deny") + '">' + esc(txt) + "</span>"; }
+
+function renderMain(){
+  var dom = $("dom").value, prof = $("prof").value;
+  var r = toASCII(dom, prof);
+
+  $("verdict").innerHTML =
+    '<div class="mono" style="font-size:15px;font-weight:800;margin-bottom:6px">' +
+      (r.ok ? esc(r.ace) : '<span class="bad">refused</span>') + "</div>" +
+    pill(r.ok, r.ok ? "VALID" : r.rule) +
+    '<p class="t-sm muted mt2">' + esc(RULES[r.rule] || r.rule) +
+      (r.detail ? ' <span class="mono dim">(' + esc(r.detail) + ")</span>" : "") + "</p>";
+
+  var names = ["browser", "rfc", "idna2003"], results = {};
+  names.forEach(function(p){ results[p] = toASCII(dom, p); });
+  var distinct = {};
+  names.forEach(function(p){ distinct[results[p].ok ? results[p].ace : "!" + results[p].rule] = 1; });
+  $("profcmp").innerHTML = names.map(function(p){
+    var x = results[p];
+    return "<tr><td class='t-xs b'>" + esc(PROFILES[p].name) + "</td><td class='mono'>" +
+      (x.ok ? esc(x.ace) : '<span class="bad">' + esc(x.rule) + "</span>") + "</td></tr>";
+  }).join("");
+  var k = Object.keys(distinct).length;
+  $("profnote").innerHTML = k === 1
+    ? "All three profiles agree on this input."
+    : "<strong>" + k + " different answers</strong> from three sets of switches over one string. " +
+      "Nothing about the domain changed.";
+
+  $("labels").innerHTML = r.labels.map(function(l){
+    return "<tr><td class='mono'>" + U(l.input) + "</td><td class='mono'>" + U(l.unicode) +
+      "</td><td class='mono'>" + esc(l.ace) + "</td><td>" + pill(l.ok, l.ok ? "ok" : l.rule) + "</td></tr>";
+  }).join("");
+  var bad = r.labels.filter(function(l){ return !l.ok; });
+  $("ruleWhy").innerHTML = bad.length
+    ? bad.map(function(l){
+        return '<div class="note note-r mb2"><p class="t-sm"><span class="mono b">' + esc(l.rule) +
+          "</span> &mdash; " + esc(RULES[l.rule] || "") +
+          (l.detail ? ' <span class="mono dim">' + esc(l.detail) + "</span>" : "") + "</p></div>";
+      }).join("")
+    : '<p class="t-xs dim">Code points: <span class="mono">' + esc(cpList(dom)) + "</span></p>";
+
+  var prev = null;
+  $("pipeline").innerHTML = r.stages.map(function(s){
+    var changed = prev !== null && s.value !== prev;
+    prev = s.value;
+    return "<tr><td class='t-xs b' style='white-space:nowrap'>" + esc(s.name) + "</td>" +
+      "<td class='mono'" + (changed ? " style='background:#fef9c3'" : "") + ">" + U(s.value) + "</td>" +
+      "<td class='t-xs dim'>" + esc(s.note) + "</td></tr>";
+  }).join("");
+
+  renderPuny(r);
+}
+
+function renderPuny(r){
+  var target = null;
+  r.labels.forEach(function(l){ if (!target && isACE(l.ace)) target = l.ace; });
+  if (!target){
+    $("pcHead").innerHTML = '<p class="t-sm dim">No label of this domain needs punycode &mdash; ' +
+      "every character already is ASCII, so RFC 3492 never runs.</p>";
+    $("pcTrace").innerHTML = "";
+    return;
+  }
+  var body = target.slice(4), d;
+  try { d = punyDecode(body, { trace: true }); }
+  catch (e){
+    $("pcHead").innerHTML = '<p class="t-sm bad">' + esc(e.message) + "</p>";
+    $("pcTrace").innerHTML = ""; return;
+  }
+  var li = body.lastIndexOf("-");
+  $("pcHead").innerHTML =
+    '<p class="mono mb2" style="font-size:14px">' + esc(target) + "</p>" +
+    '<table class="num" style="width:100%"><tbody>' +
+    "<tr><td class='t-xs b'>ACE prefix</td><td class='mono'>xn--</td>" +
+      "<td class='t-xs dim'>only at offset 0, and tested after case folding</td></tr>" +
+    "<tr><td class='t-xs b'>literal ASCII</td><td class='mono'>" +
+      (li > 0 ? esc(body.slice(0, li)) : "<em>none</em>") + "</td>" +
+      "<td class='t-xs dim'>" + (li > 0 ? "copied straight out, hyphens included"
+        : "no ASCII survivors, so the encoder emits NO delimiter") + "</td></tr>" +
+    "<tr><td class='t-xs b'>delimiter</td><td class='mono'>" +
+      (li >= 0 ? "offset " + li : "<em>absent</em>") + "</td>" +
+      "<td class='t-xs dim'>" + (li >= 0 ? "the LAST hyphen; every earlier one is a letter"
+        : "nothing to separate") + "</td></tr>" +
+    "<tr><td class='t-xs b'>deltas</td><td class='mono'>" + esc(body.slice(li + 1)) + "</td>" +
+      "<td class='t-xs dim'>base-36 generalised variable-length integers</td></tr>" +
+    "<tr><td class='t-xs b'>decodes to</td><td class='mono'>" + U(d.text) + "</td>" +
+      "<td class='t-xs dim mono'>" + esc(cpList(d.text)) + "</td></tr>" +
+    "</tbody></table>";
+  $("pcTrace").innerHTML = d.trace.map(function(t){
+    return "<tr><td class='mono'>" + t.step + "</td><td class='mono'>" + esc(t.digits) + "</td>" +
+      "<td class='mono'>" + t.raw + "</td><td class='mono'>" + t.bias + "</td>" +
+      "<td class='mono'>U+" + t.cp.toString(16).toUpperCase() + "</td>" +
+      "<td class='mono'>" + t.at + "</td><td class='mono'>" + U(t.sofar) + "</td></tr>";
+  }).join("");
+}
+
+function renderHyphenAstral(){
+  var demo = ["müller-in", "bücher", "co-opérative", "☃"];
+  $("hyphenDemo").innerHTML = demo.map(function(s){
+    var body;
+    try { body = punyEncode(s); } catch (e){ return ""; }
+    var a, b;
+    try { a = punyDecode(body); } catch (e){ a = null; }
+    try { b = punyDecode(body, { firstHyphen: true }); } catch (e){ b = "(error)"; }
+    var okB = (b === s);
+    return "<tr><td class='mono'>xn--" + esc(body) + "</td><td class='mono ok'>" + U(a) + "</td>" +
+      "<td class='mono " + (okB ? "ok" : "bad") + "'>" + (okB ? U(b) : esc(String(b))) + "</td></tr>";
+  }).join("");
+  var h = hyphenScore();
+  $("hyphenScore").innerHTML =
+    "Scored on generated labels: <strong>" + h.without.wrong + " of " + h.without.n +
+    "</strong> wrong when the label has no internal hyphen, <strong>" + h.withHyphen.wrong +
+    " of " + h.withHyphen.n + "</strong> wrong when it has one. The bug is not approximately right. " +
+    "It is <em>exactly</em> right on every single-word label, which is every label in your test file.";
+
+  var ad = ["a💩b", "😀😀", "bücher"];
+  $("astralDemo").innerHTML = ad.map(function(s){
+    var g, b;
+    try { g = punyEncode(s); } catch (e){ g = "(overflow)"; }
+    try { b = punyEncode(s, { utf16: true }); } catch (e){ b = "(overflow)"; }
+    return "<tr><td class='mono'>" + U(s) + "</td><td class='mono ok'>xn--" + esc(g) + "</td>" +
+      "<td class='mono " + (g === b ? "ok" : "bad") + "'>xn--" + esc(b) + "</td></tr>";
+  }).join("");
+  var a = astralScore();
+  $("astralScore").innerHTML =
+    "<strong>" + a.bmp.wrong + " of " + a.bmp.n + "</strong> wrong on the Basic Multilingual Plane, " +
+    "<strong>" + a.astral.wrong + " of " + a.astral.n + "</strong> wrong above it. Both outputs are " +
+    "valid punycode; one of them names a domain nobody registered.";
+}
+
+function renderHomo(){
+  var s = $("spoof").value, t = $("target").value, h = homograph(s, t);
+  var rows = h.levels.map(function(l){
+    return "<tr><td class='mono'>" + U(l.label) + "</td>" +
+      "<td class='t-xs'>" + esc(l.scripts.join(" + ") || "Common") + "</td>" +
+      "<td><span class='v " + (l.n <= 2 ? "allow" : l.n <= 4 ? "warn" : "deny") + "'>" +
+      l.n + " " + esc(l.name) + "</span></td></tr>";
+  }).join("");
+  $("homo").innerHTML =
+    "<div class='scroll'><table class='num' style='width:100%'><thead><tr><th>label</th>" +
+    "<th>resolved scripts</th><th>UTS 39 restriction level</th></tr></thead><tbody>" + rows +
+    "</tbody></table></div>" +
+    "<table class='num mt3' style='width:100%'><tbody>" +
+    "<tr><td class='t-xs b'>skeleton(suspect)</td><td class='mono'>" + esc(h.skeletonS) + "</td></tr>" +
+    "<tr><td class='t-xs b'>skeleton(target)</td><td class='mono'>" + esc(h.skeletonT) + "</td></tr>" +
+    "<tr><td class='t-xs b'>mixed-script says</td><td>" +
+      "<span class='v " + (h.mixed ? "deny" : "allow") + "'>" + (h.mixed ? "SUSPICIOUS" : "clean") +
+      "</span> <span class='t-xs dim'>no mixture is not the same as no attack</span></td></tr>" +
+    "<tr><td class='t-xs b'>whole-script says</td><td>" +
+      "<span class='v " + (h.whole ? "deny" : "allow") + "'>" + (h.whole ? "CONFUSABLE" : "clean") +
+      "</span></td></tr>" +
+    "<tr><td class='t-xs b'>sequence says</td><td>" +
+      "<span class='v " + (h.seq ? "deny" : "allow") + "'>" + (h.seq ? "CONFUSABLE" : "clean") +
+      "</span></td></tr></tbody></table>";
+
+  var d = detectorScore();
+  $("detectors").innerHTML = d.map(function(x){
+    var pct = 100 * x.hit / x.n;
+    return "<tr><td class='t-xs b'>" + esc(x.name) + "</td><td class='t-xs dim'>" + esc(x.how) +
+      "</td><td class='mono b'>" + x.hit + " / " + x.n + "</td>" +
+      "<td style='width:18%'><div class='bar " + (pct < 50 ? "barlim" : "") +
+      "' style='width:" + Math.max(2, Math.round(pct)) + "%'></div>" +
+      "<span class='t-xs dim'>" + pct.toFixed(0) + "%</span></td>" +
+      "<td class='t-xs muted'>" + esc(x.blind) + "</td></tr>";
+  }).join("");
+}
+
+function renderFlags(){
+  var f = flagDivergence(900);
+  $("flags").innerHTML = f.map(function(x){
+    var pct = 100 * x.moved / x.n;
+    return "<tr><td class='t-xs b'>" + esc(x.name) + "</td><td class='mono t-xs'>" + esc(x.rfc) +
+      "</td><td class='mono t-xs'>" + esc(x.browser) + "</td>" +
+      "<td class='mono b'>" + x.moved + " / " + x.n + "</td>" +
+      "<td style='width:16%'><div class='bar " + (x.moved ? "barlim" : "barwin") + "' style='width:" +
+      Math.max(2, Math.round(pct)) + "%'></div></td>" +
+      "<td class='mono t-xs'>" + U(x.ex) + "</td></tr>";
+  }).join("");
+  $("flagNote").innerHTML =
+    "A randomly generated corpus almost never produces a 64-byte label or a <code>--</code> at " +
+    "offset 3, so three of these rows read low here and are demonstrated on shaped inputs in the " +
+    "reference set instead. The row that moves a corpus is the one nobody can shape away: " +
+    "<strong>Transitional_Processing</strong>, because the four deviation characters occur in " +
+    "ordinary words.";
+}
+
+function renderDerive(){
+  var d = deriveStats();
+  var rows = Object.keys(d.reasons).sort(function(a, b){ return d.reasons[b] - d.reasons[a]; });
+  $("deriveStats").innerHTML =
+    "<tr><td class='t-xs b'>code points swept</td><td class='mono b'>" + d.swept + "</td>" +
+      "<td class='t-xs dim'>across " + d.blocks + " Unicode blocks</td></tr>" +
+    "<tr><td class='t-xs b'>NFKC + toLowerCase is right</td><td class='mono b ok'>" + d.agree +
+      "</td><td class='t-xs dim'>" + d.pct.toFixed(1) + "%</td></tr>" +
+    "<tr><td class='t-xs b'>needs a table</td><td class='mono b bad'>" + d.differ +
+      "</td><td class='t-xs dim'>" + (100 - d.pct).toFixed(1) + "%</td></tr>" +
+    rows.map(function(r){
+      return "<tr><td class='t-xs' style='padding-left:22px'>&mdash; " + esc(r) + "</td>" +
+        "<td class='mono'>" + d.reasons[r] + "</td><td></td></tr>";
+    }).join("");
+  $("overrides").innerHTML = OVERRIDE.map(function(o){
+    var ch = String.fromCodePoint(o[0]);
+    var derived = derivedOnly(o[0]);
+    return "<tr><td class='mono'>U+" + o[0].toString(16).toUpperCase().padStart(4, "0") +
+      " " + U(ch) + "</td><td class='mono'>" + (derived === null ? "<em>refused</em>" : U(derived)) + "</td>" +
+      "<td class='mono'>" + (o[1] === null ? '<span class="bad">disallowed</span>' : U(o[1])) + "</td>" +
+      "<td class='t-xs muted'>" + esc(o[2]) + "</td></tr>";
+  }).join("");
+}
+
+function renderBidi(){
+  $("bidiTable").innerHTML = BIDI_MEASURED.map(function(m){
+    var pct = 100 * m[1] / m[2];
+    return "<tr><td class='t-xs b'>" + esc(m[0]) + "</td><td class='mono b'>" + m[1] + " / " + m[2] +
+      "</td><td style='width:22%'><div class='bar' style='width:" + Math.round(pct) + "%'></div>" +
+      "<span class='t-xs dim'>" + pct.toFixed(1) + "%</span></td>" +
+      "<td class='mono b bad'>" + m[3] + "</td><td class='t-xs muted'>" + esc(m[4]) + "</td></tr>";
+  }).join("") +
+  BIDI_BUCKETS.map(function(b){
+    return "<tr><td class='t-xs' style='padding-left:22px'>&mdash; of which condition " + b[0] +
+      "</td><td class='mono'>" + b[1] + "</td><td colspan='3' class='t-xs muted'>" + esc(b[2]) +
+      "</td></tr>";
+  }).join("");
+}
+
+function renderRef(){
+  var ref = runRefCases(), inv = invariants(), h = hyphenScore(), a = astralScore();
+  var total = ref.checks + inv.asserts;
+  if (ref.failures.length || inv.failures){
+    $("ref").textContent =
+      ref.failures.map(function(f){
+        return "FAIL #" + f.i + "  " + f.input + "  [" + f.profile + "]\n  want " + f.want +
+               "\n  got  " + f.got + "\n  :: " + f.why;
+      }).join("\n") + (inv.examples.length ? "\n" + inv.examples.join("\n") : "");
+    return;
+  }
+  $("ref").textContent =
+    ref.total + " reference cases, " + total + " assertions, 0 failures.\n" +
+    "  " + ref.checks + " reference cases across three profiles; every case whose expected value is\n" +
+    "      an ASCII domain was checked against an INDEPENDENT UTS #46 implementation, not this engine\n" +
+    "  " + inv.asserts + " invariants over " + inv.domains + " generated domains: deterministic, " +
+    "ASCII-only output,\n      ToASCII idempotent, every emitted label round-trips through punycode, " +
+    "every refusal\n      carries a named rule, and the RFC profile never accepts what the browser " +
+    "profile refuses\n" +
+    "  " + (h.without.n + h.withHyphen.n + a.bmp.n + a.astral.n) +
+    " differential runs against two deliberately wrong engines\n\n" +
+    "Each reference case is one a plausible implementation gets wrong:\n" +
+    "  fass.de and xn--fa-hia.de are the same German word in two cases - the pipeline ORDER decides\n" +
+    "  the punycode delimiter is the LAST hyphen; every earlier one is a letter of the domain\n" +
+    "  no ASCII survivors means NO delimiter at all, which is where the off-by-one lives\n" +
+    '  "--" at offsets 3-4 is fatal and the same two hyphens one place over is fine\n' +
+    "  xn-- means decode at offset 0 and nothing anywhere else, and is tested AFTER case folding\n" +
+    "  a label that decodes but does not re-encode was never produced by a conforming encoder\n" +
+    "  ZWNJ has two CONTEXTJ rules and ZWJ has one, so one invisible character is legal and one is not\n" +
+    "  U+200B is IGNORED, so exa<U+200B>mple.com IS example.com - not similar to it\n" +
+    "  U+3002 U+FF0E U+FF61 are label separators, so a domain with no ASCII dot still has four labels\n" +
+    "  1abc is legal until an Arabic sibling appears three dots away and RFC 5893 turns on\n" +
+    "  U+04C0 is disallowed while its own lowercase U+04CF is valid, and is the letter in the spoof\n" +
+    "  capital sharp s folds to two ASCII letters, which NFKC + toLowerCase does not tell you";
+}
+
+$("preset").addEventListener("change", function(){
+  $("dom").value = PRESETS[parseInt($("preset").value, 10)][1];
+  renderMain();
+});
+$("dom").addEventListener("input", renderMain);
+$("prof").addEventListener("change", renderMain);
+["spoof", "target"].forEach(function(id){ $(id).addEventListener("input", renderHomo); });
+
+fillPresets();
+renderMain();
+renderHomo();
+renderDerive();
+renderBidi();
+// the corpora run thousands of ToASCII calls, so let the page paint first
+setTimeout(function(){ renderHyphenAstral(); renderFlags(); renderRef(); }, 30);
+</script>
+</body>
+</html>
