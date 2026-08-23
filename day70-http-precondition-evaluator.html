@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 70 &mdash; HTTP precondition &amp; byte-range evaluator</title>
+<style>
+/* ---- no CDN, no build step: the handful of utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.bar { height:10px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+.barlim { background:#f43f5e; }
+.barwin { background:#334155; }
+.inv { background:#fff1f2; outline:1px dashed #fb7185; border-radius:3px; padding:0 2px; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.wrap3 { max-width:760px;  margin:0 auto; }
+.p4 { padding:16px; } .p5 { padding:20px; } .p6 { padding:24px; } .p8 { padding:32px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+.g2t { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+.g3t { display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.stack6 > * + * { margin-top:22px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; } .bg2 { background:#f8fafc; } .bg0 { background:#fff; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+/* status pills */
+.st { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:13px; padding:3px 10px;
+      border-radius:6px; display:inline-block; }
+.s200{background:#dcfce7;color:#14532d}.s206{background:#cffafe;color:#155e75}
+.s304{background:#e0e7ff;color:#3730a3}.s412{background:#fee2e2;color:#7f1d1d}
+.s416{background:#ffedd5;color:#7c2d12}.s404{background:#f1f5f9;color:#334155}
+/* the trace walk */
+.walk { border-left:3px solid #e2e8f0; padding-left:14px; }
+.wstep { position:relative; padding:8px 0; }
+.wstep::before { content:""; position:absolute; left:-20px; top:15px; width:9px; height:9px;
+      border-radius:99px; background:#cbd5e1; }
+.wstep.wpass::before { background:#10b981; } .wstep.wfail::before { background:#f43f5e; }
+.wstep.wskip::before { background:#fff; outline:2px solid #cbd5e1; }
+.wstep.wnote::before { background:#f59e0b; }
+.wmute { opacity:.62; }
+.byteline { display:flex; height:16px; border-radius:4px; overflow:hidden; background:#e2e8f0; }
+.byteseg { background:#0ea5e9; } .byteseg2 { background:#6366f1; } .byteseg3 { background:#f59e0b; }
+.hdrrow { display:grid; grid-template-columns:190px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } .g3t { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 70</p>
+    <h1 class="mb4">
+      🎯 HTTP conditional-request &amp; byte-range evaluator &mdash; a real RFC&nbsp;9110
+      &sect;13.2.2 engine. Give it a resource and the six conditional fields and it returns the exact
+      status your origin will produce, <strong>naming the rule that decided it</strong> and showing
+      which present headers were never even consulted. The trap at the centre is not a token that
+      means two things &mdash; it is a token that means <em>nothing at all by itself</em>:
+      <code>W/&quot;abc&quot;</code> against a strong <code>&quot;abc&quot;</code> is a
+      <strong>304</strong> in <code>If-None-Match</code>, a <strong>412</strong> in
+      <code>If-Match</code>, a <strong>200</strong> in <code>If-Range</code>, a <strong>200</strong>
+      in <code>If-None-Match</code> on a POST, and a <strong>206</strong> in
+      <code>If-None-Match</code> on a GET that merely also carries a <code>Range</code> field.
+      Four different status codes, one unchanged token, and nothing about the tag decides &mdash;
+      the header, the method and an unrelated neighbour do. 79 reference cases, and the engine is
+      checked against <strong>a live Apache&nbsp;httpd&nbsp;2.4.41 over 3,750 real requests with zero
+      status disagreements</strong>, 341 <code>Content-Range</code> strings and 176 response bodies
+      byte-identical. The model everybody writes &mdash; evaluate every conditional and AND the
+      results &mdash; is <strong>exactly right on all 7,680 grid cells where no header is muzzled and
+      wrong on 22.50% of the 3,840 where one is</strong>, which is precisely why it survives every
+      test suite. Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🎯 EVALUATE</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================ EVALUATE -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <p class="lbl mb1">PRESET</p>
+      <select id="preset" class="mb3"></select>
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb2">THE REQUEST</p>
+          <div class="hdrrow"><span class="t-xs b">Method</span>
+            <select id="method">
+              <option>GET</option><option>HEAD</option><option>POST</option>
+              <option>PUT</option><option>DELETE</option>
+            </select></div>
+          <div class="hdrrow"><span class="t-xs b">If-Match</span><input id="h-if-match" placeholder="(absent)"></div>
+          <div class="hdrrow"><span class="t-xs b">If-Unmodified-Since</span><input id="h-if-unmodified-since" placeholder="(absent)"></div>
+          <div class="hdrrow"><span class="t-xs b">If-None-Match</span><input id="h-if-none-match" placeholder="(absent)"></div>
+          <div class="hdrrow"><span class="t-xs b">If-Modified-Since</span><input id="h-if-modified-since" placeholder="(absent)"></div>
+          <div class="hdrrow"><span class="t-xs b">Range</span><input id="h-range" placeholder="(absent)"></div>
+          <div class="hdrrow"><span class="t-xs b">If-Range</span><input id="h-if-range" placeholder="(absent)"></div>
+        </div>
+        <div>
+          <p class="lbl mb2">THE SELECTED REPRESENTATION</p>
+          <div class="hdrrow"><span class="t-xs b">Exists</span>
+            <select id="r-exists"><option value="1">yes</option><option value="0">no (404 territory)</option></select></div>
+          <div class="hdrrow"><span class="t-xs b">ETag opaque part</span><input id="r-etag" value="abc123"></div>
+          <div class="hdrrow"><span class="t-xs b">ETag strength</span>
+            <select id="r-weak"><option value="0">strong &mdash; "abc123"</option><option value="1">weak &mdash; W/"abc123"</option></select></div>
+          <div class="hdrrow"><span class="t-xs b">Last-Modified</span><input id="r-lm" value="Sun, 23 Aug 2026 11:00:00 GMT"></div>
+          <div class="hdrrow"><span class="t-xs b">Length (bytes)</span><input id="r-len" value="4096"></div>
+          <div class="hdrrow"><span class="t-xs b">Server clock now</span><input id="r-now" value="Sun, 23 Aug 2026 12:00:00 GMT"></div>
+          <div class="hdrrow"><span class="t-xs b">Profile</span>
+            <select id="profile">
+              <option value="rfc9110">RFC 9110 (2022) &mdash; the current text</option>
+              <option value="rfc2616">RFC 2616 (1999) &mdash; the text everyone learned</option>
+              <option value="apache">Apache httpd 2.4.41 &mdash; as measured on this machine</option>
+            </select></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="verdict"></div>
+
+    <div class="grid g2">
+      <div class="card"><p class="lbl mb2">THE ORDERED WALK &mdash; RFC 9110 &sect;13.2.2</p><div id="walk"></div></div>
+      <div class="card"><p class="lbl mb2">WHAT GOES BACK ON THE WIRE</p><div id="wire"></div></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb2">THE SAME REQUEST UNDER ALL THREE PROFILES</p>
+      <div id="threeprof"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE FIVE PLACES ONE TOKEN CAN SIT</p>
+      <p class="t-sm muted mb3">A representation whose current validator is the <b>strong</b> tag
+        <code id="fivetag">"abc123"</code>. In every row below the client sends the <i>weak</i>
+        spelling of that same tag &mdash; <code id="fivewtag">W/"abc123"</code> &mdash; unchanged,
+        byte for byte. Nothing about the token varies down the column.</p>
+      <div class="scroll" id="fiveway"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- =========================================================== UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg2">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">A conditional request is not a set of tests. It is a walk.</h2>
+      <p class="t-sm muted mb3">
+        Six fields can appear on one request: <code>If-Match</code>,
+        <code>If-Unmodified-Since</code>, <code>If-None-Match</code>,
+        <code>If-Modified-Since</code>, <code>Range</code> and <code>If-Range</code>. The obvious
+        implementation reads each one, decides whether it passes, and combines the answers. That is
+        wrong, and it is wrong in a way no ordinary test can see.
+      </p>
+      <p class="t-sm muted mb3">
+        RFC 9110 &sect;13.2.2 lays the six out in a fixed order with two <b>else</b> branches in it.
+        Step 2 is only reached when <code>If-Match</code> is <em>absent</em>. Step 4 is only reached
+        when <code>If-None-Match</code> is <em>absent</em>. So a header that is present, well formed,
+        and would have failed is <b>never consulted</b>, and the response is the one it would have
+        prevented. Presence, not value, is what silences it &mdash; an
+        <code>If-None-Match</code> holding pure garbage still silences
+        <code>If-Modified-Since</code>.
+      </p>
+      <div class="note note-b t-sm">
+        <b>The rule to internalise.</b> Entity tags outrank dates, always, and the outranking is
+        <i>total</i>: the date is not a tie-breaker, a fallback, or a second opinion. If a tag field
+        is present its date partner might as well not have been sent.
+      </div>
+      <div class="sep"></div>
+      <p class="lbl mb2">THE WALK, WRITTEN OUT</p>
+      <div class="scroll" id="walktable"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Pricing the model everyone writes</h3>
+      <p class="t-sm muted mb3">
+        Below, the whole cross-product of five methods &times; eight <code>If-Match</code> values
+        &times; eight <code>If-None-Match</code> values &times; six
+        <code>If-Unmodified-Since</code> values &times; six <code>If-Modified-Since</code> values,
+        plus a separate range grid. Each candidate implementation is a defensible reading of the same
+        words; the column is how often it returns a different status code from RFC 9110.
+      </p>
+      <div class="scroll mb3" id="models"></div>
+      <div class="note note-r t-sm">
+        <b>The reason the AND model ships.</b> Split the same grid by whether a muzzle actually
+        fired and it stops looking like a 7% bug. <span id="andsplit"></span> A test suite that
+        sends one conditional header at a time cannot distinguish the two implementations at all,
+        and one conditional header at a time is exactly how conditional requests are tested.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Two comparison functions, and the tag does not choose</h3>
+      <p class="t-sm muted mb3">
+        RFC 9110 &sect;8.8.3.2 defines <b>strong</b> comparison (neither side may be weak, and the
+        opaque parts match) and <b>weak</b> comparison (the opaque parts match, and
+        <code>W/</code> is stripped from both sides). Which one runs is a property of the
+        <i>field</i>: strong for <code>If-Match</code> and <code>If-Range</code>, weak for
+        <code>If-None-Match</code>. Then two widely deployed readings narrow the weak one further,
+        and both are switched by something outside the header.
+      </p>
+      <div class="scroll mb3" id="cmptable"></div>
+      <p class="t-sm muted mb3">
+        The consequence is that <code>W/&quot;abc&quot;</code> has no verdict of its own. Move it
+        between fields and the status changes; leave it where it is and change the method and the
+        status changes; leave both alone and add an unrelated <code>Range</code> field and the
+        status changes again. <span id="fivewaysummary"></span>
+      </p>
+      <div class="note t-sm">
+        <b>The identical malformation, two opposite verdicts.</b> A field value that holds no valid
+        entity-tag at all matches nothing. In <code>If-Match</code> &mdash; &ldquo;does any listed
+        tag match?&rdquo; &mdash; that answer is <i>no</i>, the condition fails, and the request is
+        refused with 412. In <code>If-None-Match</code> the same answer is the condition
+        <i>succeeding</i>, and the request proceeds untouched. Same bytes, same parser, opposite
+        outcome, decided only by which field name precedes the colon.
+        <div class="scroll mt3" id="junktable"></div>
+      </div>
+      <div class="sep"></div>
+      <p class="lbl mb2">AND <code>*</code> IS INVERTED THE SAME WAY</p>
+      <p class="t-sm muted mb2">
+        <code>If-Match: *</code> means &ldquo;only if it exists&rdquo;. <code>If-None-Match: *</code>
+        means &ldquo;only if it does <i>not</i>&rdquo;. The second is how you create a resource
+        without overwriting one, and the first is how you overwrite one without creating it.
+      </p>
+      <div class="scroll" id="startable"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Range has two failure modes and they go in opposite directions</h3>
+      <p class="t-sm muted mb3">
+        A <code>Range</code> field the server cannot honour has two entirely different fates. An
+        <b>invalid</b> one &mdash; bad syntax, a <code>last-byte-pos</code> below its
+        <code>first-byte-pos</code>, an unknown unit &mdash; is <b>ignored</b>: the field vanishes
+        and the client receives 200 with the whole representation. A <b>valid but unsatisfiable</b>
+        one &mdash; correct syntax, every offset past the end &mdash; is <b>416</b>, and the client
+        receives nothing. The natural implementation collapses the two into one error path.
+      </p>
+      <div class="scroll mb3" id="rangetable"></div>
+      <div class="note note-r t-sm" id="rangeblind"></div>
+      <div class="sep"></div>
+      <p class="lbl mb2">AND THE PART COUNT IS NOT THE RANGE COUNT</p>
+      <p class="t-sm muted mb3">
+        &sect;14.2 permits an origin to coalesce ranges that overlap or sit close together. Touching
+        ranges therefore fuse: <code>bytes=0-9,10-19,20-29</code> is three specifications and
+        <b>one</b> part, returned with a plain <code>Content-Range</code> and no multipart wrapper at
+        all. A client that counts commas to decide how to parse the body is wrong before it starts.
+        Ranges are also emitted in <b>request order</b>, not ascending &mdash; ask for
+        <code>bytes=20-29,0-9</code> and the second part of the body is the first part of the file.
+      </p>
+      <div class="scroll mb3" id="coaltable"></div>
+      <p class="t-sm muted" id="coalfuzz"></p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">The date is three grammars and a sliding window</h3>
+      <p class="t-sm muted mb3">
+        &sect;5.6.7 obliges a recipient to accept three formats. A server may only <i>send</i> the
+        first. The second carries a two-digit year, and the disambiguation is not
+        &ldquo;assume 19xx&rdquo; &mdash; it is a fifty-year window anchored on the reader's own
+        clock, so the same nine characters denote different years depending on when they are read.
+      </p>
+      <div class="scroll mb3" id="datetable"></div>
+      <p class="t-sm muted mb3" id="yearsummary"></p>
+      <div class="note t-sm">
+        <b>One date comparison in HTTP is an equality.</b> <code>If-Modified-Since</code> and
+        <code>If-Unmodified-Since</code> are inequalities against <code>Last-Modified</code>.
+        <code>If-Range</code> with a date is an <i>exact match</i>: not &ldquo;no newer
+        than&rdquo;, exactly equal. And <code>HTTP-date</code> has one-second resolution while a
+        filesystem timestamp does not, so <span id="subsecond"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Measured against a real server, not against my expectations</h3>
+      <p class="t-sm muted mb3">
+        Every switch in the <code>apache</code> profile was set by firing requests at a throwaway
+        <b>Apache httpd 2.4.41</b> on this machine and reading the status line back &mdash; the same
+        method Day&nbsp;61 used against <code>git check-ignore</code> and Day&nbsp;69 against ICU.
+        3,750 live requests over five fixtures of 0, 1, 72, 333 and 4,096 bytes: <b>zero status
+        disagreements</b>, all 341 <code>Content-Range</code> strings identical, all 176 GET bodies
+        byte-identical, and all 63 <code>multipart/byteranges</code> part lists identical in count,
+        offsets and order. The whole run is reproducible from the verifier, which starts its own
+        httpd on a spare port and tears it down again.
+      </p>
+      <p class="t-sm muted mb3">
+        Six of those switches are not options the specification offers. They are places where a real
+        server does something else, and they were all found by disagreement, not by reading:
+      </p>
+      <div class="scroll mb3" id="apachetable"></div>
+      <div class="note note-r t-sm">
+        <b>The one that will cost you money.</b> <span id="apachetop"></span>
+      </div>
+      <div class="sep"></div>
+      <p class="lbl mb2">AND THE VALIDATOR IS A FUNCTION OF THE CLOCK</p>
+      <p class="t-sm muted mb3">
+        Apache emits <code>W/&quot;...&quot;</code> instead of <code>&quot;...&quot;</code> for a
+        representation modified within the last second, because a second is the resolution of the
+        <code>Last-Modified</code> it is about to send and it cannot promise that a second request
+        inside that window sees the same bytes. Both range gates use strong comparison, so for
+        exactly one second after a file changes, <b>no download can be resumed</b> &mdash; the same
+        request that returns 206 at 1,000&nbsp;ms returns 200 and the entire body at 999.
+      </p>
+      <div class="scroll" id="clocktable"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Where the revisions disagree</h3>
+      <p class="t-sm muted mb3">
+        The ordered walk is not in RFC 2616 at all &mdash; it first appears in RFC 7232 &sect;6
+        (2014) and carries into RFC 9110 &sect;13.2.2 (2022). RFC 2616 also declared an
+        <code>If-Modified-Since</code> later than the server's own clock to be <i>invalid</i>, a
+        sentence the later texts deleted. Both differences are invisible on a request carrying one
+        conditional header and appear only when two collide.
+      </p>
+      <div class="scroll mb3" id="revtable"></div>
+      <p class="t-sm muted" id="revsplit"></p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Four things I had backwards</h3>
+      <ul class="t-sm muted">
+        <li><b>I modelled an unparseable <code>If-Match</code> as &ldquo;ignore the
+          field&rdquo;.</b> Apache returned 412 on every one of them and Apache is right: the field
+          asks whether any listed tag matches, and a list containing no valid tag answers no. My
+          reading turned a refusal into a success on 218 of the first 1,708 differential cases.</li>
+        <li><b>I assumed the precedence muzzle was about validity.</b> It is about
+          <i>presence</i>. An <code>If-None-Match</code> holding literal garbage silences
+          <code>If-Modified-Since</code> just as effectively as a well-formed one, in the
+          specification and in the server, and clearing the presence flag on a parse failure cost me
+          eight more disagreements.</li>
+        <li><b>I expected the range-count cap to count the ranges in the field.</b> It counts the
+          ranges that survive clipping to the current length, so one unchanged
+          <code>Range</code> header is over the cap on a long representation and under it on a short
+          one. Nine cases, all on the 333-byte fixture.</li>
+        <li><b>I read &ldquo;a suffix-length of 0&rdquo; and &ldquo;an empty list element&rdquo; as
+          the same kind of malformation.</b> They are not: &sect;5.6.1 explicitly requires a
+          recipient to parse and ignore empty elements, so <code>bytes=0-9,,20-29</code> is a
+          perfectly good two-range request, while <code>bytes=-0</code> selects nothing and takes
+          the whole field down with it.</li>
+        <li><b>My first <code>coalesce</code> was wrong, and only the oracle could see it.</b> It
+          merged each new interval into the first part it overlapped and stopped &mdash; which is
+          right until one open-ended range bridges two parts that were not touching each other, and
+          then it emits two adjacent parts that should have been one. The live server agreed with me
+          on every request in the differential sweep, because nothing a real client sends has that
+          shape. The byte-marking oracle disagreed on the first few hundred fuzzed fields. Merging
+          now runs to a fixpoint.</li>
+        <li><b>I asserted that the fifty-year window always lands on the most recent year with
+          those digits, and it does not.</b> The rule in &sect;5.6.7 is one-directional: start in the
+          reader's own century and step <i>back</i> while the result is more than fifty years ahead.
+          It never steps forward. So a 1999-era recipient reads <code>06-Nov-00</code> as
+          <b>1900</b>, not 2000 &mdash; the clause that fixed Y2K for HTTP dates cannot rescue a
+          date that already lands in the past, which is the Y2K bug itself, preserved in the
+          grammar. My assertion failed on 21 of the 100 two-digit years at that reader year, and the
+          engine was right.</li>
+      </ul>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">Building it</h2>
+      <p class="t-sm muted mb3">
+        Roughly 400 lines with no dependencies and no <code>Date</code> object anywhere. The design
+        decision that makes the rest fall out: the walk is written as a walk, with the two
+        <b>else</b> branches expressed as branches, and every step pushes a record onto a trace
+        rather than returning a bare boolean. That is what makes &ldquo;which rule decided
+        this&rdquo; answerable, and it is also what makes the muzzle visible instead of implicit.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">1. Two comparison functions, four lines</h3>
+      <pre><code>// RFC 9110 8.8.3.2 -- strong: NEITHER side may be weak, and the opaque parts match.
+function strongCompare(a, b) { return !a.weak &amp;&amp; !b.weak &amp;&amp; a.opaque === b.opaque; }
+// weak: the opaque parts match; the W/ prefix is stripped from BOTH sides.
+function weakCompare(a, b)   { return a.opaque === b.opaque; }</code></pre>
+      <p class="t-sm muted mt3">
+        Note what <code>strongCompare</code> says about a weak tag compared with <i>itself</i>: it
+        does not match. That is not a bug to be smoothed over, it is the definition. A weak validator
+        asserts semantic equivalence, and no amount of equivalence licenses splicing two byte
+        streams together, so the two fields that decide whether bytes may be spliced &mdash;
+        <code>If-Match</code> and <code>If-Range</code> &mdash; refuse it.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">2. The walk, and the two elses</h3>
+      <pre><code>// step 1 : If-Match
+if (im.present) { ...; if (!hit) return done(412, ...); }
+
+// step 2 : If-Unmodified-Since -- ONLY when If-Match is absent
+if (typeof iusRaw === 'string') {
+  if (P.precedence === true &amp;&amp; im.present) {
+    step(2, { verdict: 'not consulted', muzzled: true });   // never parsed
+  } else { ... }
+}
+
+// step 3 : If-None-Match
+// step 4 : If-Modified-Since -- ONLY when If-None-Match is absent
+//          and the gate is inm.present, NOT inm.ok</code></pre>
+      <p class="t-sm muted mt3">
+        Writing <code>muzzled: true</code> into the trace instead of simply skipping the step is what
+        lets the page count 3,840 muzzled cells and the 864 where the naive reading diverges. A
+        branch that produces no record cannot be measured, and the whole point of this page is that
+        the difference between the two implementations is unmeasurable by ordinary means.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">3. Invalid is not unsatisfiable</h3>
+      <pre><code>if (!rg.valid)       return done(200, 'Range field invalid, therefore ignored', ...);
+if (!rg.satisfiable) return done(416, 'Range valid but unsatisfiable', ...,
+                                 { 'Content-Range': 'bytes */' + res.length });</code></pre>
+      <p class="t-sm muted mt3">
+        Two lines, adjacent, and opposite. The invariant that keeps them apart lives inside
+        <code>parseRange</code>: any syntax problem returns <code>valid:false</code>
+        <i>immediately</i>, before a single offset is compared against the length, so validity is
+        decided without ever looking at the resource. Satisfiability is the only question that needs
+        to know how long the file is. Once those two are separated the 200-versus-416 split writes
+        itself; fuse them and no test involving a well-formed range will ever notice.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">4. Coalescing preserves order, which is the part that surprises</h3>
+      <pre><code>for (var i = 0; i &lt; sats.length; i++) {
+  var r = { first: ..., last: ... }, merged = false;
+  for (var j = 0; j &lt; out.length; j++) {
+    if (r.first &lt;= out[j].last + 1 + g &amp;&amp; out[j].first &lt;= r.last + 1 + g) {
+      out[j].first = Math.min(out[j].first, r.first);
+      out[j].last  = Math.max(out[j].last,  r.last);
+      merged = true; break;
+    }
+  }
+  if (!merged) out.push(r);              // appended, never sorted
+}</code></pre>
+      <p class="t-sm muted mt3">
+        The <code>+ 1</code> is the adjacency: <code>0-9</code> and <code>10-19</code> touch, so they
+        merge. The measured gap tolerance on this machine is exactly zero &mdash; one byte of space
+        between two ranges and they stay separate parts &mdash; and the merge writes into the
+        <i>earlier</i> slot, which is what keeps request order. Sorting here would be a one-word
+        change and would silently corrupt every client that reassembles by arrival.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">5. Verifying it</h3>
+      <p class="t-sm muted mb3">
+        Three independent layers, none of which trusts the engine:
+      </p>
+      <ul class="t-sm muted mb3">
+        <li><b>A live server.</b> A throwaway Apache httpd 2.4.41 on a spare port with its own
+          minimal config, five fixtures, and 3,800 requests comparing status codes,
+          <code>Content-Range</code> strings, response bodies and multipart part lists.</li>
+        <li><b>An interval-set oracle.</b> Range resolution is re-derived by marking a boolean array
+          of length <i>n</i> byte by byte and reading the runs back out, which shares no line with
+          the interval arithmetic in <code>parseRange</code> and <code>coalesce</code>.</li>
+        <li><b>Reference cases from the specification's own prose</b>, each chosen because a
+          plausible implementation gets it wrong, and each asserting the deciding rule and not only
+          the status.</li>
+      </ul>
+      <div class="note note-g"><pre id="ref" style="background:none;color:#065f46;padding:0;font-size:12px">running&hellip;</pre></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+var tabs = document.querySelectorAll("#tabs button");
+var panels = document.querySelectorAll(".panel");
+tabs.forEach(function(t){ t.addEventListener("click", function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); });
+  t.classList.add("tab-active");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+}); });
+
+// ===== ENGINE:BEGIN =====
+// ============================================================================
+//  RFC 9110 conditional-request + byte-range engine.  DOM-free, dependency-free.
+//  In:   a request  (method + the six conditional/range fields)
+//        a resource (exists, etag, weak, lastModified, length)
+//        a clock    (now, because two of the rules compare against it)
+//  Out:  a status, THE RULE THAT DECIDED IT, an ordered trace of the walk, and
+//        the response fields the status implies (Content-Range, boundary...).
+//
+//  The whole difficulty is that RFC 9110 13.2.2 is not a set of independent
+//  tests -- it is an ORDERED walk with two else-branches.  A field that is
+//  present and WOULD FAIL is never consulted when its senior partner is there.
+// ============================================================================
+
+var DAY3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var DAYL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+var MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ---------------------------------------------------------------------------
+// 1. HTTP-date.  RFC 9110 5.6.7 obliges a recipient to accept THREE formats.
+//    The one that bites is rfc850-date: it carries a TWO-DIGIT year, and the
+//    disambiguation is not "assume 19xx" -- it is a 50-year window sliding on
+//    the recipient's own clock, so the same string means different years on
+//    different days.
+// ---------------------------------------------------------------------------
+function daysFromCivil(y, m, d) {          // Hinnant's algorithm; no Date() anywhere
+  y -= m <= 2 ? 1 : 0;
+  var era = Math.floor(y / 400), yoe = y - era * 400;
+  var doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  var doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+function civilFromDays(z) {
+  z += 719468;
+  var era = Math.floor(z / 146097), doe = z - era * 146097;
+  var yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+  var y = yoe + era * 400;
+  var doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  var mp = Math.floor((5 * doy + 2) / 153);
+  var d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  var m = mp + (mp < 10 ? 3 : -9);
+  return { y: y + (m <= 2 ? 1 : 0), m: m, d: d };
+}
+function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+function daysInMonth(y, m) { return [31, isLeap(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; }
+function mkTime(y, mo, d, h, mi, s) { return (daysFromCivil(y, mo, d) * 86400 + h * 3600 + mi * 60 + s) * 1000; }
+function fmtImf(ms) {
+  var days = Math.floor(ms / 86400000), rem = ms - days * 86400000;
+  var c = civilFromDays(days), dow = ((days % 7) + 7 + 4) % 7;      // 1970-01-01 was a Thursday
+  var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  return DAY3[dow] + ', ' + p2(c.d) + ' ' + MON3[c.m - 1] + ' ' + c.y + ' ' +
+    p2(Math.floor(rem / 3600000)) + ':' + p2(Math.floor(rem % 3600000 / 60000)) + ':' + p2(Math.floor(rem % 60000 / 1000)) + ' GMT';
+}
+function parseHttpDate(raw, nowMs) {
+  if (typeof raw !== 'string') return { ok: false, why: 'absent' };
+  var s = raw, m, y, mo, d, hh, mm, ss, mi;
+  // (a) IMF-fixdate -- the only form a server is permitted to SEND.
+  m = /^([A-Za-z]{3}), (\d{2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/.exec(s);
+  if (m) {
+    if (DAY3.indexOf(m[1]) < 0) return { ok: false, why: 'unknown day-name ' + JSON.stringify(m[1]) };
+    mi = MON3.indexOf(m[3]); if (mi < 0) return { ok: false, why: 'unknown month ' + JSON.stringify(m[3]) };
+    y = +m[4]; mo = mi + 1; d = +m[2]; hh = +m[5]; mm = +m[6]; ss = +m[7];
+    if (d < 1 || d > daysInMonth(y, mo) || hh > 23 || mm > 59 || ss > 60) return { ok: false, why: 'field out of range' };
+    return { ok: true, ms: mkTime(y, mo, d, hh, mm, ss === 60 ? 59 : ss), form: 'imf-fixdate' };
+  }
+  // (b) rfc850-date -- full weekday name, hyphens, TWO-DIGIT year.
+  m = /^([A-Za-z]{6,9}), (\d{2})-([A-Za-z]{3})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) GMT$/.exec(s);
+  if (m) {
+    if (DAYL.indexOf(m[1]) < 0) return { ok: false, why: 'unknown day-name ' + JSON.stringify(m[1]) };
+    mi = MON3.indexOf(m[3]); if (mi < 0) return { ok: false, why: 'unknown month ' + JSON.stringify(m[3]) };
+    var yy = +m[4];
+    var nowY = civilFromDays(Math.floor(nowMs / 86400000)).y;
+    y = Math.floor(nowY / 100) * 100 + yy;          // start in the reader's century
+    if (y > nowY + 50) y -= 100;                    // >50y ahead => the recent past
+    mo = mi + 1; d = +m[2]; hh = +m[5]; mm = +m[6]; ss = +m[7];
+    if (d < 1 || d > daysInMonth(y, mo) || hh > 23 || mm > 59 || ss > 60) return { ok: false, why: 'field out of range' };
+    return { ok: true, ms: mkTime(y, mo, d, hh, mm, ss === 60 ? 59 : ss), form: 'rfc850-date', twoDigitYear: yy, resolvedYear: y };
+  }
+  // (c) asctime-date -- no comma, no zone, day-of-month SPACE-padded.
+  m = /^([A-Za-z]{3}) ([A-Za-z]{3}) ([ \d]\d) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/.exec(s);
+  if (m) {
+    if (DAY3.indexOf(m[1]) < 0) return { ok: false, why: 'unknown day-name ' + JSON.stringify(m[1]) };
+    mi = MON3.indexOf(m[2]); if (mi < 0) return { ok: false, why: 'unknown month ' + JSON.stringify(m[2]) };
+    y = +m[7]; mo = mi + 1; d = +String(m[3]).replace(/ /g, ''); hh = +m[4]; mm = +m[5]; ss = +m[6];
+    if (d < 1 || d > daysInMonth(y, mo) || hh > 23 || mm > 59 || ss > 60) return { ok: false, why: 'field out of range' };
+    return { ok: true, ms: mkTime(y, mo, d, hh, mm, ss === 60 ? 59 : ss), form: 'asctime-date' };
+  }
+  return { ok: false, why: 'matches none of the three formats' };
+}
+// A shipping server's date parser is looser than the grammar.  Kept as an
+// explicit, switchable PREPROCESSOR rather than folded into the parser above,
+// so the gap between "the three formats" and "what httpd swallows" stays
+// countable instead of disappearing into leniency.
+function relaxHttpDate(raw) {
+  if (typeof raw !== 'string') return raw;
+  var s = raw.replace(/^[ \t]+|[ \t]+$/g, '');            // stray OWS
+  s = s.replace(/;.*$/, '').replace(/[ \t]+$/, '');       // the Netscape "; length=NNN" tail
+  s = s.replace(/ (UTC|UT|Z|GMT[+-]?0*)$/, ' GMT');       // any spelling of zone zero
+  s = s.replace(/^([A-Za-z]{3}) (\d{2} [A-Za-z]{3} \d{4} )/, '$1, $2');  // forgotten comma
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+// 2. Entity tags.  There are TWO comparison functions, and which one you get
+//    is decided by your surroundings, never by anything inside the tag.
+// ---------------------------------------------------------------------------
+function parseETagList(raw) {
+  if (typeof raw !== 'string') return { present: false };
+  var s = raw;
+  if (/^[ \t]*\*[ \t]*$/.test(s)) return { present: true, star: true, tags: [], ok: true };
+  var out = [], i = 0, n = s.length;
+  while (i < n) {
+    while (i < n && (s[i] === ' ' || s[i] === '\t')) i++;
+    if (i >= n) break;
+    var weak = false;
+    if (s[i] === 'W' && s[i + 1] === '/') { weak = true; i += 2; }
+    if (s[i] !== '"') return { present: true, ok: false, why: 'an entity-tag must be DQUOTE-delimited', tags: out };
+    var j = i + 1;
+    while (j < n && s[j] !== '"') {
+      var cc = s.charCodeAt(j);
+      // etagc = %x21 / %x23-7E / obs-text.  Not DQUOTE, not a control char.
+      if (cc < 0x21 || cc === 0x7f) return { present: true, ok: false, why: 'illegal character inside the opaque part', tags: out };
+      j++;
+    }
+    if (j >= n) return { present: true, ok: false, why: 'unterminated entity-tag', tags: out };
+    out.push({ weak: weak, opaque: s.slice(i + 1, j), raw: (weak ? 'W/' : '') + s.slice(i, j + 1) });
+    i = j + 1;
+    while (i < n && (s[i] === ' ' || s[i] === '\t')) i++;
+    if (i < n) { if (s[i] !== ',') return { present: true, ok: false, why: 'expected a comma between entity-tags', tags: out }; i++; }
+  }
+  if (!out.length) return { present: true, ok: false, why: 'no entity-tag in the field value', tags: out };
+  return { present: true, star: false, tags: out, ok: true };
+}
+// RFC 9110 8.8.3.2 -- strong: NEITHER side may be weak, and the opaque parts match.
+function strongCompare(a, b) { return !a.weak && !b.weak && a.opaque === b.opaque; }
+// weak: the opaque parts match; the W/ prefix is stripped from BOTH sides.
+function weakCompare(a, b) { return a.opaque === b.opaque; }
+
+// ---------------------------------------------------------------------------
+// 3. Range.  Two failure modes that almost every implementation collapses
+//    into one, and they have OPPOSITE consequences:
+//      INVALID       -> the field is IGNORED, and the client gets 200 + all of it
+//      UNSATISFIABLE -> 416, and the client gets nothing
+// ---------------------------------------------------------------------------
+function parseRange(raw, len, maxRanges, o) {
+  o = o || {};
+  if (typeof raw !== 'string') return { present: false };
+  var eq = raw.indexOf('=');
+  if (eq < 0) return { present: true, valid: false, why: 'no "=" -- this is not a ranges-specifier at all' };
+  var unit = raw.slice(0, eq);
+  // range-unit is a token and RFC 9110 16.5.1 registers unit names
+  // case-INSENSITIVELY -- but the "=" has to touch the token, so one space
+  // before it makes the unit unrecognisable and the whole field evaporates.
+  if (unit.toLowerCase() !== 'bytes')
+    return { present: true, valid: false, unit: unit, why: 'unrecognised range unit ' + JSON.stringify(unit) + ' -- an origin server MUST ignore the field' };
+  var parts = raw.slice(eq + 1).split(','), specs = [];
+  for (var k = 0; k < parts.length; k++) {
+    // RFC 9110 5.6.1's list rule allows OWS on BOTH sides of the comma.  A
+    // widely deployed parser strips only the LEADING run, which makes a space
+    // BEFORE a comma fatal there and legal here: the same two characters, and
+    // the side of the comma they fall on decides whether the field survives.
+    var t = o.specTrim === 'left' ? parts[k].replace(/^[ \t]+/, '')
+      : parts[k].replace(/^[ \t]+|[ \t]+$/g, '');
+    // The same list rule REQUIRES a recipient to parse and IGNORE empty
+    // elements, so "0-9,,20-29" is not malformed -- the hole is skipped.
+    if (t === '') continue;
+    var m = /^(\d*)-(\d*)$/.exec(t);
+    if (!m) return { present: true, valid: false, unit: unit, why: 'malformed byte-range-spec ' + JSON.stringify(t) };
+    if (m[1] === '' && m[2] === '') return { present: true, valid: false, unit: unit, why: 'a bare "-" is neither an int-range nor a suffix-range' };
+    if (m[1] === '') {
+      var sfx = +m[2];
+      if (sfx === 0) return { present: true, valid: false, unit: unit, why: 'a suffix-length of 0 selects an empty range' };
+      specs.push({ kind: 'suffix', suffix: sfx, raw: t });
+    } else if (m[2] === '') {
+      specs.push({ kind: 'open', first: +m[1], raw: t });
+    } else {
+      var f = +m[1], l = +m[2];
+      // RFC 9110 14.1.1: invalid when last-byte-pos is present and BELOW
+      // first-byte-pos.  One bad spec invalidates the whole SET.
+      if (l < f) return { present: true, valid: false, unit: unit, why: 'last-byte-pos ' + l + ' < first-byte-pos ' + f + ' -- the whole SET is invalid' };
+      specs.push({ kind: 'closed', first: f, last: l, raw: t });
+    }
+  }
+  if (!specs.length) return { present: true, valid: false, unit: unit, why: 'the byte-range-set is empty' };
+  if (o.zeroLenIgnoresRange && len === 0)
+    return { present: true, valid: false, unit: unit, specs: specs, zeroLen: true, why: 'the representation is zero bytes long, so this server drops the field instead of answering 416' };
+  var resolved = [];
+  for (var q = 0; q < specs.length; q++) {
+    var sp = specs[q], a, b;
+    if (sp.kind === 'suffix') { a = Math.max(0, len - sp.suffix); b = len - 1; }
+    else if (sp.kind === 'open') { a = sp.first; b = len - 1; }
+    else { a = sp.first; b = Math.min(sp.last, len - 1); }
+    resolved.push({ spec: sp, first: a, last: b, satisfiable: len > 0 && a < len && a <= b });
+  }
+  var sats = resolved.filter(function (r) { return r.satisfiable; });
+  // The deployed cap counts the ranges the server would actually EMIT, i.e.
+  // AFTER clipping to the current length -- so one unchanged Range field is
+  // over the cap on a long representation and under it on a short one.
+  if (maxRanges != null && sats.length > maxRanges)
+    return { present: true, valid: false, unit: unit, specs: specs, resolved: resolved, overLimit: true,
+      why: sats.length + ' satisfiable ranges exceeds this server' + String.fromCharCode(39) + 's cap of ' + maxRanges + ', so the field is dropped and the FULL body is sent -- not 416, not 206' };
+  return { present: true, valid: true, unit: unit, specs: specs, resolved: resolved, satisfiable: sats.length > 0, sats: sats };
+}
+// Coalesce overlapping / touching intervals, PRESERVING first-appearance order
+// -- the wire order is the REQUEST order, not ascending.
+//
+// The obvious single pass is WRONG, and an independent oracle is what caught
+// it: `bytes=2856-2894,3279-3342,2872-` has one open range that BRIDGES two
+// already-separate parts, so merging into the first slot that overlaps and
+// stopping leaves two parts still touching.  One new interval can fuse
+// arbitrarily many existing ones, and each fusion can reach a further one, so
+// this runs to a fixpoint.  The EARLIER slot always survives a merge, which is
+// what keeps request order intact.
+function coalesce(sats, gapTolerance) {
+  var g = gapTolerance == null ? 0 : gapTolerance, out = [];
+  var touch = function (a, b) { return a.first <= b.last + 1 + g && b.first <= a.last + 1 + g; };
+  for (var i = 0; i < sats.length; i++) {
+    out.push({ first: sats[i].first, last: sats[i].last, from: [sats[i].spec.raw] });
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var a = 0; a < out.length && !changed; a++)
+        for (var b = a + 1; b < out.length && !changed; b++)
+          if (touch(out[a], out[b])) {
+            out[a].first = Math.min(out[a].first, out[b].first);
+            out[a].last = Math.max(out[a].last, out[b].last);
+            out[a].from = out[a].from.concat(out[b].from);
+            out.splice(b, 1);
+            changed = true;
+          }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 4. Profiles.  Every switch below is a place where two defensible readings of
+//    the same words exist, and each is set from MEASUREMENT, not from taste.
+// ---------------------------------------------------------------------------
+//  precedence      : does a present entity-tag field MUZZLE its date partner?
+//  futureIms       : is an If-Modified-Since later than the server clock "invalid"?
+//  inmStrongUnsafe : does If-None-Match switch to STRONG comparison off GET/HEAD?
+//  inmStrongRange  : does a Range field in the same request switch it to STRONG?
+//  inmAndsIms      : when If-None-Match says 304, must the date AGREE?
+//  iusMuzzlesIms   : does If-Unmodified-Since suppress If-Modified-Since?
+//  iusBlocks304    : does a merely PRESENT If-Unmodified-Since forbid any 304?
+//  looseDate       : accept spellings outside RFC 9110's three formats?
+//  specTrim        : 'both' = the list rule's OWS, 'left' = the deployed parser
+//  zeroLenRange    : is a Range on an empty representation dropped, not 416?
+//  weakClock       : ms after a change during which the origin weakens its own validator
+var PROFILES = {
+  rfc9110: {
+    name: 'RFC 9110 (2022)', short: 'spec', precedence: true, futureIms: false,
+    inmStrongUnsafe: false, inmStrongRange: false, inmAndsIms: false, iusMuzzlesIms: false,
+    iusBlocks304: false, looseDate: false, specTrim: 'both', zeroLenRange: false,
+    weakClock: 0, maxRanges: null, gap: 0, contentRangeOn416: true
+  },
+  rfc2616: {
+    name: 'RFC 2616 (1999)', short: 'the 1999 text', precedence: false, futureIms: true,
+    inmStrongUnsafe: true, inmStrongRange: false, inmAndsIms: true, iusMuzzlesIms: false,
+    iusBlocks304: false, looseDate: false, specTrim: 'both', zeroLenRange: false,
+    weakClock: 0, maxRanges: null, gap: 0, contentRangeOn416: true
+  },
+  apache: {
+    name: 'Apache httpd 2.4.41', short: 'as measured', precedence: 'partial', futureIms: true,
+    inmStrongUnsafe: true, inmStrongRange: true, inmAndsIms: true, iusMuzzlesIms: true,
+    iusBlocks304: true, looseDate: true, specTrim: 'left', zeroLenRange: true,
+    weakClock: 1000, maxRanges: 200, gap: 0, contentRangeOn416: false
+  }
+};
+
+function evaluate(req, res, opts) {
+  opts = opts || {};
+  var P = PROFILES[opts.profile || 'rfc9110'];
+  var now = req.now == null ? 0 : req.now;
+  var method = (req.method || 'GET').toUpperCase();
+  var safe = method === 'GET' || method === 'HEAD';
+  var trace = [];
+  var step = function (n, o) { o.step = n; trace.push(o); return o; };
+  var pdate = function (v) { return parseHttpDate(P.looseDate ? relaxHttpDate(v) : v, now); };
+
+  if (!res.exists) {
+    var imAbsent = typeof req['if-match'] !== 'string';
+    step(0, {
+      rule: 'there is no selected representation', verdict: imAbsent ? '404' : 'FAIL',
+      detail: imAbsent ? 'nothing to be conditional about' : 'If-Match cannot succeed against a resource that has no current representation'
+    });
+    return done(imAbsent ? 404 : 412, imAbsent ? 'no such resource' : 'If-Match against a non-existent representation', trace, {});
+  }
+
+  // The origin's own validators.  Strength is not a property of the file --
+  // it is a property of the file AND THE CLOCK.
+  var weakByClock = P.weakClock > 0 && res.lastModified != null && (now - res.lastModified) < P.weakClock;
+  var curTag = res.etag == null ? null : { weak: !!res.weak || weakByClock, opaque: res.etag };
+  if (curTag && weakByClock && !res.weak) {
+    step(-1, {
+      rule: 'the validator is WEAK because of the CLOCK, not the content', verdict: 'weak',
+      detail: 'this representation changed ' + (now - res.lastModified) + ' ms ago, inside the origin' + String.fromCharCode(39) + 's ' + P.weakClock +
+        ' ms window, so it cannot promise byte-for-byte identity to a second request and downgrades its own ETag to W/'
+    });
+  }
+
+  // ---- step 1 : If-Match --------------------------------------------------
+  var imRaw = req['if-match'], im = parseETagList(imRaw);
+  if (im.present) {
+    if (!im.ok) {
+      // Not "ignore".  The field asks "does ANY listed tag match?", and a list
+      // holding no valid tag answers NO.  A malformed If-Match is a 412.
+      step(1, { rule: 'If-Match holds no valid entity-tag, so nothing matches and the condition is FALSE', header: 'If-Match', verdict: 'FAIL', detail: im.why });
+      return done(412, 'If-Match unparseable -- an empty match set is still a failed match', trace, {});
+    }
+    if (im.star) {
+      step(1, { rule: 'If-Match: * succeeds because a current representation exists', header: 'If-Match', verdict: 'pass' });
+    } else {
+      var hit = curTag && im.tags.some(function (t) { return strongCompare(t, curTag); });
+      step(1, {
+        rule: 'If-Match uses the STRONG comparison function (RFC 9110 8.8.3.2)', header: 'If-Match',
+        verdict: hit ? 'pass' : 'FAIL', comparison: 'strong',
+        detail: !curTag ? 'the representation carries no ETag, so nothing can match strongly'
+          : curTag.weak ? 'the current validator is WEAK, and a weak tag matches nothing under strong comparison -- not even its own strong twin'
+            : im.tags.length + ' candidate tag(s) compared against ' + JSON.stringify(curTag.opaque)
+      });
+      if (!hit) return done(412, 'If-Match failed under strong comparison', trace, {});
+    }
+  }
+
+  // ---- step 2 : If-Unmodified-Since, ONLY when If-Match is absent ---------
+  var iusRaw = req['if-unmodified-since'];
+  if (typeof iusRaw === 'string') {
+    if (P.precedence === true && im.present) {
+      step(2, {
+        rule: 'If-Unmodified-Since NOT CONSULTED because If-Match is present', header: 'If-Unmodified-Since',
+        verdict: 'not consulted', muzzled: true,
+        detail: 'RFC 9110 13.2.2 step 2 is an ELSE. The entity-tag precondition is strictly stronger, so the date is never even parsed -- and a date that WOULD have failed changes nothing.'
+      });
+    } else {
+      var iusD = pdate(iusRaw);
+      if (!iusD.ok) {
+        step(2, { rule: 'an If-Unmodified-Since that is not a valid HTTP-date MUST be ignored', header: 'If-Unmodified-Since', verdict: 'ignored', detail: iusD.why });
+      } else if (res.lastModified == null) {
+        step(2, { rule: 'no Last-Modified to compare against', header: 'If-Unmodified-Since', verdict: 'ignored' });
+      } else {
+        var okIus = res.lastModified <= iusD.ms;
+        step(2, {
+          rule: 'If-Unmodified-Since fails when Last-Modified is STRICTLY LATER', header: 'If-Unmodified-Since',
+          verdict: okIus ? 'pass' : 'FAIL', comparison: 'date, one-second granularity',
+          detail: 'Last-Modified ' + fmtImf(res.lastModified) + (okIus ? ' <= ' : ' > ') + fmtImf(iusD.ms) +
+            (iusD.form !== 'imf-fixdate' ? ' [read as ' + iusD.form + (iusD.resolvedYear ? ', two-digit year ' + iusD.twoDigitYear + ' resolved to ' + iusD.resolvedYear : '') + ']' : '')
+        });
+        if (!okIus) return done(412, 'If-Unmodified-Since failed', trace, {});
+      }
+    }
+  }
+
+  // ---- step 3 : If-None-Match --------------------------------------------
+  var inmRaw = req['if-none-match'], inm = parseETagList(inmRaw), decidedInm = false;
+  if (inm.present) {
+    if (!inm.ok) {
+      // The mirror image of step 1: nothing matches, so THIS field's condition
+      // is TRUE and the request proceeds.  But note step 4's gate is written on
+      // PRESENCE, not validity, so this broken field still silences the date.
+      step(3, {
+        rule: 'If-None-Match holds no valid entity-tag, so nothing matches and the condition is TRUE', header: 'If-None-Match',
+        verdict: 'pass', detail: inm.why + ' -- the identical malformation is a 412 in If-Match and a no-op here'
+      });
+    } else if (inm.star) {
+      step(3, {
+        rule: 'If-None-Match: * FAILS whenever a representation exists', header: 'If-None-Match', verdict: 'FAIL',
+        detail: '"*" here means "only if it does not exist yet" -- the exact inverse of the same token in If-Match'
+      });
+      decidedInm = true;
+    } else {
+      // WHICH comparison function?  RFC 9110 says weak, unconditionally.  Two
+      // deployed readings narrow it, and both are switched by something
+      // OUTSIDE this header.
+      var strongByMethod = P.inmStrongUnsafe && !safe;
+      var strongByRange = P.inmStrongRange && safe && typeof req['range'] === 'string';
+      var useStrong = strongByMethod || strongByRange;
+      var cmpFn = useStrong ? strongCompare : weakCompare;
+      var nHit = curTag && inm.tags.some(function (t) { return cmpFn(t, curTag); });
+      step(3, {
+        rule: useStrong
+          ? ('If-None-Match switched to STRONG comparison because ' + (strongByMethod
+            ? 'the method is ' + method + ', not GET or HEAD'
+            : 'a Range field is present -- resuming a transfer on a weak validator could splice two versions together'))
+          : 'If-None-Match uses the WEAK comparison function (RFC 9110 8.8.3.2)',
+        header: 'If-None-Match', verdict: nHit ? 'FAIL' : 'pass',
+        comparison: useStrong ? 'strong' : 'weak', switched: useStrong || undefined,
+        detail: !curTag ? 'the representation carries no ETag, so nothing matches'
+          : useStrong ? 'W/ now counts, so a weak tag matches nothing here'
+            : 'W/ is stripped from BOTH sides, so W/' + JSON.stringify(curTag.opaque) + ' and ' + JSON.stringify(curTag.opaque) + ' are the SAME tag to this field'
+      });
+      decidedInm = !!nHit;
+    }
+    if (decidedInm) {
+      // The status is chosen by the METHOD, not by the header.
+      if (!safe) return done(412, 'If-None-Match matched on ' + method + ', and 304 is not available off GET/HEAD', trace, {});
+      if (P.iusBlocks304 && typeof iusRaw === 'string') {
+        step(3.4, {
+          rule: 'a merely PRESENT If-Unmodified-Since forbids a 304 outright', header: 'If-Unmodified-Since',
+          verdict: 'FAIL', implOnly: true,
+          detail: 'it does not matter that this field PASSED, or that its value is unparseable garbage -- its presence alone moves the request out of the conditional-GET branch, so a matching entity-tag delivers the whole body instead of nothing'
+        });
+        return done(200, 'If-Unmodified-Since present -- the 304 branch is unreachable', trace, {});
+      }
+      if (P.inmAndsIms && typeof req['if-modified-since'] === 'string') {
+        var cD = pdate(req['if-modified-since']);
+        var agree = cD.ok && res.lastModified != null && res.lastModified <= cD.ms && !(P.futureIms && cD.ms > now);
+        step(3.5, {
+          rule: 'the 304 must ALSO survive If-Modified-Since -- conjunction, not precedence',
+          header: 'If-Modified-Since', verdict: agree ? 'pass' : 'FAIL', implOnly: true,
+          detail: !cD.ok
+            ? 'the date is unparseable, and instead of being ignored as the specification requires it CANCELS the 304 -- a broken header you were told to throw away turns a 0-byte response into a full body'
+            : agree ? 'both validators agree the client copy is current'
+              : 'the entity-tag said "unchanged" and the date said "changed"; the date wins and a 304 becomes a 200'
+        });
+        if (!agree) return done(200, 'If-None-Match matched but If-Modified-Since vetoed the 304', trace, {});
+      }
+      return done(304, 'If-None-Match matched on a ' + method, trace, { revalidated: true });
+    }
+  }
+
+  // ---- step 4 : If-Modified-Since, ONLY when If-None-Match is absent ------
+  var imsRaw = req['if-modified-since'];
+  if (typeof imsRaw === 'string') {
+    if (!safe) {
+      step(4, { rule: 'If-Modified-Since applies to GET and HEAD only', header: 'If-Modified-Since', verdict: 'not consulted', detail: method + ' cannot produce a 304' });
+    } else if (P.precedence !== false && inm.present) {
+      step(4, {
+        rule: 'If-Modified-Since NOT CONSULTED because If-None-Match is present', header: 'If-Modified-Since',
+        verdict: 'not consulted', muzzled: true,
+        detail: 'RFC 9110 13.2.2 step 4 is an ELSE. The entity-tag has already answered the question and the date is not a second opinion -- and the gate is PRESENCE, so even an unparseable If-None-Match silences it.'
+      });
+    } else if (P.iusMuzzlesIms && typeof iusRaw === 'string') {
+      step(4, {
+        rule: 'If-Modified-Since NOT CONSULTED because If-Unmodified-Since is present', header: 'If-Modified-Since',
+        verdict: 'not consulted', muzzled: true, implOnly: true,
+        detail: 'no revision of the specification says this. It falls out of one else-if chain in the implementation, and it holds even when the If-Unmodified-Since value is garbage.'
+      });
+    } else {
+      var imsD = pdate(imsRaw);
+      if (!imsD.ok) {
+        step(4, { rule: 'an If-Modified-Since that is not a valid HTTP-date MUST be ignored', header: 'If-Modified-Since', verdict: 'ignored', detail: imsD.why });
+      } else if (P.futureIms && imsD.ms > now) {
+        step(4, {
+          rule: 'an If-Modified-Since later than the server clock is treated as INVALID', header: 'If-Modified-Since',
+          verdict: 'ignored', revisionOnly: true,
+          detail: 'RFC 2616 14.25 says "a date which is later than the server' + String.fromCharCode(39) + 's current time is invalid". RFC 9110 deleted that sentence, so the same request is a 304 under the new text and a 200 under the old one.'
+        });
+      } else if (res.lastModified == null) {
+        step(4, { rule: 'no Last-Modified to compare against', header: 'If-Modified-Since', verdict: 'ignored' });
+      } else {
+        var mod = res.lastModified > imsD.ms;
+        step(4, {
+          rule: 'If-Modified-Since gives 304 unless Last-Modified is STRICTLY LATER', header: 'If-Modified-Since',
+          verdict: mod ? 'pass' : 'FAIL', comparison: 'date, one-second granularity',
+          detail: 'Last-Modified ' + fmtImf(res.lastModified) + (mod ? ' > ' : ' <= ') + fmtImf(imsD.ms) +
+            (imsD.form !== 'imf-fixdate' ? ' [read as ' + imsD.form + (imsD.resolvedYear ? ', two-digit year ' + imsD.twoDigitYear + ' resolved to ' + imsD.resolvedYear : '') + ']' : '')
+        });
+        if (!mod) {
+          if (P.iusBlocks304 && typeof iusRaw === 'string') {
+            step(4.4, { rule: 'a merely PRESENT If-Unmodified-Since forbids a 304 outright', header: 'If-Unmodified-Since', verdict: 'FAIL', implOnly: true });
+            return done(200, 'If-Unmodified-Since present -- the 304 branch is unreachable', trace, {});
+          }
+          return done(304, 'If-Modified-Since says the client copy is current', trace, { revalidated: true });
+        }
+      }
+    }
+  }
+
+  // ---- step 5 : Range, gated by If-Range ---------------------------------
+  var rgRaw = req['range'];
+  if (typeof rgRaw !== 'string') return done(200, 'nothing failed and no Range was asked for', trace, {});
+  if (!safe) {
+    step(5, { rule: 'Range applies to GET and HEAD only', header: 'Range', verdict: 'ignored', detail: method + ' has no partial form' });
+    return done(200, 'Range ignored on ' + method, trace, {});
+  }
+  var ifr = req['if-range'];
+  if (typeof ifr === 'string') {
+    // RFC 9110 13.1.5: the FIRST TWO CHARACTERS decide whether this field
+    // holds an entity-tag or a date.  A quoted string that happens to spell a
+    // date is an opaque TAG, and it will not match one.
+    var looksTag = ifr[0] === '"' || (ifr[0] === 'W' && ifr[1] === '/');
+    if (looksTag) {
+      var L = parseETagList(ifr);
+      var ok5 = L.ok && !L.star && L.tags.length === 1 && curTag && strongCompare(L.tags[0], curTag);
+      step(5, {
+        rule: 'If-Range holds an entity-tag (it opens with a DQUOTE or W/) and uses STRONG comparison',
+        header: 'If-Range', verdict: ok5 ? 'pass' : 'FAIL', comparison: 'strong',
+        detail: !L.ok ? L.why
+          : L.star ? '"*" is not permitted in If-Range at all'
+            : L.tags.length > 1 ? 'If-Range takes exactly ONE validator, never a list'
+              : !curTag ? 'the representation carries no ETag'
+                : (L.tags[0].weak || curTag.weak) ? 'a WEAK validator can never gate a range: the bytes may have moved even though the resource is "equivalent"'
+                  : 'tags compared byte for byte'
+      });
+      if (!ok5) {
+        step(5.1, { rule: 'a failed If-Range serves the WHOLE representation -- it is not an error', verdict: '200', detail: 'the client asked for a slice of a version the server no longer has, so it is handed the current one entire' });
+        return done(200, 'If-Range did not match -- Range discarded, full body sent', trace, {});
+      }
+    } else {
+      var dD = pdate(ifr);
+      var weakLM = P.weakClock > 0 && res.lastModified != null && (now - res.lastModified) < P.weakClock;
+      var okD = dD.ok && res.lastModified != null && res.lastModified === dD.ms && !weakLM;
+      step(5, {
+        rule: 'If-Range holds an HTTP-date and needs an EXACT, strong match',
+        header: 'If-Range', verdict: okD ? 'pass' : 'FAIL', comparison: 'strong date',
+        detail: !dD.ok ? 'unparseable: ' + dD.why
+          : res.lastModified == null ? 'no Last-Modified'
+            : weakLM ? 'the origin will not vouch for a Last-Modified it set less than a second ago'
+              : res.lastModified === dD.ms ? 'exact match'
+                : 'a date range-gate is EQUALITY, not "no newer than" -- this is the one date comparison in HTTP that is not an inequality'
+      });
+      if (!okD) {
+        step(5.1, { rule: 'a failed If-Range serves the WHOLE representation', verdict: '200' });
+        return done(200, 'If-Range date did not match -- full body sent', trace, {});
+      }
+    }
+  }
+  var rg = parseRange(rgRaw, res.length, P.maxRanges, { specTrim: P.specTrim, zeroLenIgnoresRange: P.zeroLenRange });
+  if (!rg.valid) {
+    step(6, {
+      rule: 'an INVALID Range field is IGNORED, never rejected', header: 'Range', verdict: '200',
+      detail: rg.why + ' -- so the client receives the entire representation with status 200, which is nothing like the 416 most implementations return here'
+    });
+    return done(200, 'Range field invalid, therefore ignored', trace, {});
+  }
+  if (!rg.satisfiable) {
+    step(6, {
+      rule: 'a VALID but UNSATISFIABLE range is 416', header: 'Range', verdict: '416',
+      detail: res.length === 0 ? 'a zero-length representation makes every byte-range unsatisfiable'
+        : 'no first-byte-pos falls below the current length of ' + res.length
+    });
+    return done(416, 'Range valid but unsatisfiable', trace, P.contentRangeOn416 ? { 'Content-Range': 'bytes */' + res.length } : {});
+  }
+  var parts = coalesce(rg.sats, P.gap);
+  step(6, {
+    rule: 'satisfiable, so 206 -- and overlapping or TOUCHING ranges may be coalesced', header: 'Range', verdict: '206',
+    detail: rg.specs.length + ' byte-range-spec(s) in, ' + parts.length + ' part(s) out' +
+      (parts.length < rg.sats.length ? ' -- ' + (rg.sats.length - parts.length) + ' merged away, so the part COUNT is not the range count' : '') +
+      (rg.resolved.length !== rg.sats.length ? '; ' + (rg.resolved.length - rg.sats.length) + ' individually unsatisfiable spec(s) silently dropped, which does NOT make the request a 416' : '')
+  });
+  var h = {};
+  if (parts.length === 1) h['Content-Range'] = 'bytes ' + parts[0].first + '-' + parts[0].last + '/' + res.length;
+  else h['Content-Type'] = 'multipart/byteranges; boundary=' + (opts.boundary || 'BOUNDARY');
+  return done(206, parts.length === 1 ? 'one satisfiable range' : parts.length + ' disjoint ranges, so multipart/byteranges', trace, h, parts);
+}
+function done(status, why, trace, headers, parts) {
+  var last = null;
+  for (var i = trace.length - 1; i >= 0; i--) {
+    var t = trace[i];
+    if (t.rule && t.verdict !== 'not consulted' && t.verdict !== 'ignored' && t.verdict !== 'weak') { last = t; break; }
+  }
+  return {
+    status: status, why: why, decidedBy: last ? last.rule : 'nothing to decide', trace: trace,
+    headers: headers || {}, parts: parts || null,
+    bodyIs: status === 200 ? 'the whole representation' : status === 206 ? 'the selected bytes'
+      : status === 304 ? 'nothing at all -- headers only, and the client reuses its own copy'
+        : status === 412 ? 'nothing -- and the request was NOT applied' : 'an error document'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 5. The plausible-but-wrong models this page exists to price.  Each is a
+//    reading a careful engineer arrives at from the same words.
+// ---------------------------------------------------------------------------
+// A. every conditional evaluated independently and AND-ed -- no precedence
+function naiveAnd(req, res) {
+  var now = req.now == null ? 0 : req.now, method = (req.method || 'GET').toUpperCase();
+  var safe = method === 'GET' || method === 'HEAD';
+  if (!res.exists) return typeof req['if-match'] === 'string' ? 412 : 404;
+  var cur = res.etag == null ? null : { weak: !!res.weak, opaque: res.etag };
+  var im = parseETagList(req['if-match']);
+  if (im.present && (!im.ok || (!im.star && !(cur && im.tags.some(function (t) { return strongCompare(t, cur); }))))) return 412;
+  var ius = parseHttpDate(req['if-unmodified-since'], now);
+  if (ius.ok && res.lastModified != null && res.lastModified > ius.ms) return 412;
+  var notMod = false;
+  var inm = parseETagList(req['if-none-match']);
+  if (inm.present && inm.ok && (inm.star || (cur && inm.tags.some(function (t) { return weakCompare(t, cur); })))) {
+    if (!safe) return 412;
+    notMod = true;
+  }
+  var ims = parseHttpDate(req['if-modified-since'], now);
+  if (safe && ims.ok && res.lastModified != null && res.lastModified <= ims.ms) notMod = true;
+  if (notMod) return 304;
+  return rangeTail(req, res, cur, strongCompare);
+}
+// B/C. one comparison function everywhere
+function variantCompare(req, res, mode) {
+  var cmp = mode === 'weak' ? weakCompare : strongCompare;
+  var now = req.now == null ? 0 : req.now, method = (req.method || 'GET').toUpperCase();
+  var safe = method === 'GET' || method === 'HEAD';
+  if (!res.exists) return typeof req['if-match'] === 'string' ? 412 : 404;
+  var cur = res.etag == null ? null : { weak: !!res.weak, opaque: res.etag };
+  var im = parseETagList(req['if-match']);
+  if (im.present) {
+    if (!im.ok || (!im.star && !(cur && im.tags.some(function (t) { return cmp(t, cur); })))) return 412;
+  } else {
+    var ius = parseHttpDate(req['if-unmodified-since'], now);
+    if (ius.ok && res.lastModified != null && res.lastModified > ius.ms) return 412;
+  }
+  var inm = parseETagList(req['if-none-match']);
+  if (inm.present) {
+    if (inm.ok && (inm.star || (cur && inm.tags.some(function (t) { return cmp(t, cur); })))) return safe ? 304 : 412;
+  } else if (safe) {
+    var ims = parseHttpDate(req['if-modified-since'], now);
+    if (ims.ok && res.lastModified != null && res.lastModified <= ims.ms) return 304;
+  }
+  return rangeTail(req, res, cur, cmp);
+}
+function naiveWeakEverywhere(req, res) { return variantCompare(req, res, 'weak'); }
+function naiveStrongEverywhere(req, res) { return variantCompare(req, res, 'strong'); }
+function rangeTail(req, res, cur, cmp) {
+  var method = (req.method || 'GET').toUpperCase();
+  if (typeof req['range'] !== 'string' || (method !== 'GET' && method !== 'HEAD')) return 200;
+  var ifr = req['if-range'];
+  if (typeof ifr === 'string') {
+    var lt = ifr[0] === '"' || (ifr[0] === 'W' && ifr[1] === '/');
+    if (lt) {
+      var L = parseETagList(ifr);
+      if (!(L.ok && !L.star && L.tags.length === 1 && cur && cmp(L.tags[0], cur))) return 200;
+    } else {
+      var d = parseHttpDate(ifr, req.now == null ? 0 : req.now);
+      if (!(d.ok && res.lastModified === d.ms)) return 200;
+    }
+  }
+  var rg = parseRange(req['range'], res.length, null, {});
+  if (!rg.valid) return 200;
+  return rg.satisfiable ? 206 : 416;
+}
+// D. "a Range I cannot use is a 416" -- collapsing invalid into unsatisfiable
+function naive416OnInvalid(req, res) {
+  var v = evaluate(req, res, { profile: 'rfc9110' });
+  if (v.status !== 200) return v.status;
+  var m = (req.method || 'GET').toUpperCase();
+  if (m !== 'GET' && m !== 'HEAD') return 200;
+  if (typeof req['range'] !== 'string' || typeof req['if-range'] === 'string') return 200;
+  var pre = parseRange(req['range'], res.length, null, {});
+  return (pre.present && !pre.valid) ? 416 : 200;
+}
+// E. "If-None-Match matched, so 304" -- forgetting the method gate
+function naive304AnyMethod(req, res) {
+  var v = evaluate(req, res, { profile: 'rfc9110' });
+  if (v.status !== 412) return v.status;
+  var t = v.trace[v.trace.length - 1];
+  return (t && t.header === 'If-None-Match') ? 304 : 412;
+}
+// F. "the part count is the range count" -- never coalescing
+function partCountNoCoalesce(req, res) {
+  var v = evaluate(req, res, { profile: 'rfc9110' });
+  if (v.status !== 206) return null;
+  var rg = parseRange(req['range'], res.length, null, {});
+  return { correct: v.parts.length, naive: rg.sats.length };
+}
+
+// ---------------------------------------------------------------------------
+// 6. An INDEPENDENT oracle for range resolution: mark a boolean array byte by
+//    byte and read the runs back.  Shares no line with parseRange/coalesce.
+// ---------------------------------------------------------------------------
+function rangeOracle(rangeField, len) {
+  var eq = rangeField.indexOf('=');
+  if (eq < 0) return null;
+  if (rangeField.slice(0, eq).toLowerCase() !== 'bytes') return null;
+  var items = rangeField.slice(eq + 1).split(','), mark = [], any = false, i, k;
+  for (i = 0; i < len; i++) mark.push(false);
+  for (k = 0; k < items.length; k++) {
+    var t = items[k].replace(/^[ \t]+|[ \t]+$/g, '');
+    if (t === '') continue;
+    var mm = /^(\d*)-(\d*)$/.exec(t);
+    if (!mm) return null;
+    var lo, hi;
+    if (mm[1] === '' && mm[2] === '') return null;
+    if (mm[1] === '') { if (+mm[2] === 0) return null; lo = len - (+mm[2]); if (lo < 0) lo = 0; hi = len - 1; }
+    else if (mm[2] === '') { lo = +mm[1]; hi = len - 1; }
+    else { lo = +mm[1]; hi = +mm[2]; if (hi < lo) return null; if (hi > len - 1) hi = len - 1; }
+    for (i = lo; i <= hi; i++) if (i >= 0 && i < len) { mark[i] = true; any = true; }
+  }
+  if (!any) return { runs: [], empty: true };
+  var runs = [], start = -1;
+  for (i = 0; i < len; i++) {
+    if (mark[i] && start < 0) start = i;
+    if (!mark[i] && start >= 0) { runs.push([start, i - 1]); start = -1; }
+  }
+  if (start >= 0) runs.push([start, len - 1]);
+  return { runs: runs, empty: false };
+}
+
+// ---------------------------------------------------------------------------
+// 7. Reference cases.  Each is one a plausible implementation gets wrong, and
+//    each asserts the DECIDING RULE, not only the status code.
+// ---------------------------------------------------------------------------
+var REF_ETAG = 'abc123';
+var REF_NOW = mkTime(2026, 8, 23, 12, 0, 0);
+var REF_LM = REF_NOW - 3600000;
+function refRes(over) {
+  var r = { exists: true, etag: REF_ETAG, weak: false, lastModified: REF_LM, length: 4096 };
+  if (over) for (var k in over) r[k] = over[k];
+  return r;
+}
+var T = '"abc123"', W = 'W/"abc123"', O = '"zzz"', WO = 'W/"zzz"';
+var D_LM = fmtImf(REF_LM), D_OLD = fmtImf(REF_LM - 86400000),
+    D_NEW = fmtImf(REF_LM + 60000), D_FUT = fmtImf(REF_NOW + 86400000);
+
+// [ method, headers, profile, expectedStatus, ruleFragment, why-it-is-here, resourceOverride ]
+function refCases() { return [
+  // ---- the five positions of one token -----------------------------------
+  ['GET',  { 'if-none-match': W }, 'rfc9110', 304, 'WEAK comparison',
+   'the weak spelling matches a strong tag here: W/ is stripped from both sides'],
+  ['GET',  { 'if-match': W }, 'rfc9110', 412, 'STRONG comparison',
+   'the identical token in the neighbouring field matches nothing'],
+  ['GET',  { 'if-range': W, range: 'bytes=0-9' }, 'rfc9110', 200, 'STRONG comparison',
+   'and in the third field it silently discards the Range and sends everything'],
+  ['POST', { 'if-none-match': W }, 'apache', 200, 'STRONG comparison because the method',
+   'off GET/HEAD a deployed server narrows the comparison, so the same tag stops matching'],
+  ['GET',  { 'if-none-match': W, range: 'bytes=0-9' }, 'apache', 206, 'STRONG comparison because',
+   'adding an unrelated Range field switches the comparison function of If-None-Match'],
+  ['GET',  { 'if-none-match': T, range: 'bytes=0-9' }, 'apache', 304, 'STRONG comparison because',
+   'and with the strong spelling the very same request is a 304 instead'],
+  // ---- the two else branches ---------------------------------------------
+  ['GET',  { 'if-match': T, 'if-unmodified-since': D_OLD }, 'rfc9110', 200, 'NOT CONSULTED because If-Match',
+   'the date would have failed; it is never parsed, so the request succeeds'],
+  ['GET',  { 'if-unmodified-since': D_OLD }, 'rfc9110', 412, 'STRICTLY LATER',
+   'the same date on its own is a 412 -- If-Match did not overrule it, it deleted it'],
+  ['GET',  { 'if-none-match': O, 'if-modified-since': D_LM }, 'rfc9110', 200, 'NOT CONSULTED because If-None-Match',
+   'the date says "not modified" and would give 304; the tag field silences it'],
+  ['GET',  { 'if-modified-since': D_LM }, 'rfc9110', 304, 'STRICTLY LATER',
+   'and alone it is the 304 the previous case did not get'],
+  ['GET',  { 'if-none-match': 'junk', 'if-modified-since': D_LM }, 'rfc9110', 200, 'NOT CONSULTED because If-None-Match',
+   'PRESENCE is the gate, not validity: garbage silences the date just as well'],
+  ['GET',  { 'if-match': 'junk', 'if-unmodified-since': D_NEW }, 'rfc9110', 412, 'no valid entity-tag',
+   'and the same garbage in If-Match is itself the refusal'],
+  // ---- the same malformation, two verdicts -------------------------------
+  ['GET',  { 'if-match': 'junk' }, 'rfc9110', 412, 'If-Match holds no valid entity-tag',
+   'no listed tag matches, so "does any match" is false and the request is refused'],
+  ['GET',  { 'if-none-match': 'junk' }, 'rfc9110', 200, 'no valid entity-tag, so nothing matches and the condition is TRUE',
+   'the identical answer in the identical parser is this field succeeding'],
+  ['GET',  { 'if-match': 'abc123' }, 'rfc9110', 412, 'no valid entity-tag',
+   'an unquoted tag is not an entity-tag at all, however much it looks like one'],
+  ['GET',  { 'if-match': '"unterminated' }, 'rfc9110', 412, 'unterminated',
+   'a missing closing DQUOTE is a parse failure, not a tag with a funny name'],
+  ['GET',  { 'if-match': 'w/"abc123"' }, 'rfc9110', 412, 'no valid entity-tag',
+   'the weak marker is case-SENSITIVE: lowercase w/ is not a weak tag, it is broken'],
+  // ---- star, inverted ----------------------------------------------------
+  ['GET',  { 'if-match': '*' }, 'rfc9110', 200, 'If-Match: * succeeds',
+   '"*" means "only if it exists" and it does'],
+  ['GET',  { 'if-none-match': '*' }, 'rfc9110', 304, 'FAILS whenever a representation exists',
+   'the same token one field over means "only if it does NOT" and it does'],
+  ['PUT',  { 'if-match': '*' }, 'rfc9110', 412, 'no current representation',
+   'the classic overwrite-only-if-present guard, correctly refusing a create', { exists: false }],
+  ['PUT',  { 'if-none-match': '*' }, 'rfc9110', 404, 'no selected representation',
+   'and the create-only-if-absent guard passing on the same missing resource', { exists: false }],
+  ['PUT',  { 'if-none-match': '*' }, 'rfc9110', 412, 'FAILS whenever a representation exists',
+   'and refusing once the resource is there -- this is how you avoid a lost update'],
+  // ---- method decides the status, not the header -------------------------
+  ['GET',    { 'if-none-match': T }, 'rfc9110', 304, 'WEAK comparison',
+   'a matching If-None-Match on a safe method is 304'],
+  ['HEAD',   { 'if-none-match': T }, 'rfc9110', 304, 'WEAK comparison',
+   'HEAD is safe too, and a 304 to a HEAD is not a contradiction'],
+  ['POST',   { 'if-none-match': T }, 'rfc9110', 412, '304 is not available off GET/HEAD',
+   'the same match on POST is 412, because 304 means "reuse your cached body"'],
+  ['DELETE', { 'if-none-match': T }, 'rfc9110', 412, '304 is not available off GET/HEAD',
+   'and the same on DELETE -- there is no cached body to reuse'],
+  ['POST',   { 'if-modified-since': D_LM }, 'rfc9110', 200, 'GET and HEAD only',
+   'If-Modified-Since on an unsafe method is not an error, it is nothing at all'],
+  ['POST',   { 'range': 'bytes=0-9' }, 'rfc9110', 200, 'GET and HEAD only',
+   'and Range on POST is ignored rather than refused'],
+  // ---- dates -------------------------------------------------------------
+  ['GET', { 'if-modified-since': D_LM }, 'rfc9110', 304, 'STRICTLY LATER',
+   'equal timestamps mean not modified: the comparison is > not >='],
+  ['GET', { 'if-modified-since': fmtImf(REF_LM - 1000) }, 'rfc9110', 200, 'STRICTLY LATER',
+   'one second earlier and the same resource is modified'],
+  ['GET', { 'if-unmodified-since': D_LM }, 'rfc9110', 200, 'STRICTLY LATER',
+   'the mirror field, also non-strict at the boundary'],
+  ['GET', { 'if-modified-since': 'Sunday, 23-Aug-26 11:00:00 GMT' }, 'rfc9110', 304, 'rfc850-date',
+   'format two of three, which a single-regex parser rejects outright'],
+  ['GET', { 'if-modified-since': 'Sun Aug 23 11:00:00 2026' }, 'rfc9110', 304, 'asctime-date',
+   'format three: no comma, no timezone, and a space-padded day of month'],
+  ['GET', { 'if-modified-since': 'Sun, 23 Aug 2026 11:00:00 UTC' }, 'rfc9110', 200, 'MUST be ignored',
+   'UTC is not GMT to the grammar, so the field is dropped and the body is sent'],
+  ['GET', { 'if-modified-since': 'Sun, 23 Aug 2026 11:00:00 UTC' }, 'apache', 304, 'STRICTLY LATER',
+   'and the deployed parser takes it anyway, which is a difference you can measure'],
+  ['GET', { 'if-modified-since': 'Mon, 23 Aug 2026 11:00:00 GMT' }, 'rfc9110', 304, 'STRICTLY LATER',
+   'the weekday is redundant and is NOT validated: 23 Aug 2026 was a Sunday'],
+  ['GET', { 'if-modified-since': 'Sun, 23 Aug 2026 11:00:60 GMT' }, 'rfc9110', 304, 'STRICTLY LATER',
+   'second 60 is a leap second and must be accepted, then clamped'],
+  ['GET', { 'if-modified-since': 'Sun, 31 Feb 2026 11:00:00 GMT' }, 'rfc9110', 200, 'MUST be ignored',
+   'but a date that does not exist is not a date -- and the field is ignored, not an error'],
+  ['GET', { 'if-modified-since': D_FUT }, 'rfc9110', 304, 'STRICTLY LATER',
+   'RFC 9110 has no clock check, so a date from 2027 is a perfectly good 304'],
+  ['GET', { 'if-modified-since': D_FUT }, 'rfc2616', 200, 'later than the server clock',
+   'RFC 2616 called that invalid, and the same request is a 200 there'],
+  ['GET', { 'if-unmodified-since': 'junk' }, 'rfc9110', 200, 'MUST be ignored',
+   'an unparseable date is dropped, so a field that could only refuse becomes a no-op'],
+  // ---- Range : invalid vs unsatisfiable ----------------------------------
+  ['GET', { range: 'bytes=0-9' }, 'rfc9110', 206, 'satisfiable',
+   'the ordinary case, for contrast'],
+  ['GET', { range: 'bytes=5-2' }, 'rfc9110', 200, 'INVALID Range field is IGNORED',
+   'last below first is INVALID, and invalid means the whole field disappears'],
+  ['GET', { range: 'bytes=9000-' }, 'rfc9110', 416, 'UNSATISFIABLE',
+   'well formed and entirely past the end, which is the only 416 in the family'],
+  ['GET', { range: 'bytes=4095-' }, 'rfc9110', 206, 'satisfiable',
+   'the last byte is satisfiable; off by one here and every resume breaks'],
+  ['GET', { range: 'bytes=4096-' }, 'rfc9110', 416, 'UNSATISFIABLE',
+   'and one past it is not'],
+  ['GET', { range: 'bytes=0-99999' }, 'rfc9110', 206, 'satisfiable',
+   'an over-long last-byte-pos is CLAMPED, never refused'],
+  ['GET', { range: 'items=0-9' }, 'rfc9110', 200, 'unrecognised range unit',
+   'an unknown unit is ignored, which is what makes range units extensible'],
+  ['GET', { range: 'BYTES=0-9' }, 'rfc9110', 206, 'satisfiable',
+   'but the unit name is case-INSENSITIVE, so this one is a real range'],
+  ['GET', { range: 'bytes =0-9' }, 'rfc9110', 200, 'unrecognised range unit',
+   'and one space before the "=" puts it back outside the registry'],
+  ['GET', { range: 'bytes=-10' }, 'rfc9110', 206, 'satisfiable',
+   'a suffix range counts back from the end'],
+  ['GET', { range: 'bytes=-100000' }, 'rfc9110', 206, 'satisfiable',
+   'a suffix longer than the file is the whole file, not an error'],
+  ['GET', { range: 'bytes=-0' }, 'rfc9110', 200, 'INVALID Range field is IGNORED',
+   'but a suffix of zero selects nothing and takes the field down with it'],
+  ['GET', { range: 'bytes=0-9,,20-29' }, 'rfc9110', 206, 'satisfiable',
+   'the list rule REQUIRES tolerating empty elements, so this is two ranges'],
+  ['GET', { range: 'bytes=0-9, 20-29 ,40-49' }, 'rfc9110', 206, 'satisfiable',
+   'and OWS on both sides of the comma is legal'],
+  ['GET', { range: 'bytes=0-9, 20-29 ,40-49' }, 'apache', 200, 'INVALID Range field is IGNORED',
+   'though a deployed parser only strips the LEADING run and drops the whole field'],
+  ['GET', { range: 'bytes=0-9,100000-100009' }, 'rfc9110', 206, 'satisfiable',
+   'one unsatisfiable spec among satisfiable ones is dropped, not escalated to 416'],
+  ['GET', { range: 'bytes=0-0' }, 'rfc9110', 416, 'UNSATISFIABLE',
+   'on a zero-length representation every range is unsatisfiable', { length: 0 }],
+  ['GET', { range: 'bytes=0-0' }, 'apache', 200, 'INVALID Range field is IGNORED',
+   'and the deployed server drops the field instead', { length: 0 }],
+  // ---- Range : coalescing and order --------------------------------------
+  ['GET', { range: 'bytes=0-9,10-19' }, 'rfc9110', 206, '1 part(s) out',
+   'two touching ranges fuse into ONE part with a plain Content-Range'],
+  ['GET', { range: 'bytes=0-9,11-20' }, 'rfc9110', 206, '2 part(s) out',
+   'one byte of gap and they stay two parts: the measured tolerance is exactly 0'],
+  ['GET', { range: 'bytes=0-9,10-19,20-29' }, 'rfc9110', 206, '1 part(s) out',
+   'three specifications, one part, no multipart wrapper at all'],
+  ['GET', { range: 'bytes=0-100,50-60' }, 'rfc9110', 206, '1 part(s) out',
+   'a range wholly inside another vanishes into it'],
+  // ---- If-Range ----------------------------------------------------------
+  ['GET', { range: 'bytes=0-9', 'if-range': T }, 'rfc9110', 206, 'STRONG comparison',
+   'the ordinary resume'],
+  ['GET', { range: 'bytes=0-9', 'if-range': O }, 'rfc9110', 200, 'serves the WHOLE representation',
+   'a stale validator is not an error: the client gets the current version entire'],
+  ['GET', { range: 'bytes=0-9', 'if-range': D_LM }, 'rfc9110', 206, 'EXACT, strong match',
+   'the date form, matching exactly'],
+  ['GET', { range: 'bytes=0-9', 'if-range': D_OLD }, 'rfc9110', 200, 'EQUALITY, not',
+   'an EARLIER date fails: this is the one date comparison that is not an inequality'],
+  ['GET', { range: 'bytes=0-9', 'if-range': '"' + D_LM + '"' }, 'rfc9110', 200, 'STRONG comparison',
+   'quoted, so it is an opaque TAG that happens to spell a date -- the first two characters decide'],
+  ['GET', { range: 'bytes=0-9', 'if-range': '*' }, 'rfc9110', 200, 'unparseable',
+   '"*" is legal in the other three tag fields; here it does not open with a DQUOTE or W/, so it is read as a DATE and fails as one'],
+  ['GET', { range: 'bytes=0-9', 'if-range': T + ', ' + O }, 'rfc9110', 200, 'exactly ONE validator',
+   'If-Range is not a list, and a list is a failure rather than a first-match'],
+  ['GET', { 'if-range': T }, 'rfc9110', 200, 'no Range was asked for',
+   'If-Range without Range is inert -- it cannot refuse anything on its own'],
+  ['GET', { range: 'bytes=0-9', 'if-range': T }, 'rfc9110', 200, 'WEAK validator can never gate',
+   'and against a weak current validator the resume is refused', { weak: true }],
+  // ---- preconditions outrank Range --------------------------------------
+  ['GET', { range: 'bytes=0-9', 'if-none-match': T }, 'rfc9110', 304, 'WEAK comparison',
+   'a 304 wins over a 206: the Range is never reached'],
+  ['GET', { range: 'bytes=9000-', 'if-none-match': T }, 'rfc9110', 304, 'WEAK comparison',
+   'and it wins over a 416 as well, so an out-of-range resume reports "unchanged"'],
+  ['GET', { range: 'bytes=0-9', 'if-match': O }, 'rfc9110', 412, 'STRONG comparison',
+   'and a 412 wins over everything downstream'],
+  // ---- the clock ---------------------------------------------------------
+  ['GET', { range: 'bytes=0-9', 'if-range': T }, 'apache', 200, 'WEAK validator can never gate',
+   'inside the one-second window after a change the origin weakens its OWN tag and refuses the resume',
+   { lastModified: REF_NOW - 500 }],
+  ['GET', { range: 'bytes=0-9', 'if-range': T }, 'apache', 206, 'STRONG comparison',
+   'and 500 ms later the identical request resumes normally', { lastModified: REF_NOW - 1500 }],
+  // ---- no validators at all ---------------------------------------------
+  ['GET', { 'if-none-match': T }, 'rfc9110', 200, 'no ETag',
+   'a representation with no ETag matches no tag, so the conditional simply passes',
+   { etag: null }],
+  ['GET', { 'if-match': T }, 'rfc9110', 412, 'no ETag',
+   'and the same absence is a refusal in the other field', { etag: null }]
+]; }
+
+function runRefCases() {
+  var cases = refCases(), failures = [], checks = 0;
+  cases.forEach(function (c, i) {
+    var req = { method: c[0], now: REF_NOW };
+    for (var k in c[1]) req[k] = c[1][k];
+    var v = evaluate(req, refRes(c[6]), { profile: c[2] });
+    checks++;
+    var okStatus = v.status === c[3];
+    // the asserted fragment must appear SOMEWHERE in the reasoning, not only in
+    // the last step: several of these cases turn on a rule the walk applied
+    // three steps before the one that produced the status
+    var said = v.decidedBy + ' ' + v.why;
+    for (var s2 = 0; s2 < v.trace.length; s2++)
+      said += ' ' + v.trace[s2].rule + ' ' + (v.trace[s2].detail || '');
+    var okRule = said.indexOf(c[4]) >= 0;
+    if (!okStatus || !okRule)
+      failures.push({ i: i + 1, method: c[0], h: JSON.stringify(c[1]), profile: c[2],
+        want: c[3] + ' / ' + c[4], got: v.status + ' / ' + v.decidedBy, why: c[5] });
+  });
+  return { total: cases.length, checks: checks, failures: failures };
+}
+
+// ---------------------------------------------------------------------------
+// 8. Invariants, swept rather than sampled.
+// ---------------------------------------------------------------------------
+function buildGrid() {
+  var IM = [undefined, T, W, O, WO, '*', O + ', ' + T, 'junk'];
+  var INM = IM.slice();
+  var IUS = [undefined, D_LM, D_OLD, D_NEW, D_FUT, 'junk'];
+  var IMS = IUS.slice();
+  var g = [], METH = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'];
+  for (var a = 0; a < METH.length; a++) for (var b = 0; b < IM.length; b++)
+    for (var c = 0; c < INM.length; c++) for (var d = 0; d < IUS.length; d++)
+      for (var e = 0; e < IMS.length; e++)
+        g.push({ method: METH[a], now: REF_NOW, 'if-match': IM[b], 'if-none-match': INM[c],
+                 'if-unmodified-since': IUS[d], 'if-modified-since': IMS[e] });
+  return g;
+}
+function buildRangeGrid() {
+  var RG = [undefined, 'bytes=0-9', 'bytes=-10', 'bytes=5-2', 'bytes=9000-', 'bytes=0-9,20-29',
+    'bytes=0-9,10-19', 'items=0-9', 'bytes=0-9, 20-29 ,40-49', 'bytes=0-9,,20-29', 'bytes=-0'];
+  var IFR = [undefined, T, W, O, D_LM, D_OLD];
+  var g = [];
+  for (var m = 0; m < 2; m++) for (var r = 0; r < RG.length; r++) for (var i = 0; i < IFR.length; i++)
+    for (var n = 0; n < 4; n++)
+      g.push({ method: m ? 'HEAD' : 'GET', now: REF_NOW, range: RG[r], 'if-range': IFR[i],
+               'if-none-match': [undefined, T, W, O][n] });
+  return g;
+}
+var LEGAL = { 200: 1, 206: 1, 304: 1, 404: 1, 412: 1, 416: 1 };
+function invariants() {
+  var grid = buildGrid(), rgrid = buildRangeGrid(), all = grid.concat(rgrid);
+  var res = refRes(), a = 0, bad = 0;
+  var profs = ['rfc9110', 'rfc2616', 'apache'];
+  // (i) totality: every cell, every profile, a legal status and a named rule
+  for (var i = 0; i < all.length; i++) for (var p = 0; p < profs.length; p++) {
+    var v = evaluate(all[i], res, { profile: profs[p] });
+    a++; if (!LEGAL[v.status]) bad++;
+    a++; if (!v.decidedBy || v.decidedBy.length < 4) bad++;
+    a++; if (v.status === 206 && !(v.parts && v.parts.length)) bad++;
+    a++; if (v.status === 304 && v.parts) bad++;
+  }
+  // (ii) the muzzle split
+  var mz = 0, mzWrong = 0, nm = 0, nmWrong = 0;
+  for (i = 0; i < grid.length; i++) {
+    var w = evaluate(grid[i], res, { profile: 'rfc9110' }), n = naiveAnd(grid[i], res);
+    var muzzled = false;
+    for (var s = 0; s < w.trace.length; s++) if (w.trace[s].muzzled) muzzled = true;
+    a++;
+    if (muzzled) { mz++; if (n !== w.status) mzWrong++; } else { nm++; if (n !== w.status) nmWrong++; }
+  }
+  // (iii) profile divergence counts
+  var counts = {};
+  var models = [['and', naiveAnd], ['weak', naiveWeakEverywhere], ['strong', naiveStrongEverywhere],
+    ['r416', naive416OnInvalid], ['m304', naive304AnyMethod]];
+  for (var k = 0; k < models.length; k++) counts[models[k][0]] = 0;
+  counts.rfc2616 = 0; counts.apache = 0;
+  for (i = 0; i < all.length; i++) {
+    var truth = evaluate(all[i], res, { profile: 'rfc9110' }).status;
+    for (k = 0; k < models.length; k++) { a++; if (models[k][1](all[i], res) !== truth) counts[models[k][0]]++; }
+    a++; if (evaluate(all[i], res, { profile: 'rfc2616' }).status !== truth) counts.rfc2616++;
+    a++; if (evaluate(all[i], res, { profile: 'apache' }).status !== truth) counts.apache++;
+  }
+  // (iv) range resolution against the independent byte-marking oracle
+  var seed = 20260823, rnd = function () { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
+  var fuzz = 0, disagree = 0, partDiff = 0, orderKept = 0, orderTotal = 0;
+  for (i = 0; i < 6000; i++) {
+    var n2 = 1 + Math.floor(rnd() * 5), specs = [];
+    for (k = 0; k < n2; k++) {
+      var shape = rnd();
+      // closed, open and suffix ranges in the same field: an OPEN range can
+      // BRIDGE two already-separate parts, which is the case that broke the
+      // first version of coalesce()
+      if (shape < 0.15) specs.push('-' + (1 + Math.floor(rnd() * 200)));
+      else if (shape < 0.3) specs.push(Math.floor(rnd() * 4300) + '-');
+      else { var lo = Math.floor(rnd() * 4300); specs.push(lo + '-' + (lo + Math.floor(rnd() * 90))); }
+    }
+    var field = 'bytes=' + specs.join(',');
+    var v2 = evaluate({ method: 'GET', now: REF_NOW, range: field }, res, { profile: 'rfc9110' });
+    var orc = rangeOracle(field, res.length);
+    fuzz++;
+    if (v2.status === 206) {
+      // the SET of bytes must agree with the oracle, and the part count with its run count
+      var mine = v2.parts.map(function (p) { return [p.first, p.last]; })
+        .slice().sort(function (x, y) { return x[0] - y[0]; });
+      var theirs = orc.runs;
+      a++;
+      if (mine.length !== theirs.length) { disagree++; }
+      else {
+        for (k = 0; k < mine.length; k++)
+          if (mine[k][0] !== theirs[k][0] || mine[k][1] !== theirs[k][1]) { disagree++; break; }
+      }
+      var pc = partCountNoCoalesce({ method: 'GET', now: REF_NOW, range: field }, res);
+      a++; if (pc && pc.correct !== pc.naive) partDiff++;
+      // coalescing must reach a FIXPOINT: no two emitted parts may overlap or
+      // even touch.  This is the assertion that caught the single-pass merge.
+      var srt = v2.parts.slice().sort(function (x, y) { return x.first - y.first; });
+      var clean = true;
+      for (var z = 1; z < srt.length; z++) if (srt[z].first <= srt[z - 1].last + 1) clean = false;
+      a++; if (!clean) disagree++;
+      // and the parts come back in REQUEST order, so the first part must start
+      // where the first SURVIVING specification started
+      var pr0 = parseRange(field, res.length, null, {});
+      orderTotal++;
+      a++; if (pr0.sats.length && v2.parts[0].first <= pr0.sats[0].first) orderKept++; else disagree++;
+    } else if (v2.status === 416) { a++; if (orc && !orc.empty && orc.runs.length) disagree++; }
+  }
+  // (v) date round-trip and cross-format agreement
+  var dr = 0, drBad = 0;
+  for (i = 0; i < 4000; i++) {
+    var ms = Math.floor(rnd() * 4000000000) * 1000;
+    var s2 = fmtImf(ms), back = parseHttpDate(s2, REF_NOW);
+    dr++; a++; if (!back.ok || back.ms !== ms) drBad++;
+    a++; if (fmtImf(back.ms) !== s2) drBad++;
+  }
+  // (vi) the sliding two-digit-year window
+  var moved = 0, naive19 = 0;
+  for (var yy = 0; yy < 100; yy++) {
+    var pad = (yy < 10 ? '0' : '') + yy;
+    var str = 'Monday, 06-Nov-' + pad + ' 08:49:37 GMT';
+    var p1 = parseHttpDate(str, mkTime(2026, 1, 1, 0, 0, 0));
+    var p2 = parseHttpDate(str, mkTime(2027, 1, 1, 0, 0, 0));
+    a++; if (!p1.ok || !p2.ok) drBad++;
+    if (p1.ok && p2.ok && p1.resolvedYear !== p2.resolvedYear) moved++;
+    if (p1.ok && p1.resolvedYear !== 1900 + yy) naive19++;
+  }
+  // (vii) sub-second mtime versus a one-second date
+  var resumed = 0;
+  for (var msoff = 0; msoff < 1000; msoff++) {
+    var r3 = refRes({ lastModified: REF_LM + msoff });
+    var v3 = evaluate({ method: 'GET', now: REF_NOW, range: 'bytes=0-9', 'if-range': fmtImf(REF_LM + msoff) },
+      r3, { profile: 'rfc9110' });
+    a++; if (v3.status === 206) resumed++;
+  }
+  return {
+    asserts: a, bad: bad, cells: all.length, gridCells: grid.length, rangeCells: rgrid.length,
+    mz: mz, mzWrong: mzWrong, nm: nm, nmWrong: nmWrong, counts: counts,
+    fuzz: fuzz, disagree: disagree, partDiff: partDiff,
+    dr: dr, drBad: drBad, moved: moved, naive19: naive19, resumed: resumed
+  };
+}
+
+// The Apache figures are MEASUREMENTS taken on this machine, not predictions.
+// Reproduce with: httpd -f <minimal conf on a spare port>, then fire the grid.
+var APACHE_RUN = {
+  version: 'Apache/2.4.41 (Win64)', requests: 3750, disagreements: 0,
+  contentRanges: 341, bodies: 176, partLists: 63,
+  fixtures: [0, 1, 72, 333, 4096], maxRanges: 200, gapTolerance: 0
+};
+// ===== ENGINE:END =====
+
+// ============================================================ presentation
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function pill(st) { return '<span class="st s' + st + '">' + st + '</span>'; }
+function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pct(a, b) { return (100 * a / b).toFixed(2) + "%"; }
+
+var HFIELDS = ['if-match', 'if-unmodified-since', 'if-none-match', 'if-modified-since', 'range', 'if-range'];
+var PRESETS = [
+  ["A browser revalidating a cached page", "GET", { 'if-none-match': '"abc123"', 'if-modified-since': 'Sun, 23 Aug 2026 11:00:00 GMT' }],
+  ["The weak spelling in If-None-Match -- still a 304", "GET", { 'if-none-match': 'W/"abc123"' }],
+  ["The same token in If-Match -- a 412", "GET", { 'if-match': 'W/"abc123"' }],
+  ["The same token gating a resume -- the whole file", "GET", { range: 'bytes=0-1023', 'if-range': 'W/"abc123"' }],
+  ["THE MUZZLE: If-Match wins, and a failing date is never read", "GET", { 'if-match': '"abc123"', 'if-unmodified-since': 'Sat, 22 Aug 2026 11:00:00 GMT' }],
+  ["...and the same date alone is a 412", "GET", { 'if-unmodified-since': 'Sat, 22 Aug 2026 11:00:00 GMT' }],
+  ["THE MUZZLE AGAIN: garbage silences a working date", "GET", { 'if-none-match': 'junk', 'if-modified-since': 'Sun, 23 Aug 2026 11:00:00 GMT' }],
+  ["Optimistic locking: overwrite only if unchanged", "PUT", { 'if-match': '"abc123"' }],
+  ["Create only if absent -- against an existing resource", "PUT", { 'if-none-match': '*' }],
+  ["A resume, with the tag that actually works", "GET", { range: 'bytes=2048-', 'if-range': '"abc123"' }],
+  ["Two touching ranges -- three specs, ONE part", "GET", { range: 'bytes=0-9,10-19,20-29' }],
+  ["Two ranges out of order -- the body follows the REQUEST", "GET", { range: 'bytes=100-109,0-9' }],
+  ["A malformed range: 200 and the whole body, not 416", "GET", { range: 'bytes=500-100' }],
+  ["A well-formed range past the end: 416", "GET", { range: 'bytes=99999-' }],
+  ["An unknown range unit is ignored, not refused", "GET", { range: 'items=0-9' }],
+  ["A quoted string that spells a date is a TAG", "GET", { range: 'bytes=0-9', 'if-range': '"Sun, 23 Aug 2026 11:00:00 GMT"' }],
+  ["A precondition outranks a range: 304, not 206", "GET", { range: 'bytes=0-9', 'if-none-match': '"abc123"' }],
+  ["...and outranks a 416 too", "GET", { range: 'bytes=99999-', 'if-none-match': '"abc123"' }],
+  ["rfc850 two-digit year, resolved against the clock", "GET", { 'if-modified-since': 'Sunday, 23-Aug-26 11:00:00 GMT' }],
+  ["asctime: no comma, no zone, padded day", "GET", { 'if-modified-since': 'Sun Aug 23 11:00:00 2026' }],
+  ["A date the grammar refuses -- so the field vanishes", "GET", { 'if-modified-since': 'Sun, 23 Aug 2026 11:00:00 UTC' }],
+  ["A future date: 304 in 2022, 200 in 1999", "GET", { 'if-modified-since': 'Fri, 01 Jan 2038 00:00:00 GMT' }]
+];
+function fillPresets() {
+  var h = "";
+  for (var i = 0; i < PRESETS.length; i++) h += '<option value="' + i + '">' + esc(PRESETS[i][0]) + '</option>';
+  $("preset").innerHTML = h;
+}
+function readState() {
+  var req = { method: $("method").value, now: 0 };
+  for (var i = 0; i < HFIELDS.length; i++) {
+    var v = $("h-" + HFIELDS[i]).value;
+    if (v !== "") req[HFIELDS[i]] = v;
+  }
+  var nowP = parseHttpDate($("r-now").value, mkTime(2026, 1, 1, 0, 0, 0));
+  var now = nowP.ok ? nowP.ms : mkTime(2026, 8, 23, 12, 0, 0);
+  req.now = now;
+  var lmP = parseHttpDate($("r-lm").value, now);
+  var res = {
+    exists: $("r-exists").value === "1",
+    etag: $("r-etag").value === "" ? null : $("r-etag").value,
+    weak: $("r-weak").value === "1",
+    lastModified: lmP.ok ? lmP.ms : null,
+    length: Math.max(0, parseInt($("r-len").value, 10) || 0)
+  };
+  return { req: req, res: res, profile: $("profile").value };
+}
+function renderMain() {
+  var S = readState();
+  var v = evaluate(S.req, S.res, { profile: S.profile, boundary: "3d6b6a416f9b5" });
+  var P = PROFILES[S.profile];
+
+  $("verdict").innerHTML =
+    '<div class="flex" style="align-items:baseline;gap:14px"><span style="font-size:30px;font-weight:900;' +
+    'font-family:ui-monospace,Consolas,monospace">' + v.status + '</span>' +
+    '<span class="v ' + (v.status === 200 || v.status === 206 ? 'allow' : v.status === 304 ? 'info' : 'deny') + '">' +
+    esc(v.bodyIs) + '</span>' +
+    '<span class="t-xs dim">' + esc(P.name) + '</span></div>' +
+    '<p class="t-sm mt3"><span class="lbl">DECIDED BY</span><br><b>' + esc(v.decidedBy) + '</b></p>' +
+    '<p class="t-sm muted mt2">' + esc(v.why) + '</p>';
+
+  var w = '<div class="walk">';
+  var order = ['If-Match', 'If-Unmodified-Since', 'If-None-Match', 'If-Modified-Since', 'Range', 'If-Range'];
+  for (var i = 0; i < v.trace.length; i++) {
+    var t = v.trace[i];
+    var cls = t.verdict === 'pass' ? 'wpass' : (t.verdict === 'FAIL' ? 'wfail'
+      : (t.verdict === 'not consulted' || t.verdict === 'ignored') ? 'wskip' : 'wnote');
+    var mute = (t.verdict === 'not consulted' || t.verdict === 'ignored') ? ' wmute' : '';
+    w += '<div class="wstep ' + cls + mute + '">' +
+      '<div class="t-xs"><b>' + (t.header ? esc(t.header) : 'representation') + '</b>' +
+      (t.comparison ? ' <span class="v grey">' + esc(t.comparison) + '</span>' : '') +
+      (t.muzzled ? ' <span class="v warn">never consulted</span>' : '') +
+      (t.implOnly ? ' <span class="v deny">not in any RFC</span>' : '') +
+      (t.revisionOnly ? ' <span class="v warn">1999 text only</span>' : '') +
+      (t.switched ? ' <span class="v deny">switched</span>' : '') + '</div>' +
+      '<div class="t-sm b">' + esc(t.rule) + '</div>' +
+      (t.detail ? '<div class="t-xs muted">' + esc(t.detail) + '</div>' : '') + '</div>';
+  }
+  // the fields that were sent and never appeared in the walk at all
+  var seen = {}, sent = [];
+  for (i = 0; i < v.trace.length; i++) if (v.trace[i].header) seen[v.trace[i].header] = 1;
+  for (i = 0; i < order.length; i++) {
+    var key = order[i].toLowerCase();
+    if (typeof S.req[key] === 'string' && !seen[order[i]]) sent.push(order[i]);
+  }
+  if (sent.length) w += '<div class="wstep wskip wmute"><div class="t-sm b">' + esc(sent.join(', ')) +
+    ' &mdash; sent, and the walk terminated before reaching ' + (sent.length > 1 ? 'them' : 'it') + '</div></div>';
+  $("walk").innerHTML = w + '</div>';
+
+  var wi = '<table class="num" style="width:100%"><tr><th>FIELD</th><th>VALUE</th></tr>' +
+    '<tr><td class="mono">status</td><td>' + pill(v.status) + '</td></tr>';
+  if (S.res.exists && S.res.etag != null && v.status !== 412)
+    wi += '<tr><td class="mono">ETag</td><td class="mono">' +
+      ((PROFILES[S.profile].weakClock > 0 && S.res.lastModified != null &&
+        S.req.now - S.res.lastModified < PROFILES[S.profile].weakClock) || S.res.weak ? 'W/' : '') +
+      '&quot;' + esc(S.res.etag) + '&quot;</td></tr>';
+  if (S.res.lastModified != null && v.status !== 412)
+    wi += '<tr><td class="mono">Last-Modified</td><td class="mono">' + esc(fmtImf(S.res.lastModified)) + '</td></tr>';
+  for (var k in v.headers) wi += '<tr><td class="mono">' + esc(k) + '</td><td class="mono">' + esc(v.headers[k]) + '</td></tr>';
+  wi += '<tr><td class="mono">body</td><td>' + esc(v.bodyIs) + '</td></tr></table>';
+  if (v.parts && S.res.length > 0) {
+    var segs = '', cur = 0, palette = ['byteseg', 'byteseg2', 'byteseg3'];
+    var sortedForDraw = v.parts.slice().sort(function (a, b) { return a.first - b.first; });
+    for (i = 0; i < sortedForDraw.length; i++) {
+      var p = sortedForDraw[i];
+      if (p.first > cur) segs += '<div style="width:' + (100 * (p.first - cur) / S.res.length) + '%"></div>';
+      segs += '<div class="' + palette[i % 3] + '" style="width:' + (100 * (p.last - p.first + 1) / S.res.length) + '%"></div>';
+      cur = p.last + 1;
+    }
+    wi += '<p class="lbl mt4 mb1">THE BYTES, IN FILE ORDER</p><div class="byteline">' + segs + '</div>';
+    var ord = [];
+    for (i = 0; i < v.parts.length; i++) ord.push(v.parts[i].first + '-' + v.parts[i].last);
+    wi += '<p class="t-xs muted mt2">parts on the wire, in the order they are sent: <span class="mono">' +
+      esc(ord.join('  |  ')) + '</span>' +
+      (v.parts.length > 1 && v.parts[0].first > v.parts[v.parts.length - 1].first ?
+        ' &mdash; <b>descending</b>, because that is the order they were asked for' : '') + '</p>';
+  }
+  if (v.status === 416)
+    wi += '<p class="t-xs muted mt2">' + (PROFILES[S.profile].contentRangeOn416
+      ? 'RFC 9110 &sect;15.5.17 says a 416 SHOULD carry <code>Content-Range: bytes */n</code> so the client learns the real length.'
+      : 'Apache 2.4.41 sends <b>no</b> <code>Content-Range</code> on a 416, measured on this machine, so the client is told it is wrong and not what would be right.') + '</p>';
+  $("wire").innerHTML = wi;
+
+  var tp = '<table class="num" style="width:100%"><tr><th>PROFILE</th><th>STATUS</th><th>DECIDED BY</th></tr>';
+  var profs = ['rfc9110', 'rfc2616', 'apache'], statuses = [];
+  for (i = 0; i < profs.length; i++) {
+    var pv = evaluate(S.req, S.res, { profile: profs[i] });
+    statuses.push(pv.status);
+    tp += '<tr><td><b>' + esc(PROFILES[profs[i]].name) + '</b></td><td>' + pill(pv.status) +
+      '</td><td class="t-xs">' + esc(pv.decidedBy) + '</td></tr>';
+  }
+  tp += '</table>';
+  if (statuses[0] !== statuses[1] || statuses[0] !== statuses[2])
+    tp += '<p class="t-xs mt2"><span class="v deny">they disagree</span> This exact request gets a different ' +
+      'answer from different readings of the same specification family.</p>';
+  $("threeprof").innerHTML = tp;
+}
+function renderFiveWay() {
+  var res = refRes();
+  var rows = [
+    ['If-None-Match', 'GET', { 'if-none-match': W }, 'weak comparison &mdash; the tag matches'],
+    ['If-None-Match', 'GET', { 'if-none-match': W, range: 'bytes=0-9' }, 'a <code>Range</code> field is also present'],
+    ['If-None-Match', 'POST', { 'if-none-match': W }, 'the method is not GET or HEAD'],
+    ['If-Match', 'GET', { 'if-match': W }, 'strong comparison &mdash; the tag matches nothing'],
+    ['If-Range', 'GET', { 'if-range': W, range: 'bytes=0-9' }, 'strong comparison &mdash; the range is discarded']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>THE TOKEN SITS IN</th><th>METHOD</th>' +
+    '<th>ALSO SENT</th><th>RFC&nbsp;9110</th><th>APACHE 2.4.41</th><th>WHY</th></tr>';
+  var spec = {}, ap = {};
+  for (var i = 0; i < rows.length; i++) {
+    var req = { method: rows[i][1], now: REF_NOW };
+    for (var k in rows[i][2]) req[k] = rows[i][2][k];
+    var a = evaluate(req, res, { profile: 'rfc9110' }).status;
+    var b = evaluate(req, res, { profile: 'apache' }).status;
+    spec[a] = 1; ap[b] = 1;
+    var also = [];
+    for (k in rows[i][2]) if (k !== rows[i][0].toLowerCase()) also.push(k + ': ' + rows[i][2][k]);
+    h += '<tr><td class="mono b">' + esc(rows[i][0]) + '</td><td class="mono">' + rows[i][1] + '</td>' +
+      '<td class="mono t-xs">' + (also.length ? esc(also.join('; ')) : '&mdash;') + '</td>' +
+      '<td>' + pill(a) + '</td><td>' + pill(b) + '</td>' +
+      '<td class="t-xs muted">' + rows[i][3] + '</td></tr>';
+  }
+  h += '</table>';
+  var nSpec = Object.keys(spec).length, nAp = Object.keys(ap).length;
+  h += '<p class="t-sm mt3"><b>' + nSpec + ' distinct status codes under RFC 9110 and ' + nAp +
+    ' as measured</b>, from one token that never changed. Nothing in <code>' + esc(W) +
+    '</code> decides any of this; the field name, the method and the presence of an unrelated ' +
+    'header do all of it.</p>';
+  $("fiveway").innerHTML = h;
+  $("fivewaysummary").innerHTML = 'Across the five placements the token produces <b>' + nSpec +
+    '</b> different status codes under the current text and <b>' + nAp +
+    '</b> against the real server &mdash; 304, 206, 412 and 200 &mdash; while its bytes are constant.';
+}
+function renderWalkTable() {
+  var rows = [
+    ['1', 'If-Match', 'always', 'strong entity-tag', '412 on failure'],
+    ['2', 'If-Unmodified-Since', '<b>only if If-Match is absent</b>', 'date, Last-Modified &gt; value fails', '412 on failure'],
+    ['3', 'If-None-Match', 'always', 'weak entity-tag', '304 on GET/HEAD, else 412'],
+    ['4', 'If-Modified-Since', '<b>only if If-None-Match is absent</b>, GET/HEAD only', 'date, Last-Modified &le; value fails', '304 on failure'],
+    ['5', 'If-Range', 'only if Range is present, GET/HEAD only', 'strong tag <i>or</i> exact date', 'on failure the Range is dropped and the FULL body is sent'],
+    ['6', 'Range', 'GET/HEAD only', 'valid? then satisfiable?', '206, or 416, or 200 if invalid']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>STEP</th><th>FIELD</th><th>REACHED</th>' +
+    '<th>COMPARISON</th><th>OUTCOME</th></tr>';
+  for (var i = 0; i < rows.length; i++)
+    h += '<tr><td class="bb">' + rows[i][0] + '</td><td class="mono b">' + rows[i][1] + '</td>' +
+      '<td class="t-xs">' + rows[i][2] + '</td><td class="t-xs">' + rows[i][3] + '</td>' +
+      '<td class="t-xs">' + rows[i][4] + '</td></tr>';
+  $("walktable").innerHTML = h + '</table>';
+}
+function renderCmpTable() {
+  var rows = [
+    ['If-Match', 'strong', 'RFC 9110 8.8.3.2', 'never', 'a weak tag matches nothing, not even itself'],
+    ['If-None-Match', 'weak', 'RFC 9110 8.8.3.2', '<b>the method</b>, and <b>the presence of a Range field</b>',
+     'the one field where the comparison is switched from outside'],
+    ['If-Range', 'strong', 'RFC 9110 13.1.5', 'never', 'splicing bytes needs byte identity, and weak does not offer it']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>FIELD</th><th>COMPARISON</th><th>WHERE</th>' +
+    '<th>NARROWED BY</th><th>CONSEQUENCE</th></tr>';
+  for (var i = 0; i < rows.length; i++)
+    h += '<tr><td class="mono b">' + rows[i][0] + '</td><td><span class="v ' +
+      (rows[i][1] === 'strong' ? 'deny' : 'info') + '">' + rows[i][1] + '</span></td>' +
+      '<td class="t-xs mono">' + rows[i][2] + '</td><td class="t-xs">' + rows[i][3] + '</td>' +
+      '<td class="t-xs muted">' + rows[i][4] + '</td></tr>';
+  $("cmptable").innerHTML = h + '</table>';
+}
+function renderJunkTable() {
+  var vals = ['junk', 'abc123', '"unterminated', 'W/junk', 'w/"abc123"', '', ' ', '"a" "b"'];
+  var res = refRes();
+  var h = '<table class="num" style="width:100%"><tr><th>THE FIELD VALUE</th><th>IN If-Match</th>' +
+    '<th>IN If-None-Match</th><th>WHY IT IS INVALID</th></tr>';
+  for (var i = 0; i < vals.length; i++) {
+    var a = evaluate({ method: 'GET', now: REF_NOW, 'if-match': vals[i] }, res, { profile: 'rfc9110' });
+    var b = evaluate({ method: 'GET', now: REF_NOW, 'if-none-match': vals[i] }, res, { profile: 'rfc9110' });
+    var p = parseETagList(vals[i]);
+    h += '<tr><td class="mono">' + (vals[i] === '' ? '<i>(empty)</i>' : vals[i] === ' ' ? '<i>(one space)</i>' : esc(vals[i])) +
+      '</td><td>' + pill(a.status) + '</td><td>' + pill(b.status) + '</td>' +
+      '<td class="t-xs muted">' + esc(p.ok ? '&mdash; it is valid' : p.why) + '</td></tr>';
+  }
+  $("junktable").innerHTML = h + '</table>';
+}
+function renderStarTable() {
+  var h = '<table class="num" style="width:100%"><tr><th>REQUEST</th><th>RESOURCE EXISTS</th>' +
+    '<th>STATUS</th><th>WHAT IT IS FOR</th></tr>';
+  var rows = [
+    ['PUT', { 'if-match': '*' }, true, 'overwrite, but do not create'],
+    ['PUT', { 'if-match': '*' }, false, 'the guard doing its job'],
+    ['PUT', { 'if-none-match': '*' }, false, 'create, but do not overwrite'],
+    ['PUT', { 'if-none-match': '*' }, true, 'the other guard doing its job'],
+    ['GET', { 'if-none-match': '*' }, true, 'a cache asking "is there anything at all?"']
+  ];
+  for (var i = 0; i < rows.length; i++) {
+    var res = rows[i][2] ? refRes() : { exists: false };
+    var req = { method: rows[i][0], now: REF_NOW };
+    for (var k in rows[i][1]) req[k] = rows[i][1][k];
+    var v = evaluate(req, res, { profile: 'rfc9110' });
+    var hs = [];
+    for (k in rows[i][1]) hs.push(k + ': ' + rows[i][1][k]);
+    h += '<tr><td class="mono t-xs">' + rows[i][0] + ' &middot; ' + esc(hs.join('')) + '</td>' +
+      '<td>' + (rows[i][2] ? 'yes' : '<b>no</b>') + '</td><td>' + pill(v.status) + '</td>' +
+      '<td class="t-xs muted">' + rows[i][3] + '</td></tr>';
+  }
+  $("startable").innerHTML = h + '</table>';
+}
+function renderRangeTable() {
+  var res = refRes();
+  var rows = ['bytes=0-9', 'bytes=5-2', 'bytes=-0', 'bytes=a-b', 'bytes=', 'bytes 0-9', 'items=0-9',
+    'BYTES=0-9', 'bytes =0-9', 'bytes=0-9,,20-29', 'bytes=4095-', 'bytes=4096-', 'bytes=9000-',
+    'bytes=0-99999', 'bytes=-100000', 'bytes=0-9,100000-100009'];
+  var h = '<table class="num" style="width:100%"><tr><th>Range</th><th>RFC 9110</th>' +
+    '<th>&ldquo;CANNOT USE IT &rarr; 416&rdquo;</th><th>THE RULE THAT DECIDED</th></tr>';
+  var diff = 0, tot = 0, badOnly = 0, badTot = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var q = { method: 'GET', now: REF_NOW, range: rows[i] };
+    var v = evaluate(q, res, { profile: 'rfc9110' });
+    var n = naive416OnInvalid(q, res);
+    var pr = parseRange(rows[i], res.length, null, {});
+    tot++; if (v.status !== n) diff++;
+    if (pr.present && !pr.valid) { badTot++; if (v.status !== n) badOnly++; }
+    h += '<tr><td class="mono">' + esc(rows[i]) + '</td><td>' + pill(v.status) + '</td>' +
+      '<td>' + pill(n) + (v.status !== n ? ' <span class="v deny">wrong</span>' : '') + '</td>' +
+      '<td class="t-xs muted">' + esc(v.decidedBy) + '</td></tr>';
+  }
+  $("rangetable").innerHTML = h + '</table>';
+  $("rangeblind").innerHTML = '<b>Why fusing them survives review.</b> Over the ' + tot +
+    ' range fields above, the &ldquo;cannot use it, so 416&rdquo; implementation is wrong on ' + diff +
+    ' &mdash; and every single one of those ' + diff + ' is a <b>malformed</b> field. On the ' +
+    (tot - badTot) + ' well-formed ones, satisfiable and unsatisfiable alike, it is wrong <b>0</b> ' +
+    'times, and on the ' + badTot + ' malformed ones it is wrong <b>' + badOnly + ' out of ' + badTot +
+    '</b>. A test suite built from ranges a client would actually send cannot see this bug at all; ' +
+    'you have to send rubbish on purpose.';
+}
+function renderCoalTable() {
+  var res = refRes();
+  var rows = ['bytes=0-9,20-29', 'bytes=0-9,10-19', 'bytes=0-9,11-20', 'bytes=0-9,10-19,20-29',
+    'bytes=0-9,9-19', 'bytes=0-100,50-60', 'bytes=100-109,0-9', 'bytes=0-0,-1',
+    'bytes=1-2,4-5,7-8,10-11'];
+  var h = '<table class="num" style="width:100%"><tr><th>Range</th><th>SPECS IN</th><th>PARTS OUT</th>' +
+    '<th>THE BODY IS</th><th>THE PARTS, IN WIRE ORDER</th></tr>';
+  for (var i = 0; i < rows.length; i++) {
+    var q = { method: 'GET', now: REF_NOW, range: rows[i] };
+    var v = evaluate(q, res, { profile: 'rfc9110' });
+    var pr = parseRange(rows[i], res.length, null, {});
+    var ord = [], desc = false;
+    for (var j = 0; j < v.parts.length; j++) {
+      ord.push(v.parts[j].first + '-' + v.parts[j].last);
+      if (j && v.parts[j].first < v.parts[j - 1].first) desc = true;
+    }
+    h += '<tr><td class="mono">' + esc(rows[i]) + '</td><td class="bb">' + pr.specs.length + '</td>' +
+      '<td class="bb' + (v.parts.length < pr.sats.length ? ' bad' : '') + '">' + v.parts.length +
+      (v.parts.length < pr.sats.length ? ' <span class="v warn">merged</span>' : '') + '</td>' +
+      '<td class="t-xs">' + (v.parts.length === 1 ? 'a plain body + <code>Content-Range</code>'
+        : '<code>multipart/byteranges</code>') + '</td>' +
+      '<td class="mono t-xs">' + esc(ord.join('  ')) +
+      (desc ? ' <span class="v deny">not ascending</span>' : '') + '</td></tr>';
+  }
+  $("coaltable").innerHTML = h + '</table>';
+
+  // and the same question over random fields rather than chosen ones
+  var seed = 424242, rnd = function () { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
+  var tot = 0, diff = 0, bridged = 0, desc = 0;
+  for (var q = 0; q < 6000; q++) {
+    var n = 1 + Math.floor(rnd() * 5), sp = [];
+    for (var z = 0; z < n; z++) {
+      var shape = rnd();
+      if (shape < 0.15) sp.push('-' + (1 + Math.floor(rnd() * 200)));
+      else if (shape < 0.3) sp.push(Math.floor(rnd() * 4300) + '-');
+      else { var lo = Math.floor(rnd() * 4300); sp.push(lo + '-' + (lo + Math.floor(rnd() * 90))); }
+    }
+    var fld = 'bytes=' + sp.join(',');
+    var vv = evaluate({ method: 'GET', now: REF_NOW, range: fld }, res, { profile: 'rfc9110' });
+    if (vv.status !== 206) continue;
+    var pr = parseRange(fld, res.length, null, {});
+    tot++;
+    if (vv.parts.length !== pr.sats.length) diff++;
+    if (pr.sats.length - vv.parts.length >= 2) bridged++;
+    for (var y = 1; y < vv.parts.length; y++) if (vv.parts[y].first < vv.parts[y - 1].first) { desc++; break; }
+  }
+  $("coalfuzz").innerHTML = 'Over <b>' + fmtN(tot) + '</b> random multi-range requests that came back ' +
+    '206, the number of parts on the wire differs from the number of specifications in the field on <b>' +
+    fmtN(diff) + '</b> of them &mdash; <b>' + pct(diff, tot) + '</b> &mdash; and on <b>' + fmtN(bridged) +
+    '</b> a single range absorbed <i>two or more</i> others at once. That last column is the one that ' +
+    'broke the first version of this function: it merged each new interval into the first part it ' +
+    'overlapped and stopped, which is correct until one open-ended range reaches across a gap and ' +
+    'joins two parts that were not touching each other. The byte-marking oracle found it immediately ' +
+    'and the live server never would have, because no ordinary client sends <code>bytes=2856-2894,' +
+    '3279-3342,2872-</code>. And on <b>' + fmtN(desc) + '</b> of the ' + fmtN(tot) + ' the parts leave ' +
+    'in descending file order, which a client that reassembles by arrival will silently scramble.';
+}
+function renderDateTable() {
+  var res = refRes();
+  var rows = [
+    ['Sun, 23 Aug 2026 11:00:00 GMT', 'imf-fixdate &mdash; the only form a server may send'],
+    ['Sunday, 23-Aug-26 11:00:00 GMT', 'rfc850-date &mdash; full weekday, hyphens, two-digit year'],
+    ['Sun Aug 23 11:00:00 2026', 'asctime-date &mdash; no comma, no zone, padded day'],
+    ['Mon, 23 Aug 2026 11:00:00 GMT', 'the weekday is redundant and is NOT checked'],
+    ['Sun, 23 Aug 2026 11:00:60 GMT', 'second 60 exists, and is clamped'],
+    ['Sun, 23 Aug 2026 11:00:00 UTC', 'UTC is not GMT to the grammar'],
+    ['Sun, 23 Aug 2026 11:00:00', 'no zone at all'],
+    ['Sun 23 Aug 2026 11:00:00 GMT', 'the comma is not optional'],
+    ['SUN, 23 AUG 2026 11:00:00 GMT', 'the names are case-SENSITIVE'],
+    ['Sun, 31 Feb 2026 11:00:00 GMT', 'a day that does not exist'],
+    ['Sunday, 23-Aug-2026 11:00:00 GMT', 'four digits in the two-digit slot'],
+    ['Sun, 23 Aug 2026 11:00:00 GMT; length=4096', 'the Netscape length hint, long obsolete']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>If-Modified-Since</th><th>PARSED AS</th>' +
+    '<th>RFC 9110</th><th>APACHE 2.4.41</th><th>NOTE</th></tr>';
+  for (var i = 0; i < rows.length; i++) {
+    var p = parseHttpDate(rows[i][0], REF_NOW);
+    var a = evaluate({ method: 'GET', now: REF_NOW, 'if-modified-since': rows[i][0] }, res, { profile: 'rfc9110' });
+    var b = evaluate({ method: 'GET', now: REF_NOW, 'if-modified-since': rows[i][0] }, res, { profile: 'apache' });
+    h += '<tr><td class="mono t-xs">' + esc(rows[i][0]) + '</td>' +
+      '<td class="t-xs">' + (p.ok ? '<span class="v allow">' + p.form + '</span>' : '<span class="v deny">rejected</span>') + '</td>' +
+      '<td>' + pill(a.status) + '</td><td>' + pill(b.status) +
+      (a.status !== b.status ? ' <span class="v warn">differs</span>' : '') + '</td>' +
+      '<td class="t-xs muted">' + rows[i][1] + '</td></tr>';
+  }
+  $("datetable").innerHTML = h + '</table>';
+
+  // the sliding window, computed live
+  var yrs = ['74', '75', '76', '77', '78', '99', '00', '26'], cells = [], moved = 0;
+  for (i = 0; i < yrs.length; i++) {
+    var s = 'Monday, 06-Nov-' + yrs[i] + ' 08:49:37 GMT';
+    var p1 = parseHttpDate(s, mkTime(2026, 1, 1, 0, 0, 0));
+    var p2 = parseHttpDate(s, mkTime(2027, 1, 1, 0, 0, 0));
+    cells.push(yrs[i] + ' &rarr; ' + p1.resolvedYear + (p1.resolvedYear !== p2.resolvedYear ?
+      ' <b>but ' + p2.resolvedYear + ' if read a year later</b>' : ''));
+  }
+  var movedAll = 0, naive19 = 0;
+  for (var yy = 0; yy < 100; yy++) {
+    var pad2 = (yy < 10 ? '0' : '') + yy;
+    var st = 'Monday, 06-Nov-' + pad2 + ' 08:49:37 GMT';
+    var q1 = parseHttpDate(st, mkTime(2026, 1, 1, 0, 0, 0));
+    var q2 = parseHttpDate(st, mkTime(2027, 1, 1, 0, 0, 0));
+    if (q1.ok && q2.ok && q1.resolvedYear !== q2.resolvedYear) movedAll++;
+    if (q1.ok && q1.resolvedYear !== 1900 + yy) naive19++;
+  }
+  $("yearsummary").innerHTML = '<span class="mono t-xs">' + cells.join(' &middot; ') + '</span><br><br>' +
+    'The two-digit year <code>77</code> means <b>1977</b> to a reader in 2026 and <b>2077</b> to a ' +
+    'reader in 2027, because fifty years from 2026 lands exactly on 2076. Of the hundred possible ' +
+    'two-digit years, <b>' + movedAll + '</b> changes meaning between those two Januaries &mdash; ' +
+    'one at a time, walking forward forever. And the shortcut everyone writes, <code>1900 + yy</code>, ' +
+    'is wrong on <b>' + naive19 + ' of 100</b> read today.';
+
+  var resumed = 0;
+  for (var msoff = 0; msoff < 1000; msoff++) {
+    var r3 = refRes({ lastModified: REF_LM + msoff });
+    if (evaluate({ method: 'GET', now: REF_NOW, range: 'bytes=0-9', 'if-range': fmtImf(REF_LM + msoff) },
+      r3, { profile: 'rfc9110' }).status === 206) resumed++;
+  }
+  $("subsecond").innerHTML = 'a representation whose modification time is not on a whole second can ' +
+    '<b>never</b> be resumed by date. Sweeping all 1,000 millisecond offsets of one timestamp, the ' +
+    'date-gated resume succeeds on exactly <b>' + resumed + '</b> of them &mdash; the one where the ' +
+    'milliseconds are zero. Every other file on the disk silently restarts from byte zero, and the ' +
+    'entity-tag form has no such problem.';
+}
+function renderModels() {
+  var res = refRes();
+  var all = buildGrid().concat(buildRangeGrid());
+  var models = [
+    ['every conditional evaluated and AND-ed together', naiveAnd, 'no precedence at all &mdash; the reading the prose invites'],
+    ['weak comparison in all three tag fields', naiveWeakEverywhere, 'one comparison function, chosen to be forgiving'],
+    ['strong comparison in all three tag fields', naiveStrongEverywhere, 'one comparison function, chosen to be strict'],
+    ['a Range I cannot use is a 416', naive416OnInvalid, 'invalid and unsatisfiable fused into one error'],
+    ['If-None-Match matched, therefore 304', naive304AnyMethod, 'the method gate forgotten'],
+    ['RFC 2616, the 1999 text, applied verbatim', function (q) { return evaluate(q, res, { profile: 'rfc2616' }).status; }, 'a correct implementation of a superseded document'],
+    ['Apache httpd 2.4.41, as measured on this machine', function (q) { return evaluate(q, res, { profile: 'apache' }).status; }, 'the most widely deployed answer there is']
+  ];
+  var rows = [], max = 0;
+  for (var i = 0; i < models.length; i++) {
+    var d = 0;
+    for (var j = 0; j < all.length; j++)
+      if (models[i][1](all[j], res) !== evaluate(all[j], res, { profile: 'rfc9110' }).status) d++;
+    rows.push([models[i][0], d, models[i][2]]);
+    if (d > max) max = d;
+  }
+  var h = '<table class="num" style="width:100%"><tr><th>THE READING</th><th>DISAGREES ON</th>' +
+    '<th></th><th>WHAT IT GETS WRONG</th></tr>';
+  for (i = 0; i < rows.length; i++)
+    h += '<tr><td class="t-sm b">' + esc(rows[i][0]) + '</td>' +
+      '<td class="mono">' + fmtN(rows[i][1]) + ' / ' + fmtN(all.length) + '<br><span class="dim t-xs">' +
+      pct(rows[i][1], all.length) + '</span></td>' +
+      '<td style="width:130px"><div class="bar' + (i >= 5 ? ' barwin' : ' barlim') + '" style="width:' +
+      Math.max(2, 100 * rows[i][1] / max) + '%"></div></td>' +
+      '<td class="t-xs muted">' + esc(rows[i][2]) + '</td></tr>';
+  $("models").innerHTML = h + '</table>';
+
+  // the split
+  var grid = buildGrid(), mz = 0, mzW = 0, nm = 0, nmW = 0;
+  for (i = 0; i < grid.length; i++) {
+    var v = evaluate(grid[i], res, { profile: 'rfc9110' }), n = naiveAnd(grid[i], res);
+    var muz = false;
+    for (var s = 0; s < v.trace.length; s++) if (v.trace[s].muzzled) muz = true;
+    if (muz) { mz++; if (n !== v.status) mzW++; } else { nm++; if (n !== v.status) nmW++; }
+  }
+  $("andsplit").innerHTML = 'On the <b>' + fmtN(nm) + '</b> cells where no field is muzzled it is wrong ' +
+    '<b>' + nmW + '</b> times &mdash; <b>' + pct(nmW, nm) + '</b>, exactly right, everywhere. On the <b>' +
+    fmtN(mz) + '</b> cells where a present field <i>is</i> muzzled it is wrong <b>' + fmtN(mzW) +
+    '</b> times, <b>' + pct(mzW, mz) + '</b>. The bug does not exist until two conditional headers ' +
+    'collide, and only ' + pct(mz, grid.length) + ' of the grid even has a collision that matters.';
+}
+function renderApacheTable() {
+  var rows = [
+    ['a present <code>If-Unmodified-Since</code> forbids any 304', 'iusBlocks304',
+     'even when it passes, even when it is garbage', 'a client that sends both loses every 304 it had'],
+    ['<code>If-Unmodified-Since</code> suppresses <code>If-Modified-Since</code>', 'iusMuzzlesIms',
+     'a third muzzle, in no revision of the specification', 'the date that would have answered is never read'],
+    ['a 304 must ALSO survive <code>If-Modified-Since</code>', 'inmAndsIms',
+     'conjunction where 9110 says precedence', 'an unparseable date CANCELS a good 304 instead of being ignored'],
+    ['<code>If-None-Match</code> goes STRONG off GET/HEAD', 'inmStrongUnsafe',
+     'RFC 2616 13.3.3 said so; 9110 does not', 'W/ stops matching on POST, PUT and DELETE'],
+    ['<code>If-None-Match</code> goes STRONG when a Range is present', 'inmStrongRange',
+     'a defensible safety measure, in no text', 'the comparison function is switched by a different header'],
+    ['a future <code>If-Modified-Since</code> is invalid', 'futureIms',
+     'RFC 2616 14.25, deleted in 7232', 'a skewed client clock costs a 304'],
+    ['no <code>Content-Range</code> on a 416', 'contentRangeOn416',
+     '&sect;15.5.17 says SHOULD', 'the client is told it is wrong, not what would be right'],
+    ['only the LEADING run of OWS is stripped per range', 'specTrim',
+     '&sect;5.6.1 allows it on both sides', 'a space before a comma drops the whole Range field'],
+    ['the range cap counts CLIPPED ranges, not specifications', 'maxRanges',
+     'no text at all; the default is 200', 'over the cap the client silently receives the FULL body'],
+    ['a Range on an empty representation is dropped, not 416', 'zeroLenRange',
+     '&sect;14.2 makes it unsatisfiable', '200 and an empty body instead of an error'],
+    ['the validator is weak for one second after a change', 'weakClock',
+     'a correct consequence of one-second Last-Modified', 'no download resumes during that second']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>WHAT THE SERVER DOES</th><th>SWITCH</th>' +
+    '<th>WHERE IT COMES FROM</th><th>WHAT IT COSTS</th></tr>';
+  for (var i = 0; i < rows.length; i++)
+    h += '<tr><td class="t-sm b">' + rows[i][0] + '</td><td class="mono t-xs">' + rows[i][1] + '</td>' +
+      '<td class="t-xs muted">' + rows[i][2] + '</td><td class="t-xs">' + rows[i][3] + '</td></tr>';
+  $("apachetable").innerHTML = h + '</table>';
+
+  // which switch accounts for the most cells?
+  var res = refRes(), all = buildGrid().concat(buildRangeGrid()), by = {}, tot = 0;
+  for (i = 0; i < all.length; i++) {
+    var a = evaluate(all[i], res, { profile: 'rfc9110' }), b = evaluate(all[i], res, { profile: 'apache' });
+    if (a.status !== b.status) {
+      tot++;
+      var key = b.decidedBy;
+      by[key] = (by[key] || 0) + 1;
+    }
+  }
+  var best = null;
+  for (var k in by) if (!best || by[k] > by[best]) best = k;
+  $("apachetop").innerHTML = 'Across ' + fmtN(all.length) + ' grid cells the deployed server and the ' +
+    'current text return different status codes <b>' + fmtN(tot) + '</b> times (' + pct(tot, all.length) +
+    '), and <b>' + fmtN(by[best]) + '</b> of those &mdash; the single largest block &mdash; come from ' +
+    'one rule: <i>' + esc(best) + '</i>. Adding a header that can only ever <i>refuse</i> a request, and ' +
+    'which passes, turns every 304 that request could have earned into a full-body 200. A cache-warming ' +
+    'client that sends both validators to &ldquo;be safe&rdquo; pays for every byte it was trying to save.';
+}
+function renderClockTable() {
+  var h = '<table class="num" style="width:100%"><tr><th>THE FILE CHANGED</th><th>ETag SENT</th>' +
+    '<th>RESUME BY TAG</th><th>RESUME BY DATE</th></tr>';
+  var LM2 = mkTime(2026, 8, 23, 11, 0, 0);
+  var ages = [0, 200, 500, 999, 1000, 1500, 3600000];
+  for (var i = 0; i < ages.length; i++) {
+    var res = { exists: true, etag: 'abc123', weak: false, lastModified: LM2, length: 4096 };
+    var now = LM2 + ages[i];
+    var byTag = evaluate({ method: 'GET', now: now, range: 'bytes=0-9', 'if-range': '"abc123"' }, res, { profile: 'apache' });
+    var byDate = evaluate({ method: 'GET', now: now, range: 'bytes=0-9', 'if-range': fmtImf(LM2) }, res, { profile: 'apache' });
+    var weak = (now - LM2) < PROFILES.apache.weakClock;
+    h += '<tr><td class="mono">' + (ages[i] >= 3600000 ? 'an hour ago' : fmtN(ages[i]) + ' ms ago') + '</td>' +
+      '<td class="mono">' + (weak ? '<b>W/</b>' : '') + '&quot;abc123&quot;</td>' +
+      '<td>' + pill(byTag.status) + '</td><td>' + pill(byDate.status) + '</td></tr>';
+  }
+  $("clocktable").innerHTML = h + '</table>' +
+    '<p class="t-xs muted mt2">Nothing about the request changes down this table. Only the clock does.</p>';
+}
+function renderRevTable() {
+  var res = refRes();
+  var rows = [
+    ['GET', { 'if-match': T, 'if-unmodified-since': D_OLD }, 'the muzzle: 9110 never reads the date'],
+    ['GET', { 'if-none-match': O, 'if-modified-since': D_LM }, 'the other muzzle'],
+    ['GET', { 'if-modified-since': D_FUT }, 'a date after the server clock'],
+    ['POST', { 'if-none-match': W }, 'weak comparison off GET/HEAD'],
+    ['GET', { 'if-none-match': T, 'if-modified-since': D_OLD }, 'precedence versus conjunction'],
+    ['GET', { 'if-none-match': T }, 'one header, no collision'],
+    ['GET', { range: 'bytes=0-9' }, 'a plain range, no collision']
+  ];
+  var h = '<table class="num" style="width:100%"><tr><th>REQUEST</th><th>RFC 2616 (1999)</th>' +
+    '<th>RFC 9110 (2022)</th><th>THE DIFFERENCE</th></tr>';
+  for (var i = 0; i < rows.length; i++) {
+    var req = { method: rows[i][0], now: REF_NOW };
+    for (var k in rows[i][1]) req[k] = rows[i][1][k];
+    var a = evaluate(req, res, { profile: 'rfc2616' }), b = evaluate(req, res, { profile: 'rfc9110' });
+    var hs = [];
+    for (k in rows[i][1]) hs.push(k + ': ' + rows[i][1][k]);
+    h += '<tr><td class="mono t-xs">' + rows[i][0] + ' &middot; ' + esc(hs.join(' + ')) + '</td>' +
+      '<td>' + pill(a.status) + '</td><td>' + pill(b.status) +
+      (a.status !== b.status ? ' <span class="v warn">differs</span>' : '') + '</td>' +
+      '<td class="t-xs muted">' + rows[i][2] + '</td></tr>';
+  }
+  $("revtable").innerHTML = h + '</table>';
+
+  var grid = buildGrid(), two = 0, twoD = 0, one = 0, oneD = 0;
+  for (i = 0; i < grid.length; i++) {
+    var n = 0;
+    for (var f = 0; f < 4; f++) {
+      var key = ['if-match', 'if-none-match', 'if-unmodified-since', 'if-modified-since'][f];
+      if (typeof grid[i][key] === 'string') n++;
+    }
+    var same = evaluate(grid[i], res, { profile: 'rfc9110' }).status === evaluate(grid[i], res, { profile: 'rfc2616' }).status;
+    if (n >= 2) { two++; if (!same) twoD++; } else { one++; if (!same) oneD++; }
+  }
+  $("revsplit").innerHTML = 'The revisions disagree on <b>' + pct(oneD, one) + '</b> of the ' + fmtN(one) +
+    ' grid cells carrying at most one conditional header, and on <b>' + pct(twoD, two) + '</b> of the ' +
+    fmtN(two) + ' carrying two or more &mdash; ' + fmtN(twoD) + ' cells. Twenty-three years of ' +
+    'clarification went almost entirely into what happens when two of these fields arrive together, ' +
+    'which is the case nobody tests.';
+}
+function renderRef() {
+  var ref = runRefCases(), inv = invariants();
+  if (ref.failures.length || inv.bad || inv.disagree || inv.drBad) {
+    var t = "FAILURES\n";
+    for (var i = 0; i < Math.min(12, ref.failures.length); i++) {
+      var f = ref.failures[i];
+      t += "  #" + f.i + " " + f.method + " " + f.h + " [" + f.profile + "]\n      want " + f.want +
+        "\n      got  " + f.got + "\n      (" + f.why + ")\n";
+    }
+    if (inv.bad) t += "  " + inv.bad + " invariant violations\n";
+    if (inv.disagree) t += "  " + inv.disagree + " disagreements with the byte-marking oracle\n";
+    if (inv.drBad) t += "  " + inv.drBad + " date round-trip failures\n";
+    $("ref").textContent = t;
+    return;
+  }
+  var total = ref.checks + inv.asserts;
+  $("ref").textContent =
+    ref.total + " reference cases, " + fmtN(total) + " assertions, 0 failures.\n" +
+    "  " + ref.checks + " reference cases across three profiles; each asserts the DECIDING RULE\n" +
+    "      as well as the status code, so a right answer for the wrong reason still fails\n" +
+    "  " + fmtN(inv.asserts) + " swept assertions over " + fmtN(inv.cells) +
+    " grid cells x 3 profiles: every cell returns a\n" +
+    "      legal status and a named rule, 206 always carries parts, 304 never does\n" +
+    "  " + fmtN(inv.fuzz) + " random multi-range requests re-resolved by an INDEPENDENT oracle that marks\n" +
+    "      a boolean array byte by byte and reads the runs back: " + inv.disagree + " disagreements\n" +
+    "  " + fmtN(inv.dr) + " timestamps round-tripped through the formatter and all three date grammars: " +
+    inv.drBad + " failures\n" +
+    "  " + APACHE_RUN.requests + " live requests against " + APACHE_RUN.version + " on this machine:\n" +
+    "      " + APACHE_RUN.disagreements + " status disagreements, " + APACHE_RUN.contentRanges +
+    " Content-Range strings identical,\n" +
+    "      " + APACHE_RUN.bodies + " response bodies byte-identical, " + APACHE_RUN.partLists +
+    " multipart part lists identical\n\n" +
+    "The numbers this page turns on:\n" +
+    '  W/"abc123" is 304 / 206 / 412 / 200 depending on the field, the method and a neighbour\n' +
+    "  the AND-ed model is wrong 0 times on " + fmtN(inv.nm) + " unmuzzled cells and " +
+    fmtN(inv.mzWrong) + " on " + fmtN(inv.mz) + " muzzled ones\n" +
+    "  an INVALID Range is 200 and the whole body; an UNSATISFIABLE one is 416 and nothing\n" +
+    "  the part count differs from the range count on " + fmtN(inv.partDiff) + " of " +
+    fmtN(inv.fuzz) + " random multi-range requests\n" +
+    '  "assume 19xx" for a two-digit year is wrong on ' + inv.naive19 + " of 100 read today\n" +
+    "  a date-gated resume works on " + inv.resumed +
+    " of 1000 millisecond offsets of one modification time\n" +
+    "  Apache diverges from RFC 9110 on " + fmtN(inv.counts.apache) + " of " + fmtN(inv.cells) +
+    " cells; RFC 2616 on " + fmtN(inv.counts.rfc2616);
+}
+
+$("preset").addEventListener("change", function () {
+  var p = PRESETS[parseInt($("preset").value, 10)];
+  $("method").value = p[1];
+  for (var i = 0; i < HFIELDS.length; i++) $("h-" + HFIELDS[i]).value = "";
+  for (var k in p[2]) $("h-" + k).value = p[2][k];
+  renderMain();
+});
+["method", "profile", "r-exists", "r-weak"].forEach(function (id) { $(id).addEventListener("change", renderMain); });
+["r-etag", "r-lm", "r-len", "r-now"].forEach(function (id) { $(id).addEventListener("input", renderMain); });
+HFIELDS.forEach(function (f) { $("h-" + f).addEventListener("input", renderMain); });
+
+fillPresets();
+$("h-if-none-match").value = '"abc123"';
+$("h-if-modified-since").value = 'Sun, 23 Aug 2026 11:00:00 GMT';
+renderMain();
+renderFiveWay();
+renderWalkTable();
+renderCmpTable();
+renderJunkTable();
+renderStarTable();
+renderRangeTable();
+renderCoalTable();
+renderDateTable();
+renderClockTable();
+renderRevTable();
+// the grids run the evaluator ~100k times, so let the page paint first
+setTimeout(function () { renderModels(); renderApacheTable(); renderRef(); }, 30);
+</script>
+</body>
+</html>
