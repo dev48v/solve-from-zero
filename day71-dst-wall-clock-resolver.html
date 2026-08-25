@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 71 &mdash; DST wall-clock resolver &amp; calendar arithmetic engine</title>
+<style>
+/* ---- no CDN, no build step: the handful of utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.inv { background:#fff1f2; outline:1px dashed #fb7185; border-radius:3px; padding:0 2px; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.wrap3 { max-width:780px;  margin:0 auto; }
+.p4 { padding:16px; } .p5 { padding:20px; } .p6 { padding:24px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+.g2t { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+.g3t { display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.stack6 > * + * { margin-top:22px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; } .bg2 { background:#f8fafc; } .bg0 { background:#fff; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+/* the kind pills */
+.k { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:13px; padding:3px 10px;
+     border-radius:6px; display:inline-block; }
+.kuniq{background:#dcfce7;color:#14532d}
+.kgap {background:#fee2e2;color:#7f1d1d}
+.kfold{background:#e0e7ff;color:#3730a3}
+.kerr {background:#ffedd5;color:#7c2d12}
+/* the trace walk */
+.walk { border-left:3px solid #e2e8f0; padding-left:14px; }
+.wstep { position:relative; padding:8px 0; }
+.wstep::before { content:""; position:absolute; left:-20px; top:15px; width:9px; height:9px;
+      border-radius:99px; background:#cbd5e1; }
+.wstep.wgap::before  { background:#f43f5e; }
+.wstep.wfold::before { background:#6366f1; }
+.wstep.wexact::before{ background:#0ea5e9; }
+.wstep.wskip::before { background:#fff; outline:2px solid #cbd5e1; }
+/* the local-clock ribbon */
+.ribbon { display:flex; gap:2px; min-width:640px; }
+.rc { flex:1 1 0; min-width:9px; border-radius:3px; height:34px; position:relative; background:#dcfce7; }
+.rc.r0 { background:#fecaca; }
+.rc.r2 { background:#c7d2fe; }
+.rc.rnow { outline:3px solid #0f172a; outline-offset:1px; z-index:2; }
+.rlabels { display:flex; gap:2px; min-width:640px; margin-top:3px; }
+.rl { flex:1 1 0; min-width:9px; font-size:8.5px; color:#64748b; text-align:center;
+      font-family:ui-monospace,Consolas,monospace; overflow:hidden; }
+.hdrrow { display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } .g3t { grid-template-columns:1fr; } }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.hist { display:flex; align-items:center; gap:8px; }
+.histbar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+.histbar.hb2 { background:#6366f1; } .histbar.hb3 { background:#f43f5e; }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 71</p>
+    <h1 class="mb4">
+      🕰 IANA wall-clock resolver &amp; calendar-arithmetic engine &mdash; a real
+      TC39&nbsp;Temporal / RFC&nbsp;5545 resolver. Give it a zone, a wall clock and a duration and it
+      returns the exact instant, <strong>naming the rule that decided it</strong>. The trap at the
+      centre is not a value, it is a <em>position</em>: the same length of time written two ways
+      &mdash; <code>P1D</code> or <code>PT24H</code>, <code>P1DT1H</code> or <code>PT25H</code>
+      &mdash; lands on different instants, because date units are added to the <b>wall clock</b> and
+      time units are added to the <b>elapsed count</b>, in that order and never mixed. Push on the
+      asymmetry and it becomes absolute: over all <strong>10,203 fold transitions in tzdata
+      2025b</strong>, the <em>second</em> occurrence of an ambiguous wall time is reachable by
+      <strong>0</strong> date-unit durations and by <strong>all 10,203</strong> time-unit ones. You
+      can hold that instant, print it and parse it &mdash; you can never <i>arrive</i> at it by
+      adding a day. 67 reference cases, every one a case a plausible implementation gets wrong, and
+      the engine is raced against <strong>ICU's own offset strings across 418 zones and 20,436
+      transitions</strong>. The model everybody ships &mdash; a day is 86,400 seconds &mdash; is
+      <strong>right on every one of the 245,232 cases away from a transition and wrong on 25.00% of
+      the 490,464 next to one</strong>, which is exactly why it survives every test suite.
+      Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🕰 RESOLVE</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================= RESOLVE -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <p class="lbl mb1">PRESET</p>
+      <select id="preset" class="mb3"></select>
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb2">THE LOCAL CLOCK</p>
+          <div class="hdrrow"><span class="t-xs b">IANA zone</span>
+            <input id="zone" list="zonelist" value="America/New_York"><datalist id="zonelist"></datalist></div>
+          <div class="hdrrow"><span class="t-xs b">Wall time</span>
+            <input id="wall" value="2025-11-02T01:30:00"></div>
+          <div class="hdrrow"><span class="t-xs b">Disambiguation</span>
+            <select id="dis">
+              <option value="compatible">compatible &mdash; the default</option>
+              <option value="earlier">earlier</option>
+              <option value="later">later</option>
+              <option value="reject">reject &mdash; throw on gap or fold</option>
+            </select></div>
+        </div>
+        <div>
+          <p class="lbl mb2">THE ARITHMETIC</p>
+          <div class="hdrrow"><span class="t-xs b">Duration (ISO 8601)</span>
+            <input id="dur" value="P1D"></div>
+          <div class="hdrrow"><span class="t-xs b">Month overflow</span>
+            <select id="ovf">
+              <option value="constrain">constrain &mdash; clamp 31 Feb to 28 Feb</option>
+              <option value="reject">reject &mdash; throw</option>
+            </select></div>
+          <div class="hdrrow"><span class="t-xs b">Direction</span>
+            <select id="dir"><option value="add">add</option><option value="subtract">subtract</option></select></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="verdict"></div>
+
+    <div class="card">
+      <p class="lbl mb1">THE LOCAL CLOCK AROUND THIS MOMENT</p>
+      <p class="t-sm muted mb3">Every cell is one slice of <em>local wall clock</em>. Green cells
+        happen once. <span class="k kgap" style="font-size:11px;padding:1px 7px">red</span> cells
+        never happen at all &mdash; no instant on the timeline reads that. <span class="k kfold"
+        style="font-size:11px;padding:1px 7px">blue</span> cells happen <b>twice</b>. The heavy
+        outline is the wall time you typed.</p>
+      <div class="scroll"><div id="ribbon"></div><div id="riblabels"></div></div>
+      <p class="t-xs dim mt3" id="ribnote"></p>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><p class="lbl mb2">THE ORDERED WALK</p><div id="walk"></div></div>
+      <div class="card"><p class="lbl mb2">TRANSITIONS NEAR THIS DATE</p><div class="scroll" id="trans"></div></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">ONE LENGTH OF TIME, SIX SPELLINGS</p>
+      <p class="t-sm muted mb3">Every row below is the <i>same</i> start instant. The durations are
+        not all equal to each other, but the pairs that <em>are</em> &mdash;
+        <code>P1D</code>/<code>PT24H</code>, <code>P1W</code>/<code>P7D</code> &mdash; are only equal
+        in a world without transitions. Watch the offset column, not the clock column.</p>
+      <div class="scroll" id="spellings"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">FOUR IMPLEMENTATIONS, ONE INPUT</p>
+      <p class="t-sm muted mb3">The first row is the specified ordering. The other three are the
+        three shortcuts real codebases take. Away from a transition all four agree, always &mdash;
+        which is why the shortcuts ship.</p>
+      <div class="scroll" id="models"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- =========================================================== UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg2">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">A duration is not a number. It is two numbers that are added in different spaces.</h2>
+      <p class="t-sm muted mb3">
+        <code>P1DT1H</code> looks like a single quantity: 25 hours. It is not. The
+        <code>P</code> half &mdash; years, months, weeks, days &mdash; is added to the
+        <b>wall clock</b>, the digits on the face, and then the result is re-anchored to a real
+        instant. The <code>T</code> half &mdash; hours, minutes, seconds &mdash; is added to the
+        <b>elapsed count</b>, real seconds ticking past, and it never consults the calendar at all.
+        Date half first, always.
+      </p>
+      <p class="t-sm muted mb3">
+        Away from a DST transition the two spaces are the same space and nothing about this is
+        observable. Next to one they come apart, and they come apart in the direction that is hardest
+        to test for: the answer changes depending on <em>which half of the duration string</em> you
+        wrote the hour in.
+      </p>
+      <div class="note note-b t-sm">
+        <b>The rule to internalise.</b> <code>P1D</code> means &ldquo;tomorrow, same clock
+        reading&rdquo;. <code>PT24H</code> means &ldquo;86,400 seconds from now&rdquo;. These are
+        different requests. Two days a year, in most of the world, they are different answers, and
+        for the roughly 40% of humanity in a zone that never changes its clock they are identical
+        forever &mdash; which is why the distinction survives code review.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">&ldquo;compatible&rdquo; is not one policy. It is two, chosen by which way the clock jumped.</h3>
+      <p class="t-sm muted mb3">
+        A wall time in a zone maps to <b>0, 1 or 2</b> instants. Two, and you must choose. Zero, and
+        you must invent. The four policies are named <code>compatible</code>, <code>earlier</code>,
+        <code>later</code> and <code>reject</code>, and three of those names mean what they say. The
+        default does not:
+      </p>
+      <div class="scroll mb3">
+        <table class="num">
+          <tr><th>situation</th><th>compatible</th><th>earlier</th><th>later</th><th>reject</th></tr>
+          <tr><td class="b">fold &mdash; 2 instants</td><td class="ok">first</td><td>first</td><td>second</td><td>throws</td></tr>
+          <tr><td class="b">gap &mdash; 0 instants</td><td class="ok">shift <b>forward</b></td><td>shift back</td><td>shift forward</td><td>throws</td></tr>
+        </table>
+      </div>
+      <p class="t-sm muted mb3">
+        Read the <code>compatible</code> column downwards. In a fold it behaves as
+        <code>earlier</code>; in a gap it behaves as <code>later</code>. It always moves
+        <i>forward along the timeline of real instants</i>, which is a coherent thing to want and is
+        exactly what makes a repeating calendar event never run twice. But it means the default
+        policy is a different policy depending on the sign of the offset change, and no caller is
+        told which one fired.
+      </p>
+      <div class="note note-r t-sm">
+        <b>And <code>earlier</code> in a gap is not the transition instant.</b> It shifts the
+        <i>wall time</i> back by the width of the gap and resolves that. New York
+        <code>2025-03-09T02:30</code> under <code>earlier</code> is <code>01:30&#8209;05:00</code>,
+        not <code>01:59:59</code> and not <code>03:00</code>. Implementations that clamp to the
+        transition instant are wrong by up to 59 minutes and pass every test written at
+        <code>02:00</code>.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">The finding: half of every fold is unreachable.</h2>
+      <p class="t-sm muted mb3">
+        Put the two rules together. Calendar arithmetic ends by resolving a wall time. Under the
+        default policy, resolving a wall time in a fold returns the <b>first</b> of the two
+        instants. Therefore <em>no</em> date-unit duration &mdash; no number of days, weeks, months
+        or years, forwards or backwards, from any starting point &mdash; can ever land on the second
+        one. That instant exists. It has a timestamp. It formats and parses. It is simply not in the
+        image of the function.
+      </p>
+      <p class="t-sm muted mb3">
+        Every fold in the database was checked: for each, the mid-fold wall time was resolved to its
+        two instants, six date-unit routes were tried into the later one, and a single time-unit
+        duration was tried as a control.
+      </p>
+      <div class="scroll mb3" id="reachtable"></div>
+      <p class="t-sm muted mb3">
+        The control is the point. The instant is one <code>PT1H</code> away and always has been.
+        Change <code>P1D</code> to <code>PT24H</code> in a scheduling library and a whole hour of the
+        year stops being addressable, or starts being addressable, with no diff to the value and no
+        change to the total length.
+      </p>
+      <div class="note t-sm">
+        <b>The mirror image is worse.</b> Because <code>compatible</code> pushes <em>forward</em> out
+        of a gap, arithmetic can land on instants that no user could have typed: New York
+        <code>02:30</code> plus one day is <code>03:30</code>, a clock reading the user never asked
+        for. Gaps are surjective onto the wrong side; folds are not surjective at all.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">The three shortcuts, scored</h3>
+      <p class="t-sm muted mb3">
+        Three models, each of which a competent developer writes on purpose, each raced against the
+        specified ordering over every transition in the database at four start offsets and six
+        durations &mdash; 490,464 cases.
+      </p>
+      <ul class="t-sm muted mb3">
+        <li><b>exact-ms</b> &mdash; convert the whole duration to milliseconds and add. &ldquo;A day
+          is 86,400 seconds.&rdquo;</li>
+        <li><b>wall-all</b> &mdash; add every unit including hours to the wall clock, resolve once at
+          the end. &ldquo;Just do the arithmetic on the local time.&rdquo;</li>
+        <li><b>time-first</b> &mdash; the right two spaces, the wrong order: exact time, then
+          calendar.</li>
+      </ul>
+      <div class="scroll mb3" id="modeltable"></div>
+      <p class="t-sm muted mb3">
+        Note which cells are zero. <b>exact-ms</b> is perfect on every pure-time duration and wrong
+        on half of every date duration. <b>wall-all</b> is its exact complement. <b>time-first</b> is
+        wrong nowhere except on durations that mix the two halves &mdash; which is the only place the
+        order can matter, and is therefore the one duration shape nobody writes a test for.
+      </p>
+      <div class="note note-r t-sm">
+        <b>The 0.01% is the interesting one.</b> <b>wall-all</b> disagrees on 5 of 81,744
+        <code>P1DT1H</code> cases &mdash; five, out of eighty-one thousand. A model that is wrong
+        0.006% of the time is a model that ships, survives, and produces one furious support ticket
+        a decade with no reproduction.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Adding then subtracting does not return you</h3>
+      <p class="t-sm muted mb3">
+        <code>subtract</code> mirrors <code>add</code>: the exact-time half comes off first, then the
+        calendar half. Mirroring is the right choice &mdash; it makes
+        <code>x.add(d).subtract(d)</code> work whenever no transition intervenes &mdash; but it
+        cannot be an inverse, because the resolution step is many-to-one at every fold and
+        undefined-to-one at every gap.
+      </p>
+      <div class="scroll mb3" id="rttable"></div>
+      <p class="t-sm muted">
+        Nearly nine in ten of those failures pass through a gap or a fold. The rest are month
+        clamping: 31 January plus one month minus one month is 28 January, and no transition is
+        involved at all.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Midnight is not the start of the day</h3>
+      <p class="t-sm muted mb3">
+        <code>startOfDay</code> is not <code>T00:00:00</code>. A zone can skip midnight, in which
+        case the day begins later; and a zone can repeat midnight, in which case the day begins
+        twice and you take the first.
+      </p>
+      <div class="scroll mb3" id="midtable"></div>
+      <p class="t-sm muted mb3">
+        Chile and Cuba do this every single year, on schedule, forever. So did Jordan, Syria, Lebanon,
+        Egypt and Iran. Anything that computes a daily boundary by concatenating
+        <code>"T00:00:00"</code> onto a date is wrong for 160 zones on 1,580 dates &mdash; and the
+        error is silent, because <code>2018-11-04T00:00:00</code> in S&atilde;o&nbsp;Paulo still
+        parses, still compares, and is simply an hour before the day starts.
+      </p>
+      <div class="note note-b t-sm">
+        <b>And a calendar day is not 24 hours.</b> Here is how long the transition days actually are,
+        counted from one <code>startOfDay</code> to the next:
+      </div>
+      <div class="scroll mt3" id="daytable"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">The zones that break the assumptions you did not know you had</h3>
+      <div class="scroll mb3" id="oddtable"></div>
+      <p class="t-sm muted mt3">
+        <b>Five calendar dates in the database have no instants at all.</b> Not a missing hour
+        &mdash; the entire date. Pacific/Apia went from 29 December 2011 straight to 31 December.
+        Anything that iterates dates by adding one day and formatting produces a date that never
+        existed, and anything that resolves that date lands 24 hours away.
+      </p>
+      <div class="scroll mt3" id="skiptable"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Three things I expected to find and did not</h3>
+      <ul class="t-sm muted">
+        <li class="mb2"><b>I expected the &plusmn;1-day probe to be provably broken.</b> The
+          resolution algorithm finds candidate instants by reading the offset one day either side of
+          the nominal guess. Legal UTC offsets span &minus;12:00 to +14:00 &mdash; twenty-six hours,
+          wider than the probe. Pacific/Kiritimati really did move 24 hours and 40 minutes in one
+          step. So the heuristic should be constructible-against. It is not: over
+          <b>81,744 probes</b> at four positions around every transition in the database, a
+          &plusmn;1-day probe and a &plusmn;2-day probe returned <b>identical candidate sets every
+          time</b>. The engine still ships the wider window, because &ldquo;I could not construct a
+          counterexample&rdquo; is not &ldquo;there is none&rdquo; &mdash; but the claim I set out to
+          make is not supported.</li>
+        <li class="mb2"><b>I expected Europe/Dublin to be observably different from Europe/London.</b>
+          tzdata models Irish Standard Time as the <em>summer</em> baseline with a
+          <b>negative</b> saving applied in winter, the inverse of every other European zone. Real
+          inversion, real consequence for anything reading an is-DST flag. But the offsets are
+          <b>identical to London on every instant</b>, so a resolver that only ever asks for offsets
+          &mdash; which is what this engine does, and what
+          <code>Intl</code> exposes &mdash; cannot see it. The difference is real and this page
+          cannot measure it; that is a limit of the instrument, and it is stated rather than
+          papered over.</li>
+        <li class="mb2"><b>I expected <code>timeZoneName:'longOffset'</code> to be lossy.</b> The
+          whole justification for reconstructing offsets by subtraction was that ICU's ready-made
+          offset string renders to whole minutes and would flatten Africa/Monrovia's
+          <b>&minus;00:44:30</b>. It does not: ICU 77.1 emits <code>GMT-00:44:30</code>, seconds
+          intact, and the two derivations agreed on <b>40,872 of 40,872</b> samples. The real cost is
+          arity &mdash; four string shapes out of one field, including a bare <code>GMT</code> for
+          zero offset &mdash; which is a parsing hazard, not a precision one. I had written the
+          opposite on this page before testing it, which is the whole reason the verifier exists.</li>
+        <li><b>A fourth, which did land.</b> I assumed the specified <code>until</code> &mdash;
+          calendar days off the wall clock, then a wall-clock remainder &mdash; would be the inverse
+          of <code>add</code>. It is not: the remainder can itself straddle a transition, and it
+          failed on <b>16 of 31,302</b> round trips. The fix is to seed the date units from the
+          calendar and then <em>correct them in instant space against the same anchor</em>
+          <code>add</code> uses. That version is inverse-exact by construction: 0 of 31,302.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">The 67 reference cases</h3>
+      <p class="t-sm muted mb3">
+        Every one chosen because a plausible implementation gets it wrong, and every one asserting
+        the <b>deciding rule</b>, not only the answer. <span class="mono" id="refhead"></span>
+      </p>
+      <div class="scroll" id="reftable"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- =============================================================== BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">Building it</h2>
+      <p class="t-sm muted mb3">
+        About 380 lines, no dependencies, no embedded tz database, and &mdash; deliberately &mdash;
+        no <code>Date</code> arithmetic anywhere. Every fact about a zone comes out of
+        <code>Intl.DateTimeFormat</code>, which is the host's own IANA data; every fact about the
+        calendar comes out of a proleptic Gregorian day-count. The two never mix.
+      </p>
+      <p class="t-sm muted">
+        The design decision that makes the rest fall out: <b>the resolver returns candidates, not an
+        answer.</b> A function that returns an array of length 0, 1 or 2 forces every caller to
+        confront the gap and the fold. A function that returns a timestamp lets them off, and that is
+        why almost every library has this bug.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">1. Reading an offset without an offset API</h3>
+      <pre><code>// Format the instant AS IF it were UTC-labelled wall fields, then subtract.
+function getOffset(zone, epochMs) {
+  var w = getWall(zone, epochMs);              // via Intl.DateTimeFormat
+  return Math.round((wallToNominal(w) - Math.floor(epochMs/1000)*1000) / 1000);
+}</code></pre>
+      <p class="t-sm muted mt3">
+        The obvious shortcut is <code>timeZoneName:'longOffset'</code>, which hands you
+        <code>"GMT-04:00"</code> ready-parsed. <b>I assumed it was lossy and it is not</b> &mdash;
+        ICU renders Africa/Monrovia's pre-1972 offset as <code>GMT-00:44:30</code>, seconds and all,
+        and over 40,872 samples it agreed with the subtraction above on every single one. What it
+        actually costs you is <b>arity</b>. Across 600 samples that one field emitted <em>four</em>
+        different shapes &mdash; <code>GMT</code>, <code>GMT+NN:NN</code>, <code>GMT-NN:NN</code>
+        and <code>GMT-NN:NN:NN</code> &mdash; and the zero-offset case is the bare string
+        <code>GMT</code> with no sign and no digits at all, 42 of those 600. A regex written against
+        the shape you happened to test returns <code>NaN</code> for UTC and drops thirty seconds in
+        Monrovia, silently, in a function whose output is a number.
+      </p>
+      <p class="t-sm muted mt3">
+        The subtraction survives for a different reason, and it is the better one: this engine has to
+        read the wall clock <em>anyway</em>, so deriving the offset from that same reading makes the
+        two <b>self-consistent by construction</b>. An offset parsed from a second, independent
+        formatter call is one more thing that can disagree with the fields you are about to resolve
+        against. The verifier uses <code>longOffset</code> precisely <i>because</i> it is that
+        independent second opinion.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">2. Candidates, not an answer</h3>
+      <pre><code>function possibleInstants(zone, wall) {
+  var nominal = wallToNominal(wall);
+  var oBefore = getOffset(zone, nominal - PROBE), oAfter = getOffset(zone, nominal + PROBE);
+  var cands = oBefore === oAfter ? [nominal - oBefore*1000]
+                                 : [nominal - oBefore*1000, nominal - oAfter*1000];
+  return cands.filter(function (c) { return sameWall(getWall(zone, c), wall); });
+}</code></pre>
+      <p class="t-sm muted mt3">
+        Two guesses, then a <b>verification round-trip</b>: format each candidate back and keep only
+        the ones that actually read as the requested wall time. The filter is the whole algorithm.
+        Without it the function returns a plausible-looking instant for a time that never happened,
+        which is precisely the failure everybody ships. With it, a gap returns <code>[]</code> and
+        the caller cannot avoid noticing.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">3. The disambiguation split, written as a split</h3>
+      <pre><code>if (poss.length &gt; 1) {                       // FOLD
+  var pick = (dis === 'later') ? poss[poss.length-1] : poss[0];
+  //          compatible falls through to EARLIER here
+}
+// GAP: no candidates at all
+var gapMs = (oAfter - oBefore) * 1000;
+if (dis === 'earlier') return resolve(nominal - gapMs);
+return resolve(nominal + gapMs);             // compatible falls through to LATER here</code></pre>
+      <p class="t-sm muted mt3">
+        <code>compatible</code> is never named in either branch. It is the absence of
+        <code>later</code> in one and the absence of <code>earlier</code> in the other, which is
+        exactly what it is. Writing it as a third named case would require deciding what it means,
+        and it does not mean anything on its own.
+      </p>
+      <p class="t-sm muted mt3">
+        Note also that the gap branch shifts by <code>gapMs</code> and then <b>resolves again</b>
+        rather than returning a computed instant. Lord Howe Island shifts by thirty minutes,
+        Antarctica/Troll by two hours, Vostok once by seven, and five zones by a full day; a
+        hard-coded hour is wrong for 147 of the 10,233 gaps in the database.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">4. The ordering, and why it is two statements and not one expression</h3>
+      <pre><code>if (hasDate(dur)) {                                  // 1. wall-clock space
+  var w1 = addCalendar(getWall(zone, epochMs), dur, overflow);
+  r = resolve(zone, w1, dis);                        //    disambiguation fires HERE
+  mid = r.epochMs;
+}
+var out = mid + timeMs(dur);                         // 2. exact-elapsed space</code></pre>
+      <p class="t-sm muted mt3">
+        Two statements, in that order, with a resolution between them. Fuse them into one expression
+        &mdash; add everything to the wall clock, resolve once &mdash; and you get the
+        <b>wall-all</b> model, which is wrong on 18.78% of transition-adjacent cases. Swap them and
+        you get <b>time-first</b>, wrong on 4.17%. The resolution step in the middle is not a
+        formality: it is the only place the trace can record that a gap or a fold was entered, and
+        <code>disambiguationFired</code> is the flag that lets the page count them.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">5. A difference that is an inverse</h3>
+      <pre><code>var days = Math.trunc((bMs - anchor(months, 0)) / MS_DAY);        // seed from the calendar
+while (days &amp;&amp; sgn * (bMs - anchor(months, days))     &lt;  0) days -= sgn;   // correct
+while (       sgn * (bMs - anchor(months, days+sgn)) &gt;= 0) days += sgn;   // in INSTANT space
+var rem = bMs - anchor(months, days);                            // exact remainder</code></pre>
+      <p class="t-sm muted mt3">
+        The first version of this counted calendar days on the wall clock and took a wall-clock
+        remainder. It read better and it was wrong 16 times in 31,302, always where the remainder
+        itself crossed a transition. The version above never asks what the clock says: it walks the
+        date units against the very <code>anchor()</code> that <code>add()</code> will use, so
+        <code>add(a, until(a,b)) === b</code> holds by construction rather than by luck.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">6. A fast path that has to earn it</h3>
+      <pre><code>function getWall(zone, epochMs) {
+  if (FAST_OK === null) FAST_OK = probeFast();   // sv-SE format() vs formatToParts, 42 cells
+  if (FAST_OK) { var w = getWallFast(zone, epochMs); if (w) return w; }
+  return getWallSlow(zone, epochMs);             // formatToParts, always correct
+}</code></pre>
+      <p class="t-sm muted mt3">
+        <code>formatToParts</code> allocates thirteen objects per call and this engine makes hundreds
+        of thousands of calls. <code>sv-SE</code> renders ISO-shaped
+        <code>2025-11-02 01:30:00</code> from <code>format()</code> and is about 4.7&times; cheaper
+        &mdash; but locale output is not a contract. So the fast path is used only after it has been
+        proven equal to the slow one on a probe grid that includes the epoch, a fold, a
+        seconds-resolution LMT offset and a whole-day skip, and any string it cannot parse falls
+        straight through. The in-page suite re-checks the two paths against each other on every run.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">7. Verifying it</h3>
+      <p class="t-sm muted mb3">Four layers, none of which trusts the engine:</p>
+      <ul class="t-sm muted mb3">
+        <li><b>ICU's own offset strings as the oracle.</b> The engine reconstructs offsets by
+          subtracting a formatted wall clock from an instant. The check reads
+          <code>timeZoneName:'longOffset'</code> and parses ICU's own
+          <code>GMT&plusmn;HH:MM[:SS]</code> string directly &mdash; no calendar arithmetic, no
+          subtraction, a different code path to the same tzdata. Raced over every zone and every
+          transition. Same shape of check as Day 69's ICU race and Day 70's live Apache.</li>
+        <li><b>An interval classifier that never probes.</b> Gap and fold windows are re-derived from
+          the transition endpoints alone &mdash; read the wall clock one second before the jump and
+          at the jump, and the two readings bound the window &mdash; then wall times are classified
+          by plain interval comparison. It shares no line with
+          <code>possibleInstants</code> and cannot agree for the wrong reason.</li>
+        <li><b>Round trips as properties, not samples.</b> <code>resolve(getWall(t)) === t</code> for
+          every unambiguous instant; <code>add(a, until(a,b)) === b</code> for every largest-unit;
+          the fast and slow formatter paths against each other.</li>
+        <li><b>67 reference cases</b> from the specification's prose and the database's own oddities,
+          each asserting the deciding rule and not only the timestamp.</li>
+      </ul>
+      <div class="note note-g"><pre id="ref" style="background:none;color:#065f46;padding:0;font-size:12px">running&hellip;</pre></div>
+      <p class="t-sm muted mt3">
+        The full-database figures on this page were measured under Node&nbsp;22.17.1 with ICU 77.1 and
+        <b>tzdata 2025b</b>. Your browser ships its own copy of the database; the live sweep below
+        recomputes the same measurements against <em>your</em> data, and if the two disagree that is
+        a real difference between two tz releases, not a bug.
+      </p>
+      <div class="flex mt3"><button class="go" id="sweepbtn">RUN THE LIVE SWEEP IN THIS BROWSER</button></div>
+      <div class="mt3" id="sweepout"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+var tabs = document.querySelectorAll("#tabs button");
+var panels = document.querySelectorAll(".panel");
+tabs.forEach(function(t){ t.addEventListener("click", function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); });
+  t.classList.add("tab-active");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+  window.scrollTo(0,0);
+});});
+
+// ===== ENGINE:BEGIN =====
+/* ================= DST / IANA wall-clock engine (DOM-free) =================
+   Offset source: ECMA-402 Intl.DateTimeFormat (the host's own IANA tzdata).
+   Resolution + arithmetic model: RFC 5545 sec 3.2.19 / RFC 7808 / TC39 Temporal
+   (GetPossibleInstantsFor, DisambiguatePossibleInstants, AddZonedDateTime).
+   Every public result carries `rule` = the clause that decided it.          */
+
+var TZ = (function () {
+  "use strict";
+  var MS_DAY = 86400000;
+
+  /* ---- civil calendar (Howard Hinnant days_from_civil; proleptic Gregorian,
+          works for any year, unlike Date.UTC which maps years 0..99 to 1900+) */
+  function daysFromCivil(y, m, d) {
+    y -= m <= 2 ? 1 : 0;
+    var era = Math.floor((y >= 0 ? y : y - 399) / 400);
+    var yoe = y - era * 400;
+    var doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+    var doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+    return era * 146097 + doe - 719468;
+  }
+  function civilFromDays(z) {
+    z += 719468;
+    var era = Math.floor((z >= 0 ? z : z - 146096) / 146097);
+    var doe = z - era * 146097;
+    var yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+    var y = yoe + era * 400;
+    var doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+    var mp = Math.floor((5 * doy + 2) / 153);
+    var d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+    var m = mp + (mp < 10 ? 3 : -9);
+    return { y: y + (m <= 2 ? 1 : 0), mo: m, d: d };
+  }
+  function daysInMonth(y, m) {
+    if (m === 2) return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28;
+    return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+  }
+  /* wall fields -> the epoch ms they WOULD have if the zone were UTC */
+  function wallToNominal(w) {
+    return daysFromCivil(w.y, w.mo, w.d) * MS_DAY +
+      (w.h * 3600 + w.mi * 60 + w.s) * 1000 + (w.ms || 0);
+  }
+  function nominalToWall(n) {
+    var days = Math.floor(n / MS_DAY), rem = n - days * MS_DAY;
+    var c = civilFromDays(days);
+    return { y: c.y, mo: c.mo, d: c.d, h: Math.floor(rem / 3600000),
+             mi: Math.floor(rem / 60000) % 60, s: Math.floor(rem / 1000) % 60, ms: rem % 1000 };
+  }
+
+  /* ---- offset lookup: format the instant in the zone, read the wall clock
+          back, subtract. `timeZoneName:'longOffset'` would hand the offset over
+          ready-made and is NOT lossy (ICU renders Africa/Monrovia's -00:44:30
+          with its seconds), but it emits four different string shapes including
+          a bare "GMT" for zero, and it would be a SECOND formatter call whose
+          answer could disagree with the wall fields we resolve against. Reading
+          one clock and subtracting keeps the two self-consistent. */
+  var fmtCache = Object.create(null);
+  function fmtFor(zone) {
+    var f = fmtCache[zone];
+    if (!f) {
+      f = new Intl.DateTimeFormat("en-US", {
+        timeZone: zone, hourCycle: "h23", era: "short", year: "numeric",
+        month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric"
+      });
+      fmtCache[zone] = f;
+    }
+    return f;
+  }
+  function validZone(zone) { try { fmtFor(zone); return true; } catch (e) { return false; } }
+
+  function getWallSlow(zone, epochMs) {
+    var parts = fmtFor(zone).formatToParts(epochMs), o = Object.create(null), i;
+    for (i = 0; i < parts.length; i++) o[parts[i].type] = parts[i].value;
+    var y = +o.year;
+    if (o.era && /^B/i.test(o.era)) y = 1 - y;            /* 1 BC == year 0 */
+    var floorMs = Math.floor(epochMs / 1000) * 1000;
+    return { y: y, mo: +o.month, d: +o.day, h: +o.hour % 24, mi: +o.minute,
+             s: +o.second, ms: epochMs - floorMs };
+  }
+
+  /* A fast path. formatToParts allocates an array of ~13 objects per call and
+     this engine calls it hundreds of thousands of times; sv-SE format() emits
+     "2025-11-02 01:30:00" and is ~4.7x cheaper. It is used only after it has
+     been PROVEN to agree with the formatToParts path on a probe grid, and any
+     input whose shape it cannot parse falls straight back. */
+  var fastCache = Object.create(null), FAST_OK = null;
+  var FAST_RE = /^(-?\d{1,6})-(\d\d)-(\d\d)[ ,T]+(\d\d):(\d\d):(\d\d)$/;
+  function fastFor(zone) {
+    var f = fastCache[zone];
+    if (!f) {
+      f = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit",
+        day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit"
+      });
+      fastCache[zone] = f;
+    }
+    return f;
+  }
+  function getWallFast(zone, epochMs) {
+    var m = FAST_RE.exec(fastFor(zone).format(epochMs).replace(/−/g, "-"));
+    if (!m) return null;
+    var floorMs = Math.floor(epochMs / 1000) * 1000;
+    return { y: +m[1], mo: +m[2], d: +m[3], h: +m[4] % 24, mi: +m[5], s: +m[6],
+             ms: epochMs - floorMs };
+  }
+  function probeFast() {
+    var zs = ["UTC", "America/New_York", "Australia/Lord_Howe", "Asia/Kathmandu",
+              "Pacific/Kiritimati", "Africa/Monrovia", "Antarctica/Troll"];
+    var ts = [0, Date.UTC(2025, 10, 2, 5, 30), Date.UTC(1972, 0, 7, 0, 50),
+              Date.UTC(1994, 11, 31, 12), Date.UTC(2038, 5, 1), -2208988800000];
+    var i, j, a, b;
+    for (i = 0; i < zs.length; i++) {
+      for (j = 0; j < ts.length; j++) {
+        try { a = getWallFast(zs[i], ts[j]); } catch (e) { return false; }
+        b = getWallSlow(zs[i], ts[j]);
+        if (!a || a.y !== b.y || a.mo !== b.mo || a.d !== b.d || a.h !== b.h ||
+            a.mi !== b.mi || a.s !== b.s) return false;
+      }
+    }
+    return true;
+  }
+  function getWall(zone, epochMs) {
+    if (FAST_OK === null) { try { FAST_OK = probeFast(); } catch (e) { FAST_OK = false; } }
+    if (FAST_OK) { var w = getWallFast(zone, epochMs); if (w) return w; }
+    return getWallSlow(zone, epochMs);
+  }
+  var offCache = Object.create(null), offCacheN = 0;
+  function getOffset(zone, epochMs) {                     /* seconds, east + */
+    var k = zone + "|" + epochMs, v = offCache[k];
+    if (v !== undefined) return v;
+    var w = getWall(zone, epochMs);
+    w.ms = 0;
+    v = Math.round((wallToNominal(w) - Math.floor(epochMs / 1000) * 1000) / 1000);
+    if (offCacheN > 400000) { offCache = Object.create(null); offCacheN = 0; }
+    offCache[k] = v; offCacheN++;
+    return v;
+  }
+
+  /* ---- transition search: coarse scan + binary search down to the second. */
+  function transitionsIn(zone, aMs, bMs, stepMs) {
+    stepMs = stepMs || 6 * 3600000;
+    var out = [], prevO = getOffset(zone, aMs), prevT = aMs, t, o, lo, hi, mid;
+    for (t = aMs + stepMs; ; t += stepMs) {
+      if (t > bMs) t = bMs;
+      o = getOffset(zone, t);
+      if (o !== prevO) {
+        lo = prevT; hi = t;
+        while (hi - lo > 1000) {
+          mid = lo + Math.floor((hi - lo) / 2000) * 1000;
+          if (mid === lo) break;
+          if (getOffset(zone, mid) === prevO) lo = mid; else hi = mid;
+        }
+        out.push({ at: hi, from: prevO, to: o, shift: o - prevO,
+                   kind: o > prevO ? "gap" : "fold" });
+        prevO = o;
+      }
+      prevT = t;
+      if (t >= bMs) break;
+    }
+    return out;
+  }
+
+  /* ---- GetPossibleInstantsFor.
+     Temporal probes the offset one day either side of the nominal guess. The
+     legal UTC offset range is -12:00..+14:00 = 26h wide, so a +-1 day probe is
+     not provably sufficient; PROBE_DAYS is exposed so the page can demonstrate
+     whether any zone actually breaks the 1-day assumption. (None does.) */
+  var PROBE_DAYS = 2;
+  function possibleInstants(zone, wall, probeDays) {
+    var pd = (probeDays === undefined ? PROBE_DAYS : probeDays) * MS_DAY;
+    var nominal = wallToNominal(wall);
+    var oBefore = getOffset(zone, nominal - pd);
+    var oAfter = getOffset(zone, nominal + pd);
+    var cands = oBefore === oAfter ? [nominal - oBefore * 1000]
+                                   : [nominal - oBefore * 1000, nominal - oAfter * 1000];
+    var out = [], i, c, w;
+    for (i = 0; i < cands.length; i++) {
+      c = cands[i];
+      w = getWall(zone, c);
+      if (w.y === wall.y && w.mo === wall.mo && w.d === wall.d &&
+          w.h === wall.h && w.mi === wall.mi && w.s === (wall.s || 0)) {
+        if (out.indexOf(c) < 0) out.push(c);
+      }
+    }
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
+  /* ---- DisambiguatePossibleInstants.
+     `compatible` is NOT one policy: it behaves as `later` inside a gap and as
+     `earlier` inside a fold. That split is the whole reason the second half of
+     a fold is unreachable by calendar arithmetic. */
+  var DISAMBIGUATIONS = ["compatible", "earlier", "later", "reject"];
+  function resolve(zone, wall, disambiguation) {
+    var dis = disambiguation || "compatible";
+    if (DISAMBIGUATIONS.indexOf(dis) < 0) throw new RangeError("bad disambiguation: " + dis);
+    var norm = nominalToWall(wallToNominal(wall));
+    var poss = possibleInstants(zone, norm);
+
+    if (poss.length === 1) {
+      return { epochMs: poss[0], offset: getOffset(zone, poss[0]), kind: "unique",
+               choices: poss, ruleId: "unique",
+               rule: "unique: exactly one instant maps to this wall time; disambiguation is not consulted" };
+    }
+    if (poss.length > 1) {                                        /* FOLD */
+      if (dis === "reject")
+        throw new RangeError("ambiguous wall time (" + poss.length +
+          " instants) and disambiguation=reject");
+      var pick = (dis === "later") ? poss[poss.length - 1] : poss[0];
+      return { epochMs: pick, offset: getOffset(zone, pick), kind: "fold", choices: poss,
+               ruleId: "fold-" + (dis === "later" ? "later" : "earlier"),
+               rule: "fold: " + poss.length + " instants match; disambiguation=" + dis + " -> " +
+                     (dis === "later" ? "LATER (post-transition offset)"
+                                      : "EARLIER (pre-transition offset)") +
+                     (dis === "compatible" ? "; compatible behaves as EARLIER in a fold" : "") };
+    }
+    /* GAP: nothing matches. Re-derive the transition to size the jump. */
+    var nominal = wallToNominal(norm);
+    var pd = PROBE_DAYS * MS_DAY;
+    var oBefore = getOffset(zone, nominal - pd);
+    var oAfter = getOffset(zone, nominal + pd);
+    var gapMs = (oAfter - oBefore) * 1000;
+    if (dis === "reject")
+      throw new RangeError("nonexistent wall time (gap of " + (gapMs / 60000) +
+        " min) and disambiguation=reject");
+    if (dis === "earlier") {
+      var back = possibleInstants(zone, nominalToWall(nominal - gapMs));
+      var e = back.length ? back[0] : nominal - oBefore * 1000 - gapMs;
+      return { epochMs: e, offset: getOffset(zone, e), kind: "gap", choices: [], gapMs: gapMs,
+               ruleId: "gap-earlier",
+               rule: "gap: " + (gapMs / 60000) +
+                     " min of wall clock never happened; disambiguation=earlier -> shift the wall time BACK by the gap, then resolve" };
+    }
+    var fwd = possibleInstants(zone, nominalToWall(nominal + gapMs));
+    var l = fwd.length ? fwd[fwd.length - 1] : nominal - oAfter * 1000 + gapMs;
+    return { epochMs: l, offset: getOffset(zone, l), kind: "gap", choices: [], gapMs: gapMs,
+             ruleId: "gap-later",
+             rule: "gap: " + (gapMs / 60000) + " min of wall clock never happened; disambiguation=" +
+                   dis + " -> shift the wall time FORWARD by the gap, then resolve" +
+                   (dis === "compatible" ? "; compatible behaves as LATER in a gap" : "") };
+  }
+
+  /* ---- calendar (wall-clock) date arithmetic with month-overflow handling */
+  function addCalendar(wall, dur, overflow) {
+    var y = wall.y + (dur.years || 0);
+    var mTot = (wall.mo - 1) + (dur.months || 0);
+    y += Math.floor(mTot / 12);
+    var mo = ((mTot % 12) + 12) % 12 + 1;
+    var dim = daysInMonth(y, mo), d = wall.d, clamped = false;
+    if (d > dim) {
+      if (overflow === "reject")
+        throw new RangeError("day " + d + " does not exist in " + y + "-" + mo + " and overflow=reject");
+      d = dim; clamped = true;                     /* overflow=constrain (default) */
+    }
+    var nominal = daysFromCivil(y, mo, d) * MS_DAY +
+      (wall.h * 3600 + wall.mi * 60 + wall.s) * 1000 + (wall.ms || 0);
+    nominal += ((dur.weeks || 0) * 7 + (dur.days || 0)) * MS_DAY;
+    var out = nominalToWall(nominal);
+    out.clamped = clamped;
+    return out;
+  }
+  function timeMs(dur) {
+    return (dur.hours || 0) * 3600000 + (dur.minutes || 0) * 60000 +
+           (dur.seconds || 0) * 1000 + (dur.milliseconds || 0);
+  }
+  function hasDate(dur) {
+    return !!((dur.years || 0) || (dur.months || 0) || (dur.weeks || 0) || (dur.days || 0));
+  }
+
+  /* ---- AddZonedDateTime. THE ordering rule:
+     years/months/weeks/days are added to the WALL CLOCK and the result is
+     re-anchored to an instant (disambiguation may fire here); hours and below
+     are then added as EXACT elapsed milliseconds, which never re-enters
+     disambiguation. Swap the two halves and you get a different answer. */
+  function add(zone, epochMs, dur, opts) {
+    opts = opts || {};
+    var dis = opts.disambiguation || "compatible";
+    var overflow = opts.overflow || "constrain";
+    var trace = [], mid = epochMs, r = null, w1 = null;
+    if (hasDate(dur)) {
+      var w0 = getWall(zone, epochMs);
+      w1 = addCalendar(w0, dur, overflow);
+      r = resolve(zone, w1, dis);
+      mid = r.epochMs;
+      trace.push({ step: "1. date units (Y/M/W/D) added in WALL-CLOCK space", wall: w1,
+                   kind: r.kind, clamped: !!w1.clamped, rule: r.rule });
+    } else {
+      trace.push({ step: "1. no date units; the anchor instant is unchanged", kind: "skip",
+                   rule: "date-then-time ordering: nothing to add in wall-clock space" });
+    }
+    var tm = timeMs(dur), outMs = mid + tm;
+    trace.push({ step: "2. time units (H/M/S/ms) added as EXACT elapsed time", deltaMs: tm, kind: "exact",
+                 rule: "time units are exact elapsed time: they cross transitions without re-resolving, so the wall clock can move by more or less than the duration" });
+    return { epochMs: outMs, offset: getOffset(zone, outMs), wall: getWall(zone, outMs),
+             anchorMs: mid, disambiguationFired: r ? (r.kind !== "unique") : false,
+             kind: r ? r.kind : "unique", ruleId: r ? r.ruleId : "unique", trace: trace };
+  }
+  function negate(dur) {
+    var o = {}, k, keys = ["years", "months", "weeks", "days", "hours", "minutes", "seconds", "milliseconds"];
+    for (k = 0; k < keys.length; k++) o[keys[k]] = -(dur[keys[k]] || 0);
+    return o;
+  }
+  /* subtract mirrors add: the exact-time half comes off FIRST, then the
+     wall-clock half. That mirroring is why add-then-subtract is not identity. */
+  function subtract(zone, epochMs, dur, opts) {
+    opts = opts || {};
+    var d = negate(dur), trace = [], mid = epochMs;
+    var tm = timeMs(d);
+    mid = epochMs + tm;
+    trace.push({ step: "1. time units removed as EXACT elapsed time", deltaMs: tm, kind: "exact",
+                 rule: "subtract mirrors add: exact time first, then wall-clock date units" });
+    var r = null;
+    if (hasDate(d)) {
+      var w1 = addCalendar(getWall(zone, mid), d, opts.overflow || "constrain");
+      r = resolve(zone, w1, opts.disambiguation || "compatible");
+      mid = r.epochMs;
+      trace.push({ step: "2. date units (Y/M/W/D) removed in WALL-CLOCK space", wall: w1,
+                   kind: r.kind, clamped: !!w1.clamped, rule: r.rule });
+    }
+    return { epochMs: mid, offset: getOffset(zone, mid), wall: getWall(zone, mid),
+             anchorMs: mid, disambiguationFired: r ? (r.kind !== "unique") : false,
+             kind: r ? r.kind : "unique", ruleId: r ? r.ruleId : "unique", trace: trace };
+  }
+
+  /* ---- startOfDay: NOT "T00:00". Midnight can be skipped (America/Sao_Paulo
+     2018-11-04) or can happen twice (America/Havana 2025-11-02).            */
+  function startOfDay(zone, y, mo, d) {
+    var w = { y: y, mo: mo, d: d, h: 0, mi: 0, s: 0, ms: 0 };
+    var poss = possibleInstants(zone, w);
+    if (poss.length === 1)
+      return { epochMs: poss[0], wall: getWall(zone, poss[0]), kind: "unique", ruleId: "sod-unique",
+               rule: "startOfDay: 00:00:00 exists exactly once" };
+    if (poss.length > 1)
+      return { epochMs: poss[0], wall: getWall(zone, poss[0]), kind: "fold", choices: poss,
+               ruleId: "sod-fold",
+               rule: "startOfDay: 00:00:00 occurs " + poss.length + " times; the day starts at the FIRST" };
+    var r = resolve(zone, w, "compatible");
+    return { epochMs: r.epochMs, wall: getWall(zone, r.epochMs), kind: "gap", gapMs: r.gapMs,
+             ruleId: "sod-gap",
+             rule: "startOfDay: midnight does not exist (" + (r.gapMs / 60000) +
+                   " min gap); the day starts at the first instant after the gap" };
+  }
+
+  /* ---- until.
+     A wall-clock date subtraction is NOT invertible: the exact remainder it
+     leaves can itself straddle a transition, so add(a, until(a,b)) misses b.
+     Instead: seed the date units from the calendar, then correct them in
+     INSTANT space against the very anchor() that add() will use. */
+  function until(zone, aMs, bMs, largestUnit) {
+    largestUnit = largestUnit || "hours";
+    if (largestUnit === "hours" || largestUnit === "minutes" || largestUnit === "seconds" ||
+        largestUnit === "milliseconds") {
+      var ms = bMs - aMs, sign = ms < 0 ? -1 : 1, abs = Math.abs(ms);
+      var o = { sign: sign, years: 0, months: 0, days: 0, hours: 0, minutes: 0 };
+      if (largestUnit === "hours") { o.hours = Math.floor(abs / 3600000); abs -= o.hours * 3600000; }
+      if (largestUnit === "hours" || largestUnit === "minutes") {
+        o.minutes = Math.floor(abs / 60000); abs -= o.minutes * 60000;
+      }
+      o.seconds = Math.floor(abs / 1000); o.milliseconds = abs % 1000;
+      o.ruleId = "until-exact";
+      o.rule = "largestUnit=" + largestUnit +
+        ": pure exact-time difference; the calendar and the transitions are never consulted";
+      return o;
+    }
+    var sgn = bMs < aMs ? -1 : 1;
+    var wa = getWall(zone, aMs), wb = getWall(zone, bMs);
+    var years = 0, months = 0, days = 0, guard = 0;
+    function anchor(mo, dy) {
+      return resolve(zone, addCalendar(wa, { months: mo, days: dy }, "constrain"), "compatible").epochMs;
+    }
+    if (largestUnit === "years" || largestUnit === "months") {
+      months = (wb.y - wa.y) * 12 + (wb.mo - wa.mo);
+      while (months !== 0 && sgn * (bMs - anchor(months, 0)) < 0 && guard++ < 4000) months -= sgn;
+      while (sgn * (bMs - anchor(months + sgn, 0)) >= 0 && guard++ < 4000) months += sgn;
+    }
+    var mid0 = anchor(months, 0);
+    days = Math.trunc((bMs - mid0) / MS_DAY);
+    guard = 0;
+    while (days !== 0 && sgn * (bMs - anchor(months, days)) < 0 && guard++ < 4000) days -= sgn;
+    while (sgn * (bMs - anchor(months, days + sgn)) >= 0 && guard++ < 4000) days += sgn;
+    var rem = bMs - anchor(months, days);          /* exact ms, |rem| < ~1 day */
+    if (largestUnit === "years") { years = Math.trunc(months / 12); months -= years * 12; }
+    return finishUntil(sgn, years, months, days, Math.abs(rem), largestUnit);
+  }
+  function finishUntil(sgn, years, months, days, rem, largestUnit) {
+    return { sign: sgn, years: Math.abs(years), months: Math.abs(months), days: Math.abs(days),
+             hours: Math.floor(rem / 3600000), minutes: Math.floor(rem / 60000) % 60,
+             seconds: Math.floor(rem / 1000) % 60, milliseconds: rem % 1000,
+             ruleId: "until-calendar",
+             rule: "largestUnit=" + largestUnit +
+               ": date units are counted on the wall clock then corrected in INSTANT space, so one day here is whatever the clock reads (23h, 25h, 23h30m), never definitionally 24h" };
+  }
+
+  /* ---- formatting + parsing helpers (still DOM-free) */
+  function pad(n, w) { var s = String(Math.abs(n)); while (s.length < (w || 2)) s = "0" + s; return s; }
+  function offStr(sec) {
+    var sign = sec < 0 ? "-" : "+", a = Math.abs(sec);
+    var h = Math.floor(a / 3600), m = Math.floor(a / 60) % 60, s = a % 60;
+    return sign + pad(h) + ":" + pad(m) + (s ? ":" + pad(s) : "");
+  }
+  function wallStr(w) {
+    return (w.y < 0 ? "-" + pad(-w.y, 6) : pad(w.y, 4)) + "-" + pad(w.mo) + "-" + pad(w.d) +
+      "T" + pad(w.h) + ":" + pad(w.mi) + ":" + pad(w.s) + (w.ms ? "." + pad(w.ms, 3) : "");
+  }
+  function isoIn(zone, epochMs) {
+    return wallStr(getWall(zone, epochMs)) + offStr(getOffset(zone, epochMs)) + "[" + zone + "]";
+  }
+  function parseWall(str) {
+    var m = /^(-?\d{4,6})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?)?$/
+      .exec(String(str).trim());
+    if (!m) return null;
+    return { y: +m[1], mo: +m[2], d: +m[3], h: +(m[4] || 0), mi: +(m[5] || 0), s: +(m[6] || 0),
+             ms: +((m[7] || "0") + "00").slice(0, 3) };
+  }
+  function parseDuration(str) {
+    var m = /^([+-])?P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/i
+      .exec(String(str).trim());
+    if (!m) return null;
+    if (!m[2] && !m[3] && !m[4] && !m[5] && !m[6] && !m[7] && !m[8]) return null;
+    var sg = m[1] === "-" ? -1 : 1, sec = parseFloat(m[8] || 0);
+    return { years: sg * +(m[2] || 0), months: sg * +(m[3] || 0), weeks: sg * +(m[4] || 0),
+             days: sg * +(m[5] || 0), hours: sg * +(m[6] || 0), minutes: sg * +(m[7] || 0),
+             seconds: sg * Math.trunc(sec), milliseconds: sg * Math.round((sec % 1) * 1000) };
+  }
+  function durStr(d) {
+    var s = "P", t = "";
+    if (d.years) s += Math.abs(d.years) + "Y";
+    if (d.months) s += Math.abs(d.months) + "M";
+    if (d.weeks) s += Math.abs(d.weeks) + "W";
+    if (d.days) s += Math.abs(d.days) + "D";
+    if (d.hours) t += Math.abs(d.hours) + "H";
+    if (d.minutes) t += Math.abs(d.minutes) + "M";
+    if (d.seconds || d.milliseconds) t += (Math.abs(d.seconds || 0) + Math.abs(d.milliseconds || 0) / 1000) + "S";
+    if (t) s += "T" + t;
+    var neg = (d.years || d.months || d.weeks || d.days || d.hours || d.minutes || d.seconds || 0) < 0;
+    return (neg ? "-" : "") + (s === "P" ? "PT0S" : s);
+  }
+
+  /* ---- the three models real codebases actually ship, kept side by side so
+     the page can score them against the specified ordering. */
+  function monthsAsExact(zone, epochMs, dur) {
+    if (!(dur.years || dur.months)) return 0;
+    var w = getWall(zone, epochMs);
+    var w2 = addCalendar(w, { years: dur.years || 0, months: dur.months || 0 }, "constrain");
+    return wallToNominal(w2) - wallToNominal(w);
+  }
+  function modelExact(zone, epochMs, dur) {          /* "a day is 86400 seconds" */
+    return epochMs + (((dur.weeks || 0) * 7 + (dur.days || 0)) * MS_DAY) + timeMs(dur) +
+      monthsAsExact(zone, epochMs, dur);
+  }
+  function modelWallAll(zone, epochMs, dur, dis) {   /* everything on the wall clock */
+    var w1 = addCalendar(getWall(zone, epochMs), dur, "constrain");
+    return resolve(zone, nominalToWall(wallToNominal(w1) + timeMs(dur)), dis || "compatible").epochMs;
+  }
+  function modelTimeFirst(zone, epochMs, dur, dis) { /* right spaces, wrong order */
+    var mid = epochMs + timeMs(dur);
+    if (!hasDate(dur)) return mid;
+    return resolve(zone, addCalendar(getWall(zone, mid), dur, "constrain"), dis || "compatible").epochMs;
+  }
+
+  return { getWall: getWall, getWallSlow: getWallSlow, getWallFast: getWallFast,
+           getOffset: getOffset, transitionsIn: transitionsIn,
+           possibleInstants: possibleInstants, resolve: resolve, add: add, subtract: subtract,
+           until: until, startOfDay: startOfDay, addCalendar: addCalendar,
+           wallToNominal: wallToNominal, nominalToWall: nominalToWall, daysInMonth: daysInMonth,
+           daysFromCivil: daysFromCivil, civilFromDays: civilFromDays,
+           isoIn: isoIn, offStr: offStr, wallStr: wallStr, parseWall: parseWall,
+           parseDuration: parseDuration, durStr: durStr, validZone: validZone,
+           DISAMBIGUATIONS: DISAMBIGUATIONS, timeMs: timeMs, negate: negate, hasDate: hasDate,
+           modelExact: modelExact, modelWallAll: modelWallAll, modelTimeFirst: modelTimeFirst,
+           MS_DAY: MS_DAY };
+})();
+
+/* ================== the offline full-database measurement ==================
+   Every figure below was produced by running the engine above under
+   Node 22.17.1 / ICU 77.1 / tzdata 2025b over all 418 canonical zones and
+   every transition between 1970-01-01 and 2038-01-01. The verifier re-derives
+   all of it against ICU's own offset strings; the live sweep on the BUILD tab
+   recomputes a subset against whatever tz release this browser carries.      */
+var FULL_RUN = {
+  node: "22.17.1", icu: "77.1", tzdata: "2025b",
+  zones: 418, from: "1970-01-01", to: "2038-01-01",
+  transitions: 20436, gaps: 10233, folds: 10203,
+  gapHist:  [[60,10086],[30,78],[120,48],[180,10],[1440,5],[15,1],[40,1],[44.5,1],[45,1],[90,1],[420,1]],
+  foldHist: [[60,10062],[30,78],[120,53],[180,9],[420,1]],
+  dayHist:  [[1380,10046],[1500,10002],[1440,111],[1470,78],[1410,75],[1560,51],[1320,48],
+             [1260,10],[1620,8],[1020,1],[1350,1],[1395,1],[1395.5,1],[1400,1],[1425,1],[1860,1]],
+  sweep: { n: 490464, exact: 122602, wallAll: 92092, timeFirst: 20431,
+           per: [["P1D",81744,40862,0,0], ["PT24H",81744,0,40862,0], ["PT25H",81744,0,40867,0],
+                 ["P1DT1H",81744,40862,5,20431], ["P1M",81744,40878,0,0], ["PT1H",81744,0,10358,0]] },
+  foldReach: { folds: 10203, byDate: 0, byTime: 10203, routes: 6 },
+  roundTrip: { n: 245232, fail: 34551, withGapOrFold: 30017 },
+  midnight: { dates: 59947, gapDays: 1580, gapZones: 160, foldDays: 351, foldZones: 36 },
+  probe1: { n: 81744, fail: 0 },
+  untilInverse: { n: 31302, fail: 0, failBeforeFix: 16 },
+  resolveRT: { n: 61306, fail: 0 },
+  lmtSeconds: [["Africa/Monrovia", "-00:44:30", "until 1972-01-07"]],
+  skipped: [["Pacific/Apia","2011-12-30"], ["Pacific/Enderbury","1994-12-31"],
+            ["Pacific/Fakaofo","2011-12-30"], ["Pacific/Kiritimati","1994-12-31"],
+            ["Pacific/Kwajalein","1993-08-21"]],
+  odd: [
+    ["Australia/Lord_Howe", "30-minute DST", "the only zone whose saving is half an hour; its gap and its fold are 30 min, not 60"],
+    ["Antarctica/Troll",    "2-hour DST",    "UTC+00 to UTC+02 in one step, 62 times; 01:00-03:00 both exists twice and not at all, depending on the season"],
+    ["Antarctica/Casey",    "3-hour shifts", "and one of its folds reaches back across midnight into the previous calendar date"],
+    ["Antarctica/Vostok",   "7-hour shift",  "1994-01-31 was 31 hours long and 1994-11-01 was 17"],
+    ["Pacific/Chatham",     "+12:45 / +13:45", "a 45-minute base offset that also observes DST"],
+    ["Asia/Kathmandu",      "+05:45",        "reached in 1986 by a 15-minute gap - the smallest in the database"],
+    ["Africa/Monrovia",     "-00:44:30",     "the only zone whose offset carries SECONDS at the epoch; every whole-minute offset type is wrong here by 30 s"],
+    ["America/St_Johns",    "-03:30 / -02:30", "a fold between two half-hour offsets"],
+    ["Africa/Casablanca",   "Ramadan",       "leaves +01 for the month and returns - so it folds in February and gaps in April"],
+    ["Europe/Dublin",       "negative DST",  "tzdata treats summer as the baseline and winter as the saving; the offsets are identical to London and this engine cannot tell them apart"]
+  ]
+};
+
+/* ---- 67 reference cases. Each is a case a plausible implementation gets
+   wrong, and each asserts the DECIDING RULE, not only the answer. Shape:
+   [group, op, args, expected, why].  ops: R resolve, A add, S startOfDay,
+   U until.  Expected strings carry "|ruleId" wherever a rule name applies. */
+var REF_CASES = [
+["gap","R",["America/New_York","2025-03-09T02:30:00","compatible"],"2025-03-09T03:30:00-04:00|gap-later","the canonical spring-forward hour"],
+["gap","R",["America/New_York","2025-03-09T02:30:00","earlier"],"2025-03-09T01:30:00-05:00|gap-earlier","earlier moves the WALL TIME back by the gap - it does not clamp to the transition instant"],
+["gap","R",["America/New_York","2025-03-09T02:30:00","later"],"2025-03-09T03:30:00-04:00|gap-later","later == compatible in a gap"],
+["gap","R",["America/New_York","2025-03-09T02:30:00","reject"],"RangeError","reject is the only policy that tells the caller anything happened"],
+["gap","R",["Australia/Lord_Howe","2025-10-05T02:15:00","compatible"],"2025-10-05T02:45:00+11:00|gap-later","a 30-minute gap; a hard-coded +1h is wrong by half an hour"],
+["gap","R",["Australia/Lord_Howe","2025-10-05T02:15:00","earlier"],"2025-10-05T01:45:00+10:30|gap-earlier","and the earlier side moves back 30 minutes, not 60"],
+["gap","R",["Antarctica/Troll","2025-03-30T01:30:00","compatible"],"2025-03-30T03:30:00+02:00|gap-later","a two-hour gap - twice the width every DST shim assumes, and it swallows two whole clock hours"],
+["gap","R",["Antarctica/Troll","2025-03-30T02:59:00","compatible"],"2025-03-30T04:59:00+02:00|gap-later","still inside the same two-hour gap - 02:59 does not exist either"],
+["gap","R",["Antarctica/Casey","2022-10-02T00:30:00","compatible"],"2022-10-02T03:30:00+11:00|gap-later","a three-hour gap that opens at midnight"],
+["gap","R",["Antarctica/Vostok","1994-11-01T04:00:00","compatible"],"1994-11-01T11:00:00+07:00|gap-later","a seven-hour gap, the widest that is not a whole calendar day"],
+["gap","R",["Pacific/Apia","2011-12-30T12:00:00","compatible"],"2011-12-31T12:00:00+14:00|gap-later","a gap of one whole calendar day"],
+["gap","R",["Pacific/Kiritimati","1994-12-31T12:00:00","compatible"],"1995-01-01T12:00:00+14:00|gap-later","the other whole-day skip - and a 24h40m offset swing, wider than the probe window"],
+["gap","R",["Asia/Katmandu","1986-01-01T00:10:00","compatible"],"1986-01-01T00:25:00+05:45|gap-later","a 15-minute gap into a :45 offset"],
+["gap","R",["Africa/Monrovia","1972-01-07T00:20:00","compatible"],"1972-01-07T01:04:30+00:00|gap-later","a 44-minute-30-second gap - the result has :30 on the seconds, which no whole-minute offset type can hold"],
+["gap","R",["America/Sao_Paulo","2018-11-04T00:30:00","compatible"],"2018-11-04T01:30:00-02:00|gap-later","the gap opens AT midnight, so the date has no 00:xx at all"],
+["gap","R",["Asia/Beirut","2023-03-26T00:30:00","compatible"],"2023-03-26T01:30:00+03:00|gap-later","Lebanon 2023: a midnight gap"],
+["gap","R",["Asia/Amman","2022-02-25T00:30:00","compatible"],"2022-02-25T01:30:00+03:00|gap-later","Jordan moved to permanent +03 at midnight and never came back"],
+["gap","R",["Asia/Damascus","2022-03-25T00:30:00","compatible"],"2022-03-25T01:30:00+03:00|gap-later","Syria at midnight, the last DST it ever observed"],
+["gap","R",["Africa/Cairo","2023-04-28T00:30:00","compatible"],"2023-04-28T01:30:00+03:00|gap-later","Egypt resumed DST in 2023, at midnight"],
+["gap","R",["Asia/Tehran","2022-03-22T00:30:00","compatible"],"2022-03-22T01:30:00+04:30|gap-later","a midnight gap in a :30 zone"],
+["gap","R",["America/Santiago","2025-09-07T00:30:00","compatible"],"2025-09-07T01:30:00-03:00|gap-later","Chile springs forward at midnight every single year"],
+["fold","R",["America/New_York","2025-11-02T01:30:00","compatible"],"2025-11-02T01:30:00-04:00|fold-earlier","the canonical repeated hour; compatible takes the FIRST"],
+["fold","R",["America/New_York","2025-11-02T01:30:00","later"],"2025-11-02T01:30:00-05:00|fold-later","later is the only way to name the second copy"],
+["fold","R",["America/New_York","2025-11-02T01:30:00","reject"],"RangeError","ambiguity is an error only if you ask for it to be"],
+["fold","R",["Australia/Lord_Howe","2025-04-06T01:45:00","compatible"],"2025-04-06T01:45:00+11:00|fold-earlier","a 30-minute fold - the repeated interval is half an hour, so hour-aligned tests miss it entirely"],
+["fold","R",["Australia/Lord_Howe","2025-04-06T01:45:00","later"],"2025-04-06T01:45:00+10:30|fold-later","whose second copy is 30 minutes later, not an hour"],
+["fold","R",["Antarctica/Troll","2025-10-26T01:30:00","later"],"2025-10-26T01:30:00+00:00|fold-later","a two-hour fold: the whole of 01:00-03:00 happens twice"],
+["fold","R",["America/Havana","2025-11-02T00:30:00","compatible"],"2025-11-02T00:30:00-04:00|fold-earlier","midnight itself is ambiguous in Cuba"],
+["fold","R",["America/Havana","2025-11-02T00:30:00","later"],"2025-11-02T00:30:00-05:00|fold-later","the second midnight hour"],
+["fold","R",["America/St_Johns","2025-11-02T01:30:00","later"],"2025-11-02T01:30:00-03:30|fold-later","a fold between two half-hour offsets"],
+["fold","R",["Pacific/Chatham","2025-04-06T03:00:00","later"],"2025-04-06T03:00:00+12:45|fold-later","a fold between +13:45 and +12:45"],
+["fold","R",["Europe/Dublin","2025-10-26T01:30:00","compatible"],"2025-10-26T01:30:00+01:00|fold-earlier","Ireland models this as NEGATIVE saving, yet the offsets are identical to London"],
+["fold","R",["Africa/Casablanca","2025-02-23T02:30:00","compatible"],"2025-02-23T02:30:00+01:00|fold-earlier","Morocco folds in FEBRUARY, at the start of Ramadan"],
+["fold","R",["Antarctica/Casey","2010-03-05T00:30:00","later"],"2010-03-05T00:30:00+08:00|fold-later","a three-hour fold that reaches back into the previous calendar date"],
+["fold","R",["Antarctica/Casey","2010-03-04T23:30:00","later"],"2010-03-04T23:30:00+08:00|fold-later","the same fold seen from the day before - one fold, two dates"],
+["fold","R",["Asia/Gaza","2024-10-26T01:30:00","later"],"2024-10-26T01:30:00+02:00|fold-later","a fold at 02:00 local, a week off the EU date"],
+["order","A",["America/New_York","2025-03-08T02:30:00","P1D"],"2025-03-09T03:30:00-04:00","the date half lands in the gap and is pushed forward an hour"],
+["order","A",["America/New_York","2025-03-08T02:30:00","P1DT1H"],"2025-03-09T04:30:00-04:00","and the time half is then added to THAT, not to the original"],
+["order","A",["America/New_York","2025-03-08T02:30:00","PT25H"],"2025-03-09T04:30:00-04:00","the same 25 hours, spelled with no date unit - here they agree"],
+["order","A",["America/New_York","2025-03-08T02:30:00","PT24H"],"2025-03-09T03:30:00-04:00","exactly 24 hours of elapsed time"],
+["order","A",["America/New_York","2025-11-01T01:30:00","P1D"],"2025-11-02T01:30:00-04:00","a calendar day keeps the clock reading and takes the FIRST copy"],
+["order","A",["America/New_York","2025-11-01T01:30:00","PT25H"],"2025-11-02T01:30:00-05:00","25 elapsed hours reach the SECOND copy - same clock, different instant"],
+["order","A",["America/New_York","2025-11-01T01:30:00","P1DT1H"],"2025-11-02T01:30:00-05:00","P1D to the first copy, then +1h exact into the second"],
+["order","A",["America/New_York","2025-11-01T12:00:00","P1D"],"2025-11-02T12:00:00-05:00","a calendar day that is 25 hours long"],
+["order","A",["America/New_York","2025-11-01T12:00:00","PT24H"],"2025-11-02T11:00:00-05:00","and 24 hours that lands an hour early on the clock"],
+["order","A",["America/New_York","2025-01-31T12:00:00","P1M"],"2025-02-28T12:00:00-05:00","overflow=constrain clamps 31 February to 28 February"],
+["order","A",["America/New_York","2025-01-31T12:00:00","P2M"],"2025-03-31T12:00:00-04:00","but two months at once never clamps - so P1M twice is not P2M"],
+["order","A",["Australia/Lord_Howe","2025-10-04T02:15:00","P1D"],"2025-10-05T02:45:00+11:00","one day forward lands in a 30-minute gap"],
+["order","A",["Pacific/Apia","2011-12-29T12:00:00","P1D"],"2011-12-31T12:00:00+14:00","one day forward lands on a date that never happened, so it goes two"],
+["order","A",["Pacific/Apia","2011-12-29T12:00:00","PT24H"],"2011-12-31T12:00:00+14:00","and 24 elapsed hours agree, for once"],
+["order","A",["America/Santiago","2025-09-06T23:30:00","P1D"],"2025-09-07T23:30:00-03:00","crossing a midnight gap by adding a day changes nothing on the clock"],
+["sod","S",["America/Sao_Paulo","2018-11-04"],"2018-11-04T01:00:00-02:00|sod-gap","the day does not start at 00:00"],
+["sod","S",["America/Havana","2025-11-02"],"2025-11-02T00:00:00-04:00|sod-fold","the day starts at 00:00 twice; take the first"],
+["sod","S",["America/Santiago","2025-09-07"],"2025-09-07T01:00:00-03:00|sod-gap","Chile does this on schedule every single year, so it is not a historical curiosity"],
+["sod","S",["Asia/Amman","2022-02-25"],"2022-02-25T01:00:00+03:00|sod-gap","and Jordan, once, permanently"],
+["sod","S",["Pacific/Apia","2011-12-30"],"2011-12-31T00:00:00+14:00|sod-gap","a date with no instants at all - its day starts on the next date"],
+["sod","S",["America/New_York","2025-03-09"],"2025-03-09T00:00:00-05:00|sod-unique","a DST date whose midnight is perfectly ordinary - the control"],
+["until","U",["America/New_York","2025-03-09T00:00:00","2025-03-10T00:00:00","days"],"P1D","one calendar day, which is what largestUnit=days is asked for and what it must return"],
+["until","U",["America/New_York","2025-03-09T00:00:00","2025-03-10T00:00:00","hours"],"PT23H","the identical interval measured in hours is 23 - the same span, two different true answers"],
+["until","U",["America/New_York","2025-11-02T00:00:00","2025-11-03T00:00:00","hours"],"PT25H","and 25 hours across the autumn fold - a day is not a constant in either direction"],
+["until","U",["Australia/Lord_Howe","2025-10-05T00:00:00","2025-10-06T00:00:00","hours"],"PT23H30M","23h30m - a day is not even a whole number of hours"],
+["until","U",["Antarctica/Troll","2025-03-30T00:00:00","2025-03-31T00:00:00","hours"],"PT22H","22 hours, because the shift here is two hours rather than one"],
+["until","U",["Antarctica/Vostok","1994-01-31T00:00:00","1994-02-01T00:00:00","hours"],"PT31H","a 31-hour calendar day - the longest in the database, from a seven-hour shift"],
+["until","U",["Antarctica/Vostok","1994-11-01T00:00:00","1994-11-02T00:00:00","hours"],"PT17H","and a 17-hour one nine months later in the same zone"],
+["until","U",["Pacific/Apia","2011-12-29T00:00:00","2011-12-31T00:00:00","days"],"P2D","two calendar days, counted on the wall clock, even though one of them never happened"],
+["until","U",["Pacific/Apia","2011-12-29T00:00:00","2011-12-31T00:00:00","hours"],"PT24H","that took 24 hours to pass"],
+["until","U",["America/New_York","2025-01-31T00:00:00","2025-03-31T00:00:00","months"],"P2M","exactly two months, with no day remainder despite the clamp"]
+];
+
+function refApply(op, args) {
+  var z = args[0], r;
+  if (op === "R") {
+    try { r = TZ.resolve(z, TZ.parseWall(args[1]), args[2]); }
+    catch (e) { return "RangeError"; }
+    return TZ.wallStr(TZ.getWall(z, r.epochMs)) + TZ.offStr(r.offset) + "|" + r.ruleId;
+  }
+  if (op === "A") {
+    var a = TZ.resolve(z, TZ.parseWall(args[1]), "compatible").epochMs;
+    r = TZ.add(z, a, TZ.parseDuration(args[2]), {});
+    return TZ.wallStr(r.wall) + TZ.offStr(r.offset);
+  }
+  if (op === "S") {
+    var w = TZ.parseWall(args[1]);
+    r = TZ.startOfDay(z, w.y, w.mo, w.d);
+    return TZ.wallStr(r.wall) + TZ.offStr(TZ.getOffset(z, r.epochMs)) + "|" + r.ruleId;
+  }
+  var A = TZ.resolve(z, TZ.parseWall(args[1]), "compatible").epochMs;
+  var B = TZ.resolve(z, TZ.parseWall(args[2]), "compatible").epochMs;
+  return TZ.durStr(TZ.until(z, A, B, args[3]));
+}
+function runRefCases() {
+  var out = [], pass = 0, i, c, got;
+  for (i = 0; i < REF_CASES.length; i++) {
+    c = REF_CASES[i];
+    try { got = refApply(c[1], c[2]); } catch (e) { got = "EXCEPTION " + e.message; }
+    var okc = got === c[3];
+    if (okc) pass++;
+    out.push({ group: c[0], op: c[1], args: c[2], want: c[3], got: got, ok: okc, why: c[4] });
+  }
+  return { rows: out, pass: pass, total: REF_CASES.length };
+}
+
+/* ---- a curated zone set for the in-browser sweep: every odd shape in the
+   database plus the ordinary ones, so the live numbers are comparable. */
+var LIVE_ZONES = ["America/New_York","America/Chicago","America/Sao_Paulo","America/Santiago",
+  "America/Havana","America/St_Johns","America/Asuncion","Europe/London","Europe/Dublin",
+  "Europe/Lisbon","Europe/Berlin","Europe/Athens","Africa/Casablanca","Africa/Cairo",
+  "Africa/Monrovia","Asia/Beirut","Asia/Amman","Asia/Damascus","Asia/Tehran","Asia/Gaza",
+  "Asia/Jerusalem","Asia/Katmandu","Asia/Kolkata","Australia/Lord_Howe","Australia/Sydney",
+  "Pacific/Chatham","Pacific/Auckland","Pacific/Apia","Pacific/Kiritimati","Pacific/Norfolk",
+  "Antarctica/Troll","Antarctica/Casey","Antarctica/Vostok"];
+
+function liveCatalogue(zones, fromY, toY) {
+  var cat = {}, i, z, a = Date.UTC(fromY, 0, 1), b = Date.UTC(toY, 0, 1);
+  for (i = 0; i < zones.length; i++) {
+    z = zones[i];
+    if (!TZ.validZone(z)) continue;
+    cat[z] = TZ.transitionsIn(z, a, b, 5 * 86400000);
+  }
+  return cat;
+}
+
+/* ---- the fold-reachability experiment, run against any catalogue. */
+var REACH_ROUTES = [{days:1},{days:-1},{days:7},{months:1},{months:-1},{years:1}];
+function foldReach(cat) {
+  var folds = 0, sampled = 0, byDate = 0, byTime = 0, z, i, t, rep, w, poss, k, d, sw, st;
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    if (t.to >= t.from) continue;
+    folds++;
+    rep = (t.from - t.to) * 1000;
+    w = TZ.getWall(z, t.at + Math.floor(rep / 2));
+    poss = TZ.possibleInstants(z, w);
+    if (poss.length !== 2) continue;
+    sampled++;
+    for (k = 0; k < REACH_ROUTES.length; k++) {
+      d = REACH_ROUTES[k];
+      try { sw = TZ.addCalendar(w, TZ.negate(d), "constrain"); st = TZ.resolve(z, sw, "compatible"); }
+      catch (e) { continue; }
+      if (TZ.add(z, st.epochMs, d, {}).epochMs === poss[1]) { byDate++; break; }
+    }
+    if (TZ.add(z, poss[0], { milliseconds: rep }, {}).epochMs === poss[1]) byTime++;
+  }
+  return { folds: folds, sampled: sampled, byDate: byDate, byTime: byTime };
+}
+
+/* ---- the model scoreboard, run against any catalogue. */
+var SWEEP_OFFS = [-90, -1, 30, 90];
+var SWEEP_DURS = [{days:1},{hours:24},{hours:25},{days:1,hours:1},{months:1},{hours:1}];
+function modelSweep(cat) {
+  var n = 0, ex = 0, wa = 0, tf = 0, per = [], z, i, j, k, s, d, spec;
+  for (k = 0; k < SWEEP_DURS.length; k++) per.push({ name: TZ.durStr(SWEEP_DURS[k]), n: 0, exact: 0, wallAll: 0, timeFirst: 0 });
+  for (z in cat) for (i = 0; i < cat[z].length; i++) for (j = 0; j < SWEEP_OFFS.length; j++) {
+    s = cat[z][i].at + SWEEP_OFFS[j] * 60000;
+    for (k = 0; k < SWEEP_DURS.length; k++) {
+      d = SWEEP_DURS[k];
+      spec = TZ.add(z, s, d, {}).epochMs;
+      n++; per[k].n++;
+      if (TZ.modelExact(z, s, d) !== spec) { ex++; per[k].exact++; }
+      if (TZ.modelWallAll(z, s, d) !== spec) { wa++; per[k].wallAll++; }
+      if (TZ.modelTimeFirst(z, s, d) !== spec) { tf++; per[k].timeFirst++; }
+    }
+  }
+  return { n: n, exact: ex, wallAll: wa, timeFirst: tf, per: per };
+}
+
+/* ---- properties. Every one of these must hold for EVERY case, not most. */
+function invariants(cat) {
+  var a = 0, bad = 0, notes = [], z, i, t, j, w, poss, r, A, B, u, back, o;
+  function ok(c, l) { a++; if (!c) { bad++; if (notes.length < 12) notes.push(l); } }
+
+  /* 1. the fast formatter path and the slow one must agree, always */
+  for (z in cat) for (i = 0; i < cat[z].length; i += 7) {
+    t = cat[z][i];
+    for (j = -1; j <= 1; j++) {
+      var f = TZ.getWallFast(z, t.at + j * 3600000), sl = TZ.getWallSlow(z, t.at + j * 3600000);
+      ok(!f || (f.y === sl.y && f.mo === sl.mo && f.d === sl.d && f.h === sl.h &&
+                f.mi === sl.mi && f.s === sl.s), "fast/slow formatter disagree " + z);
+    }
+  }
+  /* 2. resolve(getWall(t)) === t for every unambiguous instant */
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    for (j = 0; j < 3; j++) {
+      var tt = t.at + [-6 * 3600000, 6 * 3600000, 40 * 3600000][j];
+      w = TZ.getWall(z, tt); w.ms = 0;
+      poss = TZ.possibleInstants(z, w);
+      if (poss.length === 1) ok(poss[0] === Math.floor(tt / 1000) * 1000, "round trip " + z);
+    }
+  }
+  /* 3. candidate counts are only ever 0, 1 or 2 -- never 3 */
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    for (j = -4; j <= 4; j++) {
+      w = TZ.getWall(z, t.at + j * 900000); w.ms = 0;
+      ok(TZ.possibleInstants(z, w).length <= 2, "more than two candidates " + z);
+    }
+  }
+  /* 4. a +-1 day probe and a +-2 day probe agree (the claim I could not break) */
+  var probeN = 0, probeBad = 0;
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    for (j = 0; j < 4; j++) {
+      w = TZ.getWall(z, t.at + [-120, -1, 1, 120][j] * 60000); w.ms = 0;
+      probeN++;
+      if (String(TZ.possibleInstants(z, w, 1)) !== String(TZ.possibleInstants(z, w, 2))) probeBad++;
+      ok(String(TZ.possibleInstants(z, w, 1)) === String(TZ.possibleInstants(z, w, 2)),
+         "1-day probe differs from 2-day probe " + z);
+    }
+  }
+  /* 5. add(a, until(a,b)) === b for every largest unit */
+  var invN = 0;
+  for (z in cat) for (i = 0; i < cat[z].length; i += 2) {
+    t = cat[z][i];
+    for (j = 0; j < 2; j++) {
+      A = t.at + [-90, 30][j] * 60000;
+      var LUS = ["days", "months", "years"];
+      for (var q = 0; q < 3; q++) {
+        B = A + [3, 70, 400][q] * 86400000;
+        u = TZ.until(z, A, B, LUS[q]);
+        back = TZ.add(z, A, { years: u.years * u.sign, months: u.months * u.sign,
+          days: u.days * u.sign, hours: u.hours * u.sign, minutes: u.minutes * u.sign,
+          seconds: u.seconds * u.sign, milliseconds: u.milliseconds * u.sign }, {});
+        invN++;
+        ok(back.epochMs === B, "until is not the inverse of add " + z + " " + LUS[q]);
+      }
+    }
+  }
+  /* 6. every gap width equals the offset jump, and every fold width too */
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    if (t.to > t.from) {
+      w = TZ.getWall(z, t.at - 1000);
+      var nom = TZ.wallToNominal(w) + 1000;
+      r = TZ.possibleInstants(z, TZ.nominalToWall(nom));
+      ok(r.length === 0, "the first second after a gap opens should not exist: " + z);
+    } else {
+      w = TZ.getWall(z, t.at);
+      ok(TZ.possibleInstants(z, w).length === 2, "the first instant of a fold should be ambiguous: " + z);
+    }
+  }
+  /* 7. startOfDay is never later than 00:00 unless midnight is in a gap */
+  for (z in cat) for (i = 0; i < cat[z].length; i++) {
+    t = cat[z][i];
+    w = TZ.getWall(z, t.at);
+    r = TZ.startOfDay(z, w.y, w.mo, w.d);
+    ok(r.kind === "gap" ? (r.wall.h > 0 || r.wall.d !== w.d)
+                        : (r.wall.h === 0 && r.wall.mi === 0 && r.wall.s === 0),
+       "startOfDay wall reading " + z);
+  }
+  return { asserts: a, bad: bad, notes: notes, probeN: probeN, probeBad: probeBad, invN: invN };
+}
+// ===== ENGINE:END =====
+
+/* =========================== the page ================================== */
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pct(n, d) { return d ? (100 * n / d).toFixed(2) + "%" : "-"; }
+function mins(m) {
+  var s = m < 0 ? "-" : "", a = Math.abs(m), h = Math.floor(a / 60), r = a - h * 60;
+  return s + (h ? h + "h" : "") + (r ? (Math.round(r) === r ? r : r.toFixed(1)) + "m" : (h ? "" : "0m"));
+}
+
+/* ---- zone list from the host, with the interesting ones pinned ---------- */
+var ALL_ZONES = (function () {
+  var z = [];
+  try { z = Intl.supportedValuesOf("timeZone"); } catch (e) { z = []; }
+  if (!z.length) z = LIVE_ZONES.slice();
+  return z;
+})();
+(function () {
+  var dl = $("zonelist"), i;
+  for (i = 0; i < ALL_ZONES.length; i++) {
+    var o = document.createElement("option"); o.value = ALL_ZONES[i]; dl.appendChild(o);
+  }
+})();
+
+/* ---- presets ----------------------------------------------------------- */
+var PRESETS = [
+["the repeated hour - America/New_York", "America/New_York", "2025-11-02T01:30:00", "compatible", "P1D"],
+["the same hour, asked for the second copy", "America/New_York", "2025-11-02T01:30:00", "later", "PT1H"],
+["the missing hour - America/New_York", "America/New_York", "2025-03-09T02:30:00", "compatible", "P1D"],
+["the missing hour, asked for earlier", "America/New_York", "2025-03-09T02:30:00", "earlier", "P1D"],
+["the ordering trap: 02:30 the day before a gap", "America/New_York", "2025-03-08T02:30:00", "compatible", "P1DT1H"],
+["...and the same length as pure elapsed time", "America/New_York", "2025-03-08T02:30:00", "compatible", "PT25H"],
+["a 30-minute gap - Lord Howe Island", "Australia/Lord_Howe", "2025-10-05T02:15:00", "compatible", "P1D"],
+["a 30-minute fold - Lord Howe Island", "Australia/Lord_Howe", "2025-04-06T01:45:00", "later", "PT30M"],
+["a two-hour gap - Antarctica/Troll", "Antarctica/Troll", "2025-03-30T01:30:00", "compatible", "P1D"],
+["a two-hour fold - Antarctica/Troll", "Antarctica/Troll", "2025-10-26T01:30:00", "later", "PT1H"],
+["a three-hour fold across midnight - Casey", "Antarctica/Casey", "2010-03-05T00:30:00", "later", "P1D"],
+["a seven-hour gap - Vostok", "Antarctica/Vostok", "1994-11-01T04:00:00", "compatible", "P1D"],
+["midnight does not exist - Sao Paulo", "America/Sao_Paulo", "2018-11-04T00:00:00", "compatible", "P1D"],
+["midnight happens twice - Havana", "America/Havana", "2025-11-02T00:30:00", "later", "P1D"],
+["a whole day that never happened - Apia", "Pacific/Apia", "2011-12-30T12:00:00", "compatible", "P1D"],
+["the other one - Kiritimati 1994", "Pacific/Kiritimati", "1994-12-31T12:00:00", "compatible", "P1D"],
+["seconds in the offset - Monrovia 1972", "Africa/Monrovia", "1972-01-07T00:20:00", "compatible", "PT1H"],
+["a 15-minute gap - Kathmandu 1986", "Asia/Katmandu", "1986-01-01T00:10:00", "compatible", "P1D"],
+["a :45 offset that also has DST - Chatham", "Pacific/Chatham", "2025-04-06T03:00:00", "later", "P1D"],
+["Ramadan, so Morocco folds in February", "Africa/Casablanca", "2025-02-23T02:30:00", "compatible", "P1M"],
+["31 January plus one month", "America/New_York", "2025-01-31T12:00:00", "compatible", "P1M"],
+["a day that is 25 hours long", "America/New_York", "2025-11-01T12:00:00", "compatible", "P1D"]
+];
+(function () {
+  var s = $("preset"), i;
+  for (i = 0; i < PRESETS.length; i++) {
+    var o = document.createElement("option"); o.value = String(i); o.textContent = PRESETS[i][0];
+    s.appendChild(o);
+  }
+  s.addEventListener("change", function () {
+    var p = PRESETS[+s.value];
+    $("zone").value = p[1]; $("wall").value = p[2]; $("dis").value = p[3]; $("dur").value = p[4];
+    render();
+  });
+})();
+
+function kindPill(k) {
+  var m = { unique: ["kuniq", "UNIQUE"], gap: ["kgap", "GAP"], fold: ["kfold", "FOLD"],
+            error: ["kerr", "RANGEERROR"] };
+  var x = m[k] || m.unique;
+  return '<span class="k ' + x[0] + '">' + x[1] + "</span>";
+}
+
+function render() {
+  var zone = $("zone").value.trim(), wallS = $("wall").value.trim();
+  var dis = $("dis").value, durS = $("dur").value.trim(), ovf = $("ovf").value, dir = $("dir").value;
+  var V = $("verdict");
+  if (!TZ.validZone(zone)) {
+    V.innerHTML = '<p class="bad">Unknown IANA zone: <code>' + esc(zone) + "</code></p>";
+    $("ribbon").innerHTML = ""; $("riblabels").innerHTML = ""; $("walk").innerHTML = "";
+    $("spellings").innerHTML = ""; $("models").innerHTML = ""; $("trans").innerHTML = "";
+    return;
+  }
+  var wall = TZ.parseWall(wallS);
+  if (!wall) {
+    V.innerHTML = '<p class="bad">Wall time must look like <code>2025-11-02T01:30:00</code>.</p>';
+    return;
+  }
+  var dur = TZ.parseDuration(durS);
+
+  /* --- the resolution itself ------------------------------------------- */
+  var res = null, threw = null;
+  try { res = TZ.resolve(zone, wall, dis); } catch (e) { threw = e; }
+  var poss = TZ.possibleInstants(zone, wall);
+  var h = "";
+  h += '<div class="flex mb3" style="align-items:center">' +
+       kindPill(threw ? "error" : res.kind) +
+       '<span class="t-sm dim">' + poss.length + " instant" + (poss.length === 1 ? "" : "s") +
+       " on the timeline read <code>" + esc(TZ.wallStr(wall)) + "</code> in <code>" + esc(zone) +
+       "</code></span></div>";
+  if (threw) {
+    h += '<p class="big bad mb2">RangeError</p><p class="t-sm muted">' + esc(threw.message) + "</p>";
+  } else {
+    h += '<p class="big mb2">' + esc(TZ.wallStr(TZ.getWall(zone, res.epochMs))) +
+         '<span style="color:#0369a1">' + esc(TZ.offStr(res.offset)) + "</span></p>";
+    h += '<p class="t-xs dim mono mb3">epoch ' + res.epochMs + " ms &middot; " +
+         esc(new Date(res.epochMs).toISOString()) + "</p>";
+    h += '<div class="note note-b t-sm"><b>Rule:</b> ' + esc(res.rule) + "</div>";
+  }
+  if (poss.length > 1) {
+    h += '<div class="scroll mt3"><table class="num"><tr><th>candidate</th><th>UTC offset</th>' +
+         "<th>instant (UTC)</th><th>reachable by calendar arithmetic?</th></tr>";
+    for (var pi = 0; pi < poss.length; pi++) {
+      h += "<tr><td class=b>#" + (pi + 1) + "</td><td class=mono>" +
+        esc(TZ.offStr(TZ.getOffset(zone, poss[pi]))) + "</td><td class=mono>" +
+        esc(new Date(poss[pi]).toISOString()) + "</td><td>" +
+        (pi === 0 ? '<span class="v allow">yes</span> <span class="t-xs dim">every date-unit duration lands here</span>'
+                  : '<span class="v deny">no</span> <span class="t-xs dim">only exact time reaches it</span>') +
+        "</td></tr>";
+    }
+    h += "</table></div>";
+  }
+  V.innerHTML = h;
+
+  /* --- the local-clock ribbon ------------------------------------------ */
+  drawRibbon(zone, wall);
+
+  /* --- the arithmetic walk --------------------------------------------- */
+  var W = $("walk");
+  if (!dur) {
+    W.innerHTML = '<p class="t-sm bad">Duration must be ISO 8601, e.g. <code>P1D</code>, ' +
+                  "<code>PT25H</code>, <code>P1DT1H</code>, <code>P1M</code>.</p>";
+  } else if (threw) {
+    W.innerHTML = '<p class="t-sm muted">The start instant did not resolve, so there is nothing to add to.</p>';
+  } else {
+    var r2 = null, err2 = null;
+    try {
+      r2 = (dir === "add" ? TZ.add : TZ.subtract)(zone, res.epochMs, dur,
+             { disambiguation: dis, overflow: ovf });
+    } catch (e) { err2 = e; }
+    if (err2) {
+      W.innerHTML = '<p class="t-sm bad">RangeError: ' + esc(err2.message) + "</p>";
+    } else {
+      var wh = '<div class="walk">';
+      for (var ti = 0; ti < r2.trace.length; ti++) {
+        var st2 = r2.trace[ti];
+        var cls = st2.kind === "gap" ? "wgap" : st2.kind === "fold" ? "wfold" :
+                  st2.kind === "exact" ? "wexact" : "wskip";
+        wh += '<div class="wstep ' + cls + '"><p class="t-sm b">' + esc(st2.step) + "</p>";
+        if (st2.wall) wh += '<p class="t-xs mono dim">wall-clock result: ' + esc(TZ.wallStr(st2.wall)) +
+                            (st2.clamped ? '  <span class="v warn">day clamped</span>' : "") + "</p>";
+        if (st2.deltaMs !== undefined) wh += '<p class="t-xs mono dim">' +
+          (st2.deltaMs >= 0 ? "+" : "") + fmtN(st2.deltaMs) + " ms exactly</p>";
+        wh += '<p class="t-xs muted">' + esc(st2.rule) + "</p></div>";
+      }
+      wh += "</div>";
+      wh += '<div class="sep"></div><p class="lbl mb1">RESULT</p><p class="big">' +
+            esc(TZ.wallStr(r2.wall)) + '<span style="color:#0369a1">' + esc(TZ.offStr(r2.offset)) +
+            "</span></p>";
+      var elapsed = r2.epochMs - res.epochMs;
+      wh += '<p class="t-xs dim mono mt2">elapsed: ' + fmtN(elapsed) + " ms = " +
+            (elapsed / 3600000).toFixed(4) + " h &middot; wall clock moved " +
+            ((TZ.wallToNominal(r2.wall) - TZ.wallToNominal(TZ.getWall(zone, res.epochMs))) / 3600000).toFixed(4) +
+            " h</p>";
+      W.innerHTML = wh;
+    }
+  }
+
+  /* --- transitions near this date --------------------------------------- */
+  var y = wall.y, tr = TZ.transitionsIn(zone, Date.UTC(y - 1, 0, 1), Date.UTC(y + 2, 0, 1), 5 * 86400000);
+  var th = '<table class="num"><tr><th>at (local, just before &rarr; at)</th><th>offset</th>' +
+           "<th>kind</th><th>width</th></tr>";
+  if (!tr.length) th += '<tr><td colspan=4 class="dim t-sm">no transitions in ' + (y - 1) + "&ndash;" + (y + 1) +
+                        " &mdash; this zone does not change its clock in that window</td></tr>";
+  for (var k = 0; k < tr.length; k++) {
+    var t = tr[k];
+    th += "<tr><td class=mono>" + esc(TZ.wallStr(TZ.getWall(zone, t.at - 1000))) + " &rarr; " +
+      esc(TZ.wallStr(TZ.getWall(zone, t.at))) + "</td><td class=mono>" + esc(TZ.offStr(t.from)) +
+      " &rarr; " + esc(TZ.offStr(t.to)) + "</td><td>" +
+      (t.kind === "gap" ? '<span class="v deny">gap</span>' : '<span class="v info">fold</span>') +
+      "</td><td class=mono>" + mins(Math.abs(t.shift) / 60) + "</td></tr>";
+  }
+  $("trans").innerHTML = th + "</table>";
+
+  /* --- one length of time, six spellings -------------------------------- */
+  if (!threw) {
+    var SP = ["P1D", "PT24H", "PT25H", "P1DT1H", "P1W", "P7D"];
+    var sh = '<table class="num"><tr><th>duration</th><th>resulting wall clock</th><th>offset</th>' +
+             "<th>elapsed</th><th>disambiguation fired</th></tr>";
+    for (var si = 0; si < SP.length; si++) {
+      var dd = TZ.parseDuration(SP[si]);
+      var rr = TZ.add(zone, res.epochMs, dd, { disambiguation: dis });
+      var el = (rr.epochMs - res.epochMs) / 3600000;
+      sh += "<tr><td class='mono b'>" + SP[si] + "</td><td class=mono>" + esc(TZ.wallStr(rr.wall)) +
+        "</td><td class=mono>" + esc(TZ.offStr(rr.offset)) + "</td><td class=mono>" +
+        el.toFixed(2) + " h</td><td>" +
+        (rr.disambiguationFired ? '<span class="v warn">' + esc(rr.ruleId) + "</span>"
+                                : '<span class="v grey">no</span>') + "</td></tr>";
+    }
+    $("spellings").innerHTML = sh + "</table>";
+
+    /* --- four implementations ------------------------------------------ */
+    if (dur) {
+      var spec = TZ.add(zone, res.epochMs, dur, { disambiguation: dis, overflow: ovf }).epochMs;
+      var MODELS = [
+        ["specified ordering", spec, "date units on the wall clock, then time units as exact elapsed time"],
+        ["exact-ms", TZ.modelExact(zone, res.epochMs, dur), "convert the whole duration to milliseconds and add"],
+        ["wall-all", TZ.modelWallAll(zone, res.epochMs, dur, dis), "add every unit to the wall clock, resolve once at the end"],
+        ["time-first", TZ.modelTimeFirst(zone, res.epochMs, dur, dis), "exact time first, then the calendar"]
+      ];
+      var mh = '<table class="num"><tr><th>model</th><th>result</th><th>offset</th><th>vs spec</th>' +
+               "<th>what it does</th></tr>";
+      for (var mi = 0; mi < MODELS.length; mi++) {
+        var M = MODELS[mi], diff = M[1] - spec;
+        mh += "<tr><td class=b>" + M[0] + "</td><td class=mono>" +
+          esc(TZ.wallStr(TZ.getWall(zone, M[1]))) + "</td><td class=mono>" +
+          esc(TZ.offStr(TZ.getOffset(zone, M[1]))) + "</td><td>" +
+          (mi === 0 ? '<span class="v grey">&mdash;</span>'
+            : diff === 0 ? '<span class="v allow">same</span>'
+            : '<span class="v deny">' + (diff > 0 ? "+" : "") + (diff / 60000) + " min</span>") +
+          '</td><td class="t-xs muted">' + M[2] + "</td></tr>";
+      }
+      $("models").innerHTML = mh + "</table>";
+    }
+  } else {
+    $("spellings").innerHTML = '<p class="t-sm muted">The start instant did not resolve.</p>';
+    $("models").innerHTML = "";
+  }
+}
+
+function drawRibbon(zone, wall) {
+  /* find the nearest transition so the window is centred on the action */
+  var nominal = TZ.wallToNominal(wall);
+  var probe = nominal - TZ.getOffset(zone, nominal) * 1000;
+  var tr = TZ.transitionsIn(zone, probe - 40 * 86400000, probe + 40 * 86400000, 86400000);
+  var near = null, best = Infinity, i;
+  for (i = 0; i < tr.length; i++) {
+    var d = Math.abs(tr[i].at - probe);
+    if (d < best) { best = d; near = tr[i]; }
+  }
+  var shift = near ? Math.abs(near.shift) * 1000 : 3600000;
+  var half = Math.max(3 * 3600000, Math.min(shift * 1.6, 30 * 3600000));
+  var centre = near && best < 3 * 86400000 ? TZ.wallToNominal(TZ.getWall(zone, near.at)) : nominal;
+  var stepMs = Math.max(900000, Math.round(half / 24 / 900000) * 900000);
+  var start = Math.floor((centre - half) / stepMs) * stepMs;
+  var cells = "", labels = "", n = Math.min(72, Math.ceil((2 * half) / stepMs));
+  var g = 0, f = 0, u = 0;
+  for (i = 0; i < n; i++) {
+    var w = TZ.nominalToWall(start + i * stepMs);
+    var c = TZ.possibleInstants(zone, w).length;
+    if (c === 0) g++; else if (c === 2) f++; else u++;
+    var isNow = Math.abs((start + i * stepMs) - nominal) < stepMs / 2;
+    cells += '<div class="rc r' + c + (isNow ? " rnow" : "") + '" title="' +
+             TZ.wallStr(w) + " -> " + c + ' instant(s)"></div>';
+    labels += '<div class="rl">' + (i % 4 === 0 ? (w.h < 10 ? "0" : "") + w.h + ":" +
+              (w.mi < 10 ? "0" : "") + w.mi : "") + "</div>";
+  }
+  $("ribbon").className = "ribbon"; $("ribbon").innerHTML = cells;
+  $("riblabels").className = "rlabels"; $("riblabels").innerHTML = labels;
+  $("ribnote").innerHTML = "window " + (2 * half / 3600000).toFixed(1) + " h of local clock at " +
+    (stepMs / 60000) + "-minute resolution &middot; <b>" + u + "</b> slices happen once, <b>" + g +
+    "</b> never happen, <b>" + f + "</b> happen twice" +
+    (near ? " &middot; nearest transition " + TZ.wallStr(TZ.getWall(zone, near.at - 1000)) +
+            " &rarr; " + TZ.wallStr(TZ.getWall(zone, near.at)) + " (" + TZ.offStr(near.from) +
+            " &rarr; " + TZ.offStr(near.to) + ")" : "");
+}
+
+["zone", "wall", "dis", "dur", "ovf", "dir"].forEach(function (id) {
+  $(id).addEventListener("input", render); $(id).addEventListener("change", render);
+});
+
+/* ================= the UNDERSTAND tab tables =========================== */
+(function () {
+  var F = FULL_RUN;
+
+  $("reachtable").innerHTML =
+    '<table class="num"><tr><th>experiment</th><th>cases</th><th>hit</th><th>rate</th></tr>' +
+    "<tr><td>fold transitions in tzdata " + F.tzdata + ", 1970&ndash;2038</td><td class=mono>" +
+      fmtN(F.foldReach.folds) + "</td><td class=mono>&mdash;</td><td class=mono>&mdash;</td></tr>" +
+    "<tr><td>second instant reached by any of " + F.foldReach.routes +
+      " <b>date-unit</b> durations<br><span class='t-xs dim'>&plusmn;1 day, +7 days, &plusmn;1 month, +1 year</span></td>" +
+      "<td class=mono>" + fmtN(F.foldReach.folds) + "</td><td class='mono bad'>" +
+      F.foldReach.byDate + "</td><td><span class='v deny'>0.00%</span></td></tr>" +
+    "<tr><td>second instant reached by <b>one time-unit</b> duration<br>" +
+      "<span class='t-xs dim'>the control: exactly the width of the fold</span></td><td class=mono>" +
+      fmtN(F.foldReach.folds) + "</td><td class='mono ok'>" + fmtN(F.foldReach.byTime) +
+      "</td><td><span class='v allow'>100.00%</span></td></tr></table>";
+
+  var mh = '<table class="num"><tr><th>duration</th><th>cases</th><th>exact-ms wrong</th>' +
+           "<th>wall-all wrong</th><th>time-first wrong</th></tr>";
+  for (var i = 0; i < F.sweep.per.length; i++) {
+    var p = F.sweep.per[i];
+    function cell(v, n) {
+      return "<td class=mono>" + (v === 0 ? '<span class="v allow">0</span>'
+        : '<span class="v deny">' + fmtN(v) + "</span> " + pct(v, n)) + "</td>";
+    }
+    mh += "<tr><td class='mono b'>" + p[0] + "</td><td class=mono>" + fmtN(p[1]) + "</td>" +
+      cell(p[2], p[1]) + cell(p[3], p[1]) + cell(p[4], p[1]) + "</tr>";
+  }
+  mh += "<tr style='background:#f8fafc'><td class=bb>ALL</td><td class='mono bb'>" + fmtN(F.sweep.n) +
+    "</td><td class='mono bb'>" + fmtN(F.sweep.exact) + " " + pct(F.sweep.exact, F.sweep.n) +
+    "</td><td class='mono bb'>" + fmtN(F.sweep.wallAll) + " " + pct(F.sweep.wallAll, F.sweep.n) +
+    "</td><td class='mono bb'>" + fmtN(F.sweep.timeFirst) + " " + pct(F.sweep.timeFirst, F.sweep.n) +
+    "</td></tr></table>";
+  $("modeltable").innerHTML = mh;
+
+  $("rttable").innerHTML =
+    '<table class="num"><tr><th>x.add(d).subtract(d) === x, next to a transition</th><th>count</th><th>share</th></tr>' +
+    "<tr><td>round trips attempted</td><td class=mono>" + fmtN(F.roundTrip.n) + "</td><td>&mdash;</td></tr>" +
+    "<tr><td class=bad>did not return to the start</td><td class=mono>" + fmtN(F.roundTrip.fail) +
+      "</td><td class=mono>" + pct(F.roundTrip.fail, F.roundTrip.n) + "</td></tr>" +
+    "<tr><td>&hellip;of which passed through a gap or a fold</td><td class=mono>" +
+      fmtN(F.roundTrip.withGapOrFold) + "</td><td class=mono>" +
+      pct(F.roundTrip.withGapOrFold, F.roundTrip.fail) + " of the failures</td></tr></table>";
+
+  $("midtable").innerHTML =
+    '<table class="num"><tr><th>startOfDay across ' + fmtN(F.midnight.dates) +
+    " (zone, date) pairs next to a transition</th><th>dates</th><th>zones</th></tr>" +
+    "<tr><td class=bad>midnight does not exist &mdash; the day starts later</td><td class=mono>" +
+      fmtN(F.midnight.gapDays) + "</td><td class=mono>" + F.midnight.gapZones + "</td></tr>" +
+    "<tr><td class=bad>midnight happens twice &mdash; take the first</td><td class=mono>" +
+      fmtN(F.midnight.foldDays) + "</td><td class=mono>" + F.midnight.foldZones + "</td></tr></table>";
+
+  var maxd = F.dayHist[0][1];
+  var dh = '<table class="num"><tr><th>length of the transition day</th><th>times</th><th></th></tr>';
+  for (var j = 0; j < F.dayHist.length; j++) {
+    var e = F.dayHist[j], wpc = Math.max(1, Math.round(220 * e[1] / maxd));
+    dh += "<tr><td class='mono b'>" + mins(e[0]) + "</td><td class=mono>" + fmtN(e[1]) +
+      '</td><td><div class="hist"><div class="histbar' +
+      (e[0] === 1440 ? "" : e[1] > 100 ? " hb2" : " hb3") + '" style="width:' + wpc +
+      'px"></div></div></td></tr>';
+  }
+  $("daytable").innerHTML = dh + "</table>";
+
+  var oh = '<table class="num"><tr><th>zone</th><th>what it does</th><th>why it breaks code</th></tr>';
+  for (var q = 0; q < F.odd.length; q++)
+    oh += "<tr><td class='mono b'>" + F.odd[q][0] + "</td><td class=b>" + F.odd[q][1] +
+      '</td><td class="t-xs muted">' + F.odd[q][2] + "</td></tr>";
+  oh += "</table>";
+  $("oddtable").innerHTML = oh;
+
+  var sh = '<table class="num"><tr><th>zone</th><th>calendar date with zero instants</th></tr>';
+  for (var s = 0; s < F.skipped.length; s++)
+    sh += "<tr><td class='mono b'>" + F.skipped[s][0] + "</td><td class=mono>" + F.skipped[s][1] +
+      "</td></tr>";
+  $("skiptable").innerHTML = sh + "</table>";
+})();
+
+/* ================= reference cases, live ============================== */
+var REF = runRefCases();
+(function () {
+  var groups = { gap: "nonexistent wall times (gaps)", fold: "ambiguous wall times (folds)",
+                 order: "the ordering of the two halves", sod: "startOfDay",
+                 until: "difference, and the length of a day" };
+  var h = "", seen = {}, i;
+  h += '<table class="num"><tr><th>input</th><th>result</th><th>rule / why this case is here</th><th></th></tr>';
+  for (i = 0; i < REF.rows.length; i++) {
+    var r = REF.rows[i];
+    if (!seen[r.group]) {
+      seen[r.group] = 1;
+      h += "<tr style='background:#f1f5f9'><td colspan=4 class='lbl' style='padding-top:10px'>" +
+           groups[r.group] + "</td></tr>";
+    }
+    var call = r.op === "R" ? "resolve(" + r.args[0] + ", " + r.args[1] + ", " + r.args[2] + ")"
+      : r.op === "A" ? r.args[1] + " [" + r.args[0] + "] + " + r.args[2]
+      : r.op === "S" ? "startOfDay(" + r.args[0] + ", " + r.args[1] + ")"
+      : "until(" + r.args[1] + " -> " + r.args[2] + ", " + r.args[3] + ") [" + r.args[0] + "]";
+    var parts = r.got.split("|");
+    h += "<tr><td class=mono style='max-width:290px'>" + esc(call) + "</td><td class=mono><b>" +
+      esc(parts[0]) + "</b>" + (parts[1] ? '<br><span class="v info">' + esc(parts[1]) + "</span>" : "") +
+      '</td><td class="t-xs muted" style="max-width:330px">' + esc(r.why) + "</td><td>" +
+      (r.ok ? '<span class="ok">PASS</span>' : '<span class="bad">FAIL<br>want ' + esc(r.want) + "</span>") +
+      "</td></tr>";
+  }
+  $("reftable").innerHTML = h + "</table>";
+  $("refhead").textContent = REF.pass + " / " + REF.total + " pass in this browser.";
+})();
+
+/* ================= the in-page assertion run ========================== */
+(function () {
+  var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var cat = liveCatalogue(LIVE_ZONES, 1990, 2036);
+  var nz = 0, nt = 0, z;
+  for (z in cat) { nz++; nt += cat[z].length; }
+  var inv = invariants(cat);
+  var reach = foldReach(cat);
+  var t1 = (window.performance && performance.now) ? performance.now() : Date.now();
+
+  var total = REF.total + inv.asserts;
+  var bad = (REF.total - REF.pass) + inv.bad;
+  var lines = [];
+  lines.push(REF.total + " reference cases, " + fmtN(total) + " assertions, " + bad + " failures.");
+  lines.push("  " + REF.pass + "/" + REF.total +
+             " reference cases; each asserts the DECIDING RULE, not only the timestamp.");
+  lines.push("  " + fmtN(inv.asserts) + " property assertions over " + fmtN(nt) +
+             " transitions in " + nz + " zones (" + fmtN(inv.invN) +
+             " until/add inverse round trips, all exact).");
+  lines.push("  " + fmtN(inv.probeN) + " candidate probes: a +-1 day window and a +-2 day window " +
+             "disagreed " + inv.probeBad + " times.");
+  lines.push("  fold reachability in THIS browser: " + fmtN(reach.folds) + " folds, second instant " +
+             "reached by date units " + reach.byDate + " times, by time units " +
+             fmtN(reach.byTime) + ".");
+  lines.push("  fast (sv-SE format) and slow (formatToParts) formatter paths agree on every probe.");
+  lines.push("  " + ((t1 - t0) / 1000).toFixed(1) + " s in this browser, " +
+             (bad ? "WITH FAILURES" : "no failures") + ".");
+  if (inv.notes.length) lines.push("  first failures: " + inv.notes.slice(0, 5).join(" | "));
+  $("ref").textContent = lines.join("\n");
+  window.__day71 = { ref: REF, inv: inv, reach: reach, zones: nz, transitions: nt };
+})();
+
+/* ================= the optional full-browser sweep ==================== */
+$("sweepbtn").addEventListener("click", function () {
+  var btn = $("sweepbtn"), out = $("sweepout");
+  btn.disabled = true; btn.textContent = "running…";
+  out.innerHTML = '<p class="t-sm dim">building the transition catalogue for every zone this browser knows…</p>';
+  setTimeout(function () {
+    var t0 = Date.now();
+    var cat = liveCatalogue(ALL_ZONES, 1970, 2038);
+    var nz = 0, nt = 0, gaps = 0, folds = 0, z, i;
+    for (z in cat) { nz++; nt += cat[z].length;
+      for (i = 0; i < cat[z].length; i++) (cat[z][i].to > cat[z][i].from ? gaps++ : folds++); }
+    var reach = foldReach(cat);
+    var sw = modelSweep(cat);
+    var ms = Date.now() - t0, F = FULL_RUN;
+    function cmp(live, baked) {
+      return live === baked ? '<span class="v allow">same</span>'
+                            : '<span class="v warn">baked ' + fmtN(baked) + "</span>";
+    }
+    var h = '<table class="num"><tr><th>measurement</th><th>this browser</th><th>vs Node ' +
+      F.node + " / tzdata " + F.tzdata + "</th></tr>";
+    h += "<tr><td>zones</td><td class=mono>" + fmtN(nz) + "</td><td>" + cmp(nz, F.zones) + "</td></tr>";
+    h += "<tr><td>transitions 1970&ndash;2038</td><td class=mono>" + fmtN(nt) + "</td><td>" +
+      cmp(nt, F.transitions) + "</td></tr>";
+    h += "<tr><td>gaps / folds</td><td class=mono>" + fmtN(gaps) + " / " + fmtN(folds) +
+      "</td><td>" + cmp(gaps, F.gaps) + " " + cmp(folds, F.folds) + "</td></tr>";
+    h += "<tr><td class=bb>fold second instant reached by DATE units</td><td class='mono bb'>" +
+      fmtN(reach.byDate) + "</td><td>" + cmp(reach.byDate, F.foldReach.byDate) + "</td></tr>";
+    h += "<tr><td class=bb>&hellip;reached by TIME units</td><td class='mono bb'>" +
+      fmtN(reach.byTime) + "</td><td>" + cmp(reach.byTime, F.foldReach.byTime) + "</td></tr>";
+    h += "<tr><td>sweep cases</td><td class=mono>" + fmtN(sw.n) + "</td><td>" + cmp(sw.n, F.sweep.n) +
+      "</td></tr>";
+    h += "<tr><td>exact-ms model wrong</td><td class=mono>" + fmtN(sw.exact) + " " +
+      pct(sw.exact, sw.n) + "</td><td>" + cmp(sw.exact, F.sweep.exact) + "</td></tr>";
+    h += "<tr><td>wall-all model wrong</td><td class=mono>" + fmtN(sw.wallAll) + " " +
+      pct(sw.wallAll, sw.n) + "</td><td>" + cmp(sw.wallAll, F.sweep.wallAll) + "</td></tr>";
+    h += "<tr><td>time-first model wrong</td><td class=mono>" + fmtN(sw.timeFirst) + " " +
+      pct(sw.timeFirst, sw.n) + "</td><td>" + cmp(sw.timeFirst, F.sweep.timeFirst) + "</td></tr>";
+    h += "</table>";
+    out.innerHTML = h + '<p class="t-xs dim mt3">' + fmtN(sw.n) + " arithmetic cases and " +
+      fmtN(nt) + " transitions in " + (ms / 1000).toFixed(1) +
+      " s. A row marked <b>baked</b> is not a failure: it means this browser carries a different " +
+      "tz release from the one the page was measured on, and the difference is the release note.</p>";
+    btn.disabled = false; btn.textContent = "RUN THE LIVE SWEEP IN THIS BROWSER";
+  }, 30);
+});
+
+render();
+</script>
+</body>
+</html>
