@@ -73,6 +73,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 69 — IDNA / punycode / homograph analyzer](https://dev48.infy.uk/solve/day69-idna-punycode.html) — `day69-idna-punycode.html`
 - [SolveFromZero · Day 70 — HTTP precondition & byte-range evaluator](https://dev48.infy.uk/solve/day70-http-precondition-evaluator.html) — `day70-http-precondition-evaluator.html`
 - [SolveFromZero · Day 71 — DST wall-clock resolver & calendar arithmetic engine](https://dev48.infy.uk/solve/day71-dst-wall-clock-resolver.html) — `day71-dst-wall-clock-resolver.html`
+- [SolveFromZero · Day 72 — certificate hostname verifier (RFC 9525 / X509_check_host)](https://dev48.infy.uk/solve/day72-cert-hostname-verifier.html) — `day72-cert-hostname-verifier.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

@@ -1,0 +1,2177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 72 &mdash; certificate hostname verifier (RFC 9525 / X509_check_host)</title>
+<style>
+/* ---- no CDN, no build step: the handful of utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.inv { background:#fff1f2; outline:1px dashed #fb7185; border-radius:3px; padding:0 2px; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.wrap3 { max-width:780px;  margin:0 auto; }
+.p4 { padding:16px; } .p5 { padding:20px; } .p6 { padding:24px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+.g2t { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+.g3t { display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.stack6 > * + * { margin-top:22px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; } .bg2 { background:#f8fafc; } .bg0 { background:#fff; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+/* the reading pills: what a star IS in a given implementation */
+.k { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:12px; padding:3px 10px;
+     border-radius:6px; display:inline-block; }
+.kwild{background:#dcfce7;color:#14532d}
+.klit {background:#fee2e2;color:#7f1d1d}
+.kref {background:#e0e7ff;color:#3730a3}
+.kna  {background:#e2e8f0;color:#334155}
+/* the ordered walk down the certificate */
+.walk { border-left:3px solid #e2e8f0; padding-left:14px; }
+.wstep { position:relative; padding:8px 0; }
+.wstep::before { content:""; position:absolute; left:-20px; top:15px; width:9px; height:9px;
+      border-radius:99px; background:#cbd5e1; }
+.wstep.whit::before  { background:#16a34a; }
+.wstep.wmiss::before { background:#f43f5e; }
+.wstep.wskip::before { background:#fff; outline:2px solid #cbd5e1; }
+.wstep.wcn::before   { background:#f59e0b; }
+/* the grid of (pattern x host) verdicts */
+.mx { border-collapse:separate; border-spacing:2px; }
+.mx th { font-size:9.5px; color:#64748b; font-weight:700; padding:0 2px; white-space:nowrap;
+     writing-mode:vertical-rl; transform:rotate(180deg); height:118px; vertical-align:bottom;
+     font-family:ui-monospace,Consolas,monospace; }
+.mx td.rh { font-size:11px; font-family:ui-monospace,Consolas,monospace; white-space:nowrap;
+     padding-right:8px; text-align:right; }
+.mx td.c { width:15px; height:15px; border-radius:3px; background:#e2e8f0; padding:0; }
+.mx td.c.y  { background:#22c55e; }
+.mx td.c.n  { background:#f1f5f9; }
+.mx td.c.d  { outline:2px solid #f43f5e; outline-offset:-2px; }
+.hdrrow { display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } .g3t { grid-template-columns:1fr; } }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.hist { display:flex; align-items:center; gap:8px; }
+.histbar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+.histbar.hb2 { background:#6366f1; } .histbar.hb3 { background:#f43f5e; }
+.chk { display:flex; align-items:center; gap:6px; font-size:12px; font-family:ui-monospace,Consolas,monospace; }
+.chk input { width:auto; }
+.slot { display:inline-block; font-family:ui-monospace,Consolas,monospace; font-size:11px;
+     font-weight:800; padding:1px 7px; border-radius:5px; background:#e0f2fe; color:#075985; }
+.slot.sdns{background:#dcfce7;color:#14532d}
+.slot.scn {background:#fef3c7;color:#92400e}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 72</p>
+    <h1 class="mb4">
+      🔐 Certificate hostname verifier &mdash; a real <code>X509_check_host()</code>. Give it a
+      hostname and a certificate and it says <b>MATCH</b> or <b>MISMATCH</b> and
+      <strong>names the clause that decided it</strong>, under three profiles: OpenSSL&nbsp;3.2.1,
+      Node&nbsp;22's <code>tls.checkServerIdentity</code>, and RFC&nbsp;9525 as written. Everyone
+      knows what <code>*.example.com</code> means. Almost nobody knows what stops
+      <code>*.com</code> &mdash; and it is not a public suffix list, because neither library
+      contains one. It is a <strong>dot count</strong>: the star needs at least two dots to its
+      right. So <code>*.com</code> is dead and <code>*.co.uk</code> is <em>live</em>, matching
+      <code>bbc.co.uk</code> in both real implementations, and so are
+      <code>*.github.io</code>, <code>*.appspot.com</code> and
+      <code>*.s3.amazonaws.com</code>. 🔴 The mechanism is worse than a rejection: OpenSSL never
+      rejects a malformed wildcard, it <em>demotes</em> the star to an ordinary character and
+      carries on comparing strings &mdash; of the 103 starred patterns in the differential corpus it
+      reads <strong>26</strong> as wildcards and silently turns <strong>77</strong> into literals,
+      refusing <strong>0</strong>, while Node reads <strong>52</strong> as wildcards, demotes
+      <strong>24</strong> and <em>refuses</em> the remaining <strong>27</strong>, and RFC&nbsp;9525
+      allows <strong>20</strong>. Same certificates, three partitions, no error either way.
+      🔴 And the CN is not deprecated, it is disabled <em>by type</em>: an email, an iPAddress or a
+      URI SAN leaves it authoritative and only a <code>dNSName</code> silences it, so
+      <strong>7 of the 31</strong> SAN-bearing certificates in the exhaustive 64-certificate slot
+      corpus are accepted purely on the CN. Every verdict on this page is checked against the real
+      thing: a throwaway certificate authority issues <strong>282</strong> leaves, <strong>234</strong>
+      of them carrying the two differential grids, and every one is raced across
+      <strong>8,480 cells</strong> against <code>openssl verify -verify_hostname</code> and Node's
+      own <code>checkServerIdentity</code> &mdash; <strong>0 disagreements</strong> with either,
+      over <strong>25,703</strong> verifier assertions and <strong>312,415</strong> in the page.
+      Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🔐 VERIFY</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================== VERIFY -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <p class="lbl mb1">PRESET</p>
+      <select id="preset" class="mb3"></select>
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb2">WHAT THE CLIENT ASKED FOR</p>
+          <div class="hdrrow"><span class="t-xs b">Hostname</span>
+            <input id="host" value="www.example.com"></div>
+          <div class="hdrrow"><span class="t-xs b">Implementation</span>
+            <select id="profile">
+              <option value="openssl">OpenSSL 3.2.1 &mdash; curl, Python, nginx, PHP</option>
+              <option value="node">Node 22 &mdash; tls.checkServerIdentity</option>
+              <option value="rfc9525">RFC 9525 (2023) as written</option>
+            </select></div>
+          <div class="hdrrow"><span class="t-xs b">Entry point</span>
+            <select id="checkas">
+              <option value="auto">auto &mdash; IP literal routed to check_ip</option>
+              <option value="host">always X509_check_host</option>
+              <option value="ip">always X509_check_ip</option>
+            </select></div>
+          <p class="lbl mt3 mb2">X509_CHECK_FLAG_*</p>
+          <div class="g2t" id="flags"></div>
+        </div>
+        <div>
+          <p class="lbl mb2">WHAT THE SERVER PRESENTED</p>
+          <div class="hdrrow"><span class="t-xs b">Subject CN</span>
+            <input id="cn" value="unrelated.example.org"></div>
+          <p class="t-xs dim mb2">subjectAltName, one entry per line, in certificate order.
+            Types: <code>DNS</code>, <code>IP Address</code>, <code>email</code>, <code>URI</code>.</p>
+          <textarea id="san" rows="6">DNS:*.example.com
+DNS:example.com
+email:admin@example.com</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="verdict"></div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="lbl mb2">THE ORDERED WALK DOWN THE CERTIFICATE</p>
+        <p class="t-sm muted mb3">This is the loop, in order. An entry of the wrong
+          <em>type</em> is skipped without being compared &mdash; and it is that skip, not the
+          comparison, that decides whether the CN is ever reached.</p>
+        <div id="walk"></div>
+      </div>
+      <div class="card">
+        <p class="lbl mb2">THE SAME INPUT, THREE IMPLEMENTATIONS</p>
+        <p class="t-sm muted mb3">One hostname, one certificate. Where these three disagree,
+          the certificate is valid for your browser and invalid for your backend, or the other way
+          round, and nothing in the handshake says so.</p>
+        <div class="scroll" id="three"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">ONE IDENTITY STRING, EIGHT PLACES TO PUT IT</p>
+      <p class="t-sm muted mb3">Every row below puts the <em>same</em> hostname into the
+        certificate. Nothing about the string changes; only which slot it occupies and what sits
+        next to it. Read the OpenSSL column: it accepts five of the eight.</p>
+      <div class="scroll" id="slottable"></div>
+      <p class="t-xs dim mt3" id="slotnote"></p>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">ONE STAR, TWELVE POSITIONS</p>
+      <p class="t-sm muted mb3">The character is identical in all twelve. What changes is what is
+        next to it. <span class="k kwild" style="font-size:11px;padding:1px 7px">wildcard</span>
+        means the star is an operator;
+        <span class="k klit" style="font-size:11px;padding:1px 7px">dead literal</span> means
+        OpenSSL demoted it to an ordinary character and did a plain string compare &mdash; no error,
+        no warning, a certificate for a hostname spelled with a star in it;
+        <span class="k kref" style="font-size:11px;padding:1px 7px">refused</span> means the
+        implementation returns false without falling back.</p>
+      <div class="scroll" id="startable"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE &ldquo;PUBLIC SUFFIX&rdquo; LADDER</p>
+      <p class="t-sm muted mb3">There is no public suffix list in
+        <code>crypto/x509/v3_utl.c</code> and none in <code>lib/internal/tls/common.js</code>.
+        The only thing standing between a wildcard and a whole registry is
+        <code>dots &lt; 2</code>. Browsers carry a suffix list of their own and CAs are forbidden by
+        the Baseline Requirements from issuing these &mdash; but that is policy above the
+        verifier, and a private CA, an internal PKI or a pinned self-signed certificate is not
+        subject to it.</p>
+      <div class="scroll" id="psladder"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE WILDCARD GRID</p>
+      <p class="t-sm muted mb3">Every pattern against every hostname, under the profile you pick.
+        Green is a match. A <span style="outline:2px solid #f43f5e;outline-offset:-2px;display:inline-block;width:12px;height:12px;border-radius:3px;background:#f1f5f9;vertical-align:-2px"></span>
+        outline marks a cell where OpenSSL and Node <em>disagree</em>.</p>
+      <div class="flex mb3">
+        <button class="tabbtn tab-active" data-g="openssl">OpenSSL</button>
+        <button class="tabbtn" data-g="node">Node</button>
+        <button class="tabbtn" data-g="rfc9525">RFC 9525</button>
+      </div>
+      <div class="scroll" id="mxwrap"></div>
+      <p class="t-xs dim mt3" id="mxnote"></p>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">FOUR MENTAL MODELS, SCORED</p>
+      <p class="t-sm muted mb3">Each of these is a matcher a competent engineer writes on purpose,
+        raced against the real algorithm over the grid above and over the exhaustive
+        64-certificate slot corpus. The zeroes are the tell: every model is exactly right on the
+        half of the problem it was designed for, which is why it survives review.</p>
+      <div class="scroll" id="models"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- =========================================================== UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg2">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">Verification is not a comparison. It is a search for an entry of the right type.</h2>
+      <p class="t-sm muted mb3">
+        The mental model almost everyone carries is a string compare with a bit of glob on top:
+        take the name in the certificate, take the name in the URL, see if they line up. The real
+        algorithm never does that. It walks the <code>subjectAltName</code> list in certificate
+        order, and for each entry it asks a question <em>before</em> comparing anything: is this
+        entry of the type I am checking? A <code>dNSName</code> when the client asked about a
+        hostname; an <code>iPAddress</code> when it asked about an IP literal. Entries of any other
+        type are skipped without being read.
+      </p>
+      <p class="t-sm muted mb3">
+        That skip is the whole design, because a second variable is being set while it happens:
+        <code>san_present</code>. It is set only by entries of the <em>matching</em> type. And at
+        the end of the loop, <code>san_present</code> is what decides whether the Common Name is
+        ever looked at.
+      </p>
+      <div class="note note-b t-sm">
+        <b>So the CN is not deprecated by the code. It is disabled by a neighbour.</b> Give a
+        certificate one <code>dNSName</code> that does not name your host and the CN is dead. Give
+        it an email address, an IP or a URI instead &mdash; entries that say nothing about
+        hostnames at all &mdash; and the CN is authoritative again. The rule is not "does this
+        certificate have a SAN", it is "does this certificate have a SAN <em>of this type</em>",
+        and the two are different on every certificate that has one and not the other.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">What that costs, counted exhaustively</h3>
+      <p class="t-sm muted mb3">
+        Take one hostname and build every certificate that could plausibly name it: five candidate
+        SAN slots &mdash; a matching <code>dNSName</code>, an unrelated <code>dNSName</code>, an
+        <code>iPAddress</code>, an <code>email</code>, a <code>URI</code> &mdash; in all
+        <b>2<sup>5</sup> = 32</b> subsets, crossed with a CN that either names the host or does
+        not. Sixty-four certificates, no sampling, every one of them issued for real and put in
+        front of <code>openssl verify</code>.
+      </p>
+      <div class="scroll mb3" id="cnstats"></div>
+      <p class="t-sm muted mb3">
+        The model everybody states out loud &mdash; <em>if there is a SAN, the CN is ignored</em>
+        &mdash; is wrong on <b id="sanwrong">7</b> of the 64, and every one of its errors is a
+        <em>false reject</em>: it predicts a mismatch where the real library says MATCH. A model
+        that under-accepts fails safe in production and never gets caught, which is exactly why it
+        is still being repeated.
+      </p>
+      <div class="note note-r t-sm">
+        <b>The reason this is not a museum piece.</b> A public CA cannot issue a certificate with
+        no <code>dNSName</code> SAN any more. An internal PKI can, a self-signed service
+        certificate usually does, and <code>openssl req -x509</code> with no
+        <code>-addext</code> produces one by default. On every one of those, in curl, in Python's
+        <code>ssl</code>, in nginx's upstream verification and in PHP, the field deciding who you
+        are talking to is still the Common Name.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">The finding: what stops <code>*.com</code> is a dot count.</h2>
+      <p class="t-sm muted mb3">
+        Ask anyone why a certificate authority will not sell you <code>*.com</code> and you will
+        hear about public suffixes. That is a real rule and it lives in the CA/Browser Forum
+        Baseline Requirements and in the browsers, both of which carry the Public Suffix List. It
+        is not in the verifier. Here is the entire guard, the last two lines of OpenSSL's
+        <code>valid_star()</code>:
+      </p>
+      <pre class="mb3"><code>if ((state &amp; (LABEL_START | LABEL_HYPHEN)) != 0 || dots &lt; 2)
+    return NULL;</code></pre>
+      <p class="t-sm muted mb3">
+        <code>dots</code> is the number of dots in the whole pattern. Two or more and the star is an
+        operator. One and it is not. Node states the same rule differently &mdash;
+        <code>if (patternParts.length &lt;= 2) return false;</code> &mdash; and lands in exactly the
+        same place. Neither file mentions a registry, a suffix, or a list.
+      </p>
+      <div class="scroll mb3" id="psladder2"></div>
+      <p class="t-sm muted mb3">
+        <code>*.com</code> and <code>*.uk</code> have one dot and are refused. <code>*.co.uk</code>,
+        <code>*.org.uk</code>, <code>*.github.io</code> and <code>*.appspot.com</code> have two and
+        are wildcards, in both libraries, matching every second-level name under those suffixes.
+        The line between "obviously insane" and "fine" is not <em>how much of the internet does
+        this cover</em>. It is <em>how many dots did you type</em>.
+      </p>
+      <div class="note t-sm">
+        <b>And the same count runs the other way.</b> <code>*.s3.amazonaws.com</code> has three
+        dots, so it is a perfectly ordinary wildcard covering every bucket-shaped hostname on that
+        service. Nothing in the verifier knows that the second label is a tenancy boundary. Nothing
+        can: the boundary is a fact about the operator's policy and the certificate carries no
+        field for it.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">A refused wildcard is not a refused certificate</h3>
+      <p class="t-sm muted mb3">
+        <code>valid_star()</code> returning <code>NULL</code> does not mean "reject". Look at what
+        the caller does with it:
+      </p>
+      <pre class="mb3"><code>star = valid_star(pattern, pattern_len, flags);
+if (star == NULL)
+    return equal_nocase(pattern, pattern_len, subject, subject_len, flags);
+return wildcard_match(...);</code></pre>
+      <p class="t-sm muted mb3">
+        A pattern OpenSSL will not treat as a wildcard falls through to a <em>literal string
+        compare</em>. The star stops being an operator and becomes an ordinary character in a
+        hostname. <code>*.com</code> is now a certificate for the single host whose name is the
+        four characters <code>*.com</code> &mdash; which is not a name DNS can carry, so the
+        certificate authenticates nothing at all, and says so with a plain hostname mismatch rather
+        than "your wildcard is invalid".
+      </p>
+      <p class="t-sm muted mb3">
+        Node has no such fallback. The moment a pattern contains a star it does not like, it returns
+        <code>false</code>. Across the corpus that difference is not marginal:
+      </p>
+      <div class="scroll mb3" id="census"></div>
+      <p class="t-sm muted mb3">
+        Two shipping implementations, the same certificates, and they do not even agree on how many
+        of them contain a wildcard. Node demotes too, just far less often and for one specific
+        reason: a first label beginning <code>xn--</code> is matched by its exact spelling and
+        nothing else, and that escape fires <em>before</em> the star-count and label-count rules, so
+        <code>xn--a*b</code> &mdash; a single label, no dots at all &mdash; is a valid identity for
+        the host literally spelled <code>xn--a*b</code>. The demoted reading also explains the
+        strangest cells in the grid: OpenSSL matches <code>*.example.com</code> against the literal
+        hostname <code>*.example.com</code>, and matches <code>f*o.example.com</code> against
+        <code>f*o.example.com</code>, because in the second case the star was never an operator to
+        begin with.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">Adding a letter next to the star makes the star weaker &mdash; and looser</h3>
+      <p class="t-sm muted mb3">
+        Inside <code>wildcard_match()</code> there is one conditional that everything else hangs
+        off:
+      </p>
+      <pre class="mb3"><code>if (prefix_len == 0 &amp;&amp; *suffix == '.') {
+    if (wildcard_start == wildcard_end)   /* the star ate nothing */
+        return 0;
+    allow_idna = 1;
+    ...
+}</code></pre>
+      <p class="t-sm muted mb3">
+        Read the guard: it fires only when the star <em>is</em> the entire first label. In that case
+        the star must consume at least one character, and A-label hosts (<code>xn--&hellip;</code>)
+        become matchable. Put a single literal character to its left &mdash;
+        <code>f*.example.com</code> &mdash; and both clauses switch off. The star may now expand to
+        <em>zero</em> characters, so <code>f*.example.com</code> matches <code>f.example.com</code>;
+        and the A-label protection disappears, so a partial wildcard is refused against
+        <code>xn--</code> hosts by a separate line further down.
+      </p>
+      <div class="scroll mb3" id="zerowidth"></div>
+      <div class="note note-r t-sm">
+        <b>The one question the API cannot be asked.</b> The mirror case &mdash; does
+        <code>*.example.com</code> match the empty-label host <code>.example.com</code>? &mdash; is
+        unreachable from outside, because a leading dot switches
+        <code>X509_check_host()</code> into an entirely different mode: it becomes a client-side
+        <em>suffix pattern</em> meaning "any name under this domain", and never reaches the
+        wildcard code at all. Internally the answer is no. Node, which has no such mode, answers
+        the question directly and says <b>yes</b>. Both facts are asserted on this page; only one of
+        them could be raced against the real binary.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">The trailing dot: the same name, two answers</h3>
+      <p class="t-sm muted mb3">
+        <code>example.com.</code> and <code>example.com</code> are the same name. The trailing dot
+        is the DNS root label; resolvers strip it, it reaches the same server, and
+        <code>new URL("https://example.com./")</code> keeps it in the hostname. OpenSSL does not
+        strip it, on either side, so a trailing dot on the host is a mismatch and a trailing dot in
+        the certificate makes that identity match nothing. Node strips it &mdash; and strips it
+        twice, because <code>checkServerIdentity()</code> calls <code>unfqdn()</code> and then
+        <code>splitHost()</code> calls <code>unfqdn()</code> again, so
+        <code>example.com..</code> is accepted and <code>example.com...</code> is not.
+      </p>
+      <div class="scroll mb3" id="dottable"></div>
+      <p class="t-sm muted mb3">
+        Of the <b>148</b> cells in the 8,160-cell differential grid where OpenSSL and Node give
+        different verdicts, <b>142</b> &mdash; 95.9% &mdash; are decided by a dot: a trailing one on
+        the host, a trailing one in the certificate, or an empty label somewhere in between. The
+        entire remainder is the <code>f*o</code> reading and the A-label rule.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">🔴 What the measurement killed</h3>
+      <p class="t-sm muted mb3">
+        Four things this page intended to say did not survive being raced against the real
+        libraries, and one of them was a claim about the specification itself.
+      </p>
+      <ul class="t-sm muted mb3">
+        <li><b>"RFC 9525 is strictly stricter than OpenSSL."</b> False. It is looser on
+          <b>16 of 650</b> cells &mdash; every one of them because the specification normalises a
+          trailing dot away and OpenSSL does not. The assertion on this page now measures the
+          exception rather than denying it.</li>
+        <li><b>"<code>f*o.example.com</code> is a partial wildcard everywhere."</b> False, and it
+          was a bug in this engine until the differential caught it. OpenSSL refuses a star with a
+          literal on <em>both</em> sides &mdash; <code>if (!atstart &amp;&amp; !atend) return
+          NULL;</code> &mdash; and demotes it. Node has no such rule and treats it as a wildcard.
+          Three real hosts flipped.</li>
+        <li><b>"Node strips one trailing dot."</b> It strips two. Seven grid cells disagreed with
+          the real <code>checkServerIdentity</code> until <code>unfqdn()</code> was applied twice,
+          which is what the shipped code does by accident of composition.</li>
+        <li><b>"<code>*.example.com</code> matches <code>.example.com</code>, so a full star can
+          eat nothing."</b> The observation was real and the explanation was wrong: the match came
+          from the leading-dot <em>suffix pattern</em> mode, not from the wildcard. The same
+          pattern matched <code>*.a.b.example.com</code> too, which no wildcard rule permits.</li>
+        <li><b>"Node refuses every A-label wildcard."</b> It matches their exact spelling, and the
+          escape sits <em>above</em> the star-count and label-count rules rather than below them.
+          That ordering is only visible from three certificates &mdash;
+          <code>xn--a*b</code> matches itself while <code>a*b</code> does not, and
+          <code>xn--b9-b1**an</code> matches itself while <code>x**y.example.com</code> does not
+          &mdash; and no amount of reading the algorithm from the outside would have produced it.</li>
+        <li><b>And one failure that was not the spec's at all.</b> The reference disagreed with the
+          engine on exactly one pattern, the bare star, and the engine was right: the OpenSSL binary
+          on this machine is a MinGW build whose C runtime globs its own argv, so a hostname of
+          <code>*</code> was being expanded into a list of filenames before
+          <code>X509_check_host</code> ever saw it. The verifier now runs every comparison from an
+          empty directory. A differential test can be wrong about the reference, not only about the
+          thing under test.</li>
+      </ul>
+      <div class="note note-g t-sm">
+        <b>What did survive, and is worth carrying.</b> Whether a name matches a certificate is
+        not a property of the name and the certificate. It is decided by the <em>slot</em> the
+        identity sits in, by the <em>types</em> of its neighbours, by the number of <em>dots</em> to
+        the right of a star, and by whether the star has a literal character beside it. Four
+        positional facts, none of them about the characters being compared.
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg0">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">The engine</h2>
+      <p class="t-sm muted mb3">
+        The block between <code>ENGINE:BEGIN</code> and <code>ENGINE:END</code> in this file's
+        source is DOM-free and is the whole verifier: three profiles, OpenSSL's six
+        <code>X509_CHECK_FLAG_*</code> bits, the corpora, the mental models and the assertion
+        suite. Nothing in it touches <code>document</code>, which is how the external verifier can
+        lift it out and race it against the real binaries without a browser.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">1. The type check that decides everything</h3>
+      <pre><code>for (i = 0; i &lt; san.length; i++) {
+  e = san[i];
+  if (e.type !== checkType) { walk.push({... "wrong type, skipped"}); continue; }
+  sanPresent = true;                       // &lt;- set ONLY by the matching type
+  ...
+}
+if (sanPresent &amp;&amp; !(flags &amp; F.ALWAYS_CHECK_SUBJECT)) return { match:false, ... };
+// only now is the CN reachable</code></pre>
+      <p class="t-sm muted mt3">
+        Two statements, and the order between them is the rule. Moving
+        <code>sanPresent = true</code> above the type test &mdash; which is what "if there is a SAN,
+        ignore the CN" means as code &mdash; changes the verdict on exactly the certificates whose
+        SAN entries are all of the wrong type, and on no others.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">2. <code>valid_star</code>, a state machine that answers a yes/no question</h3>
+      <pre><code>if (c === "*") {
+  var atstart = (state &amp; LABEL_START) !== 0;
+  var atend   = (i === p.length - 1) || p.charAt(i + 1) === ".";
+  if (star &gt;= 0 || (state &amp; LABEL_IDNA) || dots) return -1;   // one star, first label, not xn--
+  if (!atstart &amp;&amp; !atend) return -1;                          // no foo*bar
+  star = i;
+}
+...
+if (state &amp; (LABEL_START | LABEL_HYPHEN)) return -1;
+if (dots &lt; 2 &amp;&amp; !(flags &amp; F.SINGLE_LABEL_SUBDOMAINS)) return -1;</code></pre>
+      <p class="t-sm muted mt3">
+        Four of the five refusals are about the star's neighbours, not the star. The fifth is the
+        dot count. <code>SINGLE_LABEL_SUBDOMAINS</code> is the flag that turns the dot count off &mdash;
+        it exists so that an internal PKI can write <code>*.corp</code>, and switching it on makes
+        <code>*.com</code> a working wildcard.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">3. The expansion is policed after the fact</h3>
+      <pre><code>var mid = host.slice(wStart, wEnd);
+if (mid === "*") return true;                      // the star may match a literal star
+for (var i = 0; i &lt; mid.length; i++) {
+  var c = mid.charAt(i);
+  if (!((c &gt;= "0" &amp;&amp; c &lt;= "9") || (c &gt;= "A" &amp;&amp; c &lt;= "Z") ||
+        (c &gt;= "a" &amp;&amp; c &lt;= "z") || c === "-" || (allowMulti &amp;&amp; c === "."))) return false;
+}</code></pre>
+      <p class="t-sm muted mt3">
+        This is where "one label" actually lives. The star is not restricted while it expands;
+        it is allowed to swallow the rest of the name and then the swallowed text is checked for a
+        dot. Set <code>MULTI_LABEL_WILDCARDS</code> and the single character <code>.</code> joins
+        the allowed set, at which point <code>*.example.com</code> covers
+        <code>a.b.c.example.com</code> and the whole subtree with it.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">4. Node, transcribed rather than paraphrased</h3>
+      <pre><code>function nodeCheck(hostParts, pattern, wildcards) {
+  var patternParts = splitHost(pattern);              // splitHost() unfqdn()s
+  if (hostParts.length !== patternParts.length) return false;
+  if (patternParts.indexOf("") &gt;= 0) return false;     // "bad..example.com"
+  ... ASCII-only guard ...
+  for (i = hostParts.length - 1; i &gt; 0; i--) ...       // right to left
+  if (bits.length &gt; 2) return false;                   // one star
+  if (patternParts.length &lt;= 2) return false;          // the dot count, restated
+  if (patSub.slice(0, 4) === "xn--") return false;      // no wildcard in an A-label
+  ...
+}</code></pre>
+      <p class="t-sm muted mt3">
+        Written independently of OpenSSL, arriving at the same dot rule and a different answer on
+        four other questions. The CN path calls this with <code>wildcards = true</code>, so a
+        wildcard in a Common Name works in Node &mdash; which is a thing the CN is not supposed to
+        be able to do any more.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">5. Verifying it</h3>
+      <p class="t-sm muted mb3">Four layers, none of which trusts the engine:</p>
+      <ul class="t-sm muted mb3">
+        <li><b>Real certificates, real OpenSSL.</b> The external verifier generates a throwaway
+          EC certificate authority, issues <b>234</b> leaf certificates carrying the corpus in
+          their real <code>subjectAltName</code> extensions, and asks
+          <code>openssl verify -CAfile ca.pem -verify_hostname &lt;name&gt;</code> &mdash; the actual
+          <code>X509_check_host()</code> that curl, Python and nginx call. Every certificate is
+          verified once without a hostname first, so any failure that is not
+          <code>error 62: hostname mismatch</code> aborts the run instead of being read as a
+          mismatch. Same shape of check as Day 61's <code>git check-ignore</code>, Day 69's ICU
+          and Day 70's live Apache.</li>
+        <li><b>A second, independently written implementation.</b> The same DER, parsed by
+          <code>crypto.X509Certificate</code>, handed to Node's own
+          <code>tls.checkServerIdentity</code>. It is not a port of OpenSSL and it disagrees with
+          it, which is the point: an engine that matched only one of them could be matching a
+          transcription error.</li>
+        <li><b>Oracles written from the RFC, not from the engine.</b> Wildcard matching is
+          re-derived in the verifier as a label-array walk, the SAN-type rule as a set predicate,
+          and the dot rule by counting; each is compared cell for cell rather than spot-checked.</li>
+        <li><b>Properties, not samples.</b> Case-insensitivity over every letter in both
+          directions; a non-matching entry never blocks a later matching one, in either order;
+          an empty certificate never matches anything; every accept names a source; and RFC 9525
+          never accepts what OpenSSL refuses <em>except</em> for a trailing dot &mdash; the
+          exception is asserted with its exact count rather than waved away.</li>
+      </ul>
+      <div class="note note-g"><pre id="ref" style="background:none;color:#065f46;padding:0;font-size:12px">running&hellip;</pre></div>
+      <p class="t-sm muted mt3">
+        The differential figures on this page were measured against <b>OpenSSL 3.2.1</b> and
+        <b>Node 22.17.1</b>. The sweep below re-derives the in-browser half of the same
+        measurements on a much larger generated corpus &mdash; it cannot call
+        <code>openssl</code>, so it checks the engine against independently written oracles and
+        against its own invariants instead.
+      </p>
+      <div class="flex mt3"><button class="go" id="sweepbtn">RUN THE LIVE SWEEP IN THIS BROWSER</button></div>
+      <div class="mt3" id="sweepout"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">6. What to do about it</h3>
+      <ul class="t-sm muted mb3">
+        <li><b>Do not read a wildcard's safety off its shape.</b> <code>*.co.uk</code> and
+          <code>*.example.com</code> are the same construct to every verifier on this page. If you
+          pin or allow-list certificates, check the suffix yourself against a real list.</li>
+        <li><b>Set <code>X509_CHECK_FLAG_NEVER_CHECK_SUBJECT</code></b> if you are calling OpenSSL
+          directly and you want the modern rule. It is the only way to make "the CN does not count"
+          true, and it is off by default.</li>
+        <li><b>Normalise the trailing dot before you compare anything</b> &mdash; on the host, and
+          in whatever you feed to a certificate request. It is the single most common source of a
+          verification that works in a browser and fails in curl.</li>
+        <li><b>Detect IP literals yourself.</b> <code>X509_check_host("10.0.0.1", ...)</code>
+          happily matches a <code>dNSName</code> spelled <code>10.0.0.1</code>. The routing to
+          <code>X509_check_ip()</code> is the application's job, and the library will not do it for
+          you.</li>
+      </ul>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+var tabs = document.querySelectorAll("#tabs button");
+var panels = document.querySelectorAll(".panel");
+tabs.forEach(function(t){ t.addEventListener("click", function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); });
+  t.classList.add("tab-active");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+  window.scrollTo(0,0);
+});});
+
+// ===== ENGINE:BEGIN =====
+/* ============ certificate identity / hostname verification engine =========
+   Reference identity matching for TLS server certificates, three profiles:
+     openssl  - X509_check_host()/X509_check_ip() as shipped in OpenSSL 3.2.1
+                (crypto/x509/v3_utl.c: do_x509_check, equal_nocase,
+                equal_wildcard, valid_star, wildcard_match). This is the code
+                curl, Python ssl, nginx, HAProxy and PHP all reach.
+     node     - Node's tls.checkServerIdentity (lib/internal/tls/common.js).
+     rfc9525  - RFC 9525 (2023, obsoletes RFC 6125): no partial wildcards,
+                no CN fallback at all, wildcard = whole leftmost label.
+   Every result carries `rule` = the clause that decided it, and `walk` = the
+   ordered list of entries the algorithm actually looked at.               */
+
+var CERT = (function () {
+  "use strict";
+
+  /* ---- OpenSSL X509_CHECK_FLAG_* ------------------------------------- */
+  var F = {
+    ALWAYS_CHECK_SUBJECT:   0x1,
+    NO_WILDCARDS:           0x2,
+    NO_PARTIAL_WILDCARDS:   0x4,
+    MULTI_LABEL_WILDCARDS:  0x8,
+    SINGLE_LABEL_SUBDOMAINS:0x10,
+    NEVER_CHECK_SUBJECT:    0x20,
+    DOT_SUBDOMAINS:         0x8000        /* internal, set by a leading '.' */
+  };
+
+  /* ---- ASCII-only case folding, exactly OpenSSL's equal_nocase --------
+     A NUL in the certificate's copy is fatal: this is the defence against
+     the "www.bank.com\0.attacker.example" CN of CVE-2009-2408.            */
+  function foldEq(certStr, hostStr) {
+    if (certStr.length !== hostStr.length) return false;
+    for (var i = 0; i < certStr.length; i++) {
+      var l = certStr.charCodeAt(i), r = hostStr.charCodeAt(i);
+      if (l === 0) return false;                       /* embedded NUL */
+      if (l !== r) {
+        if (l >= 65 && l <= 90) l += 32;
+        if (r >= 65 && r <= 90) r += 32;
+        if (l !== r) return false;
+      }
+    }
+    return true;
+  }
+
+  /* equal_nocase plus the internal dot-subdomain extension: when the caller
+     passes ".example.com" as the name, OpenSSL treats it as a client-side
+     SUFFIX pattern, not a hostname. No TLS client does this; the flag exists
+     for callers that want "any name under this domain".                   */
+  function equalNoCase(certStr, hostStr, flags) {
+    if (certStr.length !== hostStr.length) {
+      if (!(flags & F.DOT_SUBDOMAINS)) return false;
+      if (hostStr.length > certStr.length) return false;
+      certStr = certStr.slice(certStr.length - hostStr.length);
+    }
+    return foldEq(certStr, hostStr);
+  }
+
+  /* ---- valid_star: is this identity a usable wildcard pattern? --------
+     At most one star, in the FIRST label only, never inside an A-label,
+     never with a literal on BOTH sides, and - the line nobody remembers -
+     there must be at least two dots after it. That is why *.com is refused
+     and *.co.uk is not.                                                   */
+  var LABEL_START = 1, LABEL_HYPHEN = 2, LABEL_IDNA = 4;
+  function validStar(p, flags) {
+    if (flags & F.NO_WILDCARDS) return -1;
+    var star = -1, state = LABEL_START, dots = 0, i, c;
+    for (i = 0; i < p.length; i++) {
+      c = p.charAt(i);
+      if (c === "*") {
+        var atstart = (state & LABEL_START) !== 0;
+        var atend = (i === p.length - 1) || p.charAt(i + 1) === ".";
+        if (star >= 0 || (state & LABEL_IDNA) || dots) return -1;
+        if ((flags & F.NO_PARTIAL_WILDCARDS) && (!atstart || !atend)) return -1;
+        if (!atstart && !atend) return -1;            /* no foo*bar wildcards */
+        star = i;
+        state &= ~LABEL_START;
+      } else if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9")) {
+        if ((state & LABEL_START) && p.length - i >= 4 &&
+            p.slice(i, i + 4).toLowerCase() === "xn--") state |= LABEL_IDNA;
+        state &= ~(LABEL_HYPHEN | LABEL_START);
+      } else if (c === ".") {
+        if (state & (LABEL_HYPHEN | LABEL_START)) return -1;
+        state = LABEL_START;
+        dots++;
+      } else if (c === "-") {
+        if (state & LABEL_START) return -1;           /* no label starts with '-' */
+        state |= LABEL_HYPHEN;
+      } else return -1;                               /* anything else, NUL included */
+    }
+    /* the final label must not end in '-' or '.', and there must be at
+       least two dots after the star: the line that kills *.com          */
+    if (state & (LABEL_START | LABEL_HYPHEN)) return -1;
+    if (dots < 2 && !(flags & F.SINGLE_LABEL_SUBDOMAINS)) return -1;
+    return star;
+  }
+
+  /* ---- wildcard_match: the star expands, then the expansion is policed */
+  function wildcardMatch(prefix, suffix, host, flags) {
+    if (host.length < prefix.length + suffix.length) return false;
+    if (!foldEq(prefix, host.slice(0, prefix.length))) return false;
+    var wStart = prefix.length, wEnd = host.length - suffix.length;
+    if (!foldEq(suffix, host.slice(wEnd))) return false;
+    var allowMulti = false, allowIdna = false;
+    /* A star that IS the whole first label must eat at least one character.
+       A star with a literal neighbour - f*.example.com - is under no such
+       rule, so it happily eats nothing.                                   */
+    if (prefix.length === 0 && suffix.charAt(0) === ".") {
+      if (wStart === wEnd) return false;
+      allowIdna = true;
+      if (flags & F.MULTI_LABEL_WILDCARDS) allowMulti = true;
+    }
+    /* an A-label host cannot be matched by a PARTIAL wildcard */
+    if (!allowIdna && host.slice(0, 4).toLowerCase() === "xn--") return false;
+    var mid = host.slice(wStart, wEnd);
+    if (mid === "*") return true;                       /* a literal star matches */
+    for (var i = 0; i < mid.length; i++) {
+      var c = mid.charAt(i);
+      var okc = (c >= "0" && c <= "9") || (c >= "A" && c <= "Z") ||
+                (c >= "a" && c <= "z") || c === "-" || (allowMulti && c === ".");
+      if (!okc) return false;
+    }
+    return true;
+  }
+
+  function equalWildcard(certStr, hostStr, flags) {
+    var star = validStar(certStr, flags);
+    if (star < 0) return equalNoCase(certStr, hostStr, flags);
+    if (flags & F.DOT_SUBDOMAINS) return equalNoCase(certStr, hostStr, flags);
+    return wildcardMatch(certStr.slice(0, star), certStr.slice(star + 1), hostStr, flags);
+  }
+
+  /* ---- IP literals ---------------------------------------------------- */
+  function parseIPv4(s) {
+    var p = s.split("."), out = [], i, n;
+    if (p.length !== 4) return null;
+    for (i = 0; i < 4; i++) {
+      if (!/^\d{1,3}$/.test(p[i])) return null;
+      if (p[i].length > 1 && p[i].charAt(0) === "0") return null;   /* no octal, no padding */
+      n = +p[i];
+      if (n > 255) return null;
+      out.push(n);
+    }
+    return out;
+  }
+  function parseIPv6(s) {
+    if (s.indexOf(":") < 0) return null;
+    var tail = null, i, m = s.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
+    if (m) { tail = parseIPv4(m[1]); if (!tail) return null; s = s.slice(0, s.length - m[1].length) + "0:0"; }
+    var halves = s.split("::");
+    if (halves.length > 2) return null;
+    function grp(str) {
+      if (str === "") return [];
+      var g = str.split(":"), o = [], k;
+      for (k = 0; k < g.length; k++) {
+        if (!/^[0-9a-fA-F]{1,4}$/.test(g[k])) return null;
+        o.push(parseInt(g[k], 16));
+      }
+      return o;
+    }
+    var a = grp(halves[0]), b = halves.length === 2 ? grp(halves[1]) : [];
+    if (a === null || b === null) return null;
+    var need = 8 - a.length - b.length;
+    if (halves.length === 2) { if (need < 1) return null; }
+    else if (need !== 0) return null;
+    var pad = [], k2;
+    for (k2 = 0; k2 < (halves.length === 2 ? need : 0); k2++) pad.push(0);
+    var words = a.concat(pad).concat(b);
+    var bytes = [];
+    for (i = 0; i < 8; i++) { bytes.push((words[i] >> 8) & 255); bytes.push(words[i] & 255); }
+    if (tail) bytes = bytes.slice(0, 12).concat(tail);
+    return bytes;
+  }
+  function parseIP(s) {
+    var v4 = parseIPv4(s); if (v4) return v4;
+    return parseIPv6(s);
+  }
+  function isIP(s) { return parseIP(s) !== null; }
+  function sameIP(a, b) {
+    var x = parseIP(a), y = parseIP(b);
+    if (!x || !y || x.length !== y.length) return false;
+    for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+
+  /* ---- SAN text <-> entry list ---------------------------------------
+     The string shape is OpenSSL's own ("DNS:a, IP Address:1.2.3.4"), which
+     is also exactly what Node hands to checkServerIdentity.               */
+  var SAN_KINDS = ["DNS", "IP Address", "email", "URI", "othername", "DirName", "RID", "Registered ID"];
+  function parseSAN(str) {
+    var out = [], i, part, k, parts;
+    if (!str) return out;
+    parts = String(str).split(", ");
+    for (i = 0; i < parts.length; i++) {
+      part = parts[i];
+      for (k = 0; k < SAN_KINDS.length; k++) {
+        if (part.slice(0, SAN_KINDS[k].length + 1) === SAN_KINDS[k] + ":") {
+          out.push({ type: SAN_KINDS[k], value: part.slice(SAN_KINDS[k].length + 1) });
+          break;
+        }
+      }
+      if (k === SAN_KINDS.length && part !== "") out.push({ type: "unknown", value: part });
+    }
+    return out;
+  }
+  function sanText(list) {
+    var s = [], i;
+    for (i = 0; i < list.length; i++) s.push(list[i].type + ":" + list[i].value);
+    return s.join(", ");
+  }
+  function cnsOf(cert) {
+    var s = cert.subject || {}, out = [];
+    if (Object.prototype.toString.call(s.CN) === "[object Array]") out = s.CN.slice();
+    else if (s.CN != null) out = [String(s.CN)];
+    return out;
+  }
+
+  /* ================= profile: OpenSSL 3.2.1 X509_check_host ============ */
+  function checkOpenSSL(host, cert, flags, checkAs) {
+    flags = flags || 0;
+    var walk = [], i, e, hit = null, sanPresent = false, dotMode = false;
+    /* X509_check_host and X509_check_ip are two different entry points and
+       OpenSSL never picks between them - the APPLICATION does. curl, Node
+       and Python detect the IP literal themselves and route accordingly;
+       "host" is what an application that forgot to do that would get.    */
+    var checkType = (checkAs === "host") ? "DNS"
+                  : (checkAs === "ip") ? "IP Address"
+                  : (isIP(host) ? "IP Address" : "DNS");
+    if (checkType === "DNS" && host.length > 1 && host.charAt(0) === ".") {
+      flags |= F.DOT_SUBDOMAINS; dotMode = true;
+    }
+    var san = cert.san || [];
+    for (i = 0; i < san.length; i++) {
+      e = san[i];
+      if (e.type !== checkType) { walk.push({ slot: e.type, value: e.value, verdict: "wrong type, skipped" }); continue; }
+      sanPresent = true;
+      var m = checkType === "IP Address" ? sameIP(e.value, host) : equalWildcard(e.value, host, flags);
+      walk.push({ slot: e.type, value: e.value, verdict: m ? "MATCH" : "no match" });
+      if (m) { hit = { via: checkType === "IP Address" ? "san-ip" : "san-dns", value: e.value }; break; }
+    }
+    if (hit) {
+      return { match: true, via: hit.via, matched: hit.value, walk: walk, dotMode: dotMode,
+        rule: dotMode ? "matched a subjectAltName under the dot-subdomain suffix pattern"
+             : checkType === "IP Address" ? "matched an iPAddress subjectAltName"
+             : (validStar(hit.value, flags) >= 0 ? "matched a wildcard dNSName subjectAltName"
+                                                 : "matched a literal dNSName subjectAltName") };
+    }
+    if (sanPresent && !(flags & F.ALWAYS_CHECK_SUBJECT)) {
+      return { match: false, via: "none", matched: null, walk: walk, dotMode: dotMode,
+        rule: "the certificate carries at least one " + checkType +
+              " subjectAltName and none matched, so the CN is never consulted" };
+    }
+    if (checkType === "IP Address" || (flags & F.NEVER_CHECK_SUBJECT)) {
+      return { match: false, via: "none", matched: null, walk: walk, dotMode: dotMode,
+        rule: checkType === "IP Address"
+          ? "an IP literal is only ever checked against iPAddress subjectAltNames; the CN is not a fallback for it"
+          : "NEVER_CHECK_SUBJECT was set, so the CN was skipped" };
+    }
+    var cns = cnsOf(cert);
+    for (i = 0; i < cns.length; i++) {
+      var cm = equalWildcard(cns[i], host, flags);
+      walk.push({ slot: "CN", value: cns[i], verdict: cm ? "MATCH" : "no match" });
+      if (cm) return { match: true, via: "cn", matched: cns[i], walk: walk, dotMode: dotMode,
+        rule: san.length
+          ? "no dNSName subjectAltName exists, so the deprecated CN was still authoritative"
+          : "the certificate has no subjectAltName at all, so the CN was used" };
+    }
+    return { match: false, via: "none", matched: null, walk: walk, dotMode: dotMode,
+      rule: cns.length ? "neither a subjectAltName of the right type nor the CN matched"
+                       : "nothing in the certificate names this host" };
+  }
+
+  /* ================= profile: Node 22 tls.checkServerIdentity ==========
+     Ported from lib/internal/tls/common.js. Node reads only DNS: and
+     IP Address: entries - a URI SAN is invisible to it - unfqdn() strips one
+     trailing dot from BOTH sides, and the CN is checked WITH wildcards on. */
+  function unfqdn(h) { return h.replace(/\.$/, ""); }
+  function splitHost(h) { return unfqdn(h).toLowerCase().split("."); }
+  function nodeCheck(hostParts, pattern, wildcards) {
+    if (!pattern) return false;
+    var patternParts = splitHost(pattern), i;
+    if (hostParts.length !== patternParts.length) return false;
+    /* "bad..example.com" - an empty component is refused outright */
+    if (patternParts.indexOf("") >= 0) return false;
+    /* U-labels cannot be told apart from mojibake, so ASCII only */
+    for (i = 0; i < patternParts.length; i++) if (!/^[\x20-\x7f]+$/.test(patternParts[i])) return false;
+    for (i = hostParts.length - 1; i > 0; i--) if (hostParts[i] !== patternParts[i]) return false;
+    var hostSub = hostParts[0], patSub = patternParts[0];
+    var bits = patSub.split("*");
+    if (bits.length === 1) return hostSub === patSub;      /* star is not in this label */
+    if (!wildcards) return false;
+    /* an A-label may not be matched by a wildcard at all - and this escape
+       fires BEFORE the star-count and label-count rules, which is why
+       xn--*.example.com matches its own spelling and nothing else, while
+       *.com matches nothing at all                                       */
+    if (patSub.slice(0, 4) === "xn--") return hostSub === patSub;
+    if (bits.length > 2) return false;
+    if (patternParts.length <= 2) return false;
+    var prefix = bits[0], suffix = bits[1];
+    if (prefix.length + suffix.length > hostSub.length) return false;
+    if (hostSub.slice(0, prefix.length) !== prefix) return false;
+    if (suffix.length && hostSub.slice(hostSub.length - suffix.length) !== suffix) return false;
+    return true;
+  }
+  function checkNode(host, cert) {
+    var san = cert.san || [], dns = [], ips = [], walk = [], i;
+    for (i = 0; i < san.length; i++) {
+      if (san[i].type === "DNS") dns.push(san[i].value);
+      else if (san[i].type === "IP Address") ips.push(san[i].value);
+      else walk.push({ slot: san[i].type, value: san[i].value, verdict: "not a name Node reads at all" });
+    }
+    if (isIP(host)) {
+      for (i = 0; i < ips.length; i++) {
+        var im = sameIP(ips[i], host);
+        walk.push({ slot: "IP Address", value: ips[i], verdict: im ? "MATCH" : "no match" });
+        if (im) return { match: true, via: "san-ip", matched: ips[i], walk: walk,
+          rule: "the host is an IP literal, so only iPAddress subjectAltNames were considered" };
+      }
+      return { match: false, via: "none", matched: null, walk: walk,
+        rule: "the host is an IP literal and no iPAddress subjectAltName matched; dNSName entries and the CN are not consulted" };
+    }
+    /* checkServerIdentity unfqdn()s the hostname and splitHost() unfqdn()s
+       it AGAIN, so Node quietly strips TWO trailing dots, not one */
+    var hp = splitHost(unfqdn(host));
+    if (dns.length) {
+      for (i = 0; i < dns.length; i++) {
+        var dm = nodeCheck(hp, dns[i], true);
+        walk.push({ slot: "DNS", value: dns[i], verdict: dm ? "MATCH" : "no match" });
+        if (dm) return { match: true, via: "san-dns", matched: dns[i], walk: walk,
+          rule: dns[i].indexOf("*") >= 0 ? "matched a wildcard dNSName subjectAltName"
+                                         : "matched a literal dNSName subjectAltName" };
+      }
+      return { match: false, via: "none", matched: null, walk: walk,
+        rule: "dNSName subjectAltNames exist and none matched, so the CN is never consulted" };
+    }
+    var cns = cnsOf(cert);
+    for (i = 0; i < cns.length; i++) {
+      var cm = nodeCheck(hp, cns[i], true);          /* wildcards ARE honoured in the CN */
+      walk.push({ slot: "CN", value: cns[i], verdict: cm ? "MATCH" : "no match" });
+      if (cm) return { match: true, via: "cn", matched: cns[i], walk: walk,
+        rule: san.length ? "no dNSName subjectAltName exists, so the deprecated CN was still authoritative"
+                         : "the certificate has no subjectAltName at all, so the CN was used" };
+    }
+    return { match: false, via: "none", matched: null, walk: walk,
+      rule: "nothing in the certificate names this host" };
+  }
+
+  /* ================= profile: RFC 9525 (2023) ==========================
+     What the current specification actually requires: DNS-IDs only, a
+     wildcard is the ENTIRE leftmost label or it is not a wildcard, and the
+     CN is not an identifier at all.                                       */
+  function check9525(host, cert) {
+    var san = cert.san || [], walk = [], i;
+    if (isIP(host)) {
+      for (i = 0; i < san.length; i++) {
+        if (san[i].type !== "IP Address") { walk.push({ slot: san[i].type, value: san[i].value, verdict: "not an IP-ID" }); continue; }
+        var im = sameIP(san[i].value, host);
+        walk.push({ slot: "IP Address", value: san[i].value, verdict: im ? "MATCH" : "no match" });
+        if (im) return { match: true, via: "san-ip", matched: san[i].value, walk: walk, rule: "matched an IP-ID" };
+      }
+      return { match: false, via: "none", matched: null, walk: walk, rule: "no IP-ID matched" };
+    }
+    var h = host.toLowerCase().replace(/\.$/, ""), hp = h.split(".");
+    for (i = 0; i < san.length; i++) {
+      if (san[i].type !== "DNS") { walk.push({ slot: san[i].type, value: san[i].value, verdict: "not a DNS-ID" }); continue; }
+      var p = san[i].value.toLowerCase().replace(/\.$/, ""), pp = p.split("."), m2 = false, why = "";
+      /* an empty label is not a domain name at all (RFC 1035 sec 2.3.1), so
+         it is not a DNS-ID either - OpenSSL reaches the same answer by a
+         different road, refusing the wildcard and comparing literally    */
+      if (pp.indexOf("") >= 0 || hp.indexOf("") >= 0) { why = " (empty label: not a domain name)"; }
+      else if (p.indexOf("*") < 0) m2 = (p === h);
+      else if (pp[0] === "*" && pp.length >= 3 && p.indexOf("*", 1) < 0)
+        m2 = (pp.length === hp.length && hp[0].length > 0 &&
+              pp.slice(1).join(".") === hp.slice(1).join("."));
+      else why = " (a partial wildcard: forbidden by RFC 9525 sec 6.3)";
+      walk.push({ slot: "DNS", value: san[i].value, verdict: (m2 ? "MATCH" : "no match") + why });
+      if (m2) return { match: true, via: "san-dns", matched: san[i].value, walk: walk,
+        rule: p.indexOf("*") === 0 ? "matched a wildcard DNS-ID" : "matched a DNS-ID" };
+    }
+    var cns = cnsOf(cert);
+    for (i = 0; i < cns.length; i++) walk.push({ slot: "CN", value: cns[i], verdict: "the CN is not an identifier under RFC 9525" });
+    return { match: false, via: "none", matched: null, walk: walk,
+      rule: san.length ? "no DNS-ID matched; the CN is not an identifier"
+                       : "the certificate presents no DNS-ID at all" };
+  }
+
+  function check(host, cert, opts) {
+    opts = opts || {};
+    var prof = opts.profile || "openssl";
+    var r = prof === "node" ? checkNode(host, cert)
+          : prof === "rfc9525" ? check9525(host, cert)
+          : checkOpenSSL(host, cert, opts.flags || 0, opts.checkAs || "auto");
+    r.profile = prof; r.host = host;
+    return r;
+  }
+
+  /* ================= the naive mental models ===========================
+     Each of these is a model a competent engineer writes on purpose. They
+     are scored against the real algorithm, never against each other.      */
+  function names(cert) {
+    var san = cert.san || [], out = [], i;
+    for (i = 0; i < san.length; i++) if (san[i].type === "DNS") out.push(san[i].value);
+    if (!out.length) out = cnsOf(cert);
+    return out;
+  }
+  function labelMatch(pool, host) {
+    var hp = host.toLowerCase().split("."), i;
+    for (i = 0; i < pool.length; i++) {
+      var pp = pool[i].toLowerCase().split(".");
+      if (pp.length !== hp.length) continue;
+      if (pp[0] === "*") { if (hp[0].length && pp.slice(1).join(".") === hp.slice(1).join(".")) return true; }
+      else if (pp.join(".") === hp.join(".")) return true;
+    }
+    return false;
+  }
+  var MODELS = [
+    { id: "suffix", label: "suffix model",
+      note: "a wildcard means anything ending in the rest of the pattern",
+      fn: function (host, cert) {
+        var all = names(cert), h = host.toLowerCase(), i;
+        for (i = 0; i < all.length; i++) {
+          var p = all[i].toLowerCase();
+          if (p.charAt(0) === "*") { if (h.length > p.length - 1 && h.slice(h.length - (p.length - 1)) === p.slice(1)) return true; }
+          else if (p === h) return true;
+        }
+        return false;
+      } },
+    { id: "onelabel", label: "one-label model",
+      note: "a star is exactly one non-empty label and must be the whole first label",
+      fn: function (host, cert) { return labelMatch(names(cert), host); } },
+    { id: "sanwins", label: "SAN-wins model",
+      note: "if the certificate carries any subjectAltName at all, the CN is ignored",
+      fn: function (host, cert) {
+        var san = cert.san || [], pool = [], i;
+        for (i = 0; i < san.length; i++) if (san[i].type === "DNS") pool.push(san[i].value);
+        if (san.length === 0) pool = cnsOf(cert);
+        return labelMatch(pool, host);
+      } },
+    { id: "regex", label: "glob-to-regex model",
+      note: "turn the star into .* and test the whole string",
+      fn: function (host, cert) {
+        var all = names(cert), i;
+        for (i = 0; i < all.length; i++) {
+          var re = new RegExp("^" + all[i].toLowerCase().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
+          if (re.test(host.toLowerCase())) return true;
+        }
+        return false;
+      } }
+  ];
+
+  /* ================= corpora ===========================================
+     Structured and exhaustive, so every percentage on the page is a count
+     over a stated space and not a sample.                                 */
+  var SLOTS = ["DNS-match", "DNS-other", "IP Address", "email", "URI"];
+  var SLOT_ENTRY = {
+    "DNS-match": function (h) { return { type: "DNS", value: h }; },
+    "DNS-other": function () { return { type: "DNS", value: "other.example.org" }; },
+    "IP Address": function () { return { type: "IP Address", value: "10.0.0.1" }; },
+    "email":      function (h) { return { type: "email", value: "admin@" + h }; },
+    "URI":        function (h) { return { type: "URI", value: "https://" + h + "/" }; }
+  };
+  /* all 32 subsets of the five slot kinds, crossed with CN naming the host */
+  function slotCorpus(host) {
+    var out = [], mask, cnOn, i;
+    for (mask = 0; mask < 32; mask++) for (cnOn = 1; cnOn >= 0; cnOn--) {
+      var san = [];
+      for (i = 0; i < 5; i++) if (mask & (1 << i)) san.push(SLOT_ENTRY[SLOTS[i]](host));
+      out.push({ id: "m" + mask + (cnOn ? "c" : "x"), mask: mask, cnMatches: !!cnOn,
+        cert: { subject: { CN: cnOn ? host : "other.example.org" }, san: san } });
+    }
+    return out;
+  }
+
+  var WILD_PATTERNS = [
+    "*.example.com", "*.EXAMPLE.com", "*.example.com.", "www.example.com",
+    "f*.example.com", "*o.example.com", "f*o.example.com", "*.a.example.com",
+    "*.*.example.com", "foo.*.example.com", "*", "*.com", "*.co.uk",
+    "*.xn--80ak6aa92e.com", "xn--*.example.com", "xn--f*.example.com",
+    "www*.example.com", "*-eu.example.com", "*.example.com*", "**.example.com",
+    "-*.example.com", "*..example.com", ".example.com", "*.example..com",
+    "*.EXAMPLE.COM", "WWW.EXAMPLE.COM"
+  ];
+  var WILD_HOSTS = [
+    "foo.example.com", "FOO.example.com", "foo.example.com.", "www.example.com",
+    "f.example.com", "fo.example.com", "foo.bar.example.com", "example.com",
+    ".example.com", "a.b.example.com", "x.a.example.com", "bar.example.com",
+    "foo.co.uk", "bbc.co.uk", "www.bbc.co.uk", "xn--80ak6aa92e.com",
+    "foo.xn--80ak6aa92e.com", "xn--fa-hia.example.com", "*.example.com",
+    "www-eu.example.com", "foo-eu.example.com", "com", "foo.example.co",
+    "wwwx.example.com", "fooo.example.com"
+  ];
+
+  /* every (pattern, host) pair scored under one profile */
+  function wildGrid(profile, flags) {
+    var rows = [], i, j;
+    for (i = 0; i < WILD_PATTERNS.length; i++) {
+      var row = { pattern: WILD_PATTERNS[i], cells: [] };
+      for (j = 0; j < WILD_HOSTS.length; j++) {
+        var c = { subject: { CN: "cn.invalid" }, san: [{ type: "DNS", value: WILD_PATTERNS[i] }] };
+        row.cells.push(check(WILD_HOSTS[j], c, { profile: profile, flags: flags }).match);
+      }
+      rows.push(row);
+    }
+    return { hosts: WILD_HOSTS.slice(), rows: rows };
+  }
+
+  /* the slot scoreboard: how often is each mental model wrong, and where */
+  function slotScore(host, profile) {
+    var corp = slotCorpus(host), i, k, out = { n: 0, real: 0, sanBearing: 0, models: {} };
+    for (k = 0; k < MODELS.length; k++) out.models[MODELS[k].id] = { wrong: 0, wrongOnSan: 0, falseAccept: 0, falseReject: 0 };
+    for (i = 0; i < corp.length; i++) {
+      var real = check(host, corp[i].cert, { profile: profile }).match;
+      out.n++; if (real) out.real++;
+      var hasSan = corp[i].cert.san.length > 0;
+      if (hasSan) out.sanBearing++;
+      for (k = 0; k < MODELS.length; k++) {
+        var got = MODELS[k].fn(host, corp[i].cert), m = out.models[MODELS[k].id];
+        if (got !== real) { m.wrong++; if (hasSan) m.wrongOnSan++; if (got && !real) m.falseAccept++; else m.falseReject++; }
+      }
+    }
+    return out;
+  }
+
+  /* who actually decided each accept */
+  function cnAuthority(host, profile) {
+    var corp = slotCorpus(host), i, j, r;
+    var o = { n: 0, accepted: 0, sanBearing: 0, cnNames: 0, cnNamesSan: 0, viaCn: 0, viaCnWithSan: 0, dnsPresent: 0 };
+    for (i = 0; i < corp.length; i++) {
+      r = check(host, corp[i].cert, { profile: profile });
+      o.n++;
+      var san = corp[i].cert.san, hasSan = san.length > 0, hasDns = false;
+      for (j = 0; j < san.length; j++) if (san[j].type === "DNS") hasDns = true;
+      if (hasSan) o.sanBearing++;
+      if (hasDns) o.dnsPresent++;
+      if (corp[i].cnMatches) { o.cnNames++; if (hasSan) o.cnNamesSan++; }
+      if (r.match) { o.accepted++; if (r.via === "cn") { o.viaCn++; if (hasSan) o.viaCnWithSan++; } }
+    }
+    return o;
+  }
+
+  /* the one-string-many-slots table the page opens with */
+  function slotTable(host) {
+    var rows = [
+      { label: "as a dNSName SAN", cert: { subject: { CN: "unrelated.example.org" }, san: [{ type: "DNS", value: host }] } },
+      { label: "as the CN, no SAN extension at all", cert: { subject: { CN: host }, san: [] } },
+      { label: "as the CN, next to an email SAN", cert: { subject: { CN: host }, san: [{ type: "email", value: "admin@" + host }] } },
+      { label: "as the CN, next to an iPAddress SAN", cert: { subject: { CN: host }, san: [{ type: "IP Address", value: "10.0.0.1" }] } },
+      { label: "as the CN, next to a URI SAN naming it", cert: { subject: { CN: host }, san: [{ type: "URI", value: "https://" + host + "/" }] } },
+      { label: "as the CN, next to ONE unrelated dNSName", cert: { subject: { CN: host }, san: [{ type: "DNS", value: "other.example.org" }] } },
+      { label: "as an email SAN only", cert: { subject: { CN: "unrelated.example.org" }, san: [{ type: "email", value: "admin@" + host }] } },
+      { label: "as a URI SAN only", cert: { subject: { CN: "unrelated.example.org" }, san: [{ type: "URI", value: "https://" + host + "/" }] } }
+    ], i, out = [];
+    for (i = 0; i < rows.length; i++) out.push({
+      label: rows[i].label, cert: rows[i].cert,
+      openssl: check(host, rows[i].cert, { profile: "openssl" }),
+      node: check(host, rows[i].cert, { profile: "node" }),
+      rfc: check(host, rows[i].cert, { profile: "rfc9525" })
+    });
+    return out;
+  }
+
+  /* profile-vs-profile disagreement census over the whole slot space */
+  function profileCensus(host) {
+    var corp = slotCorpus(host), i, j, out = { n: 0, on: 0, orf: 0, nrf: 0, cases: [] };
+    var hosts = [host, host + ".", host.toUpperCase(), "sub." + host, "10.0.0.1"];
+    for (j = 0; j < hosts.length; j++) for (i = 0; i < corp.length; i++) {
+      var h = hosts[j], c = corp[i].cert;
+      var o = check(h, c, { profile: "openssl" }).match,
+          nn = check(h, c, { profile: "node" }).match,
+          rr = check(h, c, { profile: "rfc9525" }).match;
+      out.n++;
+      if (o !== nn) { out.on++; if (out.cases.length < 24) out.cases.push({ host: h, san: sanText(c.san) || "(no SAN extension)", cn: c.subject.CN, openssl: o, node: nn }); }
+      if (o !== rr) out.orf++;
+      if (nn !== rr) out.nrf++;
+    }
+    return out;
+  }
+
+  /* every wildcard pattern under every flag OpenSSL exposes */
+  var FLAG_SETS = [
+    { id: 0, label: "default" },
+    { id: F.NO_WILDCARDS, label: "NO_WILDCARDS" },
+    { id: F.NO_PARTIAL_WILDCARDS, label: "NO_PARTIAL_WILDCARDS" },
+    { id: F.MULTI_LABEL_WILDCARDS, label: "MULTI_LABEL_WILDCARDS" },
+    { id: F.SINGLE_LABEL_SUBDOMAINS, label: "SINGLE_LABEL_SUBDOMAINS" },
+    { id: F.NEVER_CHECK_SUBJECT, label: "NEVER_CHECK_SUBJECT" },
+    { id: F.ALWAYS_CHECK_SUBJECT, label: "ALWAYS_CHECK_SUBJECT" }
+  ];
+  function flagSweep() {
+    var out = [], i, j, k;
+    for (i = 0; i < FLAG_SETS.length; i++) {
+      var n = 0, yes = 0, wild = 0;
+      for (j = 0; j < WILD_PATTERNS.length; j++) {
+        if (validStar(WILD_PATTERNS[j], FLAG_SETS[i].id) >= 0) wild++;
+        for (k = 0; k < WILD_HOSTS.length; k++) {
+          var c = { subject: { CN: "cn.invalid" }, san: [{ type: "DNS", value: WILD_PATTERNS[j] }] };
+          n++;
+          if (check(WILD_HOSTS[k], c, { profile: "openssl", flags: FLAG_SETS[i].id }).match) yes++;
+        }
+      }
+      out.push({ label: FLAG_SETS[i].label, n: n, yes: yes, wild: wild });
+    }
+    return out;
+  }
+
+  /* the zero-width expansion, counted rather than told */
+  function zeroWidth() {
+    var mids = ["", "a", "ab", "abc", "-", "a-b", "0", "a.b"], i;
+    var rows = [];
+    for (i = 0; i < mids.length; i++) {
+      var hf = mids[i] + ".example.com", hp = "f" + mids[i] + ".example.com";
+      rows.push({
+        mid: mids[i],
+        fullHost: hf, partHost: hp,
+        full: check(hf, { subject: {}, san: [{ type: "DNS", value: "*.example.com" }] }, { profile: "openssl" }).match,
+        part: check(hp, { subject: {}, san: [{ type: "DNS", value: "f*.example.com" }] }, { profile: "openssl" }).match,
+        fullNode: check(hf, { subject: {}, san: [{ type: "DNS", value: "*.example.com" }] }, { profile: "node" }).match,
+        partNode: check(hp, { subject: {}, san: [{ type: "DNS", value: "f*.example.com" }] }, { profile: "node" }).match
+      });
+    }
+    return rows;
+  }
+
+  /* how many dots does a wildcard need? counted over generated depths */
+  function dotLadder() {
+    var out = [], d, i;
+    for (d = 1; d <= 5; d++) {
+      var labels = [], host = [];
+      for (i = 0; i < d; i++) { labels.push("l" + i); host.push("l" + i); }
+      var pat = "*." + labels.join("."), h = "sub." + host.join(".");
+      out.push({ pattern: pat, host: h, dots: d,
+        openssl: check(h, { subject: {}, san: [{ type: "DNS", value: pat }] }, { profile: "openssl" }).match,
+        node: check(h, { subject: {}, san: [{ type: "DNS", value: pat }] }, { profile: "node" }).match });
+    }
+    return out;
+  }
+
+  /* ---- is this string a wildcard PATTERN, a dead literal, or refused? --
+     OpenSSL never rejects a malformed wildcard: valid_star returns NULL and
+     the identity falls through to a literal string compare, so the star
+     becomes an ordinary character. Node has no such fallback - it returns
+     false the moment the pattern contains a star it does not like.        */
+  function starReading(p, profile) {
+    if (p.indexOf("*") < 0) return "literal";
+    if (profile === "node") {
+      var pp = splitHost(p), sub = pp[0], k;
+      if (pp.indexOf("") >= 0) return "refused";
+      for (k = 0; k < pp.length; k++) if (!/^[\x20-\x7f]+$/.test(pp[k])) return "refused";
+      if (sub.indexOf("*") < 0) return "dead literal";  /* star outside the first label */
+      if (sub.slice(0, 4) === "xn--") return "dead literal";  /* only its own spelling */
+      if (sub.split("*").length > 2) return "refused";
+      if (pp.length <= 2) return "refused";
+      return "wildcard";
+    }
+    if (profile === "rfc9525") {
+      var qq = p.toLowerCase().replace(/\.$/, "").split(".");
+      return (qq[0] === "*" && qq.length >= 3 && p.indexOf("*", 1) < 0) ? "wildcard" : "refused";
+    }
+    return validStar(p, 0) >= 0 ? "wildcard" : "dead literal";
+  }
+  var STAR_POSITIONS = [
+    "*.example.com", "f*.example.com", "*o.example.com", "f*o.example.com",
+    "foo.*.example.com", "*.example.com.", "*.com", "*", "xn--f*.example.com",
+    "*.*.example.com", "**.example.com", "*.co.uk"
+  ];
+  function starPositions() {
+    var out = [], i;
+    for (i = 0; i < STAR_POSITIONS.length; i++) {
+      var p = STAR_POSITIONS[i];
+      out.push({ pattern: p,
+        openssl: starReading(p, "openssl"), node: starReading(p, "node"), rfc: starReading(p, "rfc9525"),
+        hits: check("sub.example.com", { subject: {}, san: [{ type: "DNS", value: p }] }, { profile: "openssl" }).match,
+        self: check(p, { subject: {}, san: [{ type: "DNS", value: p }] }, { profile: "openssl" }).match });
+    }
+    return out;
+  }
+  function starCensus(patterns) {
+    var o = { n: 0, starred: 0, openssl: { wildcard: 0, "dead literal": 0, refused: 0 },
+              node: { wildcard: 0, "dead literal": 0, refused: 0 },
+              rfc9525: { wildcard: 0, "dead literal": 0, refused: 0 } }, i;
+    for (i = 0; i < patterns.length; i++) {
+      o.n++;
+      if (patterns[i].indexOf("*") < 0) continue;
+      o.starred++;
+      o.openssl[starReading(patterns[i], "openssl")]++;
+      o.node[starReading(patterns[i], "node")]++;
+      o.rfc9525[starReading(patterns[i], "rfc9525")]++;
+    }
+    return o;
+  }
+
+  /* ---- the "public suffix" ladder ------------------------------------
+     There is no public suffix list anywhere in X509_check_host or in
+     tls.checkServerIdentity. What stops *.com is a DOT COUNT.            */
+  var PS_LADDER = [
+    ["*.com", "example.com"], ["*.uk", "co.uk"], ["*.co.uk", "bbc.co.uk"],
+    ["*.org.uk", "nhs.org.uk"], ["*.github.io", "someone.github.io"],
+    ["*.s3.amazonaws.com", "victim-bucket.s3.amazonaws.com"],
+    ["*.blogspot.co.uk", "someone.blogspot.co.uk"], ["*.appspot.com", "app.appspot.com"],
+    ["*.example.com", "www.example.com"]
+  ];
+  function psLadder() {
+    var out = [], i;
+    for (i = 0; i < PS_LADDER.length; i++) {
+      var pat = PS_LADDER[i][0], h = PS_LADDER[i][1];
+      var c = { subject: {}, san: [{ type: "DNS", value: pat }] };
+      out.push({ pattern: pat, host: h,
+        dotsAfterStar: (pat.slice(1).match(/\./g) || []).length,
+        openssl: check(h, c, { profile: "openssl" }).match,
+        node: check(h, c, { profile: "node" }).match,
+        rfc: check(h, c, { profile: "rfc9525" }).match,
+        reading: starReading(pat, "openssl") });
+    }
+    return out;
+  }
+
+  /* ================= in-page assertion suite =========================== */
+  function selftest() {
+    var a = 0, bad = 0, notes = [];
+    function ok(c, l) { a++; if (!c) { bad++; if (notes.length < 30) notes.push("FAIL: " + l); } }
+    var D = function (v) { return { subject: { CN: "cn.invalid" }, san: [{ type: "DNS", value: v }] }; };
+    var i, j, k;
+
+    /* 1. valid_star: the two-dot rule, the first-label rule, foo*bar */
+    ok(validStar("*.example.com", 0) === 0, "*.example.com is not a wildcard");
+    ok(validStar("*.com", 0) < 0, "*.com was accepted as a wildcard");
+    ok(validStar("*.co.uk", 0) === 0, "*.co.uk was refused");
+    ok(validStar("foo.*.example.com", 0) < 0, "a star outside the first label was accepted");
+    ok(validStar("*.*.example.com", 0) < 0, "two stars were accepted");
+    ok(validStar("*.example.com.", 0) < 0, "a trailing dot did not kill the pattern");
+    ok(validStar("xn--f*.example.com", 0) < 0, "a star inside an A-label was accepted");
+    ok(validStar("f*o.example.com", 0) < 0, "a foo*bar wildcard was accepted");
+    ok(validStar("f*.example.com", 0) === 1, "a prefix wildcard was refused");
+    ok(validStar("*o.example.com", 0) === 0, "a suffix wildcard was refused");
+    ok(validStar("*.com", F.SINGLE_LABEL_SUBDOMAINS) === 0, "SINGLE_LABEL_SUBDOMAINS did nothing");
+    ok(validStar("*.example.com", F.NO_WILDCARDS) < 0, "NO_WILDCARDS did nothing");
+    ok(validStar("f*.example.com", F.NO_PARTIAL_WILDCARDS) < 0, "NO_PARTIAL_WILDCARDS did nothing");
+    ok(validStar("*.example.com", F.NO_PARTIAL_WILDCARDS) === 0, "NO_PARTIAL_WILDCARDS killed a full wildcard");
+    ok(validStar("-*.example.com", 0) < 0, "a label starting with a hyphen was accepted");
+    ok(validStar("*..example.com", 0) < 0, "an empty label was accepted");
+
+    /* 2. the zero-width asymmetry */
+    ok(!wildcardMatch("", ".example.com", ".example.com", 0), "a full star matched zero characters");
+    ok(wildcardMatch("f", ".example.com", "f.example.com", 0), "a partial star could not match zero characters");
+    ok(check("f.example.com", D("f*.example.com"), { profile: "openssl" }).match,
+       "f*.example.com does not match f.example.com");
+    ok(!check("foo.bar.example.com", D("*.example.com"), { profile: "openssl" }).match,
+       "a single star spanned two labels");
+    ok(check("foo.bar.example.com", D("*.example.com"), { profile: "openssl", flags: F.MULTI_LABEL_WILDCARDS }).match,
+       "MULTI_LABEL_WILDCARDS did nothing");
+    ok(check(".example.com", D("*.example.com"), { profile: "node" }).match,
+       "node refused a zero-width full star");
+
+    /* 3. the CN is disabled by TYPE, not by presence */
+    var withEmail = { subject: { CN: "foo.example.com" }, san: [{ type: "email", value: "a@b.c" }] };
+    var withDns   = { subject: { CN: "foo.example.com" }, san: [{ type: "DNS", value: "other.example.org" }] };
+    var withUri   = { subject: { CN: "foo.example.com" }, san: [{ type: "URI", value: "https://foo.example.com/" }] };
+    ok(check("foo.example.com", withEmail, { profile: "openssl" }).match, "an email SAN killed the CN");
+    ok(check("foo.example.com", withEmail, { profile: "node" }).match, "node: an email SAN killed the CN");
+    ok(check("foo.example.com", withUri, { profile: "openssl" }).match, "a URI SAN killed the CN");
+    ok(check("foo.example.com", withUri, { profile: "node" }).match, "node: a URI SAN killed the CN");
+    ok(!check("foo.example.com", withDns, { profile: "openssl" }).match, "a dNSName SAN did not kill the CN");
+    ok(!check("foo.example.com", withDns, { profile: "node" }).match, "node: a dNSName SAN did not kill the CN");
+    ok(!check("foo.example.com", withEmail, { profile: "rfc9525" }).match, "RFC 9525 accepted a CN");
+    ok(!check("foo.example.com", withEmail, { profile: "openssl", flags: F.NEVER_CHECK_SUBJECT }).match,
+       "NEVER_CHECK_SUBJECT did nothing");
+    ok(check("foo.example.com", withDns, { profile: "openssl", flags: F.ALWAYS_CHECK_SUBJECT }).match,
+       "ALWAYS_CHECK_SUBJECT did nothing");
+    ok(check("foo.example.com", withEmail, { profile: "openssl" }).via === "cn", "the CN accept was not attributed to the CN");
+
+    /* 4. the trailing dot, one character, two answers */
+    ok(!check("foo.example.com.", D("foo.example.com"), { profile: "openssl" }).match,
+       "openssl matched a trailing-dot host");
+    ok(check("foo.example.com.", D("foo.example.com"), { profile: "node" }).match,
+       "node refused a trailing-dot host");
+    ok(!check("foo.example.com", D("foo.example.com."), { profile: "openssl" }).match,
+       "openssl matched a trailing-dot pattern");
+    ok(check("foo.example.com", D("foo.example.com."), { profile: "node" }).match,
+       "node refused a trailing-dot pattern");
+
+    /* 5. IP literals */
+    ok(check("10.0.0.1", { subject: {}, san: [{ type: "DNS", value: "10.0.0.1" }] },
+        { profile: "openssl", checkAs: "host" }).match,
+       "X509_check_host refused an IP spelled into a dNSName");
+    ok(!check("10.0.0.1", { subject: {}, san: [{ type: "DNS", value: "10.0.0.1" }] },
+        { profile: "openssl", checkAs: "ip" }).match,
+       "X509_check_ip matched a dNSName");
+    ok(!check("10.0.0.1", { subject: {}, san: [{ type: "DNS", value: "10.0.0.1" }] },
+        { profile: "openssl" }).match,
+       "an IP-literal-aware caller matched a dNSName");
+    ok(!check("10.0.0.1", { subject: {}, san: [{ type: "DNS", value: "10.0.0.1" }] }, { profile: "node" }).match,
+       "node accepted an IP spelled into a dNSName");
+    ok(check("10.0.0.1", { subject: {}, san: [{ type: "IP Address", value: "10.0.0.1" }] }, { profile: "node" }).match,
+       "an iPAddress SAN did not match");
+    ok(!check("10.0.0.1", { subject: { CN: "10.0.0.1" }, san: [] }, { profile: "openssl" }).match,
+       "an IP literal fell back to the CN");
+    ok(sameIP("2001:db8::1", "2001:0db8:0000:0000:0000:0000:0000:0001"), "IPv6 canonicalisation failed");
+    ok(!sameIP("10.0.0.1", "::ffff:10.0.0.1"), "a v4 literal compared equal to a v4-mapped v6 one");
+    ok(!isIP("010.0.0.1"), "a zero-padded dotted quad was read as an IP");
+    ok(isIP("10.0.0.1") && !isIP("foo.example.com"), "isIP is broken");
+    ok(parseIP("::ffff:10.0.0.1").length === 16, "a v4-mapped v6 address is not 16 bytes");
+
+    /* 6. an embedded NUL is fatal */
+    ok(!foldEq("foo.example.com\0.evil.example", "foo.example.com\0.evil.example"),
+       "an embedded NUL compared equal");
+    ok(!check("foo.example.com", D("foo.example.com\0.evil.example"), { profile: "openssl" }).match,
+       "a NUL-truncation certificate matched");
+    ok(validStar("*.example\0.com", 0) < 0, "a NUL survived valid_star");
+
+    /* 7. case folding is ASCII-only and applies to both sides */
+    for (i = 0; i < 26; i++) {
+      var up = String.fromCharCode(65 + i), lo = String.fromCharCode(97 + i);
+      ok(check(lo + ".example.com", D(up + ".example.com"), { profile: "openssl" }).match,
+         "case folding failed for " + up);
+      ok(check(up + ".example.com", D(lo + ".example.com"), { profile: "openssl" }).match,
+         "reverse case folding failed for " + up);
+    }
+
+    /* 8. the two implementations disagree, and a dot causes most of it */
+    var g1 = wildGrid("openssl", 0), g2 = wildGrid("node", 0), diff = 0, dotDiff = 0;
+    for (i = 0; i < g1.rows.length; i++) for (j = 0; j < g1.hosts.length; j++)
+      if (g1.rows[i].cells[j] !== g2.rows[i].cells[j]) {
+        diff++;
+        if (g1.hosts[j].charAt(g1.hosts[j].length - 1) === "." ||
+            g1.rows[i].pattern.charAt(g1.rows[i].pattern.length - 1) === "." ||
+            g1.hosts[j].charAt(0) === ".") dotDiff++;
+      }
+    ok(diff > 0, "the two implementations never disagree, which cannot be right");
+    ok(dotDiff > diff / 2, "a dot is not the main cause of disagreement any more");
+    notes.push("wildcard grid: " + diff + " of " + (g1.rows.length * g1.hosts.length) +
+               " cells disagree, " + dotDiff + " of them decided by a dot");
+
+    /* 9. every model is wrong somewhere; the accounting adds up */
+    var sc = slotScore("foo.example.com", "openssl");
+    /* the slot corpus carries no wildcards, so only the SAN-wins model can
+       be wrong on it - the other three differ from the truth only about
+       stars, and are scored on the wildcard grid instead, just below.    */
+    for (k = 0; k < MODELS.length; k++) {
+      var mm = sc.models[MODELS[k].id];
+      ok(mm.falseAccept + mm.falseReject === mm.wrong,
+         "the error accounting does not add up for " + MODELS[k].label);
+      if (MODELS[k].id === "sanwins") ok(mm.wrong === 7 && mm.falseReject === 7,
+        "the SAN-wins model is wrong " + mm.wrong + " times, not 7");
+      else ok(mm.wrong === 0, MODELS[k].label + " is wrong on a corpus with no wildcards in it");
+    }
+    var wrongOnGrid = {}, gcells = 0;
+    for (k = 0; k < MODELS.length; k++) wrongOnGrid[MODELS[k].id] = 0;
+    for (i = 0; i < WILD_PATTERNS.length; i++) for (j = 0; j < WILD_HOSTS.length; j++) {
+      var wc = D(WILD_PATTERNS[i]), truth = check(WILD_HOSTS[j], wc, { profile: "openssl" }).match;
+      gcells++;
+      for (k = 0; k < MODELS.length; k++)
+        if (MODELS[k].fn(WILD_HOSTS[j], wc) !== truth) wrongOnGrid[MODELS[k].id]++;
+    }
+    for (k = 0; k < MODELS.length; k++) ok(wrongOnGrid[MODELS[k].id] > 0,
+      "the " + MODELS[k].label + " is never wrong on the wildcard grid either");
+    notes.push("models on the " + gcells + "-cell wildcard grid: " +
+      MODELS.map(function (m) { return m.id + " " + wrongOnGrid[m.id]; }).join(", "));
+    ok(sc.n === 64, "the slot corpus is not 64 certificates");
+    var ca = cnAuthority("foo.example.com", "openssl");
+    ok(ca.viaCn === 8 && ca.viaCnWithSan === 7,
+       "the CN authority count moved: " + ca.viaCn + "/" + ca.viaCnWithSan);
+    ok(ca.sanBearing === 62, "the SAN-bearing count moved");
+    ok(cnAuthority("foo.example.com", "rfc9525").viaCn === 0, "RFC 9525 used a CN");
+
+    /* 10. ordering: the first match wins and neighbours never block it */
+    var base = [{ type: "DNS", value: "foo.example.com" }];
+    var noise = [{ type: "DNS", value: "a.invalid" }, { type: "email", value: "x@y.z" },
+                 { type: "IP Address", value: "10.9.9.9" }, { type: "URI", value: "https://z.invalid/" }];
+    for (i = 0; i < noise.length; i++) {
+      var pre = { subject: { CN: "cn.invalid" }, san: [noise[i]].concat(base) };
+      var post = { subject: { CN: "cn.invalid" }, san: base.concat([noise[i]]) };
+      ok(check("foo.example.com", pre, { profile: "openssl" }).match, "a leading non-match blocked a match");
+      ok(check("foo.example.com", post, { profile: "openssl" }).match, "a trailing entry blocked a match");
+      ok(check("foo.example.com", pre, { profile: "node" }).match, "node: a leading non-match blocked a match");
+      ok(check("foo.example.com", post, { profile: "node" }).match, "node: a trailing entry blocked a match");
+    }
+
+    /* 11. the dot-subdomain mode is a suffix test on the raw identity */
+    ok(check(".example.com", D("*.a.b.example.com"), { profile: "openssl" }).match,
+       "the dot-subdomain pattern did not act as a suffix");
+    ok(check(".example.com", { subject: { CN: "foo.example.com" }, san: [] }, { profile: "openssl" }).match,
+       "the dot-subdomain pattern did not reach the CN");
+    ok(!check(".example.com", D("foo.example.org"), { profile: "openssl" }).match,
+       "the dot-subdomain pattern matched the wrong domain");
+    ok(check(".example.com", D("foo.example.com"), { profile: "openssl" }).dotMode === true,
+       "dot mode was not reported");
+
+    /* 12. no profile ever matches a certificate that names nothing */
+    var empty = { subject: {}, san: [] };
+    for (i = 0; i < WILD_HOSTS.length; i++) {
+      ok(!check(WILD_HOSTS[i], empty, { profile: "openssl" }).match, "an empty certificate matched");
+      ok(!check(WILD_HOSTS[i], empty, { profile: "node" }).match, "node: an empty certificate matched");
+      ok(!check(WILD_HOSTS[i], empty, { profile: "rfc9525" }).match, "rfc: an empty certificate matched");
+    }
+
+    /* 13. every result names a rule and lists a walk */
+    var corp = slotCorpus("foo.example.com");
+    for (i = 0; i < corp.length; i++) for (k = 0; k < 3; k++) {
+      var r = check("foo.example.com", corp[i].cert, { profile: ["openssl", "node", "rfc9525"][k] });
+      ok(typeof r.rule === "string" && r.rule.length > 10, "a result carried no rule");
+      ok(Object.prototype.toString.call(r.walk) === "[object Array]", "a result carried no walk");
+      ok(r.match === false || r.via !== "none", "a match reported no source");
+    }
+
+    /* 14. the dot ladder: a wildcard needs two dots after the star */
+    var dl = dotLadder();
+    ok(dl[0].openssl === false && dl[1].openssl === true, "the two-dot rule moved");
+    ok(dl[0].node === false && dl[1].node === true, "node's two-dot rule moved");
+    for (i = 1; i < dl.length; i++) ok(dl[i].openssl === true, "a deeper wildcard was refused");
+
+    /* 14b. the star census and the double trailing dot */
+    ok(starReading("*.example.com", "openssl") === "wildcard", "*.example.com is not read as a wildcard");
+    ok(starReading("f*o.example.com", "openssl") === "dead literal", "f*o was not demoted to a literal");
+    ok(starReading("f*o.example.com", "node") === "wildcard", "node does not read f*o as a wildcard");
+    ok(starReading("*.com", "openssl") === "dead literal", "*.com was not demoted to a literal");
+    ok(starReading("*.com", "node") === "refused", "node did not refuse *.com");
+    ok(starReading("foo.*.example.com", "openssl") === "dead literal", "a mid-label star was not demoted");
+    ok(starReading("*.example.com", "rfc9525") === "wildcard", "RFC 9525 refused a full wildcard");
+    ok(starReading("f*.example.com", "rfc9525") === "refused", "RFC 9525 allowed a partial wildcard");
+    ok(check("*.com", D("*.com"), { profile: "openssl" }).match,
+       "a demoted star did not match its own literal spelling");
+    ok(!check("foo.com", D("*.com"), { profile: "openssl" }).match, "*.com matched a real host");
+    ok(check("foo.example.com..", D("*.example.com"), { profile: "node" }).match,
+       "node did not strip TWO trailing dots");
+    ok(!check("foo.example.com...", D("*.example.com"), { profile: "node" }).match,
+       "node stripped three trailing dots");
+    ok(!check("foo.example.com..", D("*.example.com"), { profile: "openssl" }).match,
+       "openssl stripped a trailing dot");
+    var spos = starPositions();
+    ok(spos.length === STAR_POSITIONS.length, "the star-position table lost a row");
+    var readings = {};
+    for (i = 0; i < spos.length; i++) readings[spos[i].openssl] = 1;
+    ok(readings["wildcard"] && readings["dead literal"], "the star-position table is not showing both readings");
+
+    /* 15. RFC 9525 is strictly stricter than OpenSSL on this corpus */
+    var looser = 0, looserDot = 0, tot = 0;
+    for (i = 0; i < WILD_PATTERNS.length; i++) for (j = 0; j < WILD_HOSTS.length; j++) {
+      var cc = D(WILD_PATTERNS[i]);
+      var o = check(WILD_HOSTS[j], cc, { profile: "openssl" }).match;
+      var rr = check(WILD_HOSTS[j], cc, { profile: "rfc9525" }).match;
+      tot++;
+      if (rr && !o) {
+        looser++;
+        if (/\.$/.test(WILD_PATTERNS[i]) || /\.$/.test(WILD_HOSTS[j])) looserDot++;
+      }
+    }
+    /* the intended claim was "RFC 9525 is strictly stricter". It is not:
+       the spec normalises a trailing dot away and OpenSSL does not.      */
+    ok(looser === looserDot,
+       "RFC 9525 is looser than OpenSSL on " + (looser - looserDot) + " cells for a reason other than a trailing dot");
+    ok(looser > 0, "RFC 9525 turned out to be strictly stricter after all - re-check the claim");
+    notes.push("RFC 9525 accepts " + looser + " of " + tot + " cells OpenSSL refuses, all " +
+      looserDot + " of them because of a trailing dot");
+
+    /* 16. the public-suffix ladder is a dot count, not a suffix list */
+    var pl = psLadder();
+    ok(pl[0].openssl === false && pl[0].node === false, "*.com was accepted");
+    ok(pl[2].openssl === true && pl[2].node === true, "*.co.uk was refused");
+    for (i = 0; i < pl.length; i++)
+      ok(pl[i].openssl === (pl[i].dotsAfterStar >= 2), "the dot count did not decide " + pl[i].pattern);
+
+    return { asserts: a, bad: bad, notes: notes };
+  }
+
+  return {
+    F: F, FLAG_SETS: FLAG_SETS, MODELS: MODELS, SLOTS: SLOTS,
+    WILD_PATTERNS: WILD_PATTERNS, WILD_HOSTS: WILD_HOSTS,
+    foldEq: foldEq, equalNoCase: equalNoCase, validStar: validStar,
+    wildcardMatch: wildcardMatch, equalWildcard: equalWildcard,
+    parseIPv4: parseIPv4, parseIPv6: parseIPv6, parseIP: parseIP, isIP: isIP, sameIP: sameIP,
+    parseSAN: parseSAN, sanText: sanText, cnsOf: cnsOf, names: names,
+    checkOpenSSL: checkOpenSSL, checkNode: checkNode, check9525: check9525, check: check,
+    slotCorpus: slotCorpus, slotScore: slotScore, cnAuthority: cnAuthority,
+    slotTable: slotTable, profileCensus: profileCensus,
+    wildGrid: wildGrid, flagSweep: flagSweep, zeroWidth: zeroWidth, dotLadder: dotLadder,
+    starReading: starReading, starPositions: starPositions, starCensus: starCensus,
+    psLadder: psLadder, PS_LADDER: PS_LADDER,
+    STAR_POSITIONS: STAR_POSITIONS,
+    selftest: selftest
+  };
+})();
+// ===== ENGINE:END =====
+
+/* =========================== the page ================================== */
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pct(n, d) { return d ? (100 * n / d).toFixed(2) + "%" : "-"; }
+
+/* ---- the flag checkboxes ---------------------------------------------- */
+var FLAG_ROWS = [
+  ["NO_WILDCARDS", "treat every star as an ordinary character"],
+  ["NO_PARTIAL_WILDCARDS", "only a whole-label star counts"],
+  ["MULTI_LABEL_WILDCARDS", "let one star span dots"],
+  ["SINGLE_LABEL_SUBDOMAINS", "turn the dot count off"],
+  ["NEVER_CHECK_SUBJECT", "the CN is never consulted"],
+  ["ALWAYS_CHECK_SUBJECT", "the CN is consulted even when a dNSName exists"]
+];
+(function () {
+  var h = "", i;
+  for (i = 0; i < FLAG_ROWS.length; i++)
+    h += '<label class="chk" title="' + esc(FLAG_ROWS[i][1]) + '"><input type="checkbox" data-f="' +
+         FLAG_ROWS[i][0] + '"><span>' + FLAG_ROWS[i][0] + "</span></label>";
+  $("flags").innerHTML = h;
+  $("flags").addEventListener("change", render);
+})();
+function curFlags() {
+  var n = 0, boxes = $("flags").querySelectorAll("input"), i;
+  for (i = 0; i < boxes.length; i++) if (boxes[i].checked) n |= CERT.F[boxes[i].dataset.f];
+  return n;
+}
+
+/* ---- presets ----------------------------------------------------------- */
+var PRESETS = [
+["the wildcard everybody knows", "www.example.com", "unrelated.example.org",
+  "DNS:*.example.com\nDNS:example.com\nemail:admin@example.com", "openssl"],
+["...and the apex it does NOT cover", "example.com", "unrelated.example.org",
+  "DNS:*.example.com", "openssl"],
+["one star, two labels deep", "a.b.example.com", "unrelated.example.org",
+  "DNS:*.example.com", "openssl"],
+["*.com - refused, then demoted to a literal", "example.com", "unrelated.example.org",
+  "DNS:*.com", "openssl"],
+["...and it matches the literal spelling instead", "*.com", "unrelated.example.org",
+  "DNS:*.com", "openssl"],
+["*.co.uk - two dots, so it is a real wildcard", "bbc.co.uk", "unrelated.example.org",
+  "DNS:*.co.uk", "openssl"],
+["*.s3.amazonaws.com covers every bucket", "victim-bucket.s3.amazonaws.com", "unrelated.example.org",
+  "DNS:*.s3.amazonaws.com", "openssl"],
+["a star with a literal on both sides", "foo.example.com", "unrelated.example.org",
+  "DNS:f*o.example.com", "openssl"],
+["...the same certificate under Node", "foo.example.com", "unrelated.example.org",
+  "DNS:f*o.example.com", "node"],
+["a partial wildcard eating zero characters", "f.example.com", "unrelated.example.org",
+  "DNS:f*.example.com", "openssl"],
+["the CN, with no SAN extension at all", "foo.example.com", "foo.example.com", "", "openssl"],
+["the CN, next to an email SAN - still authoritative", "foo.example.com", "foo.example.com",
+  "email:admin@foo.example.com", "openssl"],
+["the CN, next to ONE unrelated dNSName - dead", "foo.example.com", "foo.example.com",
+  "DNS:other.example.org", "openssl"],
+["...and what RFC 9525 says about all of those", "foo.example.com", "foo.example.com",
+  "email:admin@foo.example.com", "rfc9525"],
+["the trailing dot, in OpenSSL", "www.example.com.", "unrelated.example.org",
+  "DNS:*.example.com", "openssl"],
+["...the trailing dot, in Node", "www.example.com.", "unrelated.example.org",
+  "DNS:*.example.com", "node"],
+["...and Node strips TWO of them", "www.example.com..", "unrelated.example.org",
+  "DNS:*.example.com", "node"],
+["an IP literal against a dNSName", "10.0.0.1", "unrelated.example.org", "DNS:10.0.0.1", "openssl"],
+["an IP literal done properly", "10.0.0.1", "unrelated.example.org", "IP Address:10.0.0.1", "openssl"],
+["an IPv6 literal, two spellings", "2001:0db8:0000:0000:0000:0000:0000:0001", "unrelated.example.org",
+  "IP Address:2001:db8::1", "openssl"],
+["a wildcard on an A-label", "xn--fa-hia.example.com", "unrelated.example.org",
+  "DNS:xn--f*.example.com", "openssl"],
+["...and the A-label domain wildcarded properly", "foo.xn--80ak6aa92e.com", "unrelated.example.org",
+  "DNS:*.xn--80ak6aa92e.com", "openssl"],
+["the NUL truncation attack, defeated", "foo.example.com", "unrelated.example.org",
+  "DNS:foo.example.com\\0.evil.example", "openssl"],
+["OpenSSL's leading-dot suffix pattern", ".example.com", "unrelated.example.org",
+  "DNS:deep.sub.example.com", "openssl"],
+["a wildcard hiding in a Common Name", "www.example.com", "*.example.com", "", "node"],
+["a certificate that names nobody", "www.example.com", "", "", "openssl"]
+];
+(function () {
+  var s = $("preset"), i;
+  for (i = 0; i < PRESETS.length; i++) {
+    var o = document.createElement("option"); o.value = String(i); o.textContent = PRESETS[i][0];
+    s.appendChild(o);
+  }
+  s.addEventListener("change", function () {
+    var p = PRESETS[+s.value];
+    $("host").value = p[1]; $("cn").value = p[2]; $("san").value = p[3]; $("profile").value = p[4];
+    var boxes = $("flags").querySelectorAll("input"), i2;
+    for (i2 = 0; i2 < boxes.length; i2++) boxes[i2].checked = false;
+    $("checkas").value = "auto";
+    render();
+  });
+})();
+
+/* ---- reading the form into a certificate ------------------------------ */
+function curCert() {
+  var lines = $("san").value.split(/\r?\n/), san = [], i;
+  for (i = 0; i < lines.length; i++) {
+    var t = lines[i].replace(/^\s+|\s+$/g, "");
+    if (!t) continue;
+    var e = CERT.parseSAN(t.replace(/\\0/g, "\u0000"));
+    if (e.length) san.push(e[0]);
+  }
+  var cn = $("cn").value;
+  return { subject: cn ? { CN: cn } : {}, san: san };
+}
+function readingPill(r) {
+  var m = { "wildcard": ["kwild", "wildcard"], "dead literal": ["klit", "dead literal"],
+            "refused": ["kref", "refused"], "literal": ["kna", "no star"] };
+  var x = m[r] || ["kna", r];
+  return '<span class="k ' + x[0] + '">' + x[1] + "</span>";
+}
+function slotPill(t) {
+  var c = t === "DNS" ? "sdns" : t === "CN" ? "scn" : "";
+  return '<span class="slot ' + c + '">' + esc(t) + "</span>";
+}
+
+/* ---- the verdict card -------------------------------------------------- */
+function renderVerdict(host, cert, prof, flags, checkAs) {
+  var r = CERT.check(host, cert, { profile: prof, flags: flags, checkAs: checkAs });
+  var h = '<div class="flex mb3" style="align-items:center">';
+  h += '<span class="v ' + (r.match ? "allow" : "deny") + '" style="font-size:14px;padding:5px 16px">' +
+       (r.match ? "MATCH" : "MISMATCH") + "</span>";
+  h += '<span class="big" style="font-size:16px">' + esc(host || "(no host)") + "</span></div>";
+  h += '<p class="t-sm muted mb2"><b>The rule that decided it.</b> ' + esc(r.rule) + "</p>";
+  if (r.matched) h += '<p class="t-sm muted mb2"><b>Matched against.</b> ' + slotPill(
+      r.via === "cn" ? "CN" : r.via === "san-ip" ? "IP Address" : "DNS") +
+      ' <code>' + esc(r.matched) + "</code></p>";
+  if (r.dotMode) h += '<div class="note note-b t-sm mt3"><b>Leading dot.</b> This is not a hostname. ' +
+      'OpenSSL read it as a client-side suffix pattern &mdash; any identity in the certificate ' +
+      'ending in <code>' + esc(host) + '</code> matches, wildcards included, and the CN is still ' +
+      'a fallback. No TLS client passes a name like this.</div>';
+  var stars = [], i;
+  for (i = 0; i < cert.san.length; i++)
+    if (cert.san[i].type === "DNS" && cert.san[i].value.indexOf("*") >= 0)
+      stars.push([cert.san[i].value, CERT.starReading(cert.san[i].value, prof)]);
+  if (cert.subject.CN && cert.subject.CN.indexOf("*") >= 0)
+    stars.push([cert.subject.CN + "  (in the CN)", CERT.starReading(cert.subject.CN, prof)]);
+  if (stars.length) {
+    var sh = '<p class="lbl mt3 mb2">HOW THIS IMPLEMENTATION READ EACH STAR</p><div class="flex">';
+    for (i = 0; i < stars.length; i++)
+      sh += '<span class="t-xs mono" style="margin-right:14px">' + esc(stars[i][0]) + " &rarr; " +
+            readingPill(stars[i][1]) + "</span>";
+    h += sh + "</div>";
+  }
+  $("verdict").innerHTML = h;
+  return r;
+}
+
+/* ---- the walk ---------------------------------------------------------- */
+function renderWalk(r) {
+  var h = '<div class="walk">', i;
+  if (!r.walk.length) h += '<div class="wstep wskip"><span class="t-sm dim">the certificate carries no subjectAltName extension at all</span></div>';
+  for (i = 0; i < r.walk.length; i++) {
+    var w = r.walk[i];
+    var cls = /MATCH/.test(w.verdict) ? "whit" : w.slot === "CN" ? "wcn"
+            : /skipped|not a name|not a DNS-ID|not an IP-ID|not an identifier/.test(w.verdict) ? "wskip" : "wmiss";
+    h += '<div class="wstep ' + cls + '">' + slotPill(w.slot) +
+         ' <code>' + esc(w.value === "" ? "(empty)" : w.value) + "</code>" +
+         '<div class="t-xs ' + (/MATCH/.test(w.verdict) ? "ok" : "dim") + '">' + esc(w.verdict) + "</div></div>";
+  }
+  h += "</div>";
+  $("walk").innerHTML = h;
+}
+
+/* ---- three implementations, one input ---------------------------------- */
+function renderThree(host, cert, flags, checkAs) {
+  var profs = [["openssl", "OpenSSL 3.2.1"], ["node", "Node 22"], ["rfc9525", "RFC 9525"]];
+  var h = '<table class="num"><tr><th>implementation</th><th>verdict</th><th>decided by</th></tr>', i;
+  var verdicts = [];
+  for (i = 0; i < profs.length; i++) {
+    var r = CERT.check(host, cert, { profile: profs[i][0], flags: flags, checkAs: checkAs });
+    verdicts.push(r.match);
+    h += "<tr><td class=b>" + profs[i][1] + '</td><td><span class="v ' + (r.match ? "allow" : "deny") +
+         '">' + (r.match ? "MATCH" : "MISMATCH") + "</span></td><td class=t-xs>" + esc(r.rule) + "</td></tr>";
+  }
+  h += "</table>";
+  if (!(verdicts[0] === verdicts[1] && verdicts[1] === verdicts[2]))
+    h += '<div class="note note-r t-sm mt3"><b>These disagree.</b> The same wire bytes, the same ' +
+         'hostname, and the answer depends on which library the client happens to link.</div>';
+  $("three").innerHTML = h;
+}
+
+/* ---- the eight slots --------------------------------------------------- */
+function renderSlots(host) {
+  var h = host && !CERT.isIP(host) && host.charAt(0) !== "." ? host : "foo.example.com";
+  var rows = CERT.slotTable(h), i;
+  var t = '<table class="num"><tr><th>where the identity sits</th><th>the SAN extension</th>' +
+          "<th>OpenSSL</th><th>Node</th><th>RFC 9525</th><th>decided by</th></tr>";
+  for (i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    t += "<tr><td class=b>" + esc(r.label) + '</td><td class="mono t-xs">' +
+      esc(CERT.sanText(r.cert.san) || "(none)") + "</td>";
+    t += '<td><span class="v ' + (r.openssl.match ? "allow" : "deny") + '">' + (r.openssl.match ? "MATCH" : "no") + "</span></td>";
+    t += '<td><span class="v ' + (r.node.match ? "allow" : "deny") + '">' + (r.node.match ? "MATCH" : "no") + "</span></td>";
+    t += '<td><span class="v ' + (r.rfc.match ? "allow" : "deny") + '">' + (r.rfc.match ? "MATCH" : "no") + "</span></td>";
+    t += "<td>" + (r.openssl.via === "cn" ? slotPill("CN") : r.openssl.via === "none" ? '<span class="dim t-xs">nothing</span>' : slotPill("DNS")) + "</td></tr>";
+  }
+  $("slottable").innerHTML = t + "</table>";
+  var ca = CERT.cnAuthority(h, "openssl");
+  $("slotnote").innerHTML = "Host <code>" + esc(h) + "</code>. Over the full 2<sup>5</sup>&times;2 = " +
+    ca.n + "-certificate corpus this table samples: " + ca.accepted + " accepted, " + ca.viaCn +
+    " of them on the Common Name, " + ca.viaCnWithSan + " of those on a certificate that " +
+    "<b>does</b> carry a subjectAltName extension.";
+}
+
+/* ---- one star, twelve positions ---------------------------------------- */
+function renderStars() {
+  var rows = CERT.starPositions(), i;
+  var t = '<table class="num"><tr><th>pattern</th><th>OpenSSL reads it as</th><th>Node</th>' +
+          "<th>RFC 9525</th><th>matches sub.example.com</th><th>matches its own spelling</th></tr>";
+  for (i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    t += '<tr><td class="mono b">' + esc(r.pattern) + "</td><td>" + readingPill(r.openssl) +
+      "</td><td>" + readingPill(r.node) + "</td><td>" + readingPill(r.rfc) +
+      '</td><td class="' + (r.hits ? "ok" : "dim") + '">' + (r.hits ? "yes" : "no") +
+      '</td><td class="' + (r.self ? "ok" : "dim") + '">' + (r.self ? "yes" : "no") + "</td></tr>";
+  }
+  $("startable").innerHTML = t + "</table>";
+}
+
+/* ---- the public suffix ladder ------------------------------------------ */
+function ladderHTML() {
+  var rows = CERT.psLadder(), i;
+  var t = '<table class="num"><tr><th>pattern</th><th>dots after the star</th><th>tested against</th>' +
+          "<th>OpenSSL</th><th>Node</th><th>RFC 9525</th></tr>";
+  for (i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    t += '<tr><td class="mono b">' + esc(r.pattern) + '</td><td class="mono bb">' + r.dotsAfterStar +
+      '</td><td class="mono t-xs">' + esc(r.host) + "</td>";
+    t += '<td><span class="v ' + (r.openssl ? "allow" : "deny") + '">' + (r.openssl ? "MATCH" : "no") + "</span></td>";
+    t += '<td><span class="v ' + (r.node ? "allow" : "deny") + '">' + (r.node ? "MATCH" : "no") + "</span></td>";
+    t += '<td><span class="v ' + (r.rfc ? "allow" : "deny") + '">' + (r.rfc ? "MATCH" : "no") + "</span></td></tr>";
+  }
+  return t + "</table>";
+}
+
+/* ---- the grid ---------------------------------------------------------- */
+var gridProf = "openssl";
+(function () {
+  var btns = document.querySelectorAll("[data-g]"), i;
+  for (i = 0; i < btns.length; i++) btns[i].addEventListener("click", function (ev) {
+    var all = document.querySelectorAll("[data-g]"), k;
+    for (k = 0; k < all.length; k++) all[k].classList.remove("tab-active");
+    ev.target.classList.add("tab-active");
+    gridProf = ev.target.dataset.g;
+    renderGrid();
+  });
+})();
+function renderGrid() {
+  var g = CERT.wildGrid(gridProf, 0);
+  var go = CERT.wildGrid("openssl", 0), gn = CERT.wildGrid("node", 0);
+  var h = '<table class="mx"><tr><td></td>', i, j, dis = 0, yes = 0;
+  for (j = 0; j < g.hosts.length; j++) h += "<th>" + esc(g.hosts[j]) + "</th>";
+  h += "</tr>";
+  for (i = 0; i < g.rows.length; i++) {
+    h += '<tr><td class="rh">' + esc(g.rows[i].pattern) + "</td>";
+    for (j = 0; j < g.hosts.length; j++) {
+      var on = go.rows[i].cells[j] !== gn.rows[i].cells[j];
+      if (on) dis++;
+      if (g.rows[i].cells[j]) yes++;
+      h += '<td class="c ' + (g.rows[i].cells[j] ? "y" : "n") + (on ? " d" : "") + '"></td>';
+    }
+    h += "</tr>";
+  }
+  $("mxwrap").innerHTML = h + "</table>";
+  var cells = g.rows.length * g.hosts.length;
+  $("mxnote").innerHTML = fmtN(cells) + " cells (" + g.rows.length + " patterns &times; " +
+    g.hosts.length + " hostnames). This profile matches " + yes + " of them. OpenSSL and Node " +
+    "disagree on <b>" + dis + "</b> &mdash; " + pct(dis, cells) +
+    " of the grid, every one of them outlined in red.";
+}
+
+/* ---- the models -------------------------------------------------------- */
+function renderModels() {
+  var sc = CERT.slotScore("foo.example.com", "openssl");
+  var g = CERT.wildGrid("openssl", 0), i, j, k;
+  var wrong = {}, cells = 0;
+  for (k = 0; k < CERT.MODELS.length; k++) wrong[CERT.MODELS[k].id] = { w: 0, fa: 0, fr: 0 };
+  for (i = 0; i < g.rows.length; i++) for (j = 0; j < g.hosts.length; j++) {
+    var cert = { subject: { CN: "cn.invalid" }, san: [{ type: "DNS", value: g.rows[i].pattern }] };
+    var truth = g.rows[i].cells[j];
+    cells++;
+    for (k = 0; k < CERT.MODELS.length; k++) {
+      var got = CERT.MODELS[k].fn(g.hosts[j], cert);
+      if (got !== truth) { wrong[CERT.MODELS[k].id].w++; if (got) wrong[CERT.MODELS[k].id].fa++; else wrong[CERT.MODELS[k].id].fr++; }
+    }
+  }
+  var t = '<table class="num"><tr><th>model</th><th>what it believes</th>' +
+    "<th>wrong on the " + fmtN(cells) + "-cell wildcard grid</th>" +
+    "<th>false accepts</th><th>wrong on the 64-certificate slot corpus</th></tr>";
+  for (k = 0; k < CERT.MODELS.length; k++) {
+    var m = CERT.MODELS[k], w = wrong[m.id], s = sc.models[m.id];
+    t += "<tr><td class=b>" + esc(m.label) + '</td><td class="t-xs muted">' + esc(m.note) + "</td>";
+    t += '<td class="mono ' + (w.w ? "bad" : "ok") + '">' + w.w + " &nbsp;" + pct(w.w, cells) + "</td>";
+    t += '<td class="mono ' + (w.fa ? "bad" : "dim") + '">' + w.fa + "</td>";
+    t += '<td class="mono ' + (s.wrong ? "bad" : "ok") + '">' + s.wrong + " &nbsp;" + pct(s.wrong, sc.n) + "</td></tr>";
+  }
+  t += '<tr><td class=bb>the real algorithm</td><td class="t-xs muted">the code above, ported clause by clause</td>' +
+    '<td class="mono ok">0 &nbsp;0.00%</td><td class="mono ok">0</td><td class="mono ok">0 &nbsp;0.00%</td></tr>';
+  $("models").innerHTML = t + "</table>";
+  $("sanwrong").textContent = String(sc.models.sanwins.wrong);
+}
+
+/* ---- UNDERSTAND-tab tables --------------------------------------------- */
+function renderUnderstand() {
+  var ca = CERT.cnAuthority("foo.example.com", "openssl");
+  var t = '<table class="num"><tr><th>over the 64-certificate corpus</th><th>count</th></tr>';
+  t += "<tr><td>certificates carrying a subjectAltName extension</td><td class=mono>" + ca.sanBearing + " / " + ca.n + "</td></tr>";
+  t += "<tr><td>&hellip;of those, ones carrying a dNSName</td><td class=mono>" + ca.dnsPresent + "</td></tr>";
+  t += "<tr><td>certificates whose CN names the host</td><td class=mono>" + ca.cnNames + " (" + ca.cnNamesSan + " of them SAN-bearing)</td></tr>";
+  t += "<tr><td>accepted by OpenSSL</td><td class=mono>" + ca.accepted + "</td></tr>";
+  t += "<tr><td class=bb>&hellip;accepted <b>on the Common Name</b></td><td class='mono bb'>" + ca.viaCn + "</td></tr>";
+  t += "<tr><td class=bb>&hellip;of which, on a certificate that HAS a SAN extension</td><td class='mono bb'>" +
+    ca.viaCnWithSan + " &nbsp; (" + pct(ca.viaCnWithSan, ca.cnNamesSan) + " of the " + ca.cnNamesSan +
+    " SAN-bearing certificates whose CN names the host)</td></tr>";
+  t += "<tr><td>accepted on the CN under RFC 9525</td><td class='mono ok'>" +
+    CERT.cnAuthority("foo.example.com", "rfc9525").viaCn + "</td></tr>";
+  t += "</table>";
+  $("cnstats").innerHTML = t;
+
+  $("psladder").innerHTML = ladderHTML();
+  $("psladder2").innerHTML = ladderHTML();
+
+  var cs = CERT.starCensus(CERT.WILD_PATTERNS), p;
+  var c = '<table class="num"><tr><th>implementation</th><th>reads as a wildcard</th>' +
+    "<th>silently demotes to a literal</th><th>refuses outright</th></tr>";
+  var profs = [["openssl", "OpenSSL 3.2.1"], ["node", "Node 22"], ["rfc9525", "RFC 9525"]];
+  for (p = 0; p < profs.length; p++) {
+    var r = cs[profs[p][0]];
+    c += "<tr><td class=b>" + profs[p][1] + '</td><td class="mono ok">' + r.wildcard +
+      '</td><td class="mono bad">' + r["dead literal"] + '</td><td class="mono">' + r.refused + "</td></tr>";
+  }
+  c += "</table>";
+  $("census").innerHTML = c + '<p class="t-xs dim mt2">The ' + cs.starred + " patterns on this page " +
+    "that contain a star, out of " + cs.n + ". The external verifier repeats the same census over a " +
+    "170-pattern generated corpus carrying 103 starred identities and gets " +
+    "<b>26 / 77 / 0</b> for OpenSSL, <b>52 / 24 / 27</b> for Node and <b>20</b> wildcards for " +
+    "RFC 9525 &mdash; every reading confirmed by asking the real binary what the pattern does to " +
+    "a host it could only match one way.</p>";
+
+  var z = CERT.zeroWidth(), i;
+  var zt = '<table class="num"><tr><th>what the star expands to</th>' +
+    "<th><code>*.example.com</code> vs</th><th>OpenSSL</th><th>Node</th>" +
+    "<th><code>f*.example.com</code> vs</th><th>OpenSSL</th><th>Node</th></tr>";
+  for (i = 0; i < z.length; i++) {
+    zt += '<tr><td class="mono b">' + (z[i].mid === "" ? "&lt;nothing&gt;" : esc(z[i].mid)) + "</td>";
+    zt += '<td class="mono t-xs">' + esc(z[i].fullHost) + '</td><td class="' + (z[i].full ? "ok" : "bad") + '">' +
+      (z[i].full ? "MATCH" : "no") + '</td><td class="' + (z[i].fullNode ? "ok" : "bad") + '">' +
+      (z[i].fullNode ? "MATCH" : "no") + "</td>";
+    zt += '<td class="mono t-xs">' + esc(z[i].partHost) + '</td><td class="' + (z[i].part ? "ok" : "bad") + '">' +
+      (z[i].part ? "MATCH" : "no") + '</td><td class="' + (z[i].partNode ? "ok" : "bad") + '">' +
+      (z[i].partNode ? "MATCH" : "no") + "</td></tr>";
+  }
+  $("zerowidth").innerHTML = zt + "</table>";
+
+  var DOTS = [
+    ["foo.example.com", "DNS:foo.example.com", "the baseline"],
+    ["foo.example.com.", "DNS:foo.example.com", "a trailing dot on the host"],
+    ["foo.example.com..", "DNS:foo.example.com", "two trailing dots on the host"],
+    ["foo.example.com...", "DNS:foo.example.com", "three"],
+    ["foo.example.com", "DNS:foo.example.com.", "a trailing dot in the certificate"],
+    ["foo.example.com.", "DNS:foo.example.com.", "a trailing dot on both sides"],
+    ["www.example.com", "DNS:*.example.com.", "a trailing dot on a wildcard"]
+  ];
+  var dt = '<table class="num"><tr><th>hostname</th><th>certificate</th><th>OpenSSL</th><th>Node</th><th>RFC 9525</th></tr>';
+  for (i = 0; i < DOTS.length; i++) {
+    var cc = { subject: {}, san: CERT.parseSAN(DOTS[i][1]) };
+    var ro = CERT.check(DOTS[i][0], cc, { profile: "openssl" }).match;
+    var rn = CERT.check(DOTS[i][0], cc, { profile: "node" }).match;
+    var rr = CERT.check(DOTS[i][0], cc, { profile: "rfc9525" }).match;
+    dt += '<tr><td class="mono b">' + esc(DOTS[i][0]) + '</td><td class="mono t-xs">' + esc(DOTS[i][1]) + "</td>";
+    dt += '<td><span class="v ' + (ro ? "allow" : "deny") + '">' + (ro ? "MATCH" : "no") + "</span></td>";
+    dt += '<td><span class="v ' + (rn ? "allow" : "deny") + '">' + (rn ? "MATCH" : "no") + "</span></td>";
+    dt += '<td><span class="v ' + (rr ? "allow" : "deny") + '">' + (rr ? "MATCH" : "no") + "</span></td></tr>";
+  }
+  $("dottable").innerHTML = dt + "</table>";
+}
+
+/* ---- the in-page assertion suite --------------------------------------- */
+(function () {
+  var t0 = Date.now();
+  var st = CERT.selftest();
+  var ms = Date.now() - t0;
+  var lines = [(st.bad ? "FAILED" : "PASS") + "  " + fmtN(st.asserts) + " assertions, " +
+    st.bad + " failures, " + ms + " ms"];
+  var i;
+  for (i = 0; i < st.notes.length; i++) lines.push("  " + st.notes[i]);
+  $("ref").textContent = lines.join("\n");
+})();
+
+/* ---- the live sweep ---------------------------------------------------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+$("sweepbtn").addEventListener("click", function () {
+  var btn = this, out = $("sweepout");
+  btn.disabled = true; btn.textContent = "sweeping…";
+  out.innerHTML = '<p class="t-sm dim">building the corpus…</p>';
+  setTimeout(function () {
+    var t0 = Date.now(), rnd = mulberry32(720072), ALPHA = "aabbxxnn019-.*";
+    function gen(stars) {
+      var n = 3 + Math.floor(rnd() * 14), s = "", i;
+      for (i = 0; i < n; i++) s += ALPHA.charAt(Math.floor(rnd() * ALPHA.length));
+      if (!stars) s = s.replace(/\*/g, "z");
+      if (rnd() < 0.45) s += ".example.com";
+      if (rnd() < 0.10) s = "xn--" + s;
+      return s;
+    }
+    var pats = CERT.WILD_PATTERNS.slice(), hosts = CERT.WILD_HOSTS.slice(), i, j, k;
+    while (pats.length < 320) pats.push(gen(true));
+    while (hosts.length < 320) hosts.push(gen(false));
+    var a = 0, bad = 0, cells = 0, onDis = 0, dotDis = 0, demoted = 0, refused = 0, wild = 0;
+    function ok(c) { a++; if (!c) bad++; }
+    for (i = 0; i < pats.length; i++) {
+      var rd = CERT.starReading(pats[i], "openssl");
+      if (rd === "wildcard") wild++; else if (rd === "dead literal") demoted++;
+      if (CERT.starReading(pats[i], "node") === "refused") refused++;
+      /* OpenSSL never refuses a pattern outright */
+      ok(rd !== "refused");
+      /* a demoted star still matches its own spelling, exactly */
+      if (rd === "dead literal")
+        ok(CERT.check(pats[i], { subject: {}, san: [{ type: "DNS", value: pats[i] }] }, { profile: "openssl" }).match);
+      /* a wildcard needs two dots, always */
+      if (rd === "wildcard") ok((pats[i].match(/\./g) || []).length >= 2);
+      var cert = { subject: {}, san: [{ type: "DNS", value: pats[i] }] };
+      for (j = 0; j < hosts.length; j++) {
+        var h = hosts[j];
+        var ro = CERT.check(h, cert, { profile: "openssl" });
+        var rn = CERT.check(h, cert, { profile: "node" });
+        var rr = CERT.check(h, cert, { profile: "rfc9525" });
+        cells++;
+        /* case folding is total: upper-casing the host cannot change any verdict */
+        ok(CERT.check(h.toUpperCase(), cert, { profile: "openssl" }).match === ro.match);
+        ok(CERT.check(h, { subject: {}, san: [{ type: "DNS", value: pats[i].toUpperCase() }] },
+             { profile: "openssl" }).match === ro.match);
+        /* an accept always names a source; a reject never does */
+        ok(ro.match ? ro.via !== "none" : ro.via === "none");
+        /* RFC 9525 accepts nothing OpenSSL refuses, unless a dot is involved */
+        if (rr.match && !ro.match) ok(/\.$/.test(pats[i]) || /\.$/.test(h) || h.charAt(0) === ".");
+        /* a non-matching neighbour never blocks a match, in either position */
+        if (ro.match) {
+          var pre = { subject: {}, san: [{ type: "DNS", value: "no.such.invalid" }].concat(cert.san) };
+          var post = { subject: {}, san: cert.san.concat([{ type: "email", value: "x@y.z" }]) };
+          ok(CERT.check(h, pre, { profile: "openssl" }).match);
+          ok(CERT.check(h, post, { profile: "openssl" }).match);
+        }
+        /* an email-only SAN never disturbs the CN */
+        if (j % 37 === 0) {
+          var cnCert = { subject: { CN: h }, san: [{ type: "email", value: "a@b.c" }] };
+          ok(CERT.check(h, cnCert, { profile: "openssl" }).match ===
+             CERT.check(h, { subject: { CN: h }, san: [] }, { profile: "openssl" }).match);
+        }
+        if (ro.match !== rn.match) {
+          onDis++;
+          if (/\.$/.test(pats[i]) || /\.$/.test(h) || h.charAt(0) === "." ||
+              (pats[i] + "." + h).indexOf("..") >= 0) dotDis++;
+        }
+      }
+    }
+    var ms = Date.now() - t0;
+    var F = { pats: 320, hosts: 320 };
+    var t = '<table class="num"><tr><th>live sweep in this browser</th><th>value</th></tr>';
+    t += "<tr><td>patterns &times; hostnames</td><td class=mono>" + pats.length + " &times; " +
+      hosts.length + " = " + fmtN(cells) + " cells</td></tr>";
+    t += "<tr><td class=bb>assertions</td><td class='mono bb'>" + fmtN(a) + "</td></tr>";
+    t += "<tr><td class=bb>failures</td><td class='mono " + (bad ? "bad" : "ok") + " bb'>" + bad + "</td></tr>";
+    t += "<tr><td>patterns OpenSSL reads as wildcards</td><td class=mono>" + wild + "</td></tr>";
+    t += "<tr><td>patterns OpenSSL silently demotes to literals</td><td class=mono>" + demoted + "</td></tr>";
+    t += "<tr><td>patterns Node refuses outright</td><td class=mono>" + refused + "</td></tr>";
+    t += "<tr><td>OpenSSL / Node disagreements</td><td class=mono>" + fmtN(onDis) + " &nbsp;" +
+      pct(onDis, cells) + "</td></tr>";
+    t += "<tr><td>&hellip;of those, decided by a dot</td><td class=mono>" + fmtN(dotDis) + " &nbsp;" +
+      pct(dotDis, onDis) + "</td></tr>";
+    t += "<tr><td>elapsed</td><td class=mono>" + (ms / 1000).toFixed(1) + " s</td></tr>";
+    t += "</table>";
+    out.innerHTML = t + '<p class="t-xs dim mt3">This sweep cannot call <code>openssl</code>, so it ' +
+      "checks invariants rather than a reference: total case-insensitivity, the two-dot rule on every " +
+      "pattern OpenSSL calls a wildcard, the fact that a demoted star still matches its own spelling, " +
+      "that no neighbouring entry ever blocks a match, and that RFC 9525 is looser than OpenSSL only " +
+      "where a dot is involved. The external verifier does the part this cannot: real certificates " +
+      "in front of the real binary.</p>";
+    btn.disabled = false; btn.textContent = "RUN THE LIVE SWEEP IN THIS BROWSER";
+  }, 30);
+});
+
+/* ---- render ------------------------------------------------------------ */
+function render() {
+  var host = $("host").value, cert = curCert(), prof = $("profile").value;
+  var flags = curFlags(), checkAs = $("checkas").value;
+  var r = renderVerdict(host, cert, prof, flags, checkAs);
+  renderWalk(r);
+  renderThree(host, cert, flags, checkAs);
+  renderSlots(host);
+}
+["host", "cn", "san", "profile", "checkas"].forEach(function (id) {
+  $(id).addEventListener("input", render);
+  $(id).addEventListener("change", render);
+});
+
+renderStars();
+renderGrid();
+renderModels();
+renderUnderstand();
+render();
+</script>
+</body>
+</html>
