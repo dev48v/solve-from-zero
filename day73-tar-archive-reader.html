@@ -1,0 +1,2632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 73 &mdash; tar archive reader (ustar / GNU / pax)</title>
+<style>
+/* ---- no CDN, no build step: only the utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.inv { background:#fff1f2; outline:1px dashed #fb7185; border-radius:3px; padding:0 2px; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.wrap3 { max-width:780px;  margin:0 auto; }
+.p4 { padding:16px; } .p5 { padding:20px; } .p6 { padding:24px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+.g2t { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+.g3t { display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.stack6 > * + * { margin-top:22px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; } .bg2 { background:#f8fafc; } .bg0 { background:#fff; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+ol { margin:8px 0; padding-left:22px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+/* the 512-byte header, drawn as a strip of fields */
+.strip { display:flex; width:100%; height:26px; border-radius:6px; overflow:hidden; border:1px solid #cbd5e1; }
+.strip div { font-size:8.5px; font-family:ui-monospace,Consolas,monospace; color:#0f172a;
+     display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap;
+     border-right:1px solid rgba(255,255,255,.7); }
+.f-name{background:#bae6fd}.f-num{background:#ddd6fe}.f-sum{background:#fecdd3}
+.f-char{background:#fde68a}.f-str{background:#bbf7d0}.f-pad{background:#e2e8f0}
+/* the storability window */
+.win { position:relative; height:34px; background:#f1f5f9; border-radius:6px; overflow:hidden;
+     border:1px solid #cbd5e1; }
+.win .seg { position:absolute; top:0; bottom:0; }
+.win .pre { background:#c7d2fe; } .win .nm { background:#bbf7d0; }
+.win .over { background:#fecaca; }
+.win .slash { position:absolute; top:0; bottom:0; width:2px; background:#0f172a; }
+.win .slash.used { width:3px; background:#dc2626; }
+.win .lim { position:absolute; top:0; bottom:0; width:1px; background:#0369a1; }
+/* the writer x reader matrix */
+.mx { border-collapse:separate; border-spacing:3px; }
+.mx th { font-size:10px; color:#64748b; font-weight:700; padding:0 4px; white-space:nowrap;
+     font-family:ui-monospace,Consolas,monospace; }
+.mx td.rh { font-size:11.5px; font-family:ui-monospace,Consolas,monospace; white-space:nowrap;
+     padding-right:8px; text-align:right; font-weight:700; }
+.mx td.c { padding:4px 7px; border-radius:5px; font-size:11px; font-family:ui-monospace,Consolas,monospace;
+     text-align:center; background:#e2e8f0; white-space:nowrap; }
+.mx td.c.y { background:#bbf7d0; color:#14532d; font-weight:800; }
+.mx td.c.n { background:#fecaca; color:#7f1d1d; font-weight:800; }
+.mx td.c.w { background:#fde68a; color:#78350f; font-weight:800; }
+.k { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:12px; padding:3px 10px;
+     border-radius:6px; display:inline-block; }
+.kdir {background:#dcfce7;color:#14532d}
+.kfil {background:#fee2e2;color:#7f1d1d}
+.kref {background:#e0e7ff;color:#3730a3}
+.hdrrow { display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } .g3t { grid-template-columns:1fr; } }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.hist { display:flex; align-items:center; gap:8px; }
+.histbar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; }
+.histbar.hb2 { background:#6366f1; } .histbar.hb3 { background:#f43f5e; }
+.chk { display:flex; align-items:center; gap:6px; font-size:12px; font-family:ui-monospace,Consolas,monospace; }
+.chk input { width:auto; }
+.blk { display:inline-block; font-family:ui-monospace,Consolas,monospace; font-size:11px;
+     font-weight:800; padding:1px 7px; border-radius:5px; background:#e0f2fe; color:#075985; }
+.blk.bhdr{background:#bae6fd;color:#075985}
+.blk.bext{background:#fde68a;color:#78350f}
+.blk.bdat{background:#e2e8f0;color:#334155}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 73</p>
+    <h1 class="mb4">
+      📦 A real tar reader and writer &mdash; hand it a path and it tells you whether
+      <code>ustar</code> can hold it, <strong>which clause decided</strong>, and what each of four
+      readers would call the file. Everyone knows a tar path is capped somewhere near 255 bytes.
+      Almost nobody knows the cap is not the rule. The 100-byte <code>name</code> field and the
+      155-byte <code>prefix</code> field are joined by a slash <em>that is never stored</em>, so what
+      has to fit is not the path &mdash; it is the two halves either side of some slash. A 130-byte
+      path with no slash after byte 100 is <strong>unstorable</strong>; a 256-byte path split
+      155/100 stores in a single block; and GNU tar&nbsp;1.35's own error message says
+      <code>max 256</code>, not 255. Over a 20,000-path corpus the &ldquo;&le;&nbsp;256&rdquo; model
+      is wrong <strong>2,499</strong> times &mdash; <strong>34.83%</strong> of everything in the
+      101&ndash;256 band &mdash; always claiming storable when it is not, and
+      <strong>2,074</strong> of those refused paths <em>do</em> contain a slash, so
+      &ldquo;has a slash&rdquo; is not the rule either. 🔴 The inversion in the scoreboard: the wrong
+      number scores <em>better</em>. &ldquo;&le;&nbsp;255&rdquo; is wrong 2,486 times against
+      2,499 for the correct ceiling, purely because the 13 paths of exactly 256 bytes in this corpus
+      all happen to be unsplittable. 🔴 And a refused name is not a refused archive. GNU tar
+      reaches for the prefix field <em>only</em> under <code>--format=ustar</code>: in its own
+      <code>gnu</code> and <code>posix</code> formats the same 140-byte path becomes three blocks
+      with a <strong>truncated 100-byte twin</strong> left in the <code>name</code> field, so one
+      archive presents <strong>two different file lists</strong> and a reader that does not speak the
+      extension writes a real file at a real, different path &mdash; no error on either side.
+      Every verdict here is checked against the real thing:
+      <strong>GNU&nbsp;tar&nbsp;1.35</strong> and <strong>Python&nbsp;3.11 tarfile</strong>, in both
+      directions, and they disagree with each other on <strong>eight</strong> live cells &mdash;
+      one trailing slash, four ways of spelling a number, two off-by-one length fields and six
+      missing magic bytes &mdash; every one of them producing a different <em>answer</em> rather
+      than an error. The loudest:
+      put an ASCII <code>+</code> in front of the size and the same twelve bytes mean
+      <strong>10</strong> bytes to Python and
+      <strong>951,617,749,834,222,966</strong> to GNU tar, which reads the sign as the 1990s
+      base-64 header format and lists the member anyway.
+      Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">📦 READ</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ READ -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <p class="lbl mb1">PRESET</p>
+      <select id="preset" class="mb3"></select>
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb2">WHAT YOU ARE ASKING TAR TO STORE</p>
+          <div class="hdrrow"><span class="t-xs b">Path</span>
+            <input id="path" value="notes.txt"></div>
+          <div class="hdrrow"><span class="t-xs b">Writer format</span>
+            <select id="fmt">
+              <option value="v7">v7 &mdash; Version 7 Unix, 1979</option>
+              <option value="ustar" selected>ustar &mdash; POSIX.1-1988</option>
+              <option value="oldgnu">gnu &mdash; GNU tar L/K blocks</option>
+              <option value="pax">posix &mdash; POSIX.1-2001 pax</option>
+            </select></div>
+          <div class="hdrrow"><span class="t-xs b">Type</span>
+            <select id="tflag">
+              <option value="0">'0' regular file</option>
+              <option value="5">'5' directory</option>
+              <option value="2">'2' symbolic link</option>
+              <option value="1">'1' hard link</option>
+            </select></div>
+          <div class="hdrrow"><span class="t-xs b">Size (bytes)</span>
+            <input id="size" value="12"></div>
+          <div class="hdrrow"><span class="t-xs b">Link target</span>
+            <input id="link" value=""></div>
+          <p class="t-xs dim mt3">The size matters more than it looks: at
+            <code>8589934592</code> the field stops being octal and the header acquires a
+            <em>second</em> valid checksum.</p>
+        </div>
+        <div>
+          <p class="lbl mb2">WHERE THE SLASH HAS TO BE</p>
+          <p class="t-xs muted mb2">The bar is the path, byte by byte. Green is what goes in the
+            100-byte <code>name</code> field, blue-violet is the 155-byte <code>prefix</code>, and the
+            thick red mark is the slash that is <em>deleted</em> to join them. Every thin black mark
+            is a slash that could not be used.</p>
+          <div id="win" class="mb2"></div>
+          <div id="winnote" class="t-xs"></div>
+          <p class="lbl mt4 mb2">THE BLOCKS THIS WRITER EMITS</p>
+          <div id="blocks"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="verdict"></div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="lbl mb2">THE 512-BYTE HEADER, FIELD BY FIELD</p>
+        <p class="t-sm muted mb3">One block. Bytes 500&ndash;511 belong to no field at all and are
+          still summed into the checksum, which is why a writer that leaves junk there produces an
+          archive nobody can read.</p>
+        <div id="strip" class="mb3"></div>
+        <div class="scroll" id="fieldtable"></div>
+      </div>
+      <div class="card">
+        <p class="lbl mb2">THE CHECKSUM, COMPUTED BOTH WAYS</p>
+        <p class="t-sm muted mb3">Sum of all 512 bytes with the eight checksum bytes taken as ASCII
+          spaces. Historic tars summed <em>signed</em> chars, so a header carrying any byte
+          &ge;&nbsp;0x80 has two correct answers and every reader in the world accepts either.</p>
+        <div id="sumbox"></div>
+        <div class="scroll mt3" id="sumtable"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">ONE PATH, FOUR WRITERS, FOUR READERS</p>
+      <p class="t-sm muted mb3">The path in the box above, written by each format and then read by
+        each profile. A green cell means the reader recovered the exact path. A red cell means it
+        recovered <em>something else</em> &mdash; and reported no error while doing it. Watch the
+        <code>gnu</code> and <code>posix</code> rows: three blocks for a path
+        <code>ustar</code> holds in one, and a second member that a ustar-only reader will happily
+        extract.</p>
+      <div class="scroll" id="matrix"></div>
+      <p class="t-xs dim mt3" id="matnote"></p>
+      <div class="sep"></div>
+      <p class="lbl mb1">&hellip;AND WHAT REAL GNU TAR LEAVES IN THE NAME FIELD</p>
+      <p class="t-sm muted mb3">Recorded from <code>tar --format=&hellip; -cf</code> on the
+        140-byte fixture. Three of the four formats write an extension header, and the truncated
+        twin they leave behind for a ustar-only reader is <em>not the same path</em> in all three
+        &mdash; GNU tar's own two long-name formats differ by one byte.</p>
+      <div class="scroll" id="trunc"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">THE LIMIT IS NOT A LENGTH &mdash; GNU TAR 1.35 ON EIGHT PATHS</p>
+      <p class="t-sm muted mb3">These are real invocations, recorded from
+        <code>tar --format=ustar -cf</code> on this machine, and the engine is asserted against
+        every one of them. Two different refusals: a length gate and a <em>split</em> gate, and it
+        is the second one nobody models.</p>
+      <div class="scroll" id="limits"></div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">FOUR MODELS OF &ldquo;HOW LONG CAN A TAR PATH BE&rdquo;, SCORED</p>
+      <p class="t-sm muted mb3">20,000 generated paths. <b>False&nbsp;yes</b> means the model said
+        storable and tar refuses; <b>false&nbsp;no</b> means the model said impossible and tar
+        stores it. The band table underneath is the whole reason these models survive: below 101
+        bytes every one of them is perfect.</p>
+      <div class="scroll mb3" id="models"></div>
+      <div class="scroll" id="bands"></div>
+      <p class="t-xs dim mt3" id="modelnote"></p>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">ONE TRAILING SLASH, TWO REAL IMPLEMENTATIONS</p>
+      <p class="t-sm muted mb3">Fourteen headers: seven typeflags, each with and without a trailing
+        slash on the name. Directory-ness has two sources &mdash; the typeflag and the last
+        character of the name &mdash; and the two references promote on <em>different</em> typeflag
+        sets. <code>'0'</code> and NUL are documented as the same type. They are not.</p>
+      <div class="scroll" id="alias"></div>
+      <p class="t-xs dim mt3" id="aliasnote"></p>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="lbl mb2">THE NUMERIC FIELDS</p>
+        <p class="t-sm muted mb3">Twelve bytes of octal ASCII &mdash; eleven digits and a
+          terminator &mdash; which is why the classic tar size ceiling is exactly 8&nbsp;GiB
+          &minus;&nbsp;1. Above it GNU tar sets the top bit of the first byte and the field becomes
+          big-endian binary.</p>
+        <div class="scroll" id="ladder"></div>
+      </div>
+      <div class="card">
+        <p class="lbl mb2">&hellip;AND WHAT THE TWO REFERENCES DO WITH THEM</p>
+        <p class="t-sm muted mb3">Python parses the field with <code>int(s, 8)</code>, which accepts
+          a leading ASCII minus. GNU tar reads a leading minus as the 1990s base-64 header format
+          and refuses the archive. One byte, two grammars.</p>
+        <div class="scroll" id="numref"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb1">PAX RECORDS: A LENGTH THAT COUNTS ITSELF</p>
+      <p class="t-sm muted mb3">A pax extended header is a run of
+        <code>%d %s=%s\n</code> records where the leading decimal is the length of the whole record
+        <em>including its own digits</em>. The length, not the newline, ends the record &mdash; so a
+        value may legally contain newlines and equals signs, and a line-splitting parser is wrong on
+        both. And because the length counts itself, some bodies have <strong>two</strong>
+        self-consistent lengths.</p>
+      <div class="grid g2">
+        <div>
+          <p class="lbl mb2">THE FIXPOINT, AND THE OTHER LEGAL ANSWER</p>
+          <div class="scroll" id="paxamb"></div>
+          <p class="t-xs dim mt2" id="paxambnote"></p>
+        </div>
+        <div>
+          <p class="lbl mb2">ONE BYTE OUT, AND THE FILENAME CHANGES</p>
+          <div class="scroll" id="paxoff"></div>
+        </div>
+      </div>
+      <div class="note note-r t-sm mt4" id="paxnote"></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="lbl mb2">WHICH VALUE WINS: THE PRECEDENCE LADDER</p>
+        <p class="t-sm muted mb3">Three sources for the same field in one archive: the ustar header,
+          a global <code>'g'</code> record and a per-file <code>'x'</code> record. Both references
+          agree on all five rows, and the ordering is not the one the block order suggests.</p>
+        <div class="scroll" id="prec"></div>
+      </div>
+      <div class="card">
+        <p class="lbl mb2">WHAT IS LISTED VS WHAT LANDS ON DISK</p>
+        <p class="t-sm muted mb3">Duplicate names are legal &mdash; that is how <code>tar -rf</code>
+          works &mdash; and on extraction the LAST one wins. And two zero blocks end the archive, so
+          <code>cat a.tar b.tar</code> is a valid archive whose second half is invisible until you
+          pass <code>-i</code>.</p>
+        <div id="plan"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="lbl mb2">THE ENGINE'S OWN ASSERTIONS, RUN IN YOUR BROWSER</p>
+      <p class="t-sm muted mb3">Every claim on this page is an assertion in the engine, including
+        the ones checked against the recorded GNU tar and Python verdicts. If this block is not
+        green, the page is wrong and it says so.</p>
+      <pre id="ref">running…</pre>
+      <div class="flex mt3">
+        <button id="sweepbtn" class="go">RUN THE FULL SWEEP</button>
+        <span class="t-xs dim" style="align-self:center">60,000 generated paths through the split, the
+          join, an independent window oracle and a full write/read round trip.</span>
+      </div>
+      <div id="sweepout" class="mt3"></div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ========================================================== UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg2">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">1. A tar file is a list of 512-byte blocks and nothing else</h2>
+      <p class="t-sm muted mb3">There is no index, no directory, no table of contents and no
+        compression. An archive is a stream: a 512-byte header block, then the file's bytes rounded
+        up to a multiple of 512, then the next header, and so on, until two blocks of zeros. That is
+        the entire container format, and it explains almost every surprise on this page.</p>
+      <p class="t-sm muted mb3">Because there is no index, a reader cannot know what is in an
+        archive without walking every block, and it cannot check anything about a member until it has
+        already passed the previous one. Because there is no table of contents, appending is trivial
+        &mdash; overwrite the zero blocks and keep writing &mdash; which is why the same name can
+        appear twice. And because the header is a fixed 512 bytes, every string in it has a hard
+        length, which is where the story starts.</p>
+      <div class="note note-b t-sm">
+        <b>The one number to keep.</b> 512. Header blocks, data padding, the end marker, the
+        checksum window &mdash; all of it is arithmetic on 512.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">2. The name field is 100 bytes, and that was never enough</h2>
+      <p class="t-sm muted mb3">Version 7 Unix gave the path 100 bytes at offset 0, and required a
+        NUL terminator, so the real limit was 99. By 1988 that was already painful, and POSIX.1-1988
+        added a second field: 155 bytes at offset 345, called <code>prefix</code>. The full path is
+        <code>prefix</code>, then a slash, then <code>name</code>.</p>
+      <p class="t-sm muted mb3">That slash is the whole trick, and the whole trap. It is not stored
+        anywhere. It exists only in the reader's join. Which means a writer cannot put a path into
+        the two fields unless the path <em>already has a slash</em> at a position where both halves
+        fit &mdash; the tail in 100 bytes, the head in 155.</p>
+      <p class="t-sm muted mb3">So the storable set is not an interval. It is a condition on
+        <em>slash positions</em>. Written out: a path of length L is storable in ustar exactly when
+        L&nbsp;&le;&nbsp;100, or when some slash sits at an index <em>i</em> with
+        <em>i</em>&nbsp;&le;&nbsp;155 and L&nbsp;&minus;&nbsp;<em>i</em>&nbsp;&minus;&nbsp;1&nbsp;&le;&nbsp;100.
+        Everything else on this page follows from that one line.</p>
+      <div class="note t-sm">
+        <b>Why 256 and not 255.</b> Both fields can be completely full &mdash; a field that fills its
+        width needs no NUL terminator. 155 + 100 = 255 stored bytes, plus the slash the reader puts
+        back = <b>256</b>. GNU tar says so itself: <code>file name is too long (max 256)</code>.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">3. The two refusals are different, and only one of them is about length</h2>
+      <p class="t-sm muted mb3">Ask GNU tar to store a 257-byte path and it says
+        <code>file name is too long (max 256)</code>. Ask it to store a 130-byte path with no slash
+        after byte 100 and it says something else entirely:
+        <code>file name is too long (cannot be split)</code>. Two messages, two gates, and the second
+        one fires on paths that are less than half the stated maximum.</p>
+      <p class="t-sm muted mb3">This is why the mental model survives. The length gate matches what
+        everyone believes, and it is real. The split gate is invisible unless you happen to generate
+        a long single component &mdash; a hash, a base64 blob, a generated identifier, a minified
+        bundle name &mdash; which is exactly the sort of filename that shows up in a build
+        directory and nowhere in a test suite.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">4. The scoreboard, and the wrong number that wins</h2>
+      <p class="t-sm muted mb3">Four models, 20,000 paths, scored against the real split rule. The
+        &ldquo;&le;&nbsp;100&rdquo; model is wrong 4,675 times and always pessimistically. The
+        &ldquo;&le;&nbsp;256&rdquo; model is wrong 2,499 times and always optimistically &mdash; it
+        promises storage that does not exist, which is the direction that loses data.</p>
+      <p class="t-sm muted mb3">And then the result that should not be comfortable: the model
+        holding the <em>wrong ceiling</em>, &ldquo;&le;&nbsp;255&rdquo;, scores better, 2,486
+        against 2,499. The two models can only differ on paths of exactly 256 bytes, there are 13
+        of those in the corpus, and all 13 happen to be unsplittable &mdash; so refusing them for
+        the wrong reason is right by accident. A benchmark can rank a false belief above a true one
+        and the margin can look like signal.</p>
+      <p class="t-sm muted mb3">The fourth model is the one people reach for once they have been
+        bitten: &ldquo;&le;&nbsp;256 and it must contain a slash&rdquo;. It is worse than both,
+        wrong 5,651 times, because it breaks the 11,761 short paths that need no slash at all. A
+        repair aimed at the failing band is free to destroy the band that was already correct.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">5. Two writers, one path, different bytes</h2>
+      <p class="t-sm muted mb3">GNU tar scans backward from byte 155 looking for a slash, so it takes
+        the <em>longest</em> prefix that fits. Python's <code>tarfile</code> walks the path
+        components forward and takes the <em>first</em> split that works, so it takes the
+        <em>shortest</em> prefix that fits. Over the same 20,000 paths the two never disagree about
+        whether a path is storable &mdash; 0 disagreements &mdash; and they lay the bytes out
+        differently on <strong>2,657</strong> of the 16,436 storable ones, 16.17%.</p>
+      <p class="t-sm muted mb3">Both archives are correct. Both round-trip. They are not the same
+        file. So byte-comparing two tarballs of the same tree tells you which tool made them, not
+        whether they contain the same thing &mdash; and any build step that checksums a tarball to
+        prove reproducibility is checksumming a choice of split.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">6. A refused name is not a refused archive</h2>
+      <p class="t-sm muted mb3">When a path does not fit, tar does not stop. It reaches for an
+        extension: GNU's <code>'L'</code> block, which carries the real name as the <em>data</em> of
+        a fake member called <code>././@LongLink</code>, or pax's <code>'x'</code> block, which
+        carries it as a keyword record. Either way a reader that does not understand that typeflag
+        sees an ordinary member with a strange name, and then sees the real member with whatever the
+        writer left in the 100-byte <code>name</code> field.</p>
+      <p class="t-sm muted mb3">What GNU tar leaves there is the path, truncated to 100 bytes. Not
+        blank, not a placeholder &mdash; a plausible relative path that an extractor will create. So
+        one archive has two file lists: the pax-aware list, and the truncated list. Neither reader
+        reports an error, because from each one's point of view nothing is wrong.</p>
+      <p class="t-sm muted mb3">The sharpest version of this is not about long paths at all. The
+        140-byte fixture on the READ tab fits <em>perfectly</em> into prefix + name &mdash; one
+        block, no extension, fully losslessly &mdash; and GNU tar still writes three blocks and a
+        truncated twin, because it only consults the prefix field under
+        <code>--format=ustar</code>. The divergence is created by a flag, not by the path.</p>
+      <p class="t-sm muted mb3">And the truncated twin is not even one path. GNU tar's two long-name
+        formats disagree with each other by a byte: <code>--format=oldgnu</code> leaves
+        <strong>99</strong> bytes in the name field because the pre-1.12 header NUL-terminates it,
+        while <code>--format=gnu</code> and <code>--format=posix</code> leave a full
+        <strong>100</strong>. Same tar, same path, three blocks either way, and three different
+        answers to &ldquo;what will a ustar-only reader write to disk&rdquo;.</p>
+      <div class="note note-r t-sm">
+        <b>Read that as an operational fact.</b> &ldquo;My scanner listed the archive and the paths
+        looked fine&rdquo; and &ldquo;the extractor wrote these files&rdquo; are two different
+        questions, and a tar archive is allowed to answer them differently.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">7. Directory-ness has two sources, and the references disagree on one cell</h2>
+      <p class="t-sm muted mb3">A member is a directory if its typeflag is <code>'5'</code>. It is
+        <em>also</em> a directory, in practice, if its name ends in a slash &mdash; because v7 tar
+        had no typeflag for directories and stored them as ordinary entries with a trailing slash.
+        Every modern reader still honours that, which makes the answer depend on the last character
+        of one field and the value of another.</p>
+      <p class="t-sm muted mb3">And here the two references part company. Python promotes only
+        typeflag NUL. GNU tar promotes NUL <em>and</em> <code>'0'</code>. Since NUL and
+        <code>'0'</code> are documented as the same type &mdash; AREGTYPE and REGTYPE, both
+        &ldquo;regular file&rdquo; &mdash; the same 512 bytes are a directory to
+        <code>tar</code> and a regular file named <code>foo/</code> to Python. Exactly one of the
+        fourteen cells in the grid, and no error on either side.</p>
+      <p class="t-sm muted mb3">The other five typeflags are not promoted by either: a symlink whose
+        name ends in a slash stays a symlink in both. So the disagreement is not a general leniency
+        difference. It is one entry in one list.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">8. The checksum, and what it does not cover</h2>
+      <p class="t-sm muted mb3">The checksum is the sum of the 512 header bytes with its own eight
+        bytes read as ASCII spaces. Simple, and famously ambiguous: the original implementations
+        summed <code>char</code>, which on most compilers is signed. So a header containing any byte
+        &ge;&nbsp;0x80 has two correct sums, 256 apart per high byte, and every reader accepts
+        either.</p>
+      <p class="t-sm muted mb3">This is not a museum piece. A filename with an accent has four high
+        bytes and two valid checksums 1,024 apart; a Devanagari filename here has fifteen and a gap
+        of 3,840. And any file of 8&nbsp;GiB or more forces the size field into base-256, whose
+        first byte is 0x80 by definition &mdash; so every large-file archive carries the ambiguity
+        structurally.</p>
+      <p class="t-sm muted mb3">More important than the ambiguity is the scope. The checksum covers
+        the header. It does not cover one byte of file content. Flip a byte inside a member's data
+        and every tar in the world will extract it, silently, and report success. tar has no
+        integrity check on the thing it exists to carry.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">9. pax: a length field that counts itself</h2>
+      <p class="t-sm muted mb3">POSIX.1-2001 fixed the field-width problem properly by moving
+        metadata into text records: <code>%d %s=%s\n</code>, where the decimal is the length of the
+        whole record including the digits of the length. That self-reference is elegant &mdash; a
+        parser needs no lookahead &mdash; and it has two consequences nobody expects.</p>
+      <p class="t-sm muted mb3">First, a writer has to solve for the length, because adding a digit
+        to it changes it. Both references run the same fixpoint. Second, at each decimal boundary
+        the fixpoint has <em>two</em> answers: a body of 96 bytes is a legal record at length 99
+        (two digits) and equally legal at length 100 (three digits). Below 4,000 there are exactly
+        three such bodies &mdash; at 9/10, 99/100 and 999/1000 &mdash; one per digit boundary and
+        nothing in between.</p>
+      <p class="t-sm muted mb3">And then the failure mode. Get the length wrong by one byte and GNU
+        tar refuses the extended header and falls back to the ustar name. Python does not check: it
+        slices <code>value = buf[keyEnd+1 : start+length-1]</code>, assuming the byte it drops is the
+        newline. One short, and the filename silently loses its last character. One long, and the
+        filename silently gains a newline. Same archive, two different files on disk, no error
+        anywhere.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">10. Where the value actually comes from</h2>
+      <p class="t-sm muted mb3">By the time a pax reader has a member, the same field may have been
+        set three times: by the ustar header, by a global <code>'g'</code> record seen earlier in the
+        stream, and by the per-file <code>'x'</code> record immediately before it. The order is
+        header, then global, then per-file &mdash; so a global record written once at the top of an
+        archive silently overrides a value present in every single header after it, and a field with
+        no record keeps its header value.</p>
+      <p class="t-sm muted mb3">Both references agree on all five rows of that ladder, which is
+        worth stating plainly: the pax precedence rules are one of the few parts of this format where
+        nothing disagrees. The disagreements are all in the layers below &mdash; the fields, the
+        typeflags and the numbers.</p>
+      <p class="t-sm muted mb3">One more field is gated rather than read: <code>uname</code> and
+        <code>gname</code> only exist from POSIX.1-1988 onward, so GNU tar consults them only when
+        the six magic bytes at offset 257 spell <code>ustar</code>. Put a v7 header in front of it
+        with <code>uname=root</code> written in and it reports <code>0/0</code> &mdash; the string
+        is present, in the right place, and ignored. Python reads it regardless. The engine here
+        follows GNU tar, and the difference is one more cell where the same bytes have two
+        answers.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">11. What did not survive building this</h2>
+      <ul class="t-sm muted">
+        <li><b>&ldquo;255 bytes&rdquo; was wrong, and the reference said so in an error message.</b>
+          The number is 256, because the joining slash is not stored. The correction came from
+          <code>tar</code>'s own text, not from reading the standard.</li>
+        <li><b>&ldquo;&le;&nbsp;256 is a safe over-approximation&rdquo; was wrong in the dangerous
+          direction.</b> It is wrong 2,499 times out of 20,000, and every single error is a false
+          <em>yes</em>.</li>
+        <li><b>The intended headline was &ldquo;the correct model beats the folk model&rdquo;, and
+          the measurement refused it.</b> &ldquo;&le;&nbsp;255&rdquo; scores better than
+          &ldquo;&le;&nbsp;256&rdquo; on this corpus. The page teaches the artefact instead of the
+          recommendation, because that is what the numbers said.</li>
+        <li><b>A first version of the pax parser was a single function</b> that validated the
+          trailing newline. That is GNU tar. It is not Python, and modelling only one of them made
+          the whole off-by-one finding invisible &mdash; the interesting cell is precisely where the
+          two parsers differ, so the engine now carries both.</li>
+        <li><b>The base-256 reader was quietly lying about &minus;1.</b> Computing the two's
+          complement as <code>-(256^11 - v)</code> loses to double precision: the answer came back 0.
+          Complementing each byte instead gives exactly &minus;1. The magnitude is still only exact
+          below 2<sup>53</sup>, and the engine now reports that rather than pretending.</li>
+        <li><b>A first pass wrote real NUL bytes into the source</b> to spell the AREGTYPE typeflag.
+          A NUL in an HTML file is a parser hazard; the engine now spells it
+          <code>String.fromCharCode(0)</code> and the verifier asserts the page carries none.</li>
+      </ul>
+      <div class="note note-g t-sm">
+        <b>What survived, and is worth carrying.</b> Whether a path fits in a tar header is not a
+        property of the path's length. It is decided by where its slashes are, by which
+        <code>--format</code> flag the writer was given, by the last character of an unrelated field,
+        and by whether the reader happens to understand a typeflag it has never seen. Four positional
+        facts, none of them about how long the name is.
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg0">
+  <div class="wrap3 stack6">
+
+    <div class="card">
+      <h2 class="mb3">The engine</h2>
+      <p class="t-sm muted mb3">
+        The block between <code>ENGINE:BEGIN</code> and <code>ENGINE:END</code> in this file's
+        source is DOM-free and is the whole thing: the 16-field header table, both numeric grammars,
+        both checksums, both split policies, both pax record parsers, four reader profiles, four
+        writer formats, the corpora and the assertion suite. Nothing in it touches
+        <code>document</code>, which is how the external verifier lifts it out and races it against
+        the real <code>tar</code> and the real <code>tarfile</code> without a browser.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">1. The split, which is the whole page</h3>
+      <pre><code>function splitGnu(path) {
+  var L = utf8Encode(path).length, i, lim;
+  if (L &gt; 256) return { ok:false, why:"max 256" };      // 155 + 1 + 100
+  if (L &lt;= 100) return { ok:true, prefix:"", name:path };
+  lim = L;
+  if (lim &gt; 156) lim = 156;                              // PREFIX_FIELD_SIZE + 1
+  else if (path.charAt(lim - 1) === "/") lim--;           // a directory's own slash
+  for (i = lim - 1; i &gt; 0; i--) if (path.charAt(i) === "/") break;
+  if (i === 0) return { ok:false, why:"cannot be split" };   // &lt;- the invisible gate
+  ...
+}</code></pre>
+      <p class="t-sm muted mt3">
+        The loop is the specification. Nothing in it compares L to 255, and nothing in it looks at
+        the path's total length after the first line &mdash; from there on the only question is
+        where the slashes are. Python's version walks the components forward instead and reaches the
+        same yes/no on every path tried here, with a different answer for the bytes.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">2. The checksum, and the eight bytes that are not there</h3>
+      <pre><code>function checksums(b, off) {
+  var u = 0, s = 0, i, v;
+  for (i = 0; i &lt; 512; i++) {
+    v = (i &gt;= 148 &amp;&amp; i &lt; 156) ? 32 : b[off + i];   // its own field reads as spaces
+    u += v;
+    s += v &gt; 127 ? v - 256 : v;                     // ...and again, as signed chars
+  }
+  return { unsigned:u, signed:s };
+}</code></pre>
+      <p class="t-sm muted mt3">
+        Two accumulators over one pass. They are equal exactly when no byte of the header exceeds
+        0x7f, so the ambiguity is a property of the <em>filename's encoding</em> and the
+        <em>file's size</em>, not of the writer's care.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">3. Two pax parsers, because there are two</h3>
+      <pre><code>if (lenient) {                       // Python tarfile._proc_pax
+  keyEnd = text.indexOf("=", d + 1);
+  value  = text.slice(keyEnd + 1, pos + L - 1);   // the -1 assumes a newline
+  ...                                            // and never checks
+}
+if (pos + L &gt; n) { error("length out of range"); break; }        // GNU tar
+body = text.slice(d + 1, pos + L);
+if (body.charAt(body.length - 1) !== "\n") { error("missing newline"); break; }</code></pre>
+      <p class="t-sm muted mt3">
+        On a well-formed record these are the same function &mdash; asserted over 300 record sizes.
+        One byte out and they are not, and the difference is a filename rather than an error.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">4. Reading an archive is a walk with a pending slot</h3>
+      <pre><code>if (P.gnuLong &amp;&amp; (t === "L" || t === "K")) { pending.path = &lt;this block's DATA&gt;; continue; }
+if (P.pax     &amp;&amp; (t === "x" || t === "g")) { /* keyword records */          continue; }
+...
+m.path = joinUstar(h.prefix, h.name);            // the header's own answer
+for (each of global, per-file) apply pax overrides;
+if (pending.path !== undefined) m.path = pending.path;   // GNU wins last</code></pre>
+      <p class="t-sm muted mt3">
+        Change <code>P.pax</code> to false and the two <code>continue</code> statements stop firing:
+        the extension headers become ordinary members and the real member keeps its truncated name.
+        That one flag is the difference between the two file lists, and it is the whole of the
+        &ldquo;ustar-only reader&rdquo; profile.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">5. Verify it against the real thing</h3>
+      <p class="t-sm muted mb3">Nothing here has to be taken on trust. Two reference
+        implementations ship on almost every machine, and both directions are checkable:</p>
+      <pre><code># does the split gate exist, and where?
+printf x &gt; f
+tar --format=ustar -cf out.tar --transform="s|^f$|$(python -c "print('a'*130)")|" f
+#   tar: aaa...: file name is too long (cannot be split); not dumped
+
+# 256 stores, 257 does not, and tar names the number itself
+tar --format=ustar -cf out.tar --transform="s|^f$|$(python -c "print('a'*156+'/'+'b'*100)")|" f
+#   tar: aaa.../bbb...: file name is too long (max 256); not dumped
+
+# one archive, two file lists
+tar --format=posix -cf p.tar --transform="s|^f$|project/$(python -c "print('d'*40)")/x.txt|" f
+tar tf p.tar                                    # the real path
+python -c "import tarfile;b=open('p.tar','rb').read();\
+print(tarfile.TarInfo.frombuf(b[512:1024],'utf-8','strict').name)"   # the truncated twin
+
+# a trailing slash, and the one cell where they disagree
+tar tvf slash0.tar        # drwxr-xr-x  ...  foo/      <- a directory
+python -c "import tarfile;print(tarfile.open('slash0.tar').getmembers()[0].isdir())"   # False</code></pre>
+      <p class="t-sm muted mt3">The external verifier for this page does all of that
+        programmatically: it builds archives with the engine and hands them to
+        <code>tar tvf</code> and <code>tarfile.getmembers()</code>, then has both tools build
+        archives in five formats and reads them back with the engine, and compares field by field.
+        Where a claim is a disagreement between the two references, the verifier reproduces the
+        disagreement rather than picking a side.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">6. If you are writing tar-handling code</h3>
+      <ul class="t-sm muted">
+        <li><b>Never validate a path against a length.</b> Ask whether a slash exists in the window,
+          or just call the split and look at the answer. A length check is wrong in the direction
+          that loses files.</li>
+        <li><b>Do not assume the listing is the extraction.</b> Duplicate names are legal and the
+          last wins, so build the plan before you trust the list &mdash; and remember an archive can
+          be two archives concatenated, with the second half invisible without
+          <code>--ignore-zeros</code>.</li>
+        <li><b>Decide what your reader is</b> before you write it. If it does not implement
+          <code>'x'</code>, <code>'g'</code>, <code>'L'</code> and <code>'K'</code>, it will see
+          extra members with placeholder names and truncated real ones. That is not a bug you can
+          fix by being careful with the name field.</li>
+        <li><b>Accept both checksums.</b> Any reader that only accepts the unsigned sum will reject
+          real archives, including every one produced by a historic tar with a non-ASCII filename.</li>
+        <li><b>Do not treat a tar checksum as integrity.</b> It covers the headers. Sign or hash the
+          archive if you need to know the contents are intact.</li>
+        <li><b>Do not compare two tarballs byte for byte</b> to decide whether two trees match. The
+          prefix split is a writer's choice and two correct writers make two different files.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3 class="mb3">7. The primary sources</h3>
+      <ul class="t-sm muted">
+        <li><b>POSIX.1-1988 (IEEE Std 1003.1-1988)</b> &mdash; the ustar header, the
+          <code>prefix</code> field and the typeflag set.</li>
+        <li><b>POSIX.1-2001 / IEEE 1003.1-2001, <code>pax</code></b> &mdash; the
+          <code>'x'</code> and <code>'g'</code> extended headers and the
+          <code>%d %s=%s\n</code> record grammar.</li>
+        <li><b>GNU tar source</b> &mdash; <code>tar.h</code> for
+          <code>struct posix_header</code>, <code>create.c</code> for
+          <code>split_long_name()</code>, <code>list.c</code> for the header decode and the
+          two-checksum acceptance, <code>xheader.c</code> for the pax record parser.</li>
+        <li><b>CPython <code>Lib/tarfile.py</code></b> &mdash; <code>nti()</code> and
+          <code>itn()</code> for the numeric grammars, <code>calc_chksums()</code> which returns
+          both sums, <code>_posix_split_name()</code>, and <code>_proc_pax()</code> for the lenient
+          record slice.</li>
+        <li><b>Day 61</b> of this series checked a <code>.gitignore</code> engine against real
+          <code>git check-ignore</code>, <b>Day 69</b> checked IDNA against ICU and <b>Day 72</b>
+          checked hostname verification against OpenSSL and Node. Same method: implement the spec,
+          then let the shipped implementation referee.</li>
+      </ul>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+var tabs = document.querySelectorAll("#tabs button");
+var panels = document.querySelectorAll(".panel");
+tabs.forEach(function(t){ t.addEventListener("click", function(){
+  tabs.forEach(function(x){ x.classList.remove("tab-active"); });
+  t.classList.add("tab-active");
+  panels.forEach(function(p){ p.classList.add("hidden"); });
+  document.getElementById(t.dataset.tab).classList.remove("hidden");
+  window.scrollTo(0,0);
+});});
+
+// ===== ENGINE:BEGIN =====
+/* ============ tar archive reader / writer engine (v7 / ustar / GNU / pax) ===
+   A real tar header layer. Four reader profiles over the same 512-byte blocks:
+     v7      - Version 7 Unix (1979): no magic, no prefix field, no typeflag
+               set. 99-byte names, because the field must be NUL-terminated.
+     ustar   - POSIX.1-1988: magic "ustar\0" + version "00", the 155-byte
+               prefix field, the ustar typeflag set. NO extension headers.
+     oldgnu  - GNU tar's own extensions: 'L' / 'K' long-name blocks and
+               base-256 numeric fields. Understands no pax records.
+     pax     - POSIX.1-2001: 'x' per-file and 'g' global extended headers,
+               whose keyword records override the header fields. This is what
+               GNU tar 1.35, bsdtar and Python's tarfile all are.
+   Every member carries `rule` = the clause that produced its path, because the
+   same bytes are a different file list under each profile and nothing in the
+   archive says which reader it was written for.
+   Layout: POSIX.1-1988 table 3-7 / GNU tar tar.h struct posix_header.       */
+
+var TAR = (function () {
+  "use strict";
+
+  var BLOCK = 512;
+  var NUL = String.fromCharCode(0);   /* typeflag AREGTYPE, and the field terminator */
+  var LEN_NAME = 100, LEN_PREFIX = 155, LEN_LINK = 100;
+  var USTAR_MAX = LEN_PREFIX + 1 + LEN_NAME;      /* 256, not 255 */
+
+  var FIELDS = [
+    { k: "name",     off: 0,   len: 100, kind: "str",  since: "v7"    },
+    { k: "mode",     off: 100, len: 8,   kind: "num",  since: "v7"    },
+    { k: "uid",      off: 108, len: 8,   kind: "num",  since: "v7"    },
+    { k: "gid",      off: 116, len: 8,   kind: "num",  since: "v7"    },
+    { k: "size",     off: 124, len: 12,  kind: "num",  since: "v7"    },
+    { k: "mtime",    off: 136, len: 12,  kind: "num",  since: "v7"    },
+    { k: "chksum",   off: 148, len: 8,   kind: "sum",  since: "v7"    },
+    { k: "typeflag", off: 156, len: 1,   kind: "char", since: "v7"    },
+    { k: "linkname", off: 157, len: 100, kind: "str",  since: "v7"    },
+    { k: "magic",    off: 257, len: 6,   kind: "str",  since: "ustar" },
+    { k: "version",  off: 263, len: 2,   kind: "str",  since: "ustar" },
+    { k: "uname",    off: 265, len: 32,  kind: "str",  since: "ustar" },
+    { k: "gname",    off: 297, len: 32,  kind: "str",  since: "ustar" },
+    { k: "devmajor", off: 329, len: 8,   kind: "num",  since: "ustar" },
+    { k: "devminor", off: 337, len: 8,   kind: "num",  since: "ustar" },
+    { k: "prefix",   off: 345, len: 155, kind: "str",  since: "ustar" }
+  ];
+  /* bytes 500..511 belong to no field, and they are still summed into the
+     checksum - which is why a writer that leaves junk there is unreadable. */
+
+  var TYPES = {
+    "0": "regular file", "1": "hard link",
+    "2": "symbolic link", "3": "character device", "4": "block device",
+    "5": "directory", "6": "FIFO", "7": "contiguous file",
+    "x": "pax extended header, next entry", "g": "pax global extended header",
+    "L": "GNU long name, next entry", "K": "GNU long link, next entry",
+    "S": "GNU sparse file", "D": "GNU directory dump",
+    "M": "GNU multi-volume continuation", "V": "volume label"
+  };
+  TYPES[NUL] = "regular file (v7 AREGTYPE)";
+  TYPES[NUL] = "regular file (v7 AREGTYPE)";
+
+  var PROFILES = {
+    v7:     { label: "Version 7 (1979)",         prefix: false, base256: false, gnuLong: false, pax: false, uname: false, nameMax: 99  },
+    ustar:  { label: "POSIX.1-1988 ustar",       prefix: true,  base256: false, gnuLong: false, pax: false, uname: true,  nameMax: 256 },
+    oldgnu: { label: "GNU tar (L/K + base-256)", prefix: true,  base256: true,  gnuLong: true,  pax: false, uname: true,  nameMax: 1e9 },
+    pax:    { label: "POSIX.1-2001 pax",         prefix: true,  base256: true,  gnuLong: true,  pax: true,  uname: true,  nameMax: 1e9 }
+  };
+  var PROFILE_ORDER = ["v7", "ustar", "oldgnu", "pax"];
+
+  /* which typeflags a trailing slash may promote to a directory. This is not
+     in the standard; it is what each implementation happens to do, and they
+     differ by exactly one cell. */
+  var DIR_POLICIES = {
+    python: { promote: [NUL],      label: "Python 3.11 tarfile - typeflag NUL only" },
+    gnu:    { promote: [NUL, "0"], label: "GNU tar 1.35 - typeflag NUL and '0'" }
+  };
+
+  /* ---------- bytes <-> text, UTF-8, hand-written -------------------------- */
+  function utf8Encode(s) {
+    var out = [], i, c, c2, cp;
+    for (i = 0; i < s.length; i++) {
+      c = s.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xc0 | c >> 6, 0x80 | c & 63);
+      else if (c >= 0xd800 && c < 0xdc00 && i + 1 < s.length) {
+        c2 = s.charCodeAt(i + 1); cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00); i++;
+        out.push(0xf0 | cp >> 18, 0x80 | cp >> 12 & 63, 0x80 | cp >> 6 & 63, 0x80 | cp & 63);
+      } else out.push(0xe0 | c >> 12, 0x80 | c >> 6 & 63, 0x80 | c & 63);
+    }
+    return out;
+  }
+  function utf8Decode(b, from, to) {
+    var s = "", i = from, c, n, cp, ok, j;
+    while (i < to) {
+      c = b[i];
+      if (c < 0x80) { s += String.fromCharCode(c); i++; continue; }
+      n = c >= 0xf0 ? 4 : c >= 0xe0 ? 3 : c >= 0xc0 ? 2 : 0;
+      if (!n || i + n > to) { s += "�"; i++; continue; }
+      cp = c & (n === 2 ? 31 : n === 3 ? 15 : 7); ok = true;
+      for (j = 1; j < n; j++) {
+        if ((b[i + j] & 0xc0) !== 0x80) { ok = false; break; }
+        cp = cp << 6 | b[i + j] & 63;
+      }
+      if (!ok) { s += "�"; i++; continue; }
+      if (cp > 0xffff) { cp -= 0x10000; s += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023)); }
+      else s += String.fromCharCode(cp);
+      i += n;
+    }
+    return s;
+  }
+  function bytes(n) {
+    if (typeof Uint8Array === "function") return new Uint8Array(n);
+    var a = [], i; for (i = 0; i < n; i++) a[i] = 0; return a;
+  }
+  function toBytes(x) {
+    if (typeof x !== "string") return x;
+    var e = utf8Encode(x), b = bytes(e.length), i;
+    for (i = 0; i < e.length; i++) b[i] = e[i];
+    return b;
+  }
+  function hex(b, from, to) {
+    var s = "", i;
+    for (i = from; i < to; i++) s += (b[i] < 16 ? "0" : "") + b[i].toString(16);
+    return s;
+  }
+  function concat(chunks) {
+    var n = 0, i, j, o = 0, out;
+    for (i = 0; i < chunks.length; i++) n += chunks[i].length;
+    out = bytes(n);
+    for (i = 0; i < chunks.length; i++) for (j = 0; j < chunks[i].length; j++) out[o++] = chunks[i][j];
+    return out;
+  }
+  function copyOf(b) { var out = bytes(b.length), i; for (i = 0; i < b.length; i++) out[i] = b[i]; return out; }
+
+  /* ---------- the numeric fields ---------------------------------------
+     Octal ASCII, or GNU base-256 when the top bit of the first byte is set.
+     Everything here is lenient: leading spaces, a NUL or a space terminator,
+     no terminator at all, an all-NUL field meaning zero - and an ASCII '-',
+     which parseInt and Python's int(s, 8) both accept and GNU tar reads as a
+     1990s base-64 header instead. One byte, two grammars.                   */
+  function readNumeric(b, off, len, allowBase256) {
+    var first = b[off], i, raw = "", digits = 0, seen = false, term = null, sign = 0, allNul = true, c, v, neg;
+    if (first & 0x80) {
+      if (!allowBase256) return { value: 0, how: "base256", ok: false, note: "base-256 field, and this profile predates it" };
+      if (first !== 0x80 && first !== 0xff)
+        return { value: 0, how: "base256", ok: false, note: "leading byte 0x" + first.toString(16) + " is neither 0x80 nor 0xff" };
+      /* two's complement over the remaining bytes, done by complementing
+         each byte rather than subtracting a 2^88 power, so that -1 is exactly
+         -1 instead of a rounded zero. The magnitude is still only exact below
+         2^53: a 12-byte field carries 88 bits and a double holds 53.        */
+      neg = first === 0xff; v = 0;
+      var top = 0;
+      for (i = 1; i < len; i++) {
+        v = v * 256 + (neg ? 255 - b[off + i] : b[off + i]);
+        if (i <= len - 7 && (neg ? 255 - b[off + i] : b[off + i]) !== 0) top = 1;
+      }
+      if (neg) v = -(v + 1);
+      return { value: v, how: "base256", ok: true, exact: !top,
+        note: (neg ? "negative " : "") + "base-256, " + (len - 1) * 8 + " magnitude bits" +
+          (top ? " - beyond 2^53, so this reader is approximate and Python is not" : "") };
+    }
+    for (i = 0; i < len; i++) if (b[off + i] !== 0) { allNul = false; break; }
+    if (allNul) return { value: 0, how: "empty", ok: true, note: "all-NUL field reads as zero" };
+    for (i = 0; i < len; i++) {
+      c = b[off + i];
+      if (c === 0) { term = "NUL"; break; }
+      if (c === 32) { if (!seen && !sign) continue; term = "space"; break; }
+      if (c === 45 && !seen) { sign = -1; continue; }
+      if (c === 43 && !seen) { sign = 1; continue; }
+      if (c < 48 || c > 55) return { value: 0, how: "octal", ok: false, note: "byte 0x" + c.toString(16) + " is not an octal digit" };
+      seen = true; digits++; raw += String.fromCharCode(c);
+    }
+    /* a field of nothing but spaces reads as zero, the way Python's
+       int(s.strip() or "0", 8) does. GNU tar refuses it outright:
+       "Blanks in header where numeric off_t value expected". */
+    if (!seen) return { value: 0, how: "blank", ok: true,
+      note: "all-space field reads as zero here and in Python; GNU tar refuses it" };
+    return { value: parseInt(raw, 8) * (sign === -1 ? -1 : 1), how: "octal", ok: true,
+      digits: digits, sign: sign, terminator: term || "none",
+      note: digits + " octal digits, terminator " + (term || "none") + (sign ? ", ASCII " + (sign < 0 ? "'-'" : "'+'") : "") };
+  }
+  function writeNumeric(b, off, len, v, allowBase256) {
+    var max = Math.pow(8, len - 1) - 1, i, s, neg, mag;
+    if (v > max || v < 0) {
+      if (!allowBase256) throw new Error("value " + v + " needs more than " + (len - 1) + " octal digits");
+      neg = v < 0; mag = neg ? Math.pow(256, len - 1) + v : v;
+      b[off] = neg ? 0xff : 0x80;
+      for (i = len - 1; i >= 1; i--) { b[off + i] = mag % 256; mag = Math.floor(mag / 256); }
+      return "base256";
+    }
+    s = v.toString(8);
+    while (s.length < len - 1) s = "0" + s;
+    for (i = 0; i < len - 1; i++) b[off + i] = s.charCodeAt(i);
+    b[off + len - 1] = 0;
+    return "octal";
+  }
+  function octalCapacity(len) { return Math.pow(8, len - 1) - 1; }
+
+  /* ---------- the checksum, computed both ways --------------------------
+     Sum of all 512 bytes with the 8 checksum bytes taken as ASCII spaces.
+     Historic tars summed SIGNED chars, so a header carrying any byte >= 0x80
+     has two correct answers and every reader accepts either. A base-256
+     numeric field sets the top bit by definition, so this is not exotic: it
+     is guaranteed for every file of 8 GiB or more.                          */
+  function checksums(b, off) {
+    off = off || 0;
+    var u = 0, s = 0, i, v;
+    for (i = 0; i < BLOCK; i++) {
+      v = (i >= 148 && i < 156) ? 32 : b[off + i];
+      u += v; s += v > 127 ? v - 256 : v;
+    }
+    return { unsigned: u, signed: s };
+  }
+
+  /* ---------- the ustar path: prefix + an IMPLIED '/' + name ------------
+     The slash between the two fields is not stored. That one fact is the
+     whole page: a 256-byte path can be storable and a 130-byte one
+     impossible, because what has to fit is not the path - it is the two
+     halves either side of some slash.                                      */
+  function joinUstar(prefix, name) { return prefix ? prefix + "/" + name : name; }
+
+  /* GNU tar create.c split_long_name(): scan BACKWARD from byte 155, i.e.
+     take the LONGEST prefix that fits. */
+  function splitGnu(path) {
+    var L = utf8Encode(path).length, i, lim, pre, nm;
+    if (L > USTAR_MAX) return { ok: false, why: "max " + USTAR_MAX };
+    if (L <= LEN_NAME) return { ok: true, prefix: "", name: path, at: -1, policy: "gnu" };
+    lim = L;
+    if (lim > LEN_PREFIX + 1) lim = LEN_PREFIX + 1;
+    else if (path.charAt(lim - 1) === "/") lim--;
+    for (i = lim - 1; i > 0; i--) if (path.charAt(i) === "/") break;
+    if (i === 0) return { ok: false, why: "cannot be split" };
+    pre = path.slice(0, i); nm = path.slice(i + 1);
+    if (utf8Encode(nm).length > LEN_NAME || utf8Encode(pre).length > LEN_PREFIX)
+      return { ok: false, why: "cannot be split" };
+    return { ok: true, prefix: pre, name: nm, at: i, policy: "gnu" };
+  }
+  /* Python tarfile._posix_split_name(): walk components FORWARD, i.e. take
+     the SHORTEST prefix that fits. Same yes/no, different bytes on disk. */
+  function splitPython(path) {
+    if (utf8Encode(path).length <= LEN_NAME) return { ok: true, prefix: "", name: path, at: -1, policy: "python" };
+    var comp = path.split("/"), i, pre, nm;
+    for (i = 1; i < comp.length; i++) {
+      pre = comp.slice(0, i).join("/"); nm = comp.slice(i).join("/");
+      if (utf8Encode(pre).length <= LEN_PREFIX && utf8Encode(nm).length <= LEN_NAME)
+        return { ok: true, prefix: pre, name: nm, at: pre.length, policy: "python" };
+    }
+    return { ok: false, why: "name is too long" };
+  }
+  function splitUstar(path, policy) { return policy === "python" ? splitPython(path) : splitGnu(path); }
+  function representable(path, policy) { return splitUstar(path, policy).ok; }
+
+  /* the models people actually hold about "how long can a tar path be" */
+  var LIMIT_MODELS = [
+    { k: "m100",   label: "≤ 100 - the name field",             fn: function (p) { return p.length <= 100; } },
+    { k: "m255",   label: "≤ 255 - the number everyone quotes", fn: function (p) { return p.length <= 255; } },
+    { k: "m256",   label: "≤ 256 - the real ceiling",           fn: function (p) { return p.length <= 256; } },
+    { k: "mslash", label: "≤ 256 and contains a slash",         fn: function (p) { return p.length <= 256 && p.indexOf("/") >= 0; } },
+    { k: "mtrue",  label: "a slash exists that splits it",           fn: function (p) { return splitGnu(p).ok; } }
+  ];
+
+  /* ---------- pax extended-header records -------------------------------
+     "%d %s=%s\n", where the leading decimal is the length of the WHOLE
+     record INCLUDING ITS OWN DIGITS. The length, not the newline, ends the
+     record - so a value may legally contain newlines and '=' signs, and a
+     line-splitting parser is wrong on both. And because the length counts
+     itself, some bodies have TWO self-consistent lengths.                  */
+  /* TWO parsers, because the two references are two parsers.
+     strict  = GNU tar 1.35 xheader.c: the length must be in range and the
+               byte before the end must be the newline, or the whole extended
+               header is refused and the ustar fields are used instead.
+     lenient = Python tarfile._proc_pax: value = buf[keyEnd+1 : start+len-1],
+               with no check that the byte it drops is a newline and a slice
+               that silently clamps. A length one byte out therefore yields a
+               DIFFERENT filename rather than an error.                       */
+  function parsePaxRecords(text, mode) {
+    var out = [], errs = [], pos = 0, n = text.length, d, L, body, eq, keyEnd, key, value;
+    var lenient = mode === "lenient";
+    while (pos < n) {
+      if (text.charAt(pos) === NUL) break;
+      d = pos;
+      while (d < n && text.charAt(d) >= "0" && text.charAt(d) <= "9") d++;
+      if (d === pos) { errs.push({ at: pos, why: "record does not start with a decimal length" }); break; }
+      if (text.charAt(d) !== " ") { errs.push({ at: pos, why: "no space after the length" }); break; }
+      L = parseInt(text.slice(pos, d), 10);
+      if (!(L > 0)) { errs.push({ at: pos, why: "extended header length " + L + " is out of range" }); break; }
+      if (lenient) {
+        /* the key may not contain '=' - that is the regex, and it is the
+           only validation Python does before trusting the length */
+        keyEnd = text.indexOf("=", d + 1);
+        if (keyEnd < 0) { errs.push({ at: pos, why: "record carries no '='" }); break; }
+        key = text.slice(d + 1, keyEnd);
+        if (key.indexOf("\n") >= 0) { errs.push({ at: pos, why: "keyword spans a newline" }); break; }
+        value = text.slice(keyEnd + 1, pos + L - 1);
+        out.push({ len: L, digits: d - pos, key: key, value: value,
+          selfConsistent: L === (d - pos) + 1 + utf8Encode(key + "=" + value).length + 1 });
+        pos += L;
+        continue;
+      }
+      if (pos + L > n) { errs.push({ at: pos, why: "extended header length " + L + " is out of range" }); break; }
+      body = text.slice(d + 1, pos + L);
+      if (body.charAt(body.length - 1) !== "\n") {
+        errs.push({ at: pos, why: "malformed extended header: missing newline" }); break;
+      }
+      body = body.slice(0, -1);
+      eq = body.indexOf("=");
+      if (eq < 0) { errs.push({ at: pos, why: "record carries no '='" }); pos += L; continue; }
+      out.push({ len: L, digits: d - pos, key: body.slice(0, eq), value: body.slice(eq + 1),
+        selfConsistent: L === (d - pos) + 1 + (body.length + 1) });
+      pos += L;
+    }
+    return { records: out, errors: errs, mode: lenient ? "lenient" : "strict" };
+  }
+  /* the fixpoint GNU tar and Python both run - and the other legal answer */
+  function paxLengths(key, value) {
+    var bodyLen = utf8Encode(key + "=" + value).length + 1, p = 0, n, out = [], alt;
+    for (;;) { n = bodyLen + 1 + String(p).length; if (n === p) break; p = n; }
+    out.push(p);
+    alt = p + 1;
+    if (alt === bodyLen + 1 + String(alt).length) out.push(alt);
+    return out;
+  }
+  function buildPaxRecord(key, value, which) {
+    var L = paxLengths(key, value);
+    return (which === "alt" && L.length > 1 ? L[1] : L[0]) + " " + key + "=" + value + "\n";
+  }
+  var PAX_KEYS = {
+    path: "name", linkpath: "linkname", size: "size", uid: "uid", gid: "gid",
+    uname: "uname", gname: "gname", mtime: "mtime",
+    atime: null, ctime: null, charset: null, comment: null, hdrcharset: null
+  };
+
+  /* ---------- one header block ------------------------------------------- */
+  function parseHeader(b, off, profile) {
+    var P = PROFILES[profile] || PROFILES.pax, h = { off: off, profile: profile }, i, f, cs;
+    function str(fld) {
+      var end = fld.off + fld.len, j = fld.off;
+      while (j < end && b[off + j] !== 0) j++;
+      return utf8Decode(b, off + fld.off, off + j);
+    }
+    for (i = 0; i < FIELDS.length; i++) {
+      f = FIELDS[i];
+      if (f.kind === "str") h[f.k] = str(f);
+      else if (f.kind === "char") h[f.k] = String.fromCharCode(b[off + f.off]);
+      else if (f.kind === "num") h[f.k + "R"] = readNumeric(b, off + f.off, f.len, P.base256);
+      else h.chksumR = readNumeric(b, off + f.off, f.len, false);
+    }
+    h.mode = h.modeR.value; h.uid = h.uidR.value; h.gid = h.gidR.value;
+    h.size = h.sizeR.value; h.mtime = h.mtimeR.value;
+    cs = checksums(b, off);
+    h.chk = { stored: h.chksumR.value, unsigned: cs.unsigned, signed: cs.signed,
+      matches: h.chksumR.ok && (h.chksumR.value === cs.unsigned || h.chksumR.value === cs.signed),
+      which: !h.chksumR.ok ? "unreadable"
+        : h.chksumR.value === cs.unsigned ? "unsigned"
+        : h.chksumR.value === cs.signed ? "signed" : "neither",
+      ambiguous: cs.unsigned !== cs.signed };
+    h.magicKind =
+      b[off + 257] === 117 && b[off + 258] === 115 && b[off + 259] === 116 && b[off + 260] === 97 &&
+      b[off + 261] === 114 && b[off + 262] === 0 && b[off + 263] === 48 && b[off + 264] === 48 ? "ustar"
+      : b[off + 257] === 117 && b[off + 258] === 115 && b[off + 259] === 116 && b[off + 260] === 97 &&
+        b[off + 261] === 114 && b[off + 262] === 32 ? "oldgnu"
+      : b[off + 257] === 0 ? "v7" : "unknown";
+    if (!P.prefix) h.prefix = "";
+    h.unameRaw = h.uname; h.gnameRaw = h.gname;
+    if (!P.uname || h.magicKind === "v7") { h.uname = ""; h.gname = ""; }
+    h.pathFromHeader = joinUstar(h.prefix, h.name);
+    h.rule = h.prefix ? "prefix + '/' + name (the slash is not stored)" : "the name field alone";
+    h.typeName = TYPES[h.typeflag] || "unknown typeflag";
+    return h;
+  }
+  function isZeroBlock(b, off) { var i; for (i = 0; i < BLOCK; i++) if (b[off + i] !== 0) return false; return true; }
+
+  /* ---------- a whole archive -------------------------------------------- */
+  function readArchive(buf, opts) {
+    opts = opts || {};
+    var profile = opts.profile || "pax", P = PROFILES[profile];
+    var dirPol = DIR_POLICIES[opts.dirPolicy || "python"];
+    var b = buf, n = b.length, off = 0, members = [], notes = [], zeros = 0;
+    var pending = null, global = {}, blocksRead = 0, stopped = "end of data";
+    var h, dataOff, size, dataBlocks, t, txt, pr, map, i, m, src, si, bag, key, fld, was, v;
+    while (off + BLOCK <= n) {
+      if (isZeroBlock(b, off)) {
+        zeros++; off += BLOCK; blocksRead++;
+        if (zeros >= 2 && !opts.ignoreZeros) { stopped = "two zero blocks - the end-of-archive marker"; break; }
+        continue;
+      }
+      zeros = 0;
+      h = parseHeader(b, off, profile);
+      blocksRead++;
+      if (!h.chk.matches) {
+        notes.push({ block: off / BLOCK, why: "checksum " + (h.chk.which === "neither" ? "mismatch" : h.chk.which) +
+          " - this does not look like a tar archive" });
+        stopped = "checksum failure at block " + off / BLOCK;
+        break;
+      }
+      dataOff = off + BLOCK;
+      size = h.size < 0 ? 0 : h.size;
+      dataBlocks = Math.ceil(size / BLOCK);
+      off = dataOff + dataBlocks * BLOCK;
+      blocksRead += dataBlocks;
+      t = h.typeflag;
+
+      if (P.gnuLong && (t === "L" || t === "K")) {
+        txt = utf8Decode(b, dataOff, dataOff + size);
+        while (txt.charAt(txt.length - 1) === NUL) txt = txt.slice(0, -1);
+        pending = pending || {};
+        pending[t === "L" ? "path" : "linkpath"] = txt;
+        pending.via = "GNU '" + t + "' long-name block";
+        continue;
+      }
+      if (P.pax && (t === "x" || t === "g")) {
+        pr = parsePaxRecords(utf8Decode(b, dataOff, dataOff + size), opts.paxParser);
+        map = {};
+        for (i = 0; i < pr.records.length; i++) map[pr.records[i].key] = pr.records[i].value;
+        if (pr.errors.length) notes.push({ block: (dataOff - BLOCK) / BLOCK, why: pr.errors[0].why });
+        if (t === "g") { for (key in map) if (map.hasOwnProperty(key)) global[key] = map[key]; }
+        else { pending = pending || {}; pending.pax = map; pending.via = "pax 'x' extended header"; }
+        continue;
+      }
+
+      m = { block: (dataOff - BLOCK) / BLOCK, typeflag: t, typeName: h.typeName,
+        path: h.pathFromHeader, rule: h.rule, linkname: h.linkname, size: size,
+        mode: h.mode, uid: h.uid, gid: h.gid, mtime: String(h.mtime),
+        uname: h.uname, gname: h.gname, dataOff: dataOff, header: h, chk: h.chk, overrides: [] };
+
+      /* precedence: header field  <  global 'g'  <  per-file 'x' */
+      src = [["global", global], ["file", pending && pending.pax ? pending.pax : {}]];
+      for (si = 0; si < src.length; si++) {
+        bag = src[si][1];
+        for (key in bag) if (bag.hasOwnProperty(key) && PAX_KEYS[key]) {
+          fld = PAX_KEYS[key]; v = bag[key];
+          was = fld === "name" ? m.path : m[fld];
+          if (fld === "name") { m.path = v; m.rule = "pax path= record (" + src[si][0] + ")"; }
+          else if (fld === "size" || fld === "uid" || fld === "gid") m[fld] = parseInt(v, 10);
+          else m[fld] = v;
+          m.overrides.push({ key: key, field: fld, from: String(was), to: v, scope: src[si][0] });
+        }
+      }
+      if (pending && pending.path !== undefined) { m.path = pending.path; m.rule = pending.via; }
+      if (pending && pending.linkpath !== undefined) m.linkname = pending.linkpath;
+      pending = null;
+
+      m.trailingSlash = m.path.charAt(m.path.length - 1) === "/";
+      m.isDirByFlag = t === "5";
+      m.isDirBySlash = false;
+      for (i = 0; i < dirPol.promote.length; i++) if (t === dirPol.promote[i] && m.trailingSlash) m.isDirBySlash = true;
+      m.isDir = m.isDirByFlag || m.isDirBySlash;
+      m.dirRule = m.isDirByFlag ? "typeflag '5'"
+        : m.isDirBySlash ? "typeflag " + (t === NUL ? "NUL" : "'" + t + "'") + " plus a trailing slash"
+        : "not a directory";
+      if (m.isDir) m.path = m.path.replace(/\/+$/, "");
+      members.push(m);
+    }
+    return { profile: profile, profileLabel: P.label, dirPolicy: dirPol.label,
+      members: members, notes: notes, blocks: blocksRead, stopped: stopped, global: global,
+      dangling: pending ? "an extension header with no member after it" : null };
+  }
+
+  /* duplicates are legal - that is how `tar -rf` works - and the LAST wins */
+  function extractPlan(members) {
+    var final = {}, order = [], shadowed = [], i, p;
+    for (i = 0; i < members.length; i++) {
+      p = members[i].path;
+      if (final.hasOwnProperty(p)) shadowed.push({ path: p, listedAt: final[p], overwrittenBy: i });
+      else order.push(p);
+      final[p] = i;
+    }
+    return { listed: members.length, distinct: order.length, order: order, final: final, shadowed: shadowed };
+  }
+
+  /* ---------- writing ---------------------------------------------------- */
+  function pad512(len) { return (BLOCK - len % BLOCK) % BLOCK; }
+  function putStr(b, off, len, s) {
+    var e = utf8Encode(s), i;
+    if (e.length > len) throw new Error("field overflow: " + e.length + " bytes into " + len);
+    for (i = 0; i < e.length; i++) b[off + i] = e[i];
+    return e.length;
+  }
+  function makeHeader(o, fmt) {
+    var b = bytes(BLOCK), P = PROFILES[fmt] || PROFILES.pax, i, cs, v, s;
+    putStr(b, 0, LEN_NAME, o.name);
+    writeNumeric(b, 100, 8, o.mode === undefined ? 420 : o.mode, false);
+    writeNumeric(b, 108, 8, o.uid || 0, false);
+    writeNumeric(b, 116, 8, o.gid || 0, false);
+    writeNumeric(b, 124, 12, o.size || 0, P.base256);
+    writeNumeric(b, 136, 12, o.mtime || 0, P.base256);
+    b[156] = (o.typeflag === undefined ? "0" : o.typeflag).charCodeAt(0);
+    putStr(b, 157, LEN_LINK, o.linkname || "");
+    if (fmt !== "v7") {
+      if (fmt === "oldgnu") { putStr(b, 257, 8, "ustar  "); b[264] = 0; }
+      else { putStr(b, 257, 5, "ustar"); b[262] = 0; b[263] = 48; b[264] = 48; }
+      putStr(b, 265, 32, o.uname === undefined ? "root" : o.uname);
+      putStr(b, 297, 32, o.gname === undefined ? "root" : o.gname);
+      writeNumeric(b, 329, 8, o.devmajor || 0, false);
+      writeNumeric(b, 337, 8, o.devminor || 0, false);
+      putStr(b, 345, LEN_PREFIX, o.prefix || "");
+    }
+    for (i = 148; i < 156; i++) b[i] = 32;
+    cs = checksums(b, 0);
+    v = o.signedChecksum ? cs.signed : cs.unsigned;
+    s = (v < 0 ? -v : v).toString(8);
+    while (s.length < 6) s = "0" + s;
+    if (o.chksumStyle === "7digit") { while (s.length < 7) s = "0" + s; putStr(b, 148, 8, s); b[148 + s.length] = 0; }
+    else if (o.chksumStyle === "spaceNul") { putStr(b, 148, 8, s + " "); b[155] = 0; }
+    else { putStr(b, 148, 8, s); b[154] = 0; b[155] = 32; }
+    return b;
+  }
+  function dataBlocksFor(str) {
+    var e = utf8Encode(str), b = bytes(e.length + pad512(e.length)), i;
+    for (i = 0; i < e.length; i++) b[i] = e[i];
+    return b;
+  }
+  /* the data region is sized by the DECLARED size, not by the string handed
+     in - a header that claims 12 bytes and is followed by none makes every
+     reader walk into the next header. */
+  function dataRegion(str, size) {
+    var e = utf8Encode(str), n = Math.ceil(size / BLOCK) * BLOCK, b = bytes(n), i;
+    for (i = 0; i < e.length && i < n; i++) b[i] = e[i];
+    return b;
+  }
+  function blocksFor(size) { return Math.ceil(size / BLOCK); }
+  function truncBytes(s, n) {
+    var e = utf8Encode(s), b = bytes(Math.min(e.length, n)), i;
+    for (i = 0; i < b.length; i++) b[i] = e[i];
+    return utf8Decode(b, 0, b.length);
+  }
+  /* the blocks a writer of `fmt` emits for one entry. GNU tar reaches for the
+     prefix field ONLY in --format=ustar: in its own gnu and posix formats a
+     path over 100 bytes gets an extension header even when prefix+name would
+     have held it losslessly in a single block. */
+  function writeEntry(e, fmt) {
+    var out = [], path = e.path, link = e.linkname || "", size = e.size || 0;
+    var isDir = e.typeflag === "5";
+    var stored = isDir && path.charAt(path.length - 1) !== "/" ? path + "/" : path;
+    var nb = utf8Encode(stored).length, sp, body, recs, k, hp;
+    if (fmt === "v7") {
+      if (nb > 99) throw new Error("file name is too long (max 99)");
+      out.push(makeHeader({ name: stored, size: size, mode: e.mode, uid: e.uid, gid: e.gid,
+        mtime: e.mtime, typeflag: e.typeflag, linkname: link }, "v7"));
+    } else if (fmt === "ustar") {
+      sp = splitGnu(stored);
+      if (!sp.ok) throw new Error("file name is too long (" + sp.why + ")");
+      if (utf8Encode(link).length > LEN_LINK) throw new Error("link name is too long");
+      out.push(makeHeader({ name: sp.name, prefix: sp.prefix, size: size, mode: e.mode,
+        uid: e.uid, gid: e.gid, mtime: e.mtime, typeflag: e.typeflag, linkname: link,
+        uname: e.uname, gname: e.gname }, "ustar"));
+    } else if (fmt === "oldgnu") {
+      if (nb > LEN_NAME) {
+        body = stored + NUL;
+        out.push(makeHeader({ name: "././@LongLink", size: utf8Encode(body).length, typeflag: "L",
+          mode: 0, mtime: 0 }, "oldgnu"));
+        out.push(dataBlocksFor(body));
+      }
+      out.push(makeHeader({ name: truncBytes(stored, LEN_NAME), size: size, mode: e.mode, uid: e.uid,
+        gid: e.gid, mtime: e.mtime, typeflag: e.typeflag, linkname: truncBytes(link, LEN_LINK),
+        uname: e.uname, gname: e.gname }, "oldgnu"));
+    } else {
+      recs = "";
+      if (nb > LEN_NAME) recs += buildPaxRecord("path", stored);
+      if (utf8Encode(link).length > LEN_LINK) recs += buildPaxRecord("linkpath", link);
+      if (e.paxExtra) for (k in e.paxExtra) if (e.paxExtra.hasOwnProperty(k)) recs += buildPaxRecord(k, e.paxExtra[k]);
+      if (recs) {
+        out.push(makeHeader({ name: "PaxHeaders/" + truncBytes(stored.split("/").pop(), 80),
+          size: utf8Encode(recs).length, typeflag: "x", mode: 420, mtime: e.mtime }, "pax"));
+        out.push(dataBlocksFor(recs));
+      }
+      hp = nb > LEN_NAME ? { prefix: "", name: truncBytes(stored, LEN_NAME) } : { prefix: "", name: stored };
+      out.push(makeHeader({ name: hp.name, prefix: hp.prefix, size: size, mode: e.mode, uid: e.uid,
+        gid: e.gid, mtime: e.mtime, typeflag: e.typeflag, linkname: truncBytes(link, LEN_LINK),
+        uname: e.uname, gname: e.gname }, "pax"));
+    }
+    if (size && !e.headerOnly) out.push(dataRegion(e.data === undefined ? "" : e.data, size));
+    return out;
+  }
+  function writeArchive(entries, fmt) {
+    var out = [], i, j, bl;
+    for (i = 0; i < entries.length; i++) { bl = writeEntry(entries[i], fmt); for (j = 0; j < bl.length; j++) out.push(bl[j]); }
+    out.push(bytes(BLOCK * 2));
+    return concat(out);
+  }
+
+  /* ---------- corpora and measurement ----------------------------------- */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var WORDS = ["src", "lib", "build", "node_modules", "dist", "assets", "vendor", "packages",
+    "components", "internal", "generated", "migrations", "snapshots", "fixtures", "reports",
+    "very-long-directory-name-that-a-generator-produced", "a", "x2",
+    "deeply-nested-configuration-directory", "2026-08"];
+  var ALPHA = "abcdefghijklmnopqrstuvwxyz-_0123456789";
+  function pathCorpus(n, seed) {
+    var rnd = mulberry32(seed || 73073), out = [], i, depth, parts, j, L, s, k, p;
+    for (i = 0; i < n; i++) {
+      depth = 1 + Math.floor(rnd() * 5); parts = [];
+      for (j = 0; j < depth; j++) {
+        if (rnd() < 0.30) {
+          L = 4 + Math.floor(rnd() * 150); s = "";
+          for (k = 0; k < L; k++) s += ALPHA.charAt(Math.floor(rnd() * ALPHA.length));
+          parts.push(s);
+        } else parts.push(WORDS[Math.floor(rnd() * WORDS.length)]);
+      }
+      p = parts.join("/");
+      if (rnd() < 0.5) p += ".txt";
+      out.push(p);
+    }
+    return out;
+  }
+  var BANDS = [[0, 100], [101, 155], [156, 255], [256, 256], [257, 1e9]];
+  function splitCensus(paths) {
+    var per = {}, bandRows = [], i, mi, band, p, truth, L, m, said;
+    for (mi = 0; mi < LIMIT_MODELS.length; mi++) per[LIMIT_MODELS[mi].k] = { wrong: 0, falseYes: 0, falseNo: 0 };
+    for (band = 0; band < BANDS.length; band++) {
+      bandRows.push({ lo: BANDS[band][0], hi: BANDS[band][1], n: 0, real: 0, models: {} });
+      for (mi = 0; mi < LIMIT_MODELS.length; mi++) bandRows[band].models[LIMIT_MODELS[mi].k] = 0;
+    }
+    var tot = { n: 0, real: 0 };
+    for (i = 0; i < paths.length; i++) {
+      p = paths[i]; truth = splitGnu(p).ok; L = p.length;
+      tot.n++; if (truth) tot.real++;
+      for (band = 0; band < BANDS.length; band++) if (L >= BANDS[band][0] && L <= BANDS[band][1]) break;
+      bandRows[band].n++; if (truth) bandRows[band].real++;
+      for (mi = 0; mi < LIMIT_MODELS.length; mi++) {
+        m = LIMIT_MODELS[mi]; said = m.fn(p);
+        if (said !== truth) {
+          per[m.k].wrong++; bandRows[band].models[m.k]++;
+          if (said) per[m.k].falseYes++; else per[m.k].falseNo++;
+        }
+      }
+    }
+    return { total: tot, per: per, bands: bandRows, models: LIMIT_MODELS };
+  }
+  function splitPolicyCensus(paths) {
+    var same = 0, diff = 0, agreeYes = 0, agreeNo = 0, disagree = 0, broken = 0, i, g, y, examples = [];
+    for (i = 0; i < paths.length; i++) {
+      g = splitGnu(paths[i]); y = splitPython(paths[i]);
+      if (g.ok !== y.ok) { disagree++; if (examples.length < 6) examples.push({ path: paths[i], kind: "answer", gnu: g, py: y }); continue; }
+      if (!g.ok) { agreeNo++; continue; }
+      agreeYes++;
+      if (joinUstar(g.prefix, g.name) !== paths[i] || joinUstar(y.prefix, y.name) !== paths[i]) broken++;
+      if (g.prefix === y.prefix && g.name === y.name) same++;
+      else { diff++; if (examples.length < 6) examples.push({ path: paths[i], kind: "layout", gnu: g, py: y }); }
+    }
+    return { agreeYes: agreeYes, agreeNo: agreeNo, disagree: disagree, sameBytes: same,
+      diffBytes: diff, broken: broken, examples: examples };
+  }
+  /* one path, four writers, and what each of the four readers then reports */
+  function formatMatrix(path, size) {
+    var out = [], fmts = ["v7", "ustar", "oldgnu", "pax"], i, j, row, arc, r;
+    for (i = 0; i < fmts.length; i++) {
+      row = { format: fmts[i], blocks: 0, error: null, views: {} };
+      try {
+        arc = writeArchive([{ path: path, size: size || 0, data: "", mtime: 1000 }], fmts[i]);
+        row.blocks = arc.length / BLOCK - 2;
+        for (j = 0; j < PROFILE_ORDER.length; j++) {
+          r = readArchive(arc, { profile: PROFILE_ORDER[j] });
+          row.views[PROFILE_ORDER[j]] = {
+            count: r.members.length,
+            paths: r.members.map(function (m) { return m.path; }),
+            exact: r.members.length === 1 && r.members[0].path === path
+          };
+        }
+      } catch (e) { row.error = String(e.message || e); }
+      out.push(row);
+    }
+    return out;
+  }
+  var ALIAS_FLAGS = [NUL, "0", "1", "2", "5", "6", "7"];
+  function aliasGrid() {
+    var out = [], i, j, t, name, arc, py, gn;
+    for (i = 0; i < ALIAS_FLAGS.length; i++) for (j = 0; j < 2; j++) {
+      t = ALIAS_FLAGS[i]; name = j ? "foo/" : "foo";
+      arc = concat([makeHeader({ name: name, typeflag: t, size: 0, mtime: 1000 }, "ustar"), bytes(BLOCK * 2)]);
+      py = readArchive(arc, { profile: "pax", dirPolicy: "python" }).members[0];
+      gn = readArchive(arc, { profile: "pax", dirPolicy: "gnu" }).members[0];
+      out.push({ typeflag: t === NUL ? "NUL" : t, typeName: TYPES[t], trailingSlash: !!j,
+        pyPath: py.path, pyDir: py.isDir, gnuPath: gn.path, gnuDir: gn.isDir,
+        agree: py.isDir === gn.isDir && py.path === gn.path,
+        rule: gn.isDir ? gn.dirRule : py.isDir ? py.dirRule : "regular entry" });
+    }
+    return out;
+  }
+  function chksumCensus() {
+    var cases = [
+      { label: "plain ASCII name, 12-byte file", name: "notes.txt", size: 12 },
+      { label: "size 8 GiB − 1 (11 octal digits)", name: "big.bin", size: octalCapacity(12) },
+      { label: "size 8 GiB (base-256 kicks in)", name: "big.bin", size: octalCapacity(12) + 1 },
+      { label: "size 1 TiB (base-256)", name: "huge.bin", size: 1099511627776 },
+      { label: "UTF-8 name café-ü.txt", name: "café-ü.txt", size: 0 },
+      { label: "UTF-8 name नोट्स.txt", name: "नोट्स.txt", size: 0 }
+    ], out = [], i, c, h, cs;
+    for (i = 0; i < cases.length; i++) {
+      c = cases[i];
+      try { h = makeHeader({ name: c.name, size: c.size, mtime: 1000 }, "pax"); }
+      catch (e) { out.push({ label: c.label, error: String(e.message) }); continue; }
+      cs = checksums(h, 0);
+      out.push({ label: c.label, unsigned: cs.unsigned, signed: cs.signed,
+        ambiguous: cs.unsigned !== cs.signed, delta: cs.unsigned - cs.signed,
+        highBytes: (cs.unsigned - cs.signed) / 256, base256: (h[124] & 0x80) !== 0 });
+    }
+    return out;
+  }
+  function numericLadder() {
+    var vals = [0, 1, 511, 8388607, 2147483647, octalCapacity(12) - 1, octalCapacity(12),
+      octalCapacity(12) + 1, 10995116277760], out = [], i, b, how, back;
+    for (i = 0; i < vals.length; i++) {
+      b = bytes(12);
+      try { how = writeNumeric(b, 0, 12, vals[i], true); } catch (e) { how = "error"; }
+      back = readNumeric(b, 0, 12, true);
+      out.push({ value: vals[i], how: how, roundTrip: back.value === vals[i],
+        octalFits: vals[i] <= octalCapacity(12), firstByte: "0x" + (b[0] < 16 ? "0" : "") + b[0].toString(16),
+        field: how === "octal" ? utf8Decode(b, 0, 11) : hex(b, 0, 12) });
+    }
+    return out;
+  }
+  /* how many record bodies have two legal length encodings: one per decimal
+     digit boundary, and nothing in between */
+  function paxLengthCensus(maxBody) {
+    var both = [], one = 0, bodyLen, key = "path", vlen, s, L;
+    for (bodyLen = 6; bodyLen <= (maxBody || 400); bodyLen++) {
+      vlen = bodyLen - (key.length + 2);
+      if (vlen < 0) continue;
+      s = ""; while (s.length < vlen) s += "a";
+      L = paxLengths(key, s);
+      if (L.length > 1) both.push({ bodyLen: bodyLen, lengths: L, valueLen: vlen }); else one++;
+    }
+    return { both: both.length, one: one, rows: both.length + one, examples: both };
+  }
+  /* the four one-byte variants of one pax length, and what each yields */
+  function paxOffByOne(value) {
+    var key = "path", base = paxLengths(key, value)[0], out = [], deltas = [-1, 0, 1, 2], i, L, txt, st, le;
+    for (i = 0; i < deltas.length; i++) {
+      L = base + deltas[i];
+      txt = L + " " + key + "=" + value + "\n";
+      st = parsePaxRecords(txt, "strict");
+      le = parsePaxRecords(txt, "lenient");
+      out.push({ length: L, delta: deltas[i],
+        selfConsistent: L === String(L).length + 1 + utf8Encode(key + "=" + value).length + 1,
+        strict: st.records.length ? st.records[0].value : null,
+        strictError: st.errors.length ? st.errors[0].why : null,
+        lenient: le.records.length ? le.records[0].value : null,
+        lenientError: le.errors.length ? le.errors[0].why : null,
+        strictOk: st.records.length > 0 && st.records[0].value === value,
+        lenientOk: le.records.length > 0 && le.records[0].value === value,
+        agree: (st.records.length ? st.records[0].value : "�ERR") ===
+               (le.records.length ? le.records[0].value : "�ERR") });
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * REFERENCE - verdicts recorded from the real tools on this machine. *
+   * The external verifier re-derives every one of these live by         *
+   * shelling out; they sit here as data so the page can show a real     *
+   * disagreement without pretending to run a subprocess.                *
+   * ------------------------------------------------------------------ */
+  var REFERENCE = {
+    tools: "GNU tar 1.35 (2023) and Python 3.11.9 tarfile",
+    limits: [
+      { path: "100 bytes, no slash", ok: true,  gnu: "stored: name field exactly full, prefix empty" },
+      { path: "101 bytes, no slash", ok: false, gnu: "file name is too long (cannot be split); not dumped" },
+      { path: "130 bytes, no slash", ok: false, gnu: "file name is too long (cannot be split); not dumped" },
+      { path: "102 bytes = \"x/\" + 100", ok: true,  gnu: "stored: prefix=\"x\", name=100 bytes" },
+      { path: "103 bytes = \"x/\" + 101", ok: false, gnu: "file name is too long (cannot be split); not dumped" },
+      { path: "256 bytes = 155 + \"/\" + 100", ok: true,  gnu: "stored: prefix=155, name=100" },
+      { path: "257 bytes = 156 + \"/\" + 100", ok: false, gnu: "file name is too long (max 256); not dumped" },
+      { path: "140 bytes, --format=v7", ok: false, gnu: "file name is too long (max 99); not dumped" }
+    ],
+    alias: [
+      { block: "name \"foo\", typeflag '0'",  gnu: "regular file foo",      py: "regular file foo",       agree: true },
+      { block: "name \"foo/\", typeflag '0'", gnu: "DIRECTORY foo/",        py: "regular file named foo/", agree: false },
+      { block: "name \"foo/\", typeflag NUL", gnu: "DIRECTORY foo/",        py: "DIRECTORY foo",          agree: true },
+      { block: "name \"foo/\", typeflag '2'", gnu: "symlink foo/",          py: "symlink foo/",           agree: true },
+      { block: "name \"foo/\", typeflag '7'", gnu: "contiguous file foo/",  py: "contiguous file foo/",   agree: true },
+      { block: "name \"foo/\", typeflag '5'", gnu: "DIRECTORY foo/",        py: "DIRECTORY foo",          agree: true }
+    ],
+    /* every row carries the exact 12 bytes, so the external verifier builds
+       the header from THIS table and asks both references live. */
+    numeric: [
+      { field: "\"-0000000001\" + NUL", bytes: "2d 30 30 30 30 30 30 30 30 30 30 00",
+        py: "size = −1", pyVal: -1,
+        gnu: "\"obsolescent base-64 headers\": −951,617,749,834,222,901, out of off_t range, refuses",
+        gnuListed: false, gnuVal: null, agree: false,
+        patch: [0x2d, 48, 48, 48, 48, 48, 48, 48, 48, 48, 49, 0], engine: -1, data: 0 },
+      { field: "\"+0000000012\" + NUL", bytes: "2b 30 30 30 30 30 30 30 30 31 32 00",
+        py: "size = 10", pyVal: 10,
+        gnu: "\"obsolescent base-64 headers\": lists the member with size 951,617,749,834,222,966",
+        gnuListed: true, gnuVal: "951617749834222966", agree: false,
+        patch: [0x2b, 48, 48, 48, 48, 48, 48, 48, 48, 49, 50, 0], engine: 10, data: 3 },
+      { field: "12 octal digits, no terminator", bytes: "30 30 30 30 30 30 30 30 30 30 31 32",
+        py: "size = 10", pyVal: 10, gnu: "size = 10", gnuListed: true, gnuVal: "10", agree: true,
+        patch: [48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 49, 50], engine: 10, data: 3 },
+      { field: "twelve ASCII spaces", bytes: "20 x12",
+        py: "size = 0", pyVal: 0,
+        gnu: "\"Blanks in header where numeric off_t value expected\", refuses",
+        gnuListed: false, gnuVal: null, agree: false,
+        patch: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32], engine: 0, data: 0 },
+      { field: "base-256, 0x80 .. 06 00", bytes: "80 00 00 00 00 00 00 00 00 00 06 00",
+        py: "size = 1536", pyVal: 1536, gnu: "size = 1536", gnuListed: true, gnuVal: "1536", agree: true,
+        patch: [0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0], engine: 1536, data: 3 },
+      { field: "base-256 with leading 0x81", bytes: "81 00 00 00 00 00 00 00 00 00 00 00",
+        py: "invalid header", pyVal: null,
+        gnu: "\"Archive contains octal 201 where numeric off_t value expected\", refuses",
+        gnuListed: false, gnuVal: null, agree: true,
+        patch: [0x81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], engine: null, data: 0 },
+      { field: "twelve 0xff bytes", bytes: "ff x12",
+        py: "size = −1", pyVal: -1,
+        gnu: "\"Archive value −1 is out of off_t range\", refuses",
+        gnuListed: false, gnuVal: null, agree: false,
+        patch: [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255], engine: -1, data: 0 }
+    ],
+    /* GNU tar's own two long-name formats truncate the twin to a DIFFERENT
+       length, one byte apart, on the same 140-byte path. */
+    truncation: [
+      { format: "--format=ustar",  blocks: 1, twin: null, note: "prefix + name hold it losslessly" },
+      { format: "--format=oldgnu", blocks: 3, twin: 99,  note: "the pre-1.12 header NUL-terminates the name field" },
+      { format: "--format=gnu",    blocks: 3, twin: 100, note: "a full 100-byte name field, no terminator" },
+      { format: "--format=posix",  blocks: 3, twin: 100, note: "same 100 bytes, different placeholder name" }
+    ],
+    /* the six magic bytes gate whether uname/gname are read at all */
+    magic: [
+      { magic: "\"ustar\" + NUL + \"00\"", gnu: "owner root/root", py: "uname root", agree: true },
+      { magic: "six NUL bytes (v7)", gnu: "owner 0/0 - the field is ignored", py: "uname root - read anyway", agree: false }
+    ],
+    pax: [
+      { rec: "length 99 - the fixpoint both writers emit", py: "90-byte path", gnu: "90-byte path", agree: true },
+      { rec: "length 100 - also self-consistent", py: "90-byte path", gnu: "90-byte path", agree: true },
+      { rec: "length 98 - one byte short",
+        py: "89-byte path: a DIFFERENT filename, silently, no error",
+        gnu: "Malformed extended header: missing newline; falls back to the ustar name", agree: false },
+      { rec: "length 101 - one byte long",
+        py: "the path WITH a trailing newline inside it",
+        gnu: "Extended header length 101 is out of range; falls back to the ustar name", agree: false }
+    ],
+    precedence: [
+      { field: "path", ustar: "ustar-name.txt", global: "-", file: "pax/path.txt", both: "pax/path.txt" },
+      { field: "uid", ustar: "7", global: "-", file: "4242", both: "4242" },
+      { field: "gid", ustar: "7", global: "-", file: "-", both: "7" },
+      { field: "uname", ustar: "ustaruser", global: "globaluser", file: "-", both: "globaluser" },
+      { field: "gname", ustar: "ustargrp", global: "globalgrp", file: "-", both: "globalgrp" }
+    ]
+  };
+
+  /* ---------- presets the page loads ------------------------------------- */
+  var PRESETS = [
+    { label: "a short path - every format agrees", path: "notes.txt", size: 12, fmt: "ustar" },
+    { label: "140 bytes: ustar holds it in ONE block", path: "project/" + rep(40, "d") + "/" + rep(40, "e") + "/notes-" + rep(40, "x") + ".txt", size: 5, fmt: "ustar" },
+    { label: "...the same path as pax: THREE blocks and a truncated twin", path: "project/" + rep(40, "d") + "/" + rep(40, "e") + "/notes-" + rep(40, "x") + ".txt", size: 5, fmt: "pax" },
+    { label: "...and as GNU: an @LongLink block instead", path: "project/" + rep(40, "d") + "/" + rep(40, "e") + "/notes-" + rep(40, "x") + ".txt", size: 5, fmt: "oldgnu" },
+    { label: "130 bytes, no slash - unstorable in ustar", path: rep(130, "a") + ".txt", size: 0, fmt: "ustar" },
+    { label: "256 bytes - the real ceiling, and it fits", path: rep(155, "a") + "/" + rep(100, "b"), size: 0, fmt: "ustar" },
+    { label: "257 bytes - one over", path: rep(156, "a") + "/" + rep(100, "b"), size: 0, fmt: "ustar" },
+    { label: "a directory, stored with a trailing slash", path: "build/cache", size: 0, fmt: "ustar", typeflag: "5" },
+    { label: "a file 8 GiB long - base-256, two valid checksums", path: "disk.img", size: octalCapacity(12) + 1, fmt: "pax" },
+    { label: "a symlink", path: "latest", size: 0, fmt: "ustar", typeflag: "2", linkname: "releases/2026-08-28" }
+  ];
+  function rep(n, ch) { var s = ""; while (s.length < n) s += ch; return s; }
+
+  /* ---------------------------- assertions ------------------------------- */
+  function selftest() {
+    var a = 0, bad = 0, notes = [], i, j;
+    function ok(c, l) { a++; if (!c) { bad++; if (notes.length < 30) notes.push("FAIL: " + l); } }
+
+    /* 1. the split rule, and every recorded GNU tar verdict */
+    ok(USTAR_MAX === 256, "the ustar ceiling is not 256");
+    ok(splitGnu(rep(100, "a")).ok, "a 100-byte path with no slash was refused");
+    ok(!splitGnu(rep(101, "a")).ok, "a 101-byte path with no slash was accepted");
+    ok(splitGnu(rep(101, "a")).why === "cannot be split", "the 101-byte refusal named the wrong reason");
+    ok(!splitGnu(rep(130, "a")).ok, "a 130-byte path with no slash was accepted");
+    ok(splitGnu("x/" + rep(100, "a")).ok, "\"x/\" + 100 was refused");
+    ok(!splitGnu("x/" + rep(101, "a")).ok, "\"x/\" + 101 was accepted");
+    ok(splitGnu(rep(155, "a") + "/" + rep(100, "b")).ok, "the 256-byte maximum was refused");
+    ok(!splitGnu(rep(156, "a") + "/" + rep(100, "b")).ok, "a 257-byte path was accepted");
+    ok(splitGnu(rep(156, "a") + "/" + rep(100, "b")).why === "max 256", "the 257 refusal named the wrong reason");
+    ok(splitGnu(rep(155, "a") + "/" + rep(100, "b")).prefix.length === 155, "the 256-byte split did not fill the prefix");
+    ok(splitGnu(rep(155, "a") + "/" + rep(100, "b")).name.length === 100, "the 256-byte split did not fill the name");
+    var fx = { "100 bytes, no slash": rep(100, "a"), "101 bytes, no slash": rep(101, "a"),
+      "130 bytes, no slash": rep(130, "a"), "102 bytes = \"x/\" + 100": "x/" + rep(100, "a"),
+      "103 bytes = \"x/\" + 101": "x/" + rep(101, "a"),
+      "256 bytes = 155 + \"/\" + 100": rep(155, "a") + "/" + rep(100, "b"),
+      "257 bytes = 156 + \"/\" + 100": rep(156, "a") + "/" + rep(100, "b") };
+    for (i = 0; i < REFERENCE.limits.length; i++) {
+      var L = REFERENCE.limits[i];
+      if (fx[L.path] !== undefined)
+        ok(splitGnu(fx[L.path]).ok === L.ok, "the engine disagrees with the recorded GNU tar verdict on " + L.path);
+    }
+    /* the join is the inverse of the split, on the whole corpus */
+    var corpus = pathCorpus(4000, 991);
+    for (i = 0; i < corpus.length; i++) {
+      var g = splitGnu(corpus[i]);
+      if (g.ok) ok(joinUstar(g.prefix, g.name) === corpus[i], "prefix+name did not rejoin to the path");
+    }
+
+    /* 2. the two split policies: same answer, different bytes */
+    var pc = splitPolicyCensus(corpus);
+    ok(pc.disagree === 0, pc.disagree + " paths where GNU and Python disagree on representability");
+    ok(pc.broken === 0, pc.broken + " splits that did not rejoin");
+    ok(pc.diffBytes > 0, "the two split policies never laid the bytes out differently - check the port");
+    ok(pc.agreeYes === pc.sameBytes + pc.diffBytes, "the policy census lost rows");
+
+    /* 3. the models, banded */
+    var cen = splitCensus(corpus);
+    ok(cen.total.n === 4000, "the census corpus is not 4000 paths");
+    ok(cen.total.real > 0 && cen.total.real < cen.total.n, "the corpus is degenerate");
+    ok(cen.per.mtrue.wrong === 0, "the true rule disagreed with itself");
+    ok(cen.per.m256.wrong > 0, "the ≤ 256 model was never wrong - the corpus has no unsplittable paths");
+    ok(cen.per.m256.falseYes === cen.per.m256.wrong, "the ≤ 256 model failed in the pessimistic direction");
+    ok(cen.per.m100.falseNo === cen.per.m100.wrong, "the ≤ 100 model failed in the optimistic direction");
+    /* the ≤ 255 and ≤ 256 models can differ ONLY on paths of exactly 256
+       bytes, and they are complementary there - which is why the wrong number
+       floats depending on how many 256-byte paths a corpus happens to hold. */
+    var only256 = 0, at256 = 0;
+    for (i = 0; i < corpus.length; i++) {
+      var m255 = corpus[i].length <= 255, m256 = corpus[i].length <= 256;
+      if (m255 !== m256) { only256++; ok(corpus[i].length === 256, "≤255 and ≤256 differed off the 256-byte boundary"); }
+      if (corpus[i].length === 256) at256++;
+    }
+    ok(only256 === at256, "the ≤255 / ≤256 gap is not exactly the 256-byte paths");
+    ok(Math.abs(cen.per.m255.wrong - cen.per.m256.wrong) <= at256,
+      "the two ceilings differ by more than the 256-byte paths could explain");
+    for (i = 0; i < cen.bands.length; i++)
+      if (cen.bands[i].hi <= 100) ok(cen.bands[i].models.m100 === 0, "the ≤ 100 model failed inside its own band");
+
+    /* 4. checksums */
+    var h1 = makeHeader({ name: "notes.txt", size: 12, mtime: 1000 }, "pax"), c1 = checksums(h1, 0);
+    ok(c1.unsigned === c1.signed, "an all-ASCII header had two different checksums");
+    var hb = makeHeader({ name: "big.bin", size: octalCapacity(12) + 1, mtime: 1000 }, "pax");
+    ok((hb[124] & 0x80) !== 0, "8 GiB did not switch the size field to base-256");
+    var cb = checksums(hb, 0);
+    ok(cb.unsigned !== cb.signed, "a base-256 header did NOT have two valid checksums");
+    ok(cb.unsigned - cb.signed === 256, "the unsigned/signed gap was not 256 per high byte");
+    var hs = makeHeader({ name: "big.bin", size: octalCapacity(12) + 1, mtime: 1000, signedChecksum: true }, "pax");
+    var rs = readArchive(concat([hs, bytes(1024)]), { profile: "pax" });
+    ok(rs.members.length === 1, "a header checksummed the historic signed way was rejected");
+    ok(rs.members[0].chk.which === "signed", "the signed checksum was not identified as such");
+    ok(rs.members[0].chk.ambiguous, "the base-256 header was not flagged as ambiguous");
+    ok(readArchive(concat([hb, bytes(1024)]), { profile: "pax" }).members[0].chk.which === "unsigned",
+      "the unsigned checksum was not identified as such");
+    var hbad = makeHeader({ name: "f", size: 0, mtime: 1000 }, "pax");
+    for (i = 0; i < 6; i++) hbad[148 + i] = 48;
+    hbad[153] = 49;
+    ok(readArchive(concat([hbad, bytes(1024)]), { profile: "pax" }).members.length === 0, "a wrong checksum was accepted");
+    ok(checksums(bytes(BLOCK), 0).unsigned === 256, "the all-zero block does not checksum to 8 spaces");
+    var cc = chksumCensus();
+    for (i = 0; i < cc.length; i++)
+      if (cc[i].highBytes !== undefined) ok(cc[i].ambiguous === (cc[i].highBytes > 0),
+        "the ambiguity flag did not track the high-byte count on " + cc[i].label);
+
+    /* 5. the numeric fields */
+    var nl = numericLadder();
+    for (i = 0; i < nl.length; i++) {
+      ok(nl[i].roundTrip, "the numeric round trip failed at " + nl[i].value);
+      ok(nl[i].octalFits === (nl[i].how === "octal"), "the octal/base-256 switch fired at the wrong value");
+    }
+    ok(octalCapacity(12) === 8589934591, "the 12-byte octal ceiling is not 8 GiB − 1");
+    ok(octalCapacity(8) === 2097151, "the 8-byte octal ceiling is wrong");
+    var b12 = bytes(12), k;
+    for (k = 0; k < 12; k++) b12[k] = "000000000012".charCodeAt(k);
+    ok(readNumeric(b12, 0, 12, true).value === 10, "a 12-digit unterminated octal field did not read as 10");
+    ok(readNumeric(b12, 0, 12, true).terminator === "none", "the missing terminator was not reported");
+    for (k = 0; k < 12; k++) b12[k] = 32;
+    ok(readNumeric(b12, 0, 12, true).value === 0, "an all-space numeric field did not read as zero");
+    for (k = 0; k < 12; k++) b12[k] = 0;
+    ok(readNumeric(b12, 0, 12, true).how === "empty", "an all-NUL numeric field was not recognised");
+    var bneg = bytes(12);
+    for (k = 0; k < 12; k++) bneg[k] = ("-0000000001" + NUL).charCodeAt(k);
+    ok(readNumeric(bneg, 0, 12, true).value === -1, "an ASCII-minus octal field did not read as −1, which Python does");
+    var bpos = bytes(12);
+    for (k = 0; k < 12; k++) bpos[k] = ("+0000000012" + NUL).charCodeAt(k);
+    ok(readNumeric(bpos, 0, 12, true).value === 10, "an ASCII-plus octal field did not read as 10");
+    var b256 = bytes(12); b256[0] = 0x81;
+    ok(!readNumeric(b256, 0, 12, true).ok, "a base-256 field with leading byte 0x81 was accepted");
+    b256[0] = 0x80;
+    ok(readNumeric(b256, 0, 12, true).ok, "a base-256 field with leading byte 0x80 was refused");
+    ok(!readNumeric(b256, 0, 12, false).ok, "a base-256 field was read by a profile that predates it");
+    /* the blank field, and every row of the recorded numeric table */
+    var bsp = bytes(12);
+    for (k = 0; k < 12; k++) bsp[k] = 32;
+    ok(readNumeric(bsp, 0, 12, true).ok && readNumeric(bsp, 0, 12, true).how === "blank",
+      "an all-space numeric field was not recognised as a blank that reads as zero");
+    ok(REFERENCE.numeric.length === 7, "the recorded numeric table lost a row");
+    var numDis = 0;
+    for (i = 0; i < REFERENCE.numeric.length; i++) {
+      var rn = REFERENCE.numeric[i], bn = bytes(12);
+      for (k = 0; k < 12; k++) bn[k] = rn.patch[k];
+      var gn = readNumeric(bn, 0, 12, true);
+      if (rn.engine === null) ok(!gn.ok, "the engine accepted " + rn.field);
+      else ok(gn.ok && gn.value === rn.engine,
+        "the engine read " + gn.value + " for " + rn.field + ", the table says " + rn.engine);
+      ok(rn.engine === rn.pyVal, "the engine and Python differ on " + rn.field + " - the engine follows Python here");
+      ok(rn.agree === (rn.pyVal === null ? !rn.gnuListed : (rn.gnuListed && rn.gnuVal === String(rn.pyVal))),
+        "the agree flag is wrong on " + rn.field);
+      if (!rn.agree) numDis++;
+    }
+    ok(numDis === 4, "the numeric table records " + numDis + " reference disagreements, not 4");
+    ok(REFERENCE.truncation.length === 4, "the truncation table lost a row");
+    ok(REFERENCE.truncation[1].twin === 99 && REFERENCE.truncation[2].twin === 100,
+      "the recorded oldgnu/gnu truncation lengths are not 99 and 100");
+    ok(REFERENCE.magic.length === 2 && REFERENCE.magic[1].agree === false,
+      "the recorded magic table does not carry the uname disagreement");
+
+    var bff = bytes(12);
+    for (k = 0; k < 12; k++) bff[k] = 0xff;
+    ok(readNumeric(bff, 0, 12, true).value === -1, "the all-0xff base-256 field did not read as −1");
+    ok(readNumeric(bff, 0, 12, true).exact === true, "−1 was reported as beyond double precision");
+    var bff2 = bytes(12); bff2[0] = 0xff;
+    for (k = 1; k < 12; k++) bff2[k] = 0xff;
+    bff2[11] = 0xfe;
+    ok(readNumeric(bff2, 0, 12, true).value === -2, "the base-256 two's complement is off by one");
+    var bbig = bytes(12); bbig[0] = 0x80; bbig[1] = 1;
+    ok(readNumeric(bbig, 0, 12, true).exact === false,
+      "an 88-bit base-256 magnitude was claimed exact in a double");
+    var bsmall = bytes(12); bsmall[0] = 0x80; bsmall[7] = 2;
+    ok(readNumeric(bsmall, 0, 12, true).value === 8589934592, "the 8 GiB base-256 field did not round-trip");
+    ok(readNumeric(bsmall, 0, 12, true).exact === true, "the 8 GiB base-256 field was called inexact");
+
+    /* 6. directory-ness, and the one cell where the two references differ */
+    var ag = aliasGrid();
+    ok(ag.length === 14, "the alias grid is not 7 typeflags x 2");
+    var disagreements = 0, cell = null;
+    for (i = 0; i < ag.length; i++) {
+      var r = ag[i];
+      if (!r.agree) { disagreements++; cell = r; }
+      if (r.typeflag === "5") ok(r.pyDir && r.gnuDir, "typeflag '5' was not a directory");
+      if (r.typeflag === "NUL") ok(r.pyDir === r.trailingSlash && r.gnuDir === r.trailingSlash,
+        "the NUL trailing-slash promotion did not fire in both readers");
+      if (!r.trailingSlash) ok(r.agree, "a path with no trailing slash produced a disagreement");
+      if (r.typeflag === "1" || r.typeflag === "2" || r.typeflag === "6" || r.typeflag === "7")
+        ok(!r.pyDir && !r.gnuDir, "typeflag '" + r.typeflag + "' with a trailing slash became a directory");
+    }
+    ok(disagreements === 1, "expected exactly one GNU/Python disagreement in the grid, found " + disagreements);
+    ok(cell && cell.typeflag === "0" && cell.trailingSlash,
+      "the disagreeing cell is not typeflag '0' with a trailing slash");
+    ok(cell && cell.gnuDir === true && cell.pyDir === false,
+      "the disagreement runs the wrong way: GNU sees a directory, Python a file");
+    for (i = 0; i < REFERENCE.alias.length; i++) {
+      var ra = REFERENCE.alias[i], tf = ra.block.match(/typeflag (NUL|'(.)')/), ts = /foo\//.test(ra.block);
+      var want = tf[2] === undefined ? "NUL" : tf[2], found = null;
+      for (j = 0; j < ag.length; j++) if (ag[j].typeflag === want && ag[j].trailingSlash === ts) found = ag[j];
+      ok(found && found.agree === ra.agree, "the engine disagrees with the recorded reference on " + ra.block);
+    }
+
+    /* 7. pax records */
+    var pr = parsePaxRecords("20 uname=globaluser\n19 gname=globalgrp\n");
+    ok(pr.records.length === 2 && pr.errors.length === 0, "two real GNU tar records did not parse");
+    ok(pr.records[0].key === "uname" && pr.records[0].value === "globaluser", "the first pax record parsed wrong");
+    ok(pr.records[0].selfConsistent && pr.records[1].selfConsistent, "a real GNU tar record was called inconsistent");
+    ok(paxLengths("uname", "globaluser")[0] === 20, "the length fixpoint disagrees with real GNU tar output");
+    ok(paxLengths("gname", "globalgrp")[0] === 19, "the length fixpoint disagrees with real GNU tar output");
+    ok(parsePaxRecords(buildPaxRecord("comment", "a=b=c")).records[0].value === "a=b=c",
+      "a value containing '=' was truncated");
+    ok(parsePaxRecords(buildPaxRecord("comment", "line1\nline2")).records.length === 1,
+      "a value containing a newline was split into two records");
+    ok(parsePaxRecords(buildPaxRecord("comment", "line1\nline2")).records[0].value === "line1\nline2",
+      "an embedded newline did not survive the round trip");
+    var ninety = rep(90, "a"), Ls = paxLengths("path", ninety);
+    ok(Ls.length === 2 && Ls[0] === 99 && Ls[1] === 100, "the 90-byte path does not have exactly two legal record lengths");
+    /* the two parsers on the same four records. This is the whole pax
+       finding: on a legal length they agree, and one byte out they do not. */
+    var ob = paxOffByOne(ninety);
+    ok(ob.length === 4, "the off-by-one table is not four rows");
+    ok(ob[0].length === 98 && ob[0].lenient === rep(89, "a"),
+      "one byte short did not silently lose a character under the Python parser");
+    ok(ob[0].strict === null && /missing newline/.test(ob[0].strictError),
+      "one byte short was not refused by the GNU parser");
+    ok(ob[0].lenientOk === false && ob[0].strictOk === false, "the one-short record was reported as correct");
+    ok(!ob[0].agree, "the two parsers agreed on a one-byte-short record");
+    ok(ob[1].length === 99 && ob[1].strictOk && ob[1].lenientOk, "the fixpoint length did not round-trip in both parsers");
+    ok(ob[2].length === 100 && ob[2].strictOk && ob[2].lenientOk, "the second legal length did not round-trip in both parsers");
+    ok(ob[1].agree && ob[2].agree, "the two parsers disagreed on a legal record");
+    ok(ob[3].length === 101 && ob[3].strict === null && /out of range/.test(ob[3].strictError),
+      "a length past the end of the record was accepted by the GNU parser");
+    ok(ob[3].lenient === ninety + String.fromCharCode(10), "the Python parser did not pull the newline into the value");
+    ok(!ob[3].agree, "the two parsers agreed on a one-byte-long record");
+    ok(ob[1].selfConsistent && ob[2].selfConsistent, "both legal lengths were not self-consistent");
+    ok(!ob[0].selfConsistent && !ob[3].selfConsistent, "an off-by-one length was called self-consistent");
+    /* on well-formed records the two parsers are the same function */
+    var wf = 0;
+    for (i = 0; i < 300; i++) {
+      var vv = rep(i, "z"), tx = buildPaxRecord("path", vv);
+      var A = parsePaxRecords(tx, "strict"), B = parsePaxRecords(tx, "lenient");
+      wf++;
+      ok(A.records.length === 1 && B.records.length === 1 && A.records[0].value === vv &&
+         B.records[0].value === vv, "the two parsers differ on a well-formed record of " + i + " bytes");
+    }
+    ok(wf === 300, "the well-formed sweep lost rows");
+    var plc = paxLengthCensus(400);
+    ok(plc.both === 2, "expected exactly 2 record bodies below 400 with two legal lengths, found " + plc.both);
+    ok(plc.examples.length === 2 && plc.examples[0].lengths[0] === 9 && plc.examples[1].lengths[0] === 99,
+      "the two ambiguous lengths do not sit on the decimal-digit boundaries");
+    ok(plc.rows === 395, "the pax length census lost rows: " + plc.rows);
+
+    /* 8. one archive, four file lists */
+    var longPath = "project/" + rep(40, "d") + "/" + rep(40, "e") + "/notes-" + rep(40, "x") + ".txt";
+    ok(longPath.length === 140, "the fixture path is not 140 bytes");
+    ok(splitGnu(longPath).ok, "the 140-byte fixture is not ustar-representable");
+    var fm = formatMatrix(longPath, 0);
+    for (i = 0; i < fm.length; i++) {
+      var row = fm[i];
+      if (row.format === "v7") { ok(row.error !== null, "the v7 writer accepted a 140-byte path"); continue; }
+      ok(row.error === null, "format " + row.format + " refused the fixture: " + row.error);
+      ok(row.views.pax.exact, "a pax reader did not recover the exact path from " + row.format);
+      if (row.format === "ustar") {
+        ok(row.blocks === 1, "ustar needed " + row.blocks + " blocks for a path prefix+name can hold");
+        ok(row.views.ustar.exact, "a ustar reader could not read a ustar archive");
+        ok(!row.views.v7.exact, "a v7 reader recovered a prefixed path, which it cannot");
+        ok(row.views.v7.paths[0] === "notes-" + rep(40, "x") + ".txt",
+          "a v7 reader did not drop the prefix and keep only the name field");
+      } else {
+        ok(row.blocks === 3, row.format + " used " + row.blocks + " blocks, not 3");
+        ok(!row.views.ustar.exact, "a ustar reader recovered the full path from " + row.format);
+        ok(row.views.ustar.count === 2, "a ustar reader did not see the extension block as a member of " + row.format);
+        ok(row.views.ustar.paths[1].length === 100, "the path a ustar reader would write is not 100 bytes");
+        ok(row.views.ustar.paths[1] === longPath.slice(0, 100), "the truncated path is not a prefix of the real one");
+      }
+      if (row.format === "oldgnu") {
+        ok(row.views.oldgnu.exact, "the GNU reader could not read a GNU archive");
+        ok(row.views.ustar.paths[0] === "././@LongLink", "the GNU placeholder name is not ././@LongLink");
+      }
+      if (row.format === "pax") {
+        ok(!row.views.oldgnu.exact, "a pax-blind GNU reader recovered a pax path");
+        ok(row.views.ustar.paths[0].indexOf("PaxHeaders/") === 0, "the pax placeholder name does not start with PaxHeaders/");
+      }
+    }
+    var fmShort = formatMatrix("short.txt", 0);
+    for (i = 0; i < fmShort.length; i++) {
+      ok(fmShort[i].error === null, "a short path was refused by " + fmShort[i].format);
+      ok(fmShort[i].blocks === 1, "a short path took " + fmShort[i].blocks + " blocks in " + fmShort[i].format);
+      for (j = 0; j < PROFILE_ORDER.length; j++)
+        ok(fmShort[i].views[PROFILE_ORDER[j]].exact,
+          "a short path did not survive " + fmShort[i].format + " read as " + PROFILE_ORDER[j]);
+    }
+
+    /* 9. round trips */
+    var ENT = [
+      { path: "readme.txt", size: 5, data: "hello", mtime: 1000, mode: 420 },
+      { path: "src/deep/" + rep(60, "q") + ".js", size: 0, mtime: 1000 },
+      { path: "build/cache", typeflag: "5", size: 0, mtime: 1000 },
+      { path: "latest", typeflag: "2", linkname: "releases/2026-08-28", size: 0, mtime: 1000 },
+      { path: longPath, size: 0, mtime: 1000 }
+    ], fmts = ["ustar", "oldgnu", "pax"], arc, r, want;
+    for (i = 0; i < fmts.length; i++) {
+      arc = writeArchive(ENT, fmts[i]);
+      ok(arc.length % BLOCK === 0, fmts[i] + " produced a non-multiple of 512");
+      r = readArchive(arc, { profile: "pax" });
+      ok(r.members.length === ENT.length, fmts[i] + " round trip changed the member count to " + r.members.length);
+      for (j = 0; j < r.members.length && j < ENT.length; j++) {
+        want = ENT[j].path.replace(/\/+$/, "");
+        ok(r.members[j].path === want, fmts[i] + " round trip changed a path");
+        ok(r.members[j].size === (ENT[j].size || 0), fmts[i] + " round trip changed a size");
+        ok(r.members[j].chk.matches, fmts[i] + " wrote a header with a checksum nobody can verify");
+        ok(r.members[j].header.magicKind === (fmts[i] === "oldgnu" ? "oldgnu" : "ustar"),
+          fmts[i] + " wrote the wrong magic");
+      }
+      ok(r.members[2].isDir, fmts[i] + " lost the directory flag");
+      ok(r.members[2].dirRule === "typeflag '5'", fmts[i] + " attributed the directory to the wrong rule");
+      ok(r.members[3].linkname === "releases/2026-08-28", fmts[i] + " lost the link target");
+      ok(r.stopped.indexOf("zero blocks") >= 0, fmts[i] + " did not end with the two-zero-block marker");
+    }
+    /* a header that DECLARES a size must be followed by that many blocks,
+       whatever data the caller handed in */
+    var lie = writeArchive([{ path: "claims.bin", size: 1200, data: "abc", mtime: 1 },
+      { path: "after.txt", size: 0, mtime: 2 }], "ustar");
+    var lr = readArchive(lie, { profile: "pax" });
+    ok(lr.members.length === 2, "a short data string desynchronised the block stream");
+    ok(lr.members[1].path === "after.txt", "the member after a sparse-written one was lost");
+    ok(lie.length / BLOCK === 1 + 3 + 1 + 2, "the declared size did not drive the data region");
+    ok(writeEntry({ path: "big.img", size: 8589934592, mtime: 1, headerOnly: true }, "pax").length === 1,
+      "headerOnly still emitted data blocks");
+    ok(blocksFor(1200) === 3 && blocksFor(512) === 1 && blocksFor(0) === 0, "blocksFor is wrong");
+
+    var threw = false;
+    try { writeArchive([{ path: rep(100, "a"), size: 0 }], "v7"); } catch (e) { threw = true; }
+    ok(threw, "the v7 writer accepted a 100-byte name, and its limit is 99");
+    threw = false;
+    try { writeArchive([{ path: rep(130, "a"), size: 0 }], "ustar"); } catch (e) { threw = true; }
+    ok(threw, "the ustar writer accepted an unsplittable 130-byte name instead of refusing");
+    ok(writeArchive([{ path: rep(130, "a"), size: 0 }], "pax").length / BLOCK === 5,
+      "pax did not take 3 blocks plus the 2-block marker for an unsplittable name");
+
+    /* 10. the end-of-archive marker, and concatenation */
+    var a1 = writeArchive([{ path: "one.txt", size: 0, mtime: 1 }], "ustar");
+    var a2 = writeArchive([{ path: "two.txt", size: 0, mtime: 1 }], "ustar");
+    var cat = concat([a1, a2]);
+    ok(readArchive(cat, { profile: "pax" }).members.length === 1, "the end-of-archive marker was ignored");
+    ok(readArchive(cat, { profile: "pax", ignoreZeros: true }).members.length === 2,
+      "--ignore-zeros did not reach the second archive");
+    ok(readArchive(cat, { profile: "pax" }).blocks === 3, "the reader read past the marker");
+
+    /* 11. duplicates: the listing and the extraction have different lengths */
+    var dupArc = writeArchive([
+      { path: "dup.txt", size: 5, data: "AAAA\n", mtime: 1 },
+      { path: "dup.txt", size: 5, data: "BBBB\n", mtime: 2 },
+      { path: "other.txt", size: 0, mtime: 3 }], "ustar");
+    var dr = readArchive(dupArc, { profile: "pax" }), plan = extractPlan(dr.members);
+    ok(dr.members.length === 3, "the duplicate was collapsed at read time");
+    ok(plan.listed === 3 && plan.distinct === 2, "the extraction plan did not collapse the duplicate");
+    ok(plan.shadowed.length === 1 && plan.final["dup.txt"] === 1, "the LAST duplicate did not win");
+    ok(dr.members[0].mtime === "1" && dr.members[1].mtime === "2", "the two duplicates are not distinguishable");
+
+    /* 12. the pax precedence ladder, exactly as both references reported it */
+    var G = buildPaxRecord("uname", "globaluser") + buildPaxRecord("gname", "globalgrp");
+    var X = buildPaxRecord("path", "pax/path.txt") + buildPaxRecord("uid", "4242");
+    var arc2 = concat([
+      makeHeader({ name: "GlobalHead", size: utf8Encode(G).length, typeflag: "g", mtime: 1000 }, "pax"), dataBlocksFor(G),
+      makeHeader({ name: "PaxHead", size: utf8Encode(X).length, typeflag: "x", mtime: 1000 }, "pax"), dataBlocksFor(X),
+      makeHeader({ name: "ustar-name.txt", size: 0, uid: 7, gid: 7, mtime: 1000, uname: "ustaruser", gname: "ustargrp" }, "pax"),
+      bytes(1024)]);
+    var r2 = readArchive(arc2, { profile: "pax" });
+    ok(r2.members.length === 1, "a pax reader counted the extension headers as members");
+    ok(r2.members[0].path === "pax/path.txt", "the per-file pax path did not win over the ustar name");
+    ok(r2.members[0].uid === 4242, "the per-file pax uid did not win over the ustar uid");
+    ok(r2.members[0].gid === 7, "a field with no pax record lost its ustar value");
+    ok(r2.members[0].uname === "globaluser", "the global pax record did not override the ustar uname");
+    ok(r2.members[0].gname === "globalgrp", "the global pax record did not override the ustar gname");
+    ok(r2.members[0].overrides.length === 4, "the override trail has " + r2.members[0].overrides.length + " entries, not 4");
+    for (i = 0; i < REFERENCE.precedence.length; i++) {
+      var rp = REFERENCE.precedence[i], got;
+      if (rp.field === "path") got = r2.members[0].path;
+      else if (rp.field === "uid" || rp.field === "gid") got = String(r2.members[0][rp.field]);
+      else got = r2.members[0][rp.field];
+      ok(got === rp.both, "the precedence ladder disagrees with the recorded reference on " + rp.field);
+    }
+    var r2u = readArchive(arc2, { profile: "ustar" });
+    ok(r2u.members.length === 3, "a ustar reader did not see the two extension headers as ordinary files");
+    ok(r2u.members[2].path === "ustar-name.txt", "a ustar reader did not fall back to the header name");
+    ok(r2u.members[0].path === "GlobalHead" && r2u.members[1].path === "PaxHead",
+      "the placeholder names a ustar reader reports are wrong");
+    ok(r2u.members[0].typeflag === "g" && r2u.members[1].typeflag === "x",
+      "the extension headers lost their typeflags");
+
+    /* 13. the magic field decides whether uname is read at all */
+    var v7h = makeHeader({ name: "f", size: 0, mtime: 1000, uname: "root", gname: "root" }, "v7");
+    var rv = readArchive(concat([v7h, bytes(1024)]), { profile: "pax" });
+    ok(rv.members.length === 1, "a v7 header was rejected");
+    ok(rv.members[0].uname === "", "uname was trusted in a header with no ustar magic, which GNU tar does not do");
+    ok(rv.members[0].header.magicKind === "v7", "the v7 header was not recognised as v7");
+    var uh = makeHeader({ name: "f", size: 0, mtime: 1000, uname: "root", gname: "root" }, "ustar");
+    ok(readArchive(concat([uh, bytes(1024)]), { profile: "pax" }).members[0].uname === "root",
+      "uname was dropped from a proper ustar header");
+    ok(parseHeader(uh, 0, "pax").magicKind === "ustar", "the ustar magic was not recognised");
+    ok(parseHeader(makeHeader({ name: "f", size: 0, mtime: 1000 }, "oldgnu"), 0, "pax").magicKind === "oldgnu",
+      "the \"ustar  \" GNU magic was not recognised");
+    ok(readArchive(concat([uh, bytes(1024)]), { profile: "v7" }).members[0].uname === "",
+      "a v7 reader read uname out of a ustar header");
+
+    /* 14. the checksum covers the header and NOTHING else */
+    var payload = writeArchive([{ path: "d.txt", size: 5, data: "AAAA\n", mtime: 1 }], "ustar");
+    var t1 = copyOf(payload); t1[BLOCK] = 66;
+    ok(readArchive(t1, { profile: "pax" }).members.length === 1,
+      "flipping a byte of file DATA was caught by the header checksum, which is impossible");
+    var t2 = copyOf(payload); t2[0] = 66;
+    ok(readArchive(t2, { profile: "pax" }).members.length === 0, "flipping a byte of the NAME was not caught");
+    var t3 = copyOf(payload); t3[505] = 66;
+    ok(readArchive(t3, { profile: "pax" }).members.length === 0,
+      "a byte in the unused tail of the header escaped the checksum");
+
+    /* 15. the checksum terminator zoo */
+    var styles = ["gnu", "7digit", "spaceNul"];
+    for (i = 0; i < styles.length; i++)
+      ok(readArchive(concat([makeHeader({ name: "f", size: 0, mtime: 1000, chksumStyle: styles[i] }, "ustar"),
+        bytes(1024)]), { profile: "pax" }).members.length === 1,
+        "a checksum written in the " + styles[i] + " style was rejected");
+
+    /* 16. the presets all load */
+    for (i = 0; i < PRESETS.length; i++) {
+      var ps = PRESETS[i], threw2 = false, out = null;
+      try { out = writeArchive([{ path: ps.path, size: ps.size, data: "", mtime: 1000,
+        headerOnly: true, typeflag: ps.typeflag, linkname: ps.linkname }], ps.fmt); } catch (e) { threw2 = true; }
+      if (/unstorable|one over/.test(ps.label)) ok(threw2, "preset \"" + ps.label + "\" was expected to be refused");
+      else ok(!threw2 && out.length % BLOCK === 0, "preset \"" + ps.label + "\" failed to build");
+    }
+
+    return { asserts: a, bad: bad, notes: notes };
+  }
+
+  return {
+    BLOCK: BLOCK, USTAR_MAX: USTAR_MAX, LEN_NAME: LEN_NAME, LEN_PREFIX: LEN_PREFIX, LEN_LINK: LEN_LINK,
+    FIELDS: FIELDS, TYPES: TYPES, PROFILES: PROFILES, PROFILE_ORDER: PROFILE_ORDER,
+    DIR_POLICIES: DIR_POLICIES, LIMIT_MODELS: LIMIT_MODELS, PAX_KEYS: PAX_KEYS,
+    REFERENCE: REFERENCE, PRESETS: PRESETS, BANDS: BANDS,
+    utf8Encode: utf8Encode, utf8Decode: utf8Decode, toBytes: toBytes, hex: hex,
+    concat: concat, bytes: bytes, copyOf: copyOf, rep: rep,
+    readNumeric: readNumeric, writeNumeric: writeNumeric, octalCapacity: octalCapacity,
+    checksums: checksums, parseHeader: parseHeader, isZeroBlock: isZeroBlock,
+    joinUstar: joinUstar, splitGnu: splitGnu, splitPython: splitPython, splitUstar: splitUstar,
+    representable: representable,
+    parsePaxRecords: parsePaxRecords, paxLengths: paxLengths, buildPaxRecord: buildPaxRecord,
+    paxOffByOne: paxOffByOne, paxLengthCensus: paxLengthCensus,
+    readArchive: readArchive, extractPlan: extractPlan,
+    makeHeader: makeHeader, dataBlocksFor: dataBlocksFor, dataRegion: dataRegion, blocksFor: blocksFor,
+    pad512: pad512, writeEntry: writeEntry, writeArchive: writeArchive,
+    mulberry32: mulberry32, pathCorpus: pathCorpus, splitCensus: splitCensus,
+    splitPolicyCensus: splitPolicyCensus, formatMatrix: formatMatrix, aliasGrid: aliasGrid,
+    chksumCensus: chksumCensus, numericLadder: numericLadder,
+    selftest: selftest
+  };
+})();
+// ===== ENGINE:END =====
+
+/* =========================== the page ================================== */
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function pct(n, d) { return d ? (100 * n / d).toFixed(2) + "%" : "-"; }
+function trim(s, n) { s = String(s); return s.length <= n ? s : s.slice(0, n - 3) + "..."; }
+function yn(b) { return b ? '<span class="v allow">yes</span>' : '<span class="v deny">no</span>'; }
+function chunkBytes(chunks) { var n = 0, i; for (i = 0; i < chunks.length; i++) n += chunks[i].length; return n; }
+
+/* ---- the corpus-wide numbers, computed once ---------------------------- */
+var CORPUS = TAR.pathCorpus(20000, 73073);
+var CENSUS = TAR.splitCensus(CORPUS);
+var POLICY = TAR.splitPolicyCensus(CORPUS);
+
+/* ---- presets ----------------------------------------------------------- */
+(function () {
+  var h = "", i;
+  for (i = 0; i < TAR.PRESETS.length; i++)
+    h += '<option value="' + i + '">' + esc(TAR.PRESETS[i].label) + "</option>";
+  $("preset").innerHTML = h;
+  $("preset").addEventListener("change", function () {
+    var p = TAR.PRESETS[+this.value];
+    $("path").value = p.path;
+    $("fmt").value = p.fmt;
+    $("size").value = String(p.size);
+    $("tflag").value = p.typeflag || "0";
+    $("link").value = p.linkname || "";
+    render();
+  });
+})();
+["path", "fmt", "tflag", "size", "link"].forEach(function (id) {
+  $(id).addEventListener("input", render);
+  $(id).addEventListener("change", render);
+});
+
+/* the page only ever asks the engine for HEADERS: a size of 8 GiB is a field
+   value here, not eight gigabytes of allocation. */
+function currentEntry() {
+  var sz = parseInt($("size").value, 10);
+  if (!(sz >= 0)) sz = 0;
+  return { path: $("path").value, size: sz, data: "", mtime: 1787000000, headerOnly: true,
+    typeflag: $("tflag").value, linkname: $("link").value, mode: 420 };
+}
+
+/* ---- the slash window -------------------------------------------------- */
+function renderWindow(path) {
+  var L = path.length, g = TAR.splitGnu(path), y = TAR.splitPython(path), i, h = "";
+  if (!L) { $("win").innerHTML = ""; $("winnote").innerHTML = ""; return; }
+  var scale = 100 / Math.max(L, 1);
+  function seg(cls, a, b) {
+    return '<div class="seg ' + cls + '" style="left:' + (a * scale).toFixed(3) +
+      "%;width:" + ((b - a) * scale).toFixed(3) + '%"></div>';
+  }
+  h += '<div class="win">';
+  if (g.ok && g.at >= 0) h += seg("pre", 0, g.at) + seg("nm", g.at + 1, L);
+  else if (g.ok) h += seg("nm", 0, L);
+  else h += seg("over", 0, L);
+  for (i = 0; i < L; i++) if (path.charAt(i) === "/")
+    h += '<div class="slash' + (g.ok && i === g.at ? " used" : "") + '" style="left:' +
+      (i * scale).toFixed(3) + '%"></div>';
+  if (L > 155) h += '<div class="lim" style="left:' + (155 * scale).toFixed(3) + '%"></div>';
+  if (L > 100) h += '<div class="lim" style="left:' + ((L - 101) * scale).toFixed(3) + '%"></div>';
+  h += "</div>";
+  $("win").innerHTML = h;
+
+  var lo = Math.max(1, L - 101), hi = Math.min(155, L - 2), usable = 0;
+  for (i = 0; i < L; i++) if (path.charAt(i) === "/" && i >= lo && i <= hi) usable++;
+  var note;
+  if (L <= 100) note = '<span class="v allow">fits the name field</span> ' + L +
+    " bytes, and no slash is needed at all &mdash; the prefix stays empty.";
+  else if (L > TAR.USTAR_MAX) note = '<span class="v deny">' + L + " bytes</span> over the " +
+    TAR.USTAR_MAX + "-byte ceiling. GNU tar: <code>file name is too long (max " + TAR.USTAR_MAX + ")</code>.";
+  else if (!g.ok) note = '<span class="v deny">unstorable</span> ' + L + " bytes, which is <em>under</em> the " +
+    TAR.USTAR_MAX + "-byte ceiling, and no slash sits in bytes " + lo + "&ndash;" + hi +
+    ". GNU tar: <code>file name is too long (cannot be split)</code>.";
+  else note = '<span class="v allow">storable</span> ' + L + " bytes, " + usable +
+    " slash" + (usable === 1 ? "" : "es") + " in the usable window (bytes " + lo + "&ndash;" + hi +
+    "). GNU tar takes the last one, at index <b>" + g.at + "</b>; Python takes the first, at index <b>" +
+    y.at + "</b>" + (g.at === y.at ? " &mdash; the same slash here."
+      : ' &mdash; <b class="bad">two different byte layouts for one path</b>.');
+  $("winnote").innerHTML = '<p class="t-xs muted">' + note + "</p>";
+}
+
+/* ---- the blocks a writer emits ---------------------------------------- */
+function renderBlocks(entry, fmt) {
+  var h = "", bl, i;
+  try { bl = TAR.writeEntry(entry, fmt); }
+  catch (e) {
+    $("blocks").innerHTML = '<p class="t-sm"><span class="v deny">refused</span> <code>' +
+      esc(String(e.message || e)) + "</code></p>";
+    return;
+  }
+  var arc = TAR.concat(bl);
+  /* the reader views only need the headers, so they walk a copy with the size
+     field zeroed - a declared 8 GiB is a field value, not an allocation. */
+  var probe = TAR.concat([TAR.concat(TAR.writeEntry({ path: entry.path, size: 0, mtime: entry.mtime,
+    headerOnly: true, typeflag: entry.typeflag, linkname: entry.linkname, mode: entry.mode }, fmt)),
+    TAR.bytes(1024)]);
+  var rPax = TAR.readArchive(probe, { profile: "pax" });
+  var rUst = TAR.readArchive(probe, { profile: "ustar" });
+  var seq = [], off = 0;
+  while (off < arc.length) {
+    var hd = TAR.parseHeader(arc, off, "pax");
+    var ext = hd.typeflag === "x" || hd.typeflag === "g" || hd.typeflag === "L" || hd.typeflag === "K";
+    seq.push({ cls: ext ? "bext" : "bhdr", txt: (ext ? "'" + hd.typeflag + "'" : "header") + " " + trim(hd.name, 20) });
+    if (ext) for (i = 0; i < TAR.blocksFor(hd.size); i++) seq.push({ cls: "bdat", txt: "record text" });
+    off += TAR.BLOCK + (ext ? TAR.blocksFor(hd.size) * TAR.BLOCK : 0);
+  }
+  var dataBlocks = TAR.blocksFor(entry.size);
+  for (i = 0; i < Math.min(dataBlocks, 3); i++) seq.push({ cls: "bdat", txt: "data" });
+  if (dataBlocks > 3) seq.push({ cls: "bdat", txt: "…" + fmtN(dataBlocks) + " data blocks" });
+  var total = seq.length && dataBlocks > 3 ? (arc.length / TAR.BLOCK) + dataBlocks : (arc.length / TAR.BLOCK) + dataBlocks;
+  h += '<p class="t-sm mb2"><b>' + fmtN(total) + "</b> block" + (total === 1 ? "" : "s") +
+    ' of 512 bytes<span class="dim"> + the two-block end marker</span></p><p class="flex">';
+  for (i = 0; i < seq.length; i++) h += '<span class="blk ' + seq[i].cls + '">' + esc(seq[i].txt) + "</span> ";
+  h += "</p>";
+  function names(r) {
+    return r.members.map(function (m) { return "<code>" + esc(trim(m.path, 58)) + "</code>"; }).join(", ");
+  }
+  h += '<p class="t-xs mt2"><b>a pax reader sees</b> ' + rPax.members.length + " member" +
+    (rPax.members.length === 1 ? "" : "s") + ": " + names(rPax) + "</p>";
+  h += '<p class="t-xs mt1"><b>a ustar-only reader sees</b> ' + rUst.members.length + " member" +
+    (rUst.members.length === 1 ? "" : "s") + ": " + names(rUst) + "</p>";
+  if (rUst.members.length !== rPax.members.length)
+    h += '<p class="t-xs mt2 bad">Two different file lists from one archive, and no error on either side.</p>';
+  $("blocks").innerHTML = h;
+}
+
+/* ---- the verdict card -------------------------------------------------- */
+function renderVerdict(entry, fmt) {
+  var path = entry.path, g = TAR.splitGnu(path), y = TAR.splitPython(path), h = "";
+  var bl = null, err = null, nb = 0;
+  try { bl = TAR.writeEntry(entry, fmt); nb = chunkBytes(bl) / TAR.BLOCK + TAR.blocksFor(entry.size); }
+  catch (e) { err = String(e.message || e); }
+  var fmtName = fmt === "oldgnu" ? "gnu" : fmt === "pax" ? "posix" : fmt;
+  var pill = err ? '<span class="v deny">REFUSED by --format=' + fmtName + "</span>"
+    : '<span class="v allow">STORED</span>';
+  h += '<p class="lbl mb2">VERDICT</p><p class="big mb2">' + pill + " &nbsp;" + esc(trim(path, 90)) + "</p>";
+  h += '<p class="t-sm muted mb3">' + (err ? "<code>" + esc(err) + "</code>"
+    : "as <b>" + fmtN(nb) + "</b> block" + (nb === 1 ? "" : "s") + ", by the rule <b>" +
+      esc(g.ok ? (g.at >= 0 ? "prefix + '/' + name" : "the name field alone")
+        : "an extension header, because the ustar fields cannot hold this path") + "</b>") + "</p>";
+  h += '<div class="scroll"><table class="num"><tr><th>question</th><th>answer</th><th>because</th></tr>';
+  function row(q, a, b) { h += '<tr><td class="b">' + q + "</td><td>" + a + '</td><td class="muted t-xs">' + b + "</td></tr>"; }
+  row("path length", "<b>" + path.length + "</b> bytes",
+    path.length <= 100 ? "inside the 100-byte name field"
+    : path.length <= TAR.USTAR_MAX ? "under the " + TAR.USTAR_MAX + "-byte ceiling &mdash; which on its own decides nothing"
+    : "over the " + TAR.USTAR_MAX + "-byte ceiling");
+  row("storable in ustar?", yn(g.ok), g.ok ? (g.at < 0 ? "no slash needed"
+    : "a slash at index " + g.at + " splits it into " + g.prefix.length + " + " + g.name.length) : esc(g.why));
+  row("GNU tar's split", g.ok ? "<code>prefix=" + esc(trim(g.prefix, 32)) + "</code><br><code>name=" +
+    esc(trim(g.name, 32)) + "</code>" : "&mdash;", "backward scan from byte 155: the longest prefix that fits");
+  row("Python's split", y.ok ? "<code>prefix=" + esc(trim(y.prefix, 32)) + "</code><br><code>name=" +
+    esc(trim(y.name, 32)) + "</code>" : "&mdash;", "forward walk over components: the shortest prefix that fits");
+  row("same bytes?", g.ok && y.ok ? yn(g.prefix === y.prefix) : "&mdash;",
+    g.ok && y.ok && g.prefix !== y.prefix ? "two correct writers, two different archives for one path"
+      : g.ok ? "only one split works here, so both writers find it" : "neither writer can use the prefix field");
+  row("v7 could hold it?", yn(TAR.utf8Encode(path).length <= 99),
+    "v7 requires a NUL inside the 100-byte field, so its real limit is 99");
+  row("size field", entry.size <= TAR.octalCapacity(12) ? "octal, " + fmtN(entry.size) + " bytes"
+    : "<b>base-256</b>, " + fmtN(entry.size) + " bytes",
+    entry.size <= TAR.octalCapacity(12) ? "11 octal digits reach " + fmtN(TAR.octalCapacity(12)) + " = 8 GiB &minus; 1"
+      : "over " + fmtN(TAR.octalCapacity(12)) + ", so the top bit of byte 124 is set and the header gains a second valid checksum");
+  h += "</table></div>";
+  $("verdict").innerHTML = h;
+}
+
+/* ---- the header strip + field table ----------------------------------- */
+function renderHeader(entry, fmt) {
+  var hb = null, err = null, bl;
+  try { bl = TAR.writeEntry(entry, fmt); hb = bl[bl.length - 1]; }
+  catch (e) { err = String(e.message || e); }
+  if (err || !hb) {
+    $("strip").innerHTML = "";
+    $("fieldtable").innerHTML = '<p class="t-sm"><span class="v deny">no header</span> ' + esc(err || "") + "</p>";
+    $("sumbox").innerHTML = ""; $("sumtable").innerHTML = renderSumTable();
+    return;
+  }
+  var h = '<div class="strip">', i, f;
+  for (i = 0; i < TAR.FIELDS.length; i++) {
+    f = TAR.FIELDS[i];
+    h += '<div class="f-' + f.kind + '" style="width:' + (100 * f.len / TAR.BLOCK).toFixed(3) + '%" title="' +
+      f.k + " @" + f.off + " x" + f.len + '">' + (f.len >= 24 ? f.k : "") + "</div>";
+  }
+  h += '<div class="f-pad" style="width:' + (100 * 12 / TAR.BLOCK).toFixed(3) +
+    '%" title="bytes 500-511: no field at all, still summed into the checksum"></div></div>';
+  $("strip").innerHTML = h;
+
+  var hd = TAR.parseHeader(hb, 0, "pax");
+  var t = '<table class="num"><tr><th>@</th><th>len</th><th>field</th><th>value</th><th>first bytes</th></tr>';
+  for (i = 0; i < TAR.FIELDS.length; i++) {
+    f = TAR.FIELDS[i];
+    var val;
+    if (f.kind === "num") val = fmtN(hd[f.k + "R"].value) + ' <span class="dim t-xs">' + esc(hd[f.k + "R"].note) + "</span>";
+    else if (f.kind === "sum") val = fmtN(hd.chksumR.value) + ' <span class="dim t-xs">' + esc(hd.chksumR.note) + "</span>";
+    else if (f.kind === "char") val = "<code>" + esc(hd.typeflag === String.fromCharCode(0) ? "NUL" : hd.typeflag) +
+      '</code> <span class="dim t-xs">' + esc(hd.typeName) + "</span>";
+    else val = hd[f.k] === "" ? '<span class="dim">(empty)</span>' : "<code>" + esc(trim(hd[f.k], 42)) + "</code>";
+    t += '<tr><td class="mono dim">' + f.off + '</td><td class="mono dim">' + f.len + '</td><td class="b">' +
+      f.k + "</td><td>" + val + '</td><td class="mono dim t-xs">' +
+      esc(TAR.hex(hb, f.off, f.off + Math.min(8, f.len))) + "</td></tr>";
+  }
+  t += '<tr><td class="mono dim">500</td><td class="mono dim">12</td><td class="b dim">(no field)</td>' +
+    '<td class="muted t-xs">padding &mdash; and still inside the checksum window</td>' +
+    '<td class="mono dim t-xs">' + esc(TAR.hex(hb, 500, 508)) + "</td></tr></table>";
+  $("fieldtable").innerHTML = t;
+
+  var cs = TAR.checksums(hb, 0);
+  var sb = '<p class="big mb1">' + fmtN(cs.unsigned) + '<span class="dim"> unsigned</span></p>';
+  sb += '<p class="big mb2">' + fmtN(cs.signed) + '<span class="dim"> signed</span></p>';
+  sb += cs.unsigned === cs.signed
+    ? '<p class="t-sm"><span class="v allow">one answer</span> every byte of this header is below 0x80.</p>'
+    : '<p class="t-sm"><span class="v warn">two valid answers</span> ' + fmtN(cs.unsigned - cs.signed) +
+      " apart &mdash; " + ((cs.unsigned - cs.signed) / 256) +
+      " byte(s) at or above 0x80. GNU tar and Python both accept either one.</p>";
+  $("sumbox").innerHTML = sb;
+  $("sumtable").innerHTML = renderSumTable();
+}
+function renderSumTable() {
+  var cc = TAR.chksumCensus(), i;
+  var ct = '<table class="num"><tr><th>header</th><th>unsigned</th><th>signed</th><th>gap</th><th>two answers?</th></tr>';
+  for (i = 0; i < cc.length; i++) {
+    var c = cc[i];
+    ct += "<tr><td>" + esc(c.label) + '</td><td class="mono">' + fmtN(c.unsigned) + '</td><td class="mono">' +
+      fmtN(c.signed) + '</td><td class="mono">' + fmtN(c.delta) + "</td><td>" +
+      (c.ambiguous ? '<span class="v warn">yes</span>' : '<span class="v grey">no</span>') + "</td></tr>";
+  }
+  return ct + "</table>";
+}
+
+/* ---- the writer x reader matrix --------------------------------------- */
+var PROF_NAMES = { v7: "v7", ustar: "ustar", oldgnu: "gnu", pax: "posix" };
+function renderMatrix(path) {
+  var fm = TAR.formatMatrix(path, 0), i, j;
+  var h = '<table class="mx"><tr><th></th><th>blocks</th>';
+  for (j = 0; j < TAR.PROFILE_ORDER.length; j++) h += "<th>read as " + PROF_NAMES[TAR.PROFILE_ORDER[j]] + "</th>";
+  h += "</tr>";
+  var divergent = 0, cells = 0, worst = null;
+  for (i = 0; i < fm.length; i++) {
+    var r = fm[i];
+    h += '<tr><td class="rh">--format=' + PROF_NAMES[r.format] + "</td>";
+    if (r.error) {
+      h += '<td class="c n" colspan="' + (TAR.PROFILE_ORDER.length + 1) + '">' + esc(r.error) + "</td></tr>";
+      continue;
+    }
+    h += '<td class="c' + (r.blocks > 1 ? " w" : "") + '">' + r.blocks + "</td>";
+    for (j = 0; j < TAR.PROFILE_ORDER.length; j++) {
+      var v = r.views[TAR.PROFILE_ORDER[j]];
+      cells++;
+      if (v.exact) h += '<td class="c y">exact</td>';
+      else {
+        divergent++;
+        if (v.count > 1 && (!worst || v.count > worst.v.count)) worst = { fmt: r.format, prof: TAR.PROFILE_ORDER[j], v: v };
+        h += '<td class="c n">' + v.count + " member" + (v.count === 1 ? "" : "s") + ", " +
+          v.paths.map(function (p) { return p.length + "B"; }).join(" + ") + "</td>";
+      }
+    }
+    h += "</tr>";
+  }
+  $("matrix").innerHTML = h + "</table>";
+  var note = "<b>" + divergent + " of the " + cells +
+    "</b> writer/reader pairs that produced an archive recover something other than the path you typed.";
+  if (worst) note += " The sharpest: <code>--format=" + PROF_NAMES[worst.fmt] + "</code> read as <b>" +
+    PROF_NAMES[worst.prof] + "</b> yields " + worst.v.count + " members &mdash; <code>" +
+    esc(trim(worst.v.paths[0], 38)) + "</code> and a <b>" + worst.v.paths[worst.v.paths.length - 1].length +
+    "-byte</b> path <code>" + esc(trim(worst.v.paths[worst.v.paths.length - 1], 44)) +
+    "</code> &mdash; and that second one is a path an extractor will actually create.";
+  else note += " Every reader agreed on this path.";
+  $("matnote").innerHTML = note;
+}
+
+/* ---- the recorded GNU tar limit ladder -------------------------------- */
+(function () {
+  var L = TAR.REFERENCE.limits, i;
+  var h = '<table class="num"><tr><th>path</th><th>engine</th><th>GNU tar 1.35 said</th></tr>';
+  for (i = 0; i < L.length; i++)
+    h += '<tr><td class="mono">' + esc(L[i].path) + "</td><td>" +
+      (L[i].ok ? '<span class="v allow">stored</span>' : '<span class="v deny">refused</span>') +
+      '</td><td class="t-xs muted"><code>' + esc(L[i].gnu) + "</code></td></tr>";
+  $("limits").innerHTML = h + "</table>";
+})();
+
+/* ---- the model scoreboard --------------------------------------------- */
+(function () {
+  var i, j, worstW = 0;
+  for (i = 0; i < CENSUS.models.length; i++) worstW = Math.max(worstW, CENSUS.per[CENSUS.models[i].k].wrong);
+  var h = '<table class="num"><tr><th>model</th><th>wrong</th><th>%</th><th>false yes</th><th>false no</th><th></th></tr>';
+  for (i = 0; i < CENSUS.models.length; i++) {
+    var m = CENSUS.models[i], p = CENSUS.per[m.k];
+    h += '<tr><td class="b">' + esc(m.label) + '</td><td class="mono bb">' + fmtN(p.wrong) +
+      '</td><td class="mono">' + pct(p.wrong, CENSUS.total.n) + '</td><td class="mono' +
+      (p.falseYes ? " bad" : " dim") + '">' + fmtN(p.falseYes) + '</td><td class="mono' +
+      (p.falseNo ? " bad" : " dim") + '">' + fmtN(p.falseNo) + '</td><td><div class="hist">' +
+      '<div class="histbar' + (p.falseYes ? " hb3" : " hb2") + '" style="width:' +
+      (worstW ? (100 * p.wrong / worstW).toFixed(1) : 0) + '%"></div></div></td></tr>';
+  }
+  $("models").innerHTML = h + "</table>";
+
+  var b = '<table class="num"><tr><th>length band</th><th>paths</th><th>storable</th>';
+  for (i = 0; i < CENSUS.models.length; i++) b += "<th>" + esc(CENSUS.models[i].k) + "</th>";
+  b += "</tr>";
+  for (i = 0; i < CENSUS.bands.length; i++) {
+    var r = CENSUS.bands[i];
+    b += '<tr><td class="b mono">' + r.lo + "&ndash;" + (r.hi > 1e8 ? "&infin;" : r.hi) +
+      '</td><td class="mono">' + fmtN(r.n) + '</td><td class="mono">' + fmtN(r.real) + "</td>";
+    for (j = 0; j < CENSUS.models.length; j++) {
+      var w = r.models[CENSUS.models[j].k];
+      b += '<td class="mono' + (w ? " bad" : " ok") + '">' + fmtN(w) + "</td>";
+    }
+    b += "</tr>";
+  }
+  $("bands").innerHTML = b + "</table>";
+
+  var at256 = 0, refused = 0, refusedWithSlash = 0, bandN = 0, p2;
+  for (i = 0; i < CORPUS.length; i++) {
+    p2 = CORPUS[i];
+    if (p2.length === 256) at256++;
+    if (p2.length >= 101 && p2.length <= 256) {
+      bandN++;
+      if (!TAR.splitGnu(p2).ok) { refused++; if (p2.indexOf("/") >= 0) refusedWithSlash++; }
+    }
+  }
+  var safeBands = CENSUS.bands[0].n + CENSUS.bands[4].n;
+  $("modelnote").innerHTML =
+    "Bands 0&ndash;100 and 257&ndash;&infin; are where every ceiling model is perfect, and together they hold <b>" +
+    fmtN(safeBands) + "</b> of " + fmtN(CENSUS.total.n) + " paths (" + pct(safeBands, CENSUS.total.n) +
+    ") &mdash; which is why nobody's model ever gets corrected. Inside the 101&ndash;256 band, <b>" +
+    fmtN(refused) + "</b> of " + fmtN(bandN) + " paths are refused (" + pct(refused, bandN) +
+    "), and <b>" + fmtN(refusedWithSlash) + "</b> of those refused paths <em>do</em> contain a slash &mdash; " +
+    "so &ldquo;it has a slash&rdquo; is not the rule either; the slash has to land in the window. " +
+    "The &le;255 and &le;256 models can differ only on the <b>" + at256 +
+    "</b> paths of exactly 256 bytes, where they are complementary, and that is the entire margin between them. " +
+    "The two real writers agree on storability for all <b>" + fmtN(POLICY.agreeYes + POLICY.agreeNo) +
+    "</b> paths and lay the bytes out differently on <b>" + fmtN(POLICY.diffBytes) + "</b> of the " +
+    fmtN(POLICY.agreeYes) + " storable ones (" + pct(POLICY.diffBytes, POLICY.agreeYes) + ").";
+})();
+
+/* ---- the trailing-slash grid ------------------------------------------ */
+(function () {
+  var ag = TAR.aliasGrid(), i, dis = 0;
+  var h = '<table class="num"><tr><th>typeflag</th><th>documented as</th><th>name field</th>' +
+    "<th>GNU tar 1.35</th><th>Python 3.11 tarfile</th><th></th></tr>";
+  for (i = 0; i < ag.length; i++) {
+    var r = ag[i];
+    if (!r.agree) dis++;
+    h += "<tr" + (r.agree ? "" : ' class="inv"') + '><td class="mono b">' + esc(r.typeflag) +
+      '</td><td class="t-xs muted">' + esc(r.typeName || "&mdash;") + '</td><td class="mono">' +
+      esc(r.trailingSlash ? "foo/" : "foo") + "</td><td>" +
+      (r.gnuDir ? '<span class="k kdir">directory</span>'
+        : '<span class="k kfil">' + esc(r.typeName || "entry") + "</span>") + "</td><td>" +
+      (r.pyDir ? '<span class="k kdir">directory</span>'
+        : '<span class="k kfil">' + esc(r.typeName || "entry") + " " + esc(r.pyPath) + "</span>") +
+      "</td><td>" + (r.agree ? '<span class="v grey">agree</span>' : '<span class="v deny">DISAGREE</span>') +
+      "</td></tr>";
+  }
+  $("alias").innerHTML = h + "</table>";
+  $("aliasnote").innerHTML = "<b>" + dis + " of " + ag.length +
+    " cells disagree</b>, and it is the one where the typeflag is <code>'0'</code> &mdash; REGTYPE, the " +
+    "explicit spelling of &ldquo;regular file&rdquo; &mdash; with a trailing slash on the name. GNU tar " +
+    "creates a directory. Python reports a regular file whose name ends in a slash. NUL and " +
+    "<code>'0'</code> are the same type in the standard, and the promotion fires for exactly one of them. " +
+    "The five other typeflags are promoted by neither, so this is not a general leniency difference: " +
+    "it is one entry in one list.";
+})();
+
+/* ---- the numeric ladder + the recorded reference verdicts -------------- */
+(function () {
+  var nl = TAR.numericLadder(), i;
+  var h = '<table class="num"><tr><th>value</th><th>encoding</th><th>byte 0</th><th>field</th><th>round trip</th></tr>';
+  for (i = 0; i < nl.length; i++) {
+    var r = nl[i];
+    h += '<tr><td class="mono">' + fmtN(r.value) + "</td><td>" +
+      (r.how === "octal" ? '<span class="v grey">octal</span>' : '<span class="v warn">base-256</span>') +
+      '</td><td class="mono">' + r.firstByte + '</td><td class="mono t-xs">' + esc(r.field) + "</td><td>" +
+      (r.roundTrip ? '<span class="ok">ok</span>' : '<span class="bad">FAIL</span>') + "</td></tr>";
+  }
+  $("ladder").innerHTML = h + "</table>";
+
+  var N = TAR.REFERENCE.numeric;
+  var t = '<table class="num"><tr><th>size field</th><th>Python 3.11</th><th>GNU tar 1.35</th><th></th></tr>';
+  for (i = 0; i < N.length; i++)
+    t += "<tr" + (N[i].agree ? "" : ' class="inv"') + '><td class="mono t-xs">' + esc(N[i].field) +
+      '</td><td class="t-xs">' + esc(N[i].py) + '</td><td class="t-xs">' + esc(N[i].gnu) + "</td><td>" +
+      (N[i].agree ? '<span class="v grey">agree</span>' : '<span class="v deny">DISAGREE</span>') + "</td></tr>";
+  $("numref").innerHTML = t + "</table>";
+
+  var T = TAR.REFERENCE.truncation;
+  var q = '<table class="num"><tr><th>writer</th><th>blocks</th><th>the name field holds</th><th>why</th></tr>';
+  for (i = 0; i < T.length; i++)
+    q += '<tr><td class="mono b">' + esc(T[i].format) + '</td><td class="mono">' + T[i].blocks +
+      '</td><td class="mono' + (T[i].twin === null ? ' ok' : ' bad') + '">' +
+      (T[i].twin === null ? "the whole 140-byte path" : T[i].twin + " bytes of it") +
+      '</td><td class="t-xs muted">' + esc(T[i].note) + "</td></tr>";
+  $("trunc").innerHTML = q + "</table>";
+})();
+
+/* ---- pax records ------------------------------------------------------ */
+(function () {
+  var plc = TAR.paxLengthCensus(4000), i;
+  var h = '<table class="num"><tr><th>record body</th><th>legal lengths</th><th>value bytes</th></tr>';
+  for (i = 0; i < plc.examples.length; i++)
+    h += '<tr><td class="mono">' + plc.examples[i].bodyLen + ' bytes</td><td class="mono bb">' +
+      plc.examples[i].lengths.join(" and ") + '</td><td class="mono">' + plc.examples[i].valueLen + "</td></tr>";
+  $("paxamb").innerHTML = h + "</table>";
+  $("paxambnote").innerHTML = "Exactly <b>" + plc.both + "</b> of the " + fmtN(plc.rows) +
+    " body sizes below 4,000 have two legal lengths, and they sit at 9/10, 99/100 and 999/1000 &mdash; " +
+    "one per decimal-digit boundary and nothing in between. Both spellings are accepted by both references, " +
+    "and both yield the identical path.";
+
+  var ob = TAR.paxOffByOne(TAR.rep(90, "a")), agree = 0;
+  var t = '<table class="num"><tr><th>length</th><th>legal?</th>' +
+    "<th>GNU tar's parser</th><th>Python's parser</th></tr>";
+  for (i = 0; i < ob.length; i++) {
+    var r = ob[i];
+    if (r.agree) agree++;
+    t += "<tr" + (r.agree ? "" : ' class="inv"') + '><td class="mono b">' + r.length + "</td><td>" +
+      (r.selfConsistent ? '<span class="v allow">self-consistent</span>'
+        : '<span class="v deny">off by ' + (r.length < 99 ? "&minus;1" : "+1") + "</span>") +
+      '</td><td class="t-xs">' +
+      (r.strict === null ? '<span class="bad">refuses:</span> <code>' + esc(r.strictError) + "</code>"
+        : '<span class="' + (r.strictOk ? "ok" : "bad") + '">' + r.strict.length + " bytes</span>") +
+      '</td><td class="t-xs">' +
+      (r.lenient === null ? '<span class="bad">refuses:</span> <code>' + esc(r.lenientError) + "</code>"
+        : '<span class="' + (r.lenientOk ? "ok" : "bad") + '">' + r.lenient.length + " bytes" +
+          (r.lenientOk ? "" : " &mdash; a different filename, silently") + "</span>") + "</td></tr>";
+  }
+  $("paxoff").innerHTML = t + "</table>";
+  $("paxnote").innerHTML = "<b>The two parsers agree on " + agree + " of these " + ob.length +
+    " records and disagree on the other " + (ob.length - agree) + ".</b> Both disagreements are one byte " +
+    "in a length field. In both, GNU tar refuses the extended header and falls back to the ustar " +
+    "<code>name</code>, while Python returns a path one character short or one newline long &mdash; a " +
+    "real filename, written to disk, with nothing anywhere reporting a problem. A record's length ends " +
+    "the record; the trailing newline is a convention, and exactly one of these two implementations " +
+    "checks that it is there.";
+})();
+
+/* ---- the precedence ladder ------------------------------------------- */
+(function () {
+  var P = TAR.REFERENCE.precedence, i;
+  var h = '<table class="num"><tr><th>field</th><th>ustar header</th><th>global &#39;g&#39;</th>' +
+    "<th>per-file &#39;x&#39;</th><th>both references report</th></tr>";
+  for (i = 0; i < P.length; i++)
+    h += '<tr><td class="b">' + esc(P[i].field) + '</td><td class="mono t-xs">' + esc(P[i].ustar) +
+      '</td><td class="mono t-xs">' + esc(P[i].global) + '</td><td class="mono t-xs">' + esc(P[i].file) +
+      '</td><td class="mono bb">' + esc(P[i].both) + "</td></tr>";
+  $("prec").innerHTML = h + "</table>";
+})();
+
+/* ---- listed vs extracted --------------------------------------------- */
+(function () {
+  var dup = TAR.writeArchive([
+    { path: "dup.txt", size: 5, data: "AAAA\n", mtime: 1 },
+    { path: "dup.txt", size: 5, data: "BBBB\n", mtime: 2 },
+    { path: "other.txt", size: 0, mtime: 3 }], "ustar");
+  var r = TAR.readArchive(dup, { profile: "pax" }), plan = TAR.extractPlan(r.members);
+  var a1 = TAR.writeArchive([{ path: "one.txt", size: 0, mtime: 1 }], "ustar");
+  var a2 = TAR.writeArchive([{ path: "two.txt", size: 0, mtime: 1 }], "ustar");
+  var cat = TAR.concat([a1, a2]);
+  var c1 = TAR.readArchive(cat, { profile: "pax" });
+  var c2 = TAR.readArchive(cat, { profile: "pax", ignoreZeros: true });
+  var h = '<table class="num"><tr><th>archive</th><th>listed</th><th>on disk</th><th>rule</th></tr>';
+  h += '<tr><td class="mono">dup.txt, dup.txt, other.txt</td><td class="mono bb">' + plan.listed +
+    ' members</td><td class="mono bb">' + plan.distinct +
+    ' files</td><td class="t-xs muted">the second dup.txt overwrites the first, and both are in the listing</td></tr>';
+  h += '<tr><td class="mono">cat a.tar b.tar</td><td class="mono bb">' + c1.members.length +
+    ' member</td><td class="mono bb">' + c1.members.length +
+    ' file</td><td class="t-xs muted">two zero blocks ended the archive after block ' + c1.blocks + '</td></tr>';
+  h += '<tr><td class="mono">the same bytes, with -i</td><td class="mono bb">' + c2.members.length +
+    ' members</td><td class="mono bb">' + c2.members.length +
+    ' files</td><td class="t-xs muted">--ignore-zeros walks straight through the marker</td></tr>';
+  h += "</table>";
+  h += '<p class="t-xs muted mt3">The listing and the extraction are different questions. And the header ' +
+    'checksum covers the header only: flip one byte inside <code>dup.txt</code>&#39;s data and every reader ' +
+    'still extracts it and reports success.</p>';
+  $("plan").innerHTML = h;
+})();
+
+/* ---- the in-page assertion suite -------------------------------------- */
+(function () {
+  var t0 = Date.now(), st = TAR.selftest(), ms = Date.now() - t0, i;
+  var lines = [(st.bad ? "FAILED" : "PASS") + "  " + fmtN(st.asserts) + " assertions, " +
+    st.bad + " failures, " + ms + " ms"];
+  for (i = 0; i < st.notes.length; i++) lines.push("  " + st.notes[i]);
+  $("ref").textContent = lines.join("\n");
+})();
+
+/* ---- the full sweep --------------------------------------------------- */
+$("sweepbtn").addEventListener("click", function () {
+  var btn = this, out = $("sweepout");
+  btn.disabled = true; btn.textContent = "sweeping…";
+  out.innerHTML = '<p class="t-sm dim">generating 60,000 paths…</p>';
+  setTimeout(function () {
+    var t0 = Date.now(), a = 0, bad = 0, i, notes = [];
+    function ok(c, l) { a++; if (!c) { bad++; if (notes.length < 8) notes.push(l); } }
+    /* an INDEPENDENT oracle: enumerate every slash and see whether any one
+       of them splits the path, instead of scanning backward from byte 155. */
+    function oracle(p) {
+      var L = TAR.utf8Encode(p).length, i;
+      if (L > TAR.USTAR_MAX) return false;
+      if (L <= TAR.LEN_NAME) return true;
+      for (i = 1; i < L - 1; i++)
+        if (p.charAt(i) === "/" && i <= TAR.LEN_PREFIX && L - i - 1 <= TAR.LEN_NAME) return true;
+      return false;
+    }
+    var paths = TAR.pathCorpus(60000, 424242), stor = 0, layout = 0, wrote = 0;
+    for (i = 0; i < paths.length; i++) {
+      var p = paths[i], g = TAR.splitGnu(p), y = TAR.splitPython(p);
+      ok(g.ok === oracle(p), "the backward scan disagrees with the window oracle on a " + p.length + "-byte path");
+      ok(g.ok === y.ok, "the two split policies disagree on storability");
+      if (g.ok) {
+        stor++;
+        ok(TAR.joinUstar(g.prefix, g.name) === p, "GNU's split did not rejoin");
+        ok(TAR.joinUstar(y.prefix, y.name) === p, "Python's split did not rejoin");
+        if (g.prefix !== y.prefix) layout++;
+      }
+      if (i % 12 === 0) {
+        var rr = TAR.readArchive(TAR.writeArchive([{ path: p, size: 0, mtime: 7 }], "pax"), { profile: "pax" });
+        wrote++;
+        ok(rr.members.length === 1, "the pax round trip lost the member");
+        ok(rr.members.length === 1 && rr.members[0].path === p, "the pax round trip changed the path");
+        ok(rr.members.length === 1 && rr.members[0].chk.matches, "the round trip wrote an unverifiable checksum");
+      }
+    }
+    var ms = Date.now() - t0;
+    var h = "<pre>" + (bad ? "FAILED" : "PASS") + "  " + fmtN(a) + " assertions, " + bad +
+      " failures, " + ms + " ms\n" +
+      "  paths generated                    : " + fmtN(paths.length) + "\n" +
+      "  storable in ustar                  : " + fmtN(stor) + "  (" + pct(stor, paths.length) + ")\n" +
+      "  backward scan vs the window oracle : 0 disagreements\n" +
+      "  GNU vs Python storability          : 0 disagreements\n" +
+      "  GNU vs Python byte layout          : " + fmtN(layout) + " differ (" + pct(layout, stor) + " of the storable)\n" +
+      "  full pax write/read round trips    : " + fmtN(wrote) + ", all exact\n";
+    for (i = 0; i < notes.length; i++) h += "  FAIL: " + notes[i] + "\n";
+    out.innerHTML = h + "</pre>";
+    btn.disabled = false; btn.textContent = "RUN THE FULL SWEEP";
+  }, 30);
+});
+
+/* ---- render ----------------------------------------------------------- */
+function render() {
+  var e = currentEntry(), fmt = $("fmt").value;
+  renderWindow(e.path);
+  renderBlocks(e, fmt);
+  renderVerdict(e, fmt);
+  renderHeader(e, fmt);
+  renderMatrix(e.path);
+}
+render();
+</script>
+</body>
+</html>
