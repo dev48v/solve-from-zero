@@ -76,6 +76,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 72 — certificate hostname verifier (RFC 9525 / X509_check_host)](https://dev48.infy.uk/solve/day72-cert-hostname-verifier.html) — `day72-cert-hostname-verifier.html`
 - [SolveFromZero · Day 73 — Tar Archive Reader](https://dev48.infy.uk/solve/day73-tar-archive-reader.html) — `day73-tar-archive-reader.html`
 - [SolveFromZero · Day 74 — DEFLATE / INFLATE decoder (RFC 1951)](https://dev48.infy.uk/solve/day74-deflate-decoder.html) — `day74-deflate-decoder.html`
+- [SolveFromZero · Day 75 — SQLite type affinity + the record codec](https://dev48.infy.uk/solve/day75-sqlite-type-affinity.html) — `day75-sqlite-type-affinity.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

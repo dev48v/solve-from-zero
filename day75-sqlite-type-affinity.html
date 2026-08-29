@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 75 &mdash; SQLite type affinity + the record codec</title>
+<style>
+/* ---- no CDN, no build step: only the utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:12px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+table.num td.r, table.num th.r { text-align:right; font-variant-numeric:tabular-nums; }
+table.num tr.hi td { background:#fff7ed; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.p4 { padding:16px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+ol { margin:8px 0; padding-left:22px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+.go:disabled { background:#94a3b8; cursor:default; }
+.hdrrow { display:grid; grid-template-columns:170px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.pill { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:12px; padding:3px 10px;
+     border-radius:6px; display:inline-block; }
+.p-int {background:#dbeafe;color:#1e3a8a} .p-txt {background:#dcfce7;color:#14532d}
+.p-blb {background:#e2e8f0;color:#334155} .p-rea {background:#f3e8ff;color:#581c87}
+.p-num {background:#ffedd5;color:#7c2d12} .p-nul {background:#fef9c3;color:#713f12}
+/* the declared-type strip: one box per character, the matched marker lit up */
+.chars { display:flex; flex-wrap:wrap; gap:2px; }
+.ch { width:22px; height:26px; border-radius:4px; font-size:12px; font-family:ui-monospace,Consolas,monospace;
+     display:flex; align-items:center; justify-content:center; background:#e2e8f0; color:#334155; }
+.ch.hit { background:#1d4ed8; color:#fff; font-weight:800; }
+.ch.alt { background:#fca5a5; color:#7f1d1d; font-weight:800; }
+/* the record strip: header varints then payload */
+.bytes { display:flex; flex-wrap:wrap; gap:2px; }
+.byte { min-width:24px; height:22px; padding:0 3px; border-radius:3px; font-size:10px;
+     font-family:ui-monospace,Consolas,monospace; display:flex; align-items:center;
+     justify-content:center; background:#e2e8f0; color:#334155; }
+.byte.hlen { background:#fde68a; color:#78350f; font-weight:800; }
+.byte.st { background:#bfdbfe; color:#1e3a8a; font-weight:800; }
+.byte.pay { background:#bbf7d0; color:#14532d; }
+.byte.pad { background:#f1f5f9; color:#cbd5e1; }
+/* the affinity matrix */
+.mx { border-collapse:separate; border-spacing:3px; }
+.mx th { font-size:10px; color:#64748b; font-weight:700; padding:0 4px; white-space:nowrap;
+     font-family:ui-monospace,Consolas,monospace; }
+.mx td.rh { font-size:11.5px; white-space:nowrap; padding-right:8px; font-weight:600; max-width:280px;
+     font-family:ui-monospace,Consolas,monospace; }
+.mx td.c { padding:4px 7px; border-radius:5px; font-size:11px; font-family:ui-monospace,Consolas,monospace;
+     text-align:center; background:#e2e8f0; white-space:nowrap; }
+.mx td.c.y { background:#bbf7d0; color:#14532d; font-weight:800; }
+.mx td.c.n { background:#fecaca; color:#7f1d1d; font-weight:800; }
+.mx td.c.ch { background:#fed7aa; color:#7c2d12; font-weight:700; }
+.bar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; display:inline-block; }
+.hex { font-family:ui-monospace,Consolas,monospace; font-size:11px; line-height:1.7; }
+.hex .off { color:#94a3b8; }
+.hex .m1 { background:#fde68a; }
+.hex .m2 { background:#bfdbfe; }
+.hex .m3 { background:#bbf7d0; }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 75</p>
+    <h1 class="mb4">
+      🗄️ A real SQLite type-affinity engine, a real record codec, and a writer that emits a
+      database file the actual library will open. Everyone knows a SQLite column&rsquo;s declared
+      type is &ldquo;only a hint&rdquo;. Almost nobody knows what the hint <em>does</em>.
+      <code>CREATE TABLE p(x FLOATING&nbsp;POINT)</code> is an <strong>INTEGER</strong> column,
+      because <strong>rule 1</strong> finds the <code>INT</code> inside <em>PO<u>INT</u></em>
+      before rule 4 ever looks at <code>FLOA</code> &mdash; what decides is the position in the
+      <strong>rule list</strong>, not the position in the name. Over 1,226 type names checked
+      against the library itself, the model everyone actually carries &mdash; <em>the first marker
+      in the name wins</em> &mdash; is wrong <strong>343</strong> times (<strong>27.98%</strong>),
+      and <strong>26 of 66</strong> type names that really occur in ported DDL get an affinity
+      that contradicts what the name means: <code>STRING</code> and <code>VARBINARY</code> and
+      <code>UUID</code> and <code>JSON</code> are all <em>NUMERIC</em> columns that will happily
+      turn <code>'42'</code> into the integer 42.
+      🔴 The finding is what the affinity then does to the <em>bytes</em>. A <code>REAL</code>
+      column and a <code>NUMERIC</code> column store the double <code>2.0</code> as the
+      <strong>same three record bytes</strong>, <code>02 01 02</code> &mdash; the whole cell,
+      with its length and rowid varints in front, is <code>03 01 02 01 02</code> &mdash; and read them back as
+      <strong>2.0</strong> and <strong>2</strong> &mdash; different type, different value, one
+      schema string apart. Over 121 integral doubles the records are byte-identical
+      <strong>121 times out of 121</strong> and the type diverges <strong>121 times out of
+      121</strong>. A SQLite record is <em>not self-describing</em>: serial type&nbsp;1 says
+      &ldquo;one-byte integer&rdquo; and a schema-driven <code>OP_RealAffinity</code> overrules it
+      on the way out, which is also why the same 121 values cost <strong>361 bytes</strong> in the
+      REAL column and <strong>1,210</strong> in the BLOB one &mdash; the &ldquo;loose&rdquo;
+      column is the compressed one. Every verdict here is differential against two independent
+      builds of the real library, <strong>SQLite&nbsp;3.45.1</strong> (Python&nbsp;3.11) and
+      <strong>SQLite&nbsp;3.50.0</strong> (<code>node:sqlite</code>), in both directions: 1,012
+      rows the library wrote and this engine read, and 900 rows this engine wrote that both
+      libraries read back with <code>PRAGMA integrity_check</code> clean.
+      Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🗄️ RESOLVE</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ RESOLVE -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <!-- 1. the resolver -->
+    <div class="card">
+      <div class="flex mb3" style="justify-content:space-between;align-items:baseline">
+        <h3>Type a declared type. Watch which rule fires.</h3>
+        <span class="v info" id="affbadge">&hellip;</span>
+      </div>
+      <div class="grid g2">
+        <div>
+          <div class="hdrrow"><span class="t-xs b">Declared type</span>
+            <input id="decl" value="FLOATING POINT" /></div>
+          <div class="hdrrow"><span class="t-xs b">Try one</span>
+            <select id="declpick"></select></div>
+          <p class="lbl mt3 mb2">THE NAME, CHARACTER BY CHARACTER</p>
+          <div id="chars" class="chars"></div>
+          <p class="t-xs dim mt2" id="charnote"></p>
+        </div>
+        <div>
+          <p class="lbl mb2">THE FIVE RULES, IN ORDER</p>
+          <div id="rules"></div>
+          <div class="mt3" id="verdict"></div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <p class="lbl mb2">AND THE SAME NAME UNDER THE MODEL MOST PEOPLE CARRY</p>
+      <div id="naive"></div>
+    </div>
+
+    <!-- 2. the corpus -->
+    <div class="card">
+      <h3 class="mb2">Seventy-one type names that really occur in DDL</h3>
+      <p class="t-sm muted mb3">Every one of these is a keyword from SQLite&rsquo;s own
+        documentation, from another engine&rsquo;s type list, or from an ORM&rsquo;s default
+        mapping. Sixty-six of them carry a prediction; the <em>predicted</em> column is what the name means in the engine it was copied
+        from &mdash; a judgement, written down per row on purpose so you can argue with any single
+        row instead of taking a percentage on trust. SQLite accepts all of them without a word.</p>
+      <div class="flex mb3" id="corpsum"></div>
+      <div class="scroll"><div id="corpus"></div></div>
+    </div>
+
+    <!-- 3. the storage grid -->
+    <div class="card">
+      <h3 class="mb2">What actually goes in, per affinity</h3>
+      <p class="t-sm muted mb3">The same literal, inserted into five columns that differ only in
+        the string after the column name. Orange means the value that came out is not the value
+        that went in. Nothing here is a stored expectation: every cell is computed by the engine
+        in this file, and every cell was checked against both reference libraries.</p>
+      <div class="scroll"><div id="storage"></div></div>
+      <div class="mt3" id="storenote"></div>
+    </div>
+
+    <!-- 4. the headline -->
+    <div class="card">
+      <h3 class="mb2">The same bytes, two values</h3>
+      <p class="t-sm muted mb3">One double, six columns, and the record SQLite writes for each.
+        The REAL column and the NUMERIC column produce identical bytes; the schema decides what
+        they mean. Change the number and watch which columns move.</p>
+      <div class="hdrrow"><span class="t-xs b">Value</span>
+        <input id="hv" value="2.0" /></div>
+      <div class="flex mb3" id="hpre"></div>
+      <div class="scroll"><div id="headline"></div></div>
+      <div class="mt3 note note-r" id="headnote"></div>
+    </div>
+
+    <!-- 5. the record inspector -->
+    <div class="card">
+      <h3 class="mb2">A record, byte by byte</h3>
+      <p class="t-sm muted mb3">A SQLite record is a header of varints &mdash; its own length,
+        then one serial type per column &mdash; followed by the payload. Two of the serial types
+        carry no payload at all. Type a row and the engine encodes it, then decodes it twice:
+        once knowing the schema, once not.</p>
+      <div class="hdrrow"><span class="t-xs b">Row (one value per line)</span>
+        <textarea id="rowsrc" rows="6">2.0
+'hello'
+0
+1
+NULL
+x'00FF'
+9223372036854775807</textarea></div>
+      <div class="hdrrow"><span class="t-xs b">Column affinities</span>
+        <input id="rowaff" value="REAL,TEXT,INTEGER,INTEGER,TEXT,BLOB,INTEGER" /></div>
+      <p class="lbl mt3 mb2">THE BYTES</p>
+      <div id="recbytes" class="bytes"></div>
+      <div class="mt3 scroll"><div id="rectable"></div></div>
+    </div>
+
+    <!-- 6. where -->
+    <div class="card">
+      <h3 class="mb2"><code>WHERE x = 5</code> finds the row in four columns out of five</h3>
+      <p class="t-sm muted mb3">Same data, same query, five declared types. Section 4.2 of the
+        datatype rules says a comparison applies the column&rsquo;s affinity to the <em>other</em>
+        operand &mdash; unless the column has BLOB affinity, which has none to apply. That is the
+        entire difference between a hit and a miss.</p>
+      <div class="scroll"><div id="wheretbl"></div></div>
+    </div>
+
+    <!-- 7. order by -->
+    <div class="card">
+      <h3 class="mb2">Sorting does not compare values, it compares classes first</h3>
+      <p class="t-sm muted mb3">NULL, then every number in numeric order, then every text, then
+        every blob. A column with no affinity can hold all four at once, and then
+        <code>'2'</code> sorts after <code>10</code> and there is nothing wrong with the index.</p>
+      <div class="hdrrow"><span class="t-xs b">Values</span>
+        <input id="ordsrc" value="10, '2', NULL, x'00', 2.5, 'Apple', -99, '10', 'apple'" /></div>
+      <div class="scroll"><div id="ordtbl"></div></div>
+    </div>
+
+    <!-- 8. the file -->
+    <div class="card">
+      <h3 class="mb2">A whole database file, written here</h3>
+      <p class="t-sm muted mb3">The engine below writes the 100-byte file header, the
+        <code>sqlite_schema</code> b-tree on page 1, and one table b-tree &mdash; leaves, and an
+        interior page above them when the rows stop fitting. The verifier hands the result to the
+        real library, which runs <code>PRAGMA integrity_check</code> on it and reads the rows back.
+        Here is the first page of one.</p>
+      <div class="hdrrow"><span class="t-xs b">Rows</span>
+        <input id="nrows" value="40" /></div>
+      <div class="flex mb3" id="filesum"></div>
+      <p class="lbl mb2">THE FILE HEADER</p>
+      <div class="scroll"><div id="fhdr"></div></div>
+      <p class="lbl mt3 mb2">PAGE 1 &mdash; THE SCHEMA B-TREE</p>
+      <div class="hex scroll" id="fhex"></div>
+      <p class="t-xs dim mt2">
+        <span class="hex m1">&nbsp;yellow&nbsp;</span> the 100-byte file header &middot;
+        <span class="hex m2">&nbsp;blue&nbsp;</span> the b-tree page header and cell pointers &middot;
+        <span class="hex m3">&nbsp;green&nbsp;</span> a cell.</p>
+    </div>
+
+    <!-- 9. self-check -->
+    <div class="card">
+      <div class="flex mb3" style="justify-content:space-between;align-items:center">
+        <h3>Self-check</h3>
+        <span class="v grey" id="selftest">running&hellip;</span>
+      </div>
+      <p class="t-sm muted mb3">Every claim on this page is an assertion in the engine block of
+        this file. Nothing below is a stored expectation: the two affinity models are checked
+        against each other over a generated product of markers, the record codec is checked as an
+        identity, applying an affinity twice is checked to be the same as applying it once, and
+        the headline is checked as a byte-equality over a range rather than on one example.</p>
+      <pre id="ref">running&hellip;</pre>
+      <div class="flex mt3">
+        <button class="go" id="sweepbtn">run the full sweep</button>
+      </div>
+      <div id="sweepout" class="mt3"></div>
+    </div>
+
+    <!-- 10. what the references said -->
+    <div class="card">
+      <h3 class="mb2">What the references said</h3>
+      <p class="t-sm muted mb3">Two independent builds of the real SQLite C library ship on the
+        machine this was written on, and both were used, in both directions. Nothing on this page
+        was checked against my own expectations.</p>
+      <div class="scroll"><div id="refs"></div></div>
+      <div class="mt3 note note-r">
+        <p class="b mb2">🔴 Five claims of mine did not survive the differential.</p>
+        <ol class="t-sm">
+          <li><b><code>CAST(text AS INTEGER)</code> is a different parse from
+            <code>CAST(text AS NUMERIC)</code>.</b> I had INTEGER truncating the float parse, so
+            <code>CAST('3.0e2' AS INTEGER)</code> came out 300. The library says <b>3</b>: the
+            INTEGER cast reads only the leading <em>integer</em> prefix and stops at the dot.
+            Storage does not work that way &mdash; the same string in a NUMERIC column really is
+            300 &mdash; so the correction is that CAST and INSERT do not share a parser.</li>
+          <li><b><code>CAST(1e300 AS INTEGER)</code> saturates, and the clamp has to be done in
+            integer arithmetic.</b> Mine clamped in double space and produced
+            9223372036854775808 &mdash; one past int64 max, a value that cannot exist.</li>
+          <li><b>SQLite has no negative zero.</b> The literal, a bound parameter and a stored
+            value all come back <code>+0.0</code>, in both builds. This engine keeps the IEEE sign
+            bit, so that is a real divergence: measured, reported here, not quietly patched away
+            to make a number look better.</li>
+          <li><b>My own affinity resolver had a hard-coded NUMERIC fallback</b> instead of reading
+            the last rule out of the rule table. Every test passed. It was only caught when the
+            verifier deliberately changed the default affinity and the engine did not move.</li>
+          <li><b>An <code>Array</code> already has a <code>.values</code></b> &mdash; the iterator
+            &mdash; so <code>row.values || row</code> silently took the function, and the file
+            writer emitted records with zero columns. The real library opened those files
+            perfectly happily and reported empty rows.</li>
+        </ol>
+        <p class="t-sm mt3">And one that was the harness, not either side: the reference speaks
+          <code>inf</code> and JavaScript&rsquo;s <code>parseFloat</code> only reads
+          <code>Infinity</code>, so <code>'1e400'</code> &mdash; which really does become a REAL
+          infinity in a NUMERIC column &mdash; arrived as a NaN and looked like an engine bug for
+          about ten minutes.</p>
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">A declared type is a string, and the string is searched for substrings</h2>
+      <p class="muted">Every other SQL engine you have used checks the value against the column
+        type and rejects what does not fit. SQLite does something else entirely, and the
+        difference is not &ldquo;it is more relaxed&rdquo;. It is that the declared type is not
+        consulted at all when a value arrives. What is consulted is one of five
+        <b>affinities</b>, and the affinity is derived from the declared type by
+        <em>case-insensitive substring search</em>, in a fixed order, once, at
+        <code>CREATE TABLE</code> time. Nothing validates. Nothing warns. Any word at all is a
+        legal type name.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">1 &middot; The five rules are matched by rule number, not by position</h3>
+      <p class="t-sm muted">Rule 1: if the name contains <code>INT</code>, INTEGER. Rule 2: else if
+        it contains <code>CHAR</code>, <code>CLOB</code> or <code>TEXT</code>, TEXT. Rule 3: else if
+        it contains <code>BLOB</code>, or there is no declared type at all, BLOB. Rule 4: else if
+        it contains <code>REAL</code>, <code>FLOA</code> or <code>DOUB</code>, REAL. Rule 5:
+        otherwise NUMERIC.</p>
+      <p class="t-sm muted mt2">Read that list again with <code>FLOATING POINT</code> in mind. It
+        contains <code>FLOA</code>, which is rule 4. It also contains <code>INT</code> &mdash;
+        inside the word <em>POINT</em>, at character 12 &mdash; which is rule 1. Rule 1 is
+        checked first, so the column is an INTEGER column. The marker that wins is the one
+        belonging to the lowest-numbered rule, no matter where in the string it sits, and that is
+        exactly the thing a reader&rsquo;s eye does not do. Over 1,226 generated and real type
+        names, reading left-to-right instead gives the wrong answer 27.98% of the time.</p>
+      <p class="t-sm muted mt2">The implementation is not five passes. It is one left-to-right
+        scan with a four-character rolling window that breaks out of the loop the instant it sees
+        <code>INT</code> &mdash; which is the same thing, and this page carries both models and
+        checks them against each other on every name it is given.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">2 &middot; NUMERIC is the default, so a typo changes the semantics</h3>
+      <p class="t-sm muted">Rule 5 is not an error case. It is where every unrecognised name lands,
+        and it is a <em>converting</em> affinity: text that looks like a number becomes a number.
+        So <code>VARCHR(255)</code>, a one-character typo, is not a text column that happens to be
+        misspelled &mdash; it is a numeric column, and <code>'007'</code> stored in it comes back
+        as <code>7</code>. <code>STRING</code> is the same trap without the typo:
+        <code>S-T-R-I-N-G</code> contains no <code>CHAR</code>, no <code>CLOB</code>, no
+        <code>TEXT</code>, so it is NUMERIC. <code>VARCHAR</code> and <code>STRING</code>, two
+        names for the same intention, behave in opposite ways.</p>
+      <p class="t-sm muted mt2"><code>BINARY</code> and <code>VARBINARY</code> land there too, so
+        the standard SQL name for a byte string does the opposite of <code>BLOB</code>. So do
+        <code>UUID</code>, <code>JSON</code>, <code>INET</code>, <code>ENUM</code>,
+        <code>GEOMETRY</code> and <code>BYTEA</code>. Of the 66 scored real-world names on the
+        RESOLVE tab, 26 get an affinity that contradicts what the name means where it came from.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">3 &middot; Affinity is a conversion, and the conversion is conditional</h3>
+      <p class="t-sm muted">TEXT affinity renders numbers as text. REAL affinity turns integers
+        into doubles. INTEGER and NUMERIC affinity try to turn text into a number &mdash; but only
+        if the whole string is a well-formed numeric literal, and only if the conversion is
+        &ldquo;lossless and reversible&rdquo;. BLOB affinity converts nothing at all. NULL is never
+        converted by anything, and a BLOB is never converted by anything either: it is the one
+        storage class that walks through every affinity untouched.</p>
+      <p class="t-sm muted mt2">The parse has edges that are worth knowing because they are not
+        the edges of your language&rsquo;s parser. Leading and trailing ASCII whitespace is
+        tolerated, interior whitespace is not, so <code>'&nbsp;&nbsp;7&nbsp;&nbsp;'</code> is 7 and
+        <code>'5 5'</code> is text. A no-break space is not whitespace. <code>'0x1A'</code> stays
+        text, because the hex form is a <em>literal</em> syntax, not a string conversion.
+        <code>'.5'</code> and <code>'5.'</code> both parse. <code>'1e'</code> does not.
+        <code>'inf'</code> and <code>'NaN'</code> do not &mdash; but <code>'1e400'</code> does, and
+        becomes a REAL infinity.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">4 &middot; &ldquo;Lossless&rdquo; means fifteen significant digits</h3>
+      <p class="t-sm muted">The rule reads as a promise that nothing can be damaged. It is defined
+        over the first fifteen significant decimal digits, and a decimal string can carry more
+        than that. <code>'1.0000000000000001'</code> into a NUMERIC column is stored as the
+        <em>integer</em> 1: the parse produces a double, the double is 1.0 exactly, the double
+        folds back to an integer, and the fraction is gone. <code>'1.000000000000001'</code>
+        &mdash; one digit shorter &mdash; survives as a REAL. Over 60 generated decimals, 16
+        silently become a different number.</p>
+      <p class="t-sm muted mt2">A string too long for int64 is a different case with a different
+        outcome: <code>'12345678901234567890'</code> becomes a REAL, because the integer parse
+        overflows and the double parse does not.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">5 &middot; INTEGER and NUMERIC affinity are the same thing at INSERT</h3>
+      <p class="t-sm muted">Two of the five affinities cannot be told apart by anything you can
+        store. Every value that goes into an INTEGER column goes identically into a NUMERIC one.
+        The documented difference &mdash; that INTEGER also folds an integral REAL down to an
+        integer &mdash; turns out to be what NUMERIC does as well. The place they part company is
+        <code>CAST</code>: <code>CAST('3.5' AS INTEGER)</code> is 3 and
+        <code>CAST('3.5' AS NUMERIC)</code> is 3.5. Over 255 CAST cells they differ on 17.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">6 &middot; The record: varints, serial types, and two values that cost nothing</h3>
+      <p class="t-sm muted">A row on disk is a header followed by a payload. The header is a varint
+        giving its own total length, then one varint <em>serial type</em> per column. 0 is NULL.
+        1 to 6 are integers of 1, 2, 3, 4, 6 and 8 bytes. 7 is an IEEE double. 8 and 9 are the
+        integers 0 and 1 and occupy <b>no payload bytes at all</b> &mdash; the value is in the
+        type code. Anything 12 or above is a blob if even and text if odd, with the length
+        recovered as <code>(N&minus;12)/2</code> or <code>(N&minus;13)/2</code>.</p>
+      <p class="t-sm muted mt2">SQLite&rsquo;s varint is big-endian, seven bits per byte, most
+        significant first, up to nine bytes &mdash; and the ninth byte contributes all
+        <b>eight</b> of its bits, not seven. That is why 8&times;7+8 = 64 exactly. A decoder that
+        masks the ninth byte like the others is correct on every positive number that fits in
+        eight bytes and wrong on every negative one, because in two&rsquo;s complement every
+        negative int64 sets the top bit and needs the full nine.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">7 &middot; The headline: a record is not self-describing</h3>
+      <p class="t-sm muted">Put the double <code>2.0</code> in a REAL column. SQLite does not write
+        eight bytes of IEEE. It writes serial type 1 and a single byte <code>02</code>, because it
+        knows the column has REAL affinity and it can afford to store the value as an integer and
+        put the type back on the way out. The generated bytecode for reading a REAL-affinity column
+        is <code>OP_Column</code> followed by <code>OP_RealAffinity</code>, and that second opcode
+        exists for exactly this.</p>
+      <p class="t-sm muted mt2">Now put the same <code>2.0</code> in a NUMERIC column. Identical
+        bytes &mdash; <code>03 01 02 01 02</code> for the whole cell payload &mdash; and it reads
+        back as the integer 2. The record is <code>02 01 02</code> either way, and the cell around it
+        is <code>03 01 02 01 02</code>. The bytes do not know. Over 121 integral doubles the two columns
+        agree byte-for-byte 121 times and disagree on <code>typeof()</code> 121 times.</p>
+      <p class="t-sm muted mt2">Two consequences. The first is that any tool which parses a SQLite
+        file without also parsing its schema &mdash; and a great many forensic and recovery tools
+        do exactly that, because the record format is self-contained and the schema is just more
+        rows &mdash; reports the wrong type for every whole-numbered value in every REAL column.
+        Not a corrupted file. Not an ambiguous one. A file where the answer genuinely is not in
+        the bytes. The second is a size inversion: 121 doubles cost 361 bytes in the REAL column
+        and 1,210 in the BLOB column, because BLOB affinity has no permission to re-type anything
+        and must write the full eight-byte float every time. The column with the strictest-sounding
+        name is the compressed one.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">8 &middot; Comparison applies affinity too, so a query changes answer</h3>
+      <p class="t-sm muted">A column reference in a comparison carries its column&rsquo;s affinity;
+        a bare literal carries none. If one side is numeric-ish and the other has none, NUMERIC
+        affinity is applied to the other side. If one side is TEXT and the other has none, TEXT
+        affinity is applied. Otherwise nothing happens.</p>
+      <p class="t-sm muted mt2">So a column holding the text <code>'5'</code> answers
+        <code>WHERE x = 5</code> with a row under INTEGER, TEXT, REAL and NUMERIC affinity, and
+        with nothing at all under BLOB affinity &mdash; the one case where neither side has an
+        affinity to lend. Over 30 (stored value, literal) pairs, 12 give different answers
+        depending only on the declared type. No error, no warning, and an index does not save you
+        because the index is built with the same rules.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">9 &middot; Sorting compares the storage class before the value</h3>
+      <p class="t-sm muted">The order is NULL, then INTEGER and REAL together compared numerically,
+        then TEXT, then BLOB. Not one of those is a tie-break: the class is compared first and the
+        value only inside a class. So in a column with no affinity, <code>'2'</code> sorts after
+        <code>10</code>, and <code>x'00'</code> sorts after every string. Integers and doubles are
+        compared exactly rather than by casting the integer to a double, which is why
+        9223372036854775807 does not compare equal to 9.223372036854776e18.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">10 &middot; The escape hatch, and why it is opt-in</h3>
+      <p class="t-sm muted">Since 3.37 a table can be declared <code>STRICT</code>. Then the type
+        must be one of exactly five names, and a value that does not fit is an error rather than a
+        conversion. It is opt-in and it will stay that way: SQLite&rsquo;s compatibility promise
+        means every existing file has to keep behaving exactly as it does. Affinity is not a
+        legacy wart on its way out. It is the default, and it is the thing your ORM is generating
+        DDL against right now.</p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">What to do about it on Monday</h2>
+      <p class="muted">None of this is a bug and none of it is going to change. The useful
+        response is to know which of your columns are not the type you think, and to stop writing
+        the two queries that the affinity rules answer differently.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">1 &middot; Ask your own database, in one query</h3>
+      <p class="t-sm muted mb2">There is no <code>affinity</code> column in
+        <code>pragma_table_info</code> &mdash; it reports the declared type, which is the thing
+        that misled you in the first place. But <code>CAST</code> uses the same resolver, and two
+        cells separate all five affinities uniquely.</p>
+      <pre><code>SELECT m.name AS "table", i.name AS column, i.type AS declared,
+       CASE typeof(CAST('3.5' AS INTEGER)) WHEN '' THEN '' END  -- placeholder, see below
+  FROM sqlite_schema m, pragma_table_info(m.name) i
+ WHERE m.type = 'table';</code></pre>
+      <p class="t-sm muted mt2">The CAST target cannot be parameterised, so run the listing first
+        and then, for each distinct declared type <code>T</code>, one probe:</p>
+      <pre><code>SELECT typeof(CAST('3.5' AS T)), typeof(CAST(5 AS T));
+
+  integer, integer  -> INTEGER      real, real     -> REAL
+  text,    text     -> TEXT         real, integer  -> NUMERIC
+  blob,    blob     -> BLOB</code></pre>
+      <p class="t-sm muted mt2">A few names are reserved words in the type position
+        (<code>SET</code> is one) and the grammar refuses the probe outright. Those are not
+        affinity questions; they are names you cannot write there at all.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">2 &middot; The three-second smell test on any schema</h3>
+      <ul class="t-sm muted">
+        <li>Any name with <code>INT</code> hiding inside it: <code>POINT</code>,
+          <code>MULTIPOINT</code>, <code>INTERVAL</code>, <code>FLOATING POINT</code>,
+          <code>CONSTRAINT</code>-ish names generated by a tool. All INTEGER.</li>
+        <li>Any name meant to be text that contains none of <code>CHAR</code>,
+          <code>CLOB</code>, <code>TEXT</code>: <code>STRING</code>, <code>UUID</code>,
+          <code>JSON</code>, <code>ENUM</code>, <code>INET</code>, <code>XML</code>. All NUMERIC.</li>
+        <li>Any name meant to be bytes that is not spelled <code>BLOB</code>:
+          <code>BINARY</code>, <code>VARBINARY</code>, <code>BYTEA</code>, <code>IMAGE</code>,
+          <code>JSONB</code>. All NUMERIC.</li>
+        <li>Anything you typed by hand and did not test. A misspelling is not an error.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">3 &middot; Stop writing the query that changes answer</h3>
+      <p class="t-sm muted">Bind the value with the type you actually mean, rather than relying on
+        the comparison to convert for you. <code>WHERE id = ?</code> with a string argument is
+        fine on an INTEGER column and silently empty on a BLOB-affinity one. If a column can hold
+        more than one storage class &mdash; and any column with BLOB or NUMERIC affinity can
+        &mdash; then either normalise on the way in or compare against
+        <code>CAST(? AS &lt;type&gt;)</code> so the conversion is written down.</p>
+      <p class="t-sm muted mt2">A quick census of what a column really contains:</p>
+      <pre><code>SELECT typeof(x), count(*) FROM t GROUP BY 1;</code></pre>
+      <p class="t-sm muted mt2">If that returns more than one row on a column you believed was
+        one type, the affinity has been converting for you and something upstream has been
+        inconsistent about what it binds.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">4 &middot; Use STRICT for new tables, and know what it costs</h3>
+      <pre><code>CREATE TABLE t(
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  price  REAL,
+  blobby BLOB,
+  other  ANY          -- the fifth name: keeps the old behaviour, on purpose
+) STRICT;</code></pre>
+      <p class="t-sm muted mt2">Only <code>INT</code>, <code>INTEGER</code>, <code>REAL</code>,
+        <code>TEXT</code>, <code>BLOB</code> and <code>ANY</code> are legal. Everything else is a
+        <code>CREATE TABLE</code> error, which is the point. Note what STRICT does not do: it does
+        not make a REAL column store an eight-byte float, and it does not stop
+        <code>ANY</code> columns from holding all five classes at once.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">5 &middot; If you write a tool that reads the file, read the schema first</h3>
+      <p class="t-sm muted">The record format is self-contained and that is exactly the trap. Parse
+        page 1, decode the <code>sqlite_schema</code> rows, take the <code>sql</code> column,
+        recover each column&rsquo;s declared type, resolve it to an affinity, and only then decode
+        the data pages. Otherwise every whole-numbered value in every REAL column is reported as
+        an integer, and no part of the file will tell you.</p>
+      <p class="t-sm muted mt2">The rest of the layout is stable and small: page size at offset 16
+        (with 1 meaning 65536), reserved bytes per page at 20, text encoding at 56, and the size
+        in pages at 28 &mdash; which is only trustworthy when the change counter at 24 equals the
+        version-valid-for at 92, otherwise fall back to the file length. Table b-tree pages are
+        <code>0x0D</code> for leaves and <code>0x05</code> for interiors; on page 1 the cell
+        pointers are still counted from byte 0 even though the page header starts at 100. A
+        payload longer than <code>usable&nbsp;&minus;&nbsp;35</code> spills onto overflow pages,
+        and how much stays local is a formula, not a constant.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">6 &middot; How this page was checked</h3>
+      <p class="t-sm muted">Two independent builds of the real library, used in both directions.
+        Forward: 1,226 type names resolved through <code>CAST</code> in
+        <b>SQLite&nbsp;3.45.1</b> (Python&nbsp;3.11) and <b>SQLite&nbsp;3.50.0</b>
+        (<code>node:sqlite</code>) &mdash; and the CAST shortcut itself proved against real column
+        storage before it was trusted, because a discriminator you have not checked is not a
+        reference. Then 5 affinities &times; 54 literals of storage, 255 CAST cells, 150
+        comparison cells, and 4 real database files the library wrote whose 1,012 rows this engine
+        recovered and re-encoded byte-identically.</p>
+      <p class="t-sm muted mt2">Reverse: 900 rows written by this engine across three page sizes,
+        every one of them opened by both libraries with <code>PRAGMA integrity_check</code>
+        clean, three of three needing a real interior b-tree page above the leaves. That is the
+        direction that catches an off-by-one in the header, the page layout or the cell format,
+        because the library refuses rather than guessing.</p>
+      <p class="t-sm muted mt2">The lineage is the same one as
+        <b>Day 61</b> (<code>git check-ignore</code>), <b>Day 72</b> (OpenSSL and Node),
+        <b>Day 73</b> (GNU tar and Python tarfile) and <b>Day 74</b> (zlib and gzip): build the
+        engine from the specification, then let something that is not the engine decide whether it
+        is right. Every subprocess runs from an empty directory, which is a Day 72 scar &mdash;
+        a MinGW binary globbed its own argv and turned a hostname into a file listing.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">7 &middot; Read the source</h3>
+      <p class="t-sm muted">The engine between <code>ENGINE:BEGIN</code> and
+        <code>ENGINE:END</code> in this file touches no DOM, reads no clock and has no random
+        source, which is what lets the verifier load it straight out of the HTML and run it
+        against the reference. It is the affinity resolver, the numeric-literal parser, the
+        storage-class conversions, the CAST rules, the comparison and ordering rules, the varint,
+        the serial types, the record encoder and decoder, the b-tree page writer and the file
+        reader &mdash; and nothing else. If a number on this page is wrong, it is wrong in there.</p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+// ===== ENGINE:BEGIN =====
+/* SQLite type affinity + the record / file codec, written from the specification.
+   No DOM, no clock, no random source, no imports. Values are tagged objects:
+     {t:"null"}                      {t:"integer", i:BigInt}
+     {t:"real",  r:Number}           {t:"text",    s:String}
+     {t:"blob",  b:Uint8Array}
+   Everything the page shows is computed here; the page only paints it. */
+var SQLITE = (function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------ values */
+  function mkNull() { return { t: "null" }; }
+  function mkInt(v) { return { t: "integer", i: typeof v === "bigint" ? v : BigInt(v) }; }
+  function mkReal(v) { return { t: "real", r: +v }; }
+  function mkText(v) { return { t: "text", s: String(v) }; }
+  function mkBlob(v) { return { t: "blob", b: v instanceof Uint8Array ? v : Uint8Array.from(v) }; }
+
+  var I64_MIN = -9223372036854775808n, I64_MAX = 9223372036854775807n;
+
+  /* SQLite prints doubles with "%!.15g" and then guarantees a ".0" so that the text
+     still reads as a float. This is the exact shape a REAL takes when TEXT affinity
+     converts it, so it is part of the engine, not a display helper. */
+  function realToText(r) {
+    if (r !== r) return "NULL";                       // NaN stores as NULL, checked in selftest
+    if (r === Infinity) return "Inf";
+    if (r === -Infinity) return "-Inf";
+    var s = fifteenSig(r);
+    if (!/[.eE]/.test(s)) s += ".0";
+    return s;
+  }
+  /* %!.15g : 15 significant digits, %g's exponent switch, and the "!" flag which
+     forbids C's trailing-zero stripping in the fraction. */
+  function fifteenSig(r) {
+    if (r === 0) return (1 / r === -Infinity ? "-0.0" : "0.0");
+    var exp = Math.floor(Math.log10(Math.abs(r)));
+    var probe = r.toExponential(14);
+    exp = parseInt(probe.slice(probe.indexOf("e") + 1), 10);
+    if (exp < -4 || exp >= 15) {
+      var m = probe.slice(0, probe.indexOf("e"));
+      m = m.replace(/0+$/, "").replace(/\.$/, ".0");
+      if (m.indexOf(".") < 0) m += ".0";
+      return m + "e" + (exp < 0 ? "-" : "+") + (Math.abs(exp) < 10 ? "0" : "") + Math.abs(exp);
+    }
+    var fixed = r.toFixed(Math.max(0, 14 - exp));
+    if (fixed.indexOf(".") >= 0) fixed = fixed.replace(/0+$/, "");
+    if (/\.$/.test(fixed)) fixed += "0";
+    return fixed;
+  }
+
+  function typeofValue(v) { return v.t; }
+
+  function quote(v) {
+    if (v.t === "null") return "NULL";
+    if (v.t === "integer") return v.i.toString();
+    if (v.t === "real") return realToText(v.r);
+    if (v.t === "text") return "'" + v.s.replace(/'/g, "''") + "'";
+    var h = "", i;
+    for (i = 0; i < v.b.length; i++) h += (v.b[i] < 16 ? "0" : "") + v.b[i].toString(16).toUpperCase();
+    return "X'" + h + "'";
+  }
+
+  function sameValue(a, b) {
+    if (a.t !== b.t) return false;
+    if (a.t === "null") return true;
+    if (a.t === "integer") return a.i === b.i;
+    if (a.t === "real") return (a.r === b.r) || (a.r !== a.r && b.r !== b.r);
+    if (a.t === "text") return a.s === b.s;
+    if (a.b.length !== b.b.length) return false;
+    for (var i = 0; i < a.b.length; i++) if (a.b[i] !== b.b[i]) return false;
+    return true;
+  }
+
+  /* ------------------------------------------------- 1. affinity: the five rules
+     datatype3 section 3.1 states five rules, applied IN ORDER, each a case-insensitive
+     SUBSTRING test against the declared type. Written as data so the page can show the
+     table and so the naive models below can be built from the same source. */
+  var RULES = [
+    { n: 1, aff: "INTEGER", markers: ["INT"] },
+    { n: 2, aff: "TEXT", markers: ["CHAR", "CLOB", "TEXT"] },
+    { n: 3, aff: "BLOB", markers: ["BLOB"] },
+    { n: 4, aff: "REAL", markers: ["REAL", "FLOA", "DOUB"] },
+    { n: 5, aff: "NUMERIC", markers: [] }
+  ];
+  var AFFS = ["INTEGER", "TEXT", "BLOB", "REAL", "NUMERIC"];
+
+  /* The documented model: lowest RULE NUMBER whose marker appears anywhere wins. */
+  function affinity(decl) {
+    var u = String(decl == null ? "" : decl).toUpperCase();
+    if (u.replace(/\s+/g, "") === "") return { aff: "BLOB", rule: 3, marker: "(no type)", at: -1, decl: u };
+    for (var k = 0; k < RULES.length; k++) {
+      var R = RULES[k];
+      for (var j = 0; j < R.markers.length; j++) {
+        var at = u.indexOf(R.markers[j]);
+        if (at >= 0) return { aff: R.aff, rule: R.n, marker: R.markers[j], at: at, decl: u };
+      }
+    }
+    var last = RULES[RULES.length - 1];
+    return { aff: last.aff, rule: last.n, marker: "(nothing matched)", at: -1, decl: u };
+  }
+
+  /* The implementation's shape: ONE left-to-right pass with a four-character rolling
+     window, an early exit on INT, and two guards. Kept separate on purpose - the page
+     measures whether the two models can be told apart, rather than assuming it. */
+  function affinityScan(decl) {
+    var u = String(decl == null ? "" : decl).toUpperCase(), aff = RULES[RULES.length - 1].aff, trace = [], i, w;
+    if (u.replace(/\s+/g, "") === "") return { aff: "BLOB", trace: [{ at: -1, marker: "(no type)", to: "BLOB" }] };
+    for (i = 0; i < u.length; i++) {
+      w = u.slice(Math.max(0, i - 3), i + 1);
+      var w3 = u.slice(Math.max(0, i - 2), i + 1);
+      if (w === "CHAR" || w === "CLOB" || w === "TEXT") { aff = "TEXT"; trace.push({ at: i - 3, marker: w, to: aff }); }
+      else if (w === "BLOB" && (aff === "NUMERIC" || aff === "REAL")) { aff = "BLOB"; trace.push({ at: i - 3, marker: w, to: aff }); }
+      else if ((w === "REAL" || w === "FLOA" || w === "DOUB") && aff === "NUMERIC") { aff = "REAL"; trace.push({ at: i - 3, marker: w, to: aff }); }
+      else if (w3 === "INT") { aff = "INTEGER"; trace.push({ at: i - 2, marker: "INT", to: aff, stop: true }); break; }
+    }
+    return { aff: aff, trace: trace };
+  }
+
+  /* The model almost everyone actually carries: whichever marker appears FIRST in the
+     type name decides. Same five buckets, position in the STRING instead of position in
+     the RULE LIST. */
+  function firstMarkerModel(decl) {
+    var u = String(decl == null ? "" : decl).toUpperCase(), best = null, k, j, at;
+    if (u.replace(/\s+/g, "") === "") return { aff: "BLOB", marker: "(no type)", at: -1 };
+    for (k = 0; k < RULES.length; k++)
+      for (j = 0; j < RULES[k].markers.length; j++) {
+        at = u.indexOf(RULES[k].markers[j]);
+        if (at >= 0 && (!best || at < best.at || (at === best.at && RULES[k].markers[j].length > best.marker.length)))
+          best = { aff: RULES[k].aff, marker: RULES[k].markers[j], at: at };
+      }
+    return best || { aff: RULES[RULES.length - 1].aff, marker: "(nothing matched)", at: -1 };
+  }
+
+  /* ------------------------------------- 2. the text -> number parse, as SQLite writes it
+     sqlite3AtoF decides whether a string IS a number; sqlite3Atoi64 decides whether it is
+     an exact int64. Both skip ASCII whitespace at BOTH ends and nowhere else. */
+  var WS = " \t\n\f\r";
+  function isSp(c) { return WS.indexOf(c) >= 0; }
+
+  function atoi64(s) {
+    var i = 0, n = s.length, sign = 1n, digits = "";
+    while (i < n && isSp(s[i])) i++;
+    if (i < n && (s[i] === "+" || s[i] === "-")) { if (s[i] === "-") sign = -1n; i++; }
+    while (i < n && s[i] >= "0" && s[i] <= "9") { digits += s[i]; i++; }
+    while (i < n && isSp(s[i])) i++;
+    if (i !== n || digits.length === 0) return { ok: false, why: "not an integer literal" };
+    var v = sign * BigInt(digits);
+    if (v < I64_MIN || v > I64_MAX) return { ok: false, why: "outside int64", overflow: true };
+    return { ok: true, i: v };
+  }
+
+  function atof(s) {
+    var i = 0, n = s.length, mant = 0, seenDot = false, expDigits = 0, body = "";
+    while (i < n && isSp(s[i])) i++;
+    var start = i;
+    if (i < n && (s[i] === "+" || s[i] === "-")) i++;
+    while (i < n && ((s[i] >= "0" && s[i] <= "9") || (s[i] === "." && !seenDot))) {
+      if (s[i] === ".") seenDot = true; else mant++;
+      i++;
+    }
+    if (mant === 0) return { ok: false, why: "no digits in the mantissa" };
+    body = s.slice(start, i);
+    if (i < n && (s[i] === "e" || s[i] === "E")) {
+      var save = i; i++;
+      if (i < n && (s[i] === "+" || s[i] === "-")) i++;
+      while (i < n && s[i] >= "0" && s[i] <= "9") { expDigits++; i++; }
+      if (expDigits === 0) { i = save; return { ok: false, why: "an exponent with no digits" }; }
+      body = s.slice(start, i);
+    }
+    while (i < n && isSp(s[i])) i++;
+    if (i !== n) return { ok: false, why: "trailing characters that are not whitespace" };
+    return { ok: true, r: parseFloat(body) };
+  }
+
+  /* The whole conversion, exactly as applyNumericAffinity does it: is it a number at
+     all -> is it an exact int64 -> otherwise a double, and for INTEGER/NUMERIC affinity
+     one more attempt to fold the double back to an integer. */
+  function numericLiteral(s, tryForInt) {
+    var f = atof(s);
+    if (!f.ok) return { ok: false, why: f.why };
+    var n = atoi64(s);
+    if (n.ok) return { ok: true, out: mkInt(n.i), via: "exact int64" };
+    var v = mkReal(f.r);
+    if (tryForInt !== false) {
+      var folded = realToInt(f.r);
+      if (folded) return { ok: true, out: folded, via: "double, folded back to an integer" };
+    }
+    return { ok: true, out: v, via: n.overflow ? "too big for int64, so a double" : "a double" };
+  }
+
+  /* A double becomes an integer only if the round trip is exact and it fits int64. */
+  function realToInt(r) {
+    if (r !== r || r === Infinity || r === -Infinity) return null;
+    if (Math.floor(r) !== r) return null;
+    if (r < -9223372036854775808 || r >= 9223372036854775808) return null;
+    var b = BigInt(r);
+    if (Number(b) !== r) return null;
+    if (b < I64_MIN || b > I64_MAX) return null;
+    return mkInt(b);
+  }
+
+  /* --------------------------------------------- 3. what INSERT does to a value
+     datatype3 section 3.3. Returns the stored value plus the sentence that explains it. */
+  function applyAffinity(v, aff) {
+    if (v.t === "null") return { out: v, why: "NULL is stored as NULL under every affinity" };
+    if (aff === "BLOB") return { out: v, why: "BLOB affinity (the docs call it NONE) converts nothing" };
+    if (aff === "TEXT") {
+      if (v.t === "blob") return { out: v, why: "TEXT affinity leaves a BLOB alone - it is the one class it will not touch" };
+      if (v.t === "text") return { out: v, why: "already text" };
+      if (v.t === "integer") return { out: mkText(v.i.toString()), why: "TEXT affinity renders the integer as text" };
+      return { out: mkText(realToText(v.r)), why: "TEXT affinity renders the double with %!.15g, so 5.0 becomes \"5.0\" and not \"5\"" };
+    }
+    if (aff === "REAL") {
+      if (v.t === "blob") return { out: v, why: "a BLOB is never converted" };
+      if (v.t === "integer") return { out: mkReal(Number(v.i)), why: "REAL affinity turns the integer into a double" };
+      if (v.t === "real") return { out: v, why: "already a double" };
+      var nr = numericLiteral(v.s, false);
+      if (!nr.ok) return { out: v, why: "the text is not a number literal (" + nr.why + "), so it stays text" };
+      return { out: nr.out.t === "integer" ? mkReal(Number(nr.out.i)) : nr.out, why: "the text parsed as a number, and REAL affinity forces it to a double" };
+    }
+    /* INTEGER and NUMERIC are the same code path here - the difference only shows in CAST */
+    if (v.t === "blob") return { out: v, why: "a BLOB is never converted" };
+    if (v.t === "integer") return { out: v, why: "already an integer" };
+    if (v.t === "real") {
+      var f = realToInt(v.r);
+      return f ? { out: f, why: "the double has no fractional part and survives the round trip, so it is stored as an integer" }
+        : { out: v, why: "the double keeps a fractional part (or will not fit int64), so it stays REAL" };
+    }
+    var nl = numericLiteral(v.s, true);
+    if (!nl.ok) return { out: v, why: "the text is not a number literal (" + nl.why + "), so it stays text" };
+    return { out: nl.out, why: "the text parsed as a number: " + nl.via };
+  }
+
+  /* CAST is the ONLY place INTEGER and NUMERIC affinity part company. */
+  function applyCast(v, typeName) {
+    var aff = affinity(typeName).aff;
+    if (aff === "TEXT" || aff === "BLOB" || aff === "REAL") {
+      if (aff === "BLOB") {
+        if (v.t === "blob" || v.t === "null") return v;
+        return mkBlob(utf8(v.t === "text" ? v.s : v.t === "integer" ? v.i.toString() : realToText(v.r)));
+      }
+      if (aff === "TEXT") {
+        if (v.t === "null" || v.t === "text") return v;
+        if (v.t === "blob") return mkText(fromUtf8(v.b));
+        return mkText(v.t === "integer" ? v.i.toString() : realToText(v.r));
+      }
+      if (v.t === "null") return v;
+      if (v.t === "real") return v;
+      if (v.t === "integer") return mkReal(Number(v.i));
+      var pn = prefixNumber(v.t === "blob" ? fromUtf8(v.b) : v.s);
+      return mkReal(pn.any ? pn.r : 0);
+    }
+    if (v.t === "null") return v;
+    if (aff === "NUMERIC") {
+      /* NUMERIC keeps the fraction: CAST('3.5' AS NUMERIC) is 3.5 */
+      if (v.t === "integer" || v.t === "real") return v;
+      var s = v.t === "blob" ? fromUtf8(v.b) : v.s, q = prefixNumber(s);
+      if (!q.any) return mkInt(0n);
+      if (q.isInt) return mkInt(q.i);
+      var fold = realToInt(q.r);
+      return fold ? fold : mkReal(q.r);
+    }
+    /* INTEGER truncates a double - and reads only the INTEGER prefix of a string, which is a
+       different parse from the one NUMERIC uses: CAST('3.0e2' AS INTEGER) is 3, not 300. */
+    if (v.t === "integer") return v;
+    if (v.t === "real") return mkInt(satI64(v.r));
+    var s2 = v.t === "blob" ? fromUtf8(v.b) : v.s, q3 = prefixInteger(s2);
+    return mkInt(q3);
+  }
+
+  /* saturating double -> int64, done in BigInt so the clamp is not itself rounded */
+  function satI64(r) {
+    if (r !== r) return 0n;
+    if (r >= 9223372036854775807) return I64_MAX;
+    if (r <= -9223372036854775808) return I64_MIN;
+    return BigInt(Math.trunc(r));
+  }
+  function prefixInteger(s) {
+    var m = /^[ \t\n\f\r]*([+-]?\d+)/.exec(s);
+    if (!m) return 0n;
+    var b = BigInt(m[1]);
+    return b > I64_MAX ? I64_MAX : b < I64_MIN ? I64_MIN : b;
+  }
+
+  /* CAST is lenient where INSERT is strict: it reads the longest numeric PREFIX. */
+  function prefixNumber(s) {
+    var m = /^[ \t\n\f\r]*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(s);
+    if (!m) return { any: false, r: 0, i: 0n, isInt: false };
+    var body = m[0].trim(), isInt = /^[+-]?\d+$/.test(body);
+    if (isInt) {
+      var b = BigInt(body);
+      if (b >= I64_MIN && b <= I64_MAX) return { any: true, isInt: true, i: b, r: Number(b) };
+      return { any: true, isInt: false, r: parseFloat(body), i: 0n };
+    }
+    return { any: true, isInt: false, r: parseFloat(body), i: 0n };
+  }
+
+  /* ------------------------------------------- 4. comparison and ordering
+     section 4.1: NULL < INTEGER and REAL, numerically, < TEXT < BLOB. */
+  var CLASS_RANK = { null: 0, integer: 1, real: 1, text: 2, blob: 3 };
+
+  function compare(a, b) {
+    var ra = CLASS_RANK[a.t], rb = CLASS_RANK[b.t];
+    if (ra !== rb) return ra < rb ? -1 : 1;
+    if (ra === 0) return 0;
+    if (ra === 1) return cmpNum(a, b);
+    if (ra === 2) return a.s < b.s ? -1 : a.s > b.s ? 1 : 0;
+    var n = Math.min(a.b.length, b.b.length), i;
+    for (i = 0; i < n; i++) if (a.b[i] !== b.b[i]) return a.b[i] < b.b[i] ? -1 : 1;
+    return a.b.length === b.b.length ? 0 : (a.b.length < b.b.length ? -1 : 1);
+  }
+  /* An int64 and a double are compared exactly, not by casting the int to a double -
+     that is why 9223372036854775807 < 9.3e18 comes out right. */
+  function cmpNum(a, b) {
+    if (a.t === "integer" && b.t === "integer") return a.i < b.i ? -1 : a.i > b.i ? 1 : 0;
+    if (a.t === "real" && b.t === "real") return a.r < b.r ? -1 : a.r > b.r ? 1 : 0;
+    var iv = a.t === "integer" ? a.i : b.i, rv = a.t === "real" ? a.r : b.r, flip = a.t === "real" ? -1 : 1;
+    if (rv !== rv) return flip * 1;
+    if (rv === Infinity) return flip * -1;
+    if (rv === -Infinity) return flip * 1;
+    var fl = Math.floor(rv), c;
+    var bi = BigInt(fl);
+    if (iv < bi) c = -1; else if (iv > bi) c = 1; else c = (rv > fl ? -1 : 0);
+    return flip * c;
+  }
+
+  function sortValues(arr) { return arr.slice().sort(compare); }
+
+  /* section 4.2: which side of a comparison gets converted. */
+  function comparisonAffinity(lAff, rAff) {
+    var numeric = { INTEGER: 1, REAL: 1, NUMERIC: 1 };
+    var noneish = { BLOB: 1, NONE: 1, "": 1 };
+    if (numeric[lAff] && (noneish[rAff] || rAff === "TEXT")) return { apply: "NUMERIC", side: "right" };
+    if (numeric[rAff] && (noneish[lAff] || lAff === "TEXT")) return { apply: "NUMERIC", side: "left" };
+    if (lAff === "TEXT" && noneish[rAff]) return { apply: "TEXT", side: "right" };
+    if (rAff === "TEXT" && noneish[lAff]) return { apply: "TEXT", side: "left" };
+    return { apply: null, side: null };
+  }
+
+  /* `WHERE col = <literal>`: the column carries its affinity, a bare literal carries none. */
+  function whereEquals(colAff, stored, literal) {
+    var rule = comparisonAffinity(colAff, "");
+    var other = literal, applied = null;
+    if (rule.apply === "NUMERIC") { applied = applyAffinity(literal, "NUMERIC"); other = applied.out; }
+    else if (rule.apply === "TEXT") { applied = applyAffinity(literal, "TEXT"); other = applied.out; }
+    if (stored.t === "null" || other.t === "null") return { match: false, other: other, rule: rule, nullish: true };
+    return { match: compare(stored, other) === 0, other: other, rule: rule };
+  }
+
+  /* ------------------------------------------------- 5. varints and serial types */
+  function varintEncode(n) {
+    var v = typeof n === "bigint" ? BigInt.asUintN(64, n) : BigInt(n), out = [], i;
+    if (v > 0xffffffffffffffn) {                    /* the nine-byte form */
+      out.push(Number(v & 0xffn)); v >>= 8n;
+      for (i = 0; i < 8; i++) { out.unshift(Number(v & 0x7fn) | 0x80); v >>= 7n; }
+      return Uint8Array.from(out.slice(0, 9));
+    }
+    var bytes = [];
+    do { bytes.unshift(Number(v & 0x7fn)); v >>= 7n; } while (v > 0n);
+    for (i = 0; i < bytes.length - 1; i++) bytes[i] |= 0x80;
+    return Uint8Array.from(bytes);
+  }
+  /* The ninth byte is the trap: it contributes ALL EIGHT of its bits, not seven. */
+  function varintDecode(buf, off) {
+    var v = 0n, i;
+    for (i = 0; i < 8; i++) {
+      var b = buf[off + i];
+      if (b === undefined) return null;
+      if (i === 8) break;
+      if (b & 0x80) v = (v << 7n) | BigInt(b & 0x7f);
+      else return { value: BigInt.asIntN(64, (v << 7n) | BigInt(b)), len: i + 1 };
+    }
+    var b9 = buf[off + 8];
+    if (b9 === undefined) return null;
+    return { value: BigInt.asIntN(64, (v << 8n) | BigInt(b9)), len: 9 };
+  }
+
+  var SERIAL_NAME = ["NULL", "int8", "int16", "int24", "int32", "int48", "int64", "float64", "const 0", "const 1"];
+
+  function serialTypeInfo(code) {
+    var c = Number(code);
+    if (c === 0) return { kind: "null", len: 0, name: "NULL" };
+    if (c >= 1 && c <= 4) return { kind: "integer", len: c, name: SERIAL_NAME[c] };
+    if (c === 5) return { kind: "integer", len: 6, name: "int48" };
+    if (c === 6) return { kind: "integer", len: 8, name: "int64" };
+    if (c === 7) return { kind: "real", len: 8, name: "float64" };
+    if (c === 8) return { kind: "integer", len: 0, name: "const 0" };
+    if (c === 9) return { kind: "integer", len: 0, name: "const 1" };
+    if (c === 10 || c === 11) return { kind: "reserved", len: 0, name: "reserved" };
+    return (c % 2 === 0) ? { kind: "blob", len: (c - 12) / 2, name: "blob" }
+      : { kind: "text", len: (c - 13) / 2, name: "text" };
+  }
+
+  function intWidth(v) {
+    if (v === 0n) return 0; if (v === 1n) return 0;
+    if (v >= -128n && v <= 127n) return 1;
+    if (v >= -32768n && v <= 32767n) return 2;
+    if (v >= -8388608n && v <= 8388607n) return 3;
+    if (v >= -2147483648n && v <= 2147483647n) return 4;
+    if (v >= -140737488355328n && v <= 140737488355327n) return 6;
+    return 8;
+  }
+
+  /* The encoder. `asIntReal` marks a REAL that SQLite is allowed to write as an integer -
+     which is what happens in a REAL-affinity column, and the whole point of this page. */
+  function serialTypeOf(v, asIntReal) {
+    if (v.t === "null") return { code: 0, bytes: new Uint8Array(0) };
+    if (v.t === "integer" || (v.t === "real" && asIntReal && realToInt(v.r))) {
+      var iv = v.t === "integer" ? v.i : realToInt(v.r).i;
+      var w = intWidth(iv);
+      if (w === 0) return { code: iv === 0n ? 8 : 9, bytes: new Uint8Array(0) };
+      var code = w <= 4 ? w : (w === 6 ? 5 : 6), out = new Uint8Array(w), u = BigInt.asUintN(w * 8, iv), i;
+      for (i = w - 1; i >= 0; i--) { out[i] = Number(u & 0xffn); u >>= 8n; }
+      return { code: code, bytes: out };
+    }
+    if (v.t === "real") {
+      var b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, v.r, false);
+      return { code: 7, bytes: b };
+    }
+    if (v.t === "text") { var e = utf8(v.s); return { code: 13 + 2 * e.length, bytes: e }; }
+    return { code: 12 + 2 * v.b.length, bytes: v.b };
+  }
+
+  function encodeRecord(values, intRealFlags) {
+    var parts = [], i, st, hdr = [], bodyLen = 0;
+    for (i = 0; i < values.length; i++) {
+      st = serialTypeOf(values[i], intRealFlags ? intRealFlags[i] : false);
+      parts.push(st.bytes); hdr.push(st.code); bodyLen += st.bytes.length;
+    }
+    var typeBytes = [], tl = 0;
+    for (i = 0; i < hdr.length; i++) { var e = varintEncode(hdr[i]); typeBytes.push(e); tl += e.length; }
+    var hlen = tl + 1, hEnc = varintEncode(hlen);
+    if (hEnc.length !== 1) { hlen = tl + varintEncode(tl + 2).length; hEnc = varintEncode(hlen); }
+    var out = new Uint8Array(hlen + bodyLen), p = 0;
+    out.set(hEnc, p); p += hEnc.length;
+    for (i = 0; i < typeBytes.length; i++) { out.set(typeBytes[i], p); p += typeBytes[i].length; }
+    for (i = 0; i < parts.length; i++) { out.set(parts[i], p); p += parts[i].length; }
+    return out;
+  }
+
+  /* The decoder. Pass `affs` and a REAL-affinity column turns an integer serial type
+     back into a double; leave it out and you get the affinity-BLIND read, which is what
+     a file-format tool that never parses the schema produces. */
+  function decodeRecord(buf, affs) {
+    var h = varintDecode(buf, 0);
+    if (!h) return { ok: false, why: "truncated header varint" };
+    var hlen = Number(h.value), p = h.len, codes = [], serials = [];
+    while (p < hlen) {
+      var c = varintDecode(buf, p);
+      if (!c) return { ok: false, why: "truncated serial type" };
+      codes.push(Number(c.value)); serials.push({ code: Number(c.value), at: p, len: c.len }); p += c.len;
+    }
+    if (p !== hlen) return { ok: false, why: "the serial types overrun the header length" };
+    var vals = [], i, off = hlen;
+    for (i = 0; i < codes.length; i++) {
+      var info = serialTypeInfo(codes[i]);
+      if (info.kind === "reserved") return { ok: false, why: "serial type " + codes[i] + " is reserved" };
+      if (off + info.len > buf.length) return { ok: false, why: "the payload is short for serial type " + codes[i] };
+      var slice = buf.subarray(off, off + info.len), v;
+      if (info.kind === "null") v = mkNull();
+      else if (info.kind === "real") v = mkReal(new DataView(slice.buffer, slice.byteOffset, 8).getFloat64(0, false));
+      else if (info.kind === "text") v = mkText(fromUtf8(slice));
+      else if (info.kind === "blob") v = mkBlob(slice.slice());
+      else {
+        if (codes[i] === 8) v = mkInt(0n);
+        else if (codes[i] === 9) v = mkInt(1n);
+        else { var u = 0n, k; for (k = 0; k < slice.length; k++) u = (u << 8n) | BigInt(slice[k]); v = mkInt(BigInt.asIntN(slice.length * 8, u)); }
+      }
+      /* the OP_RealAffinity step: a schema-driven conversion the bytes cannot ask for */
+      if (affs && affs[i] === "REAL" && v.t === "integer") v = mkReal(Number(v.i));
+      vals.push(v);
+      off += info.len;
+    }
+    return { ok: true, values: vals, serials: serials, headerLen: hlen, bodyLen: off - hlen };
+  }
+
+  /* ------------------------------------------------------------------ utf-8 */
+  function utf8(s) {
+    var out = [], i, c;
+    for (i = 0; i < s.length; i++) {
+      c = s.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+      else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+        var c2 = s.charCodeAt(i + 1);
+        if (c2 >= 0xdc00 && c2 <= 0xdfff) {
+          var cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00); i++;
+          out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+        } else out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+      } else out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    }
+    return Uint8Array.from(out);
+  }
+  function fromUtf8(b) {
+    var s = "", i = 0, c;
+    while (i < b.length) {
+      c = b[i];
+      if (c < 0x80) { s += String.fromCharCode(c); i++; }
+      else if (c < 0xe0) { s += String.fromCharCode(((c & 31) << 6) | (b[i + 1] & 63)); i += 2; }
+      else if (c < 0xf0) { s += String.fromCharCode(((c & 15) << 12) | ((b[i + 1] & 63) << 6) | (b[i + 2] & 63)); i += 3; }
+      else {
+        var cp = ((c & 7) << 18) | ((b[i + 1] & 63) << 12) | ((b[i + 2] & 63) << 6) | (b[i + 3] & 63);
+        cp -= 0x10000; s += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023)); i += 4;
+      }
+    }
+    return s;
+  }
+
+  /* --------------------------------------- 6. a whole SQLite file, written by hand
+     Small enough to keep every b-tree on one page per table, which is all this page
+     needs - but the header, the page format and the record format are the real ones,
+     so the real library opens the result. */
+  var MAGIC = "SQLite format 3\u0000";   /* the sixteenth byte is a NUL, not a space */
+
+  /* One cell of a table b-tree leaf: varint payload length, varint rowid, the record. */
+  function leafCell(row, rowid) {
+    var rec = encodeRecord(Array.isArray(row) ? row : row.values, row.intReal);
+    var lenV = varintEncode(rec.length), ridV = varintEncode(rowid);
+    var cell = new Uint8Array(lenV.length + ridV.length + rec.length);
+    cell.set(lenV, 0); cell.set(ridV, lenV.length); cell.set(rec, lenV.length + ridV.length);
+    return cell;
+  }
+
+  function buildDb(tables, opt) {
+    opt = opt || {};
+    var pageSize = opt.pageSize || 4096, i, j, t;
+    var plans = [], nextPage = 2;
+
+    /* pass 1: cut each table's rows into leaf-sized chunks and reserve page numbers, because
+       sqlite_master has to carry the root page and it is written before the data. */
+    for (i = 0; i < tables.length; i++) {
+      t = tables[i];
+      var cells = [], chunks = [], cur = [], used = 8;
+      for (j = 0; j < t.rows.length; j++) cells.push(leafCell(t.rows[j], BigInt(j + 1)));
+      for (j = 0; j < cells.length; j++) {
+        var cost = cells[j].length + 2;
+        if (cost + 8 > pageSize) throw new Error("row " + j + " of " + t.name + " does not fit a " + pageSize + "-byte page");
+        if (used + cost > pageSize && cur.length) { chunks.push(cur); cur = []; used = 8; }
+        cur.push({ cell: cells[j], rowid: BigInt(j + 1) }); used += cost;
+      }
+      if (cur.length || !chunks.length) chunks.push(cur);
+      var interior = chunks.length > 1;
+      var root = nextPage; nextPage += 1;
+      var leafStart = interior ? nextPage : root;
+      if (interior) nextPage += chunks.length;
+      plans.push({ t: t, chunks: chunks, interior: interior, root: root, leafStart: leafStart });
+    }
+
+    var schemaRows = [];
+    for (i = 0; i < plans.length; i++)
+      schemaRows.push([mkText("table"), mkText(plans[i].t.name), mkText(plans[i].t.name),
+      mkInt(BigInt(plans[i].root)), mkText(plans[i].t.sql)]);
+
+    var total = nextPage - 1;
+    var out = new Uint8Array(pageSize * total);
+    var page1 = leafPage(schemaRows.map(function (r, k) { return { cell: leafCell(r, BigInt(k + 1)) }; }), pageSize, true);
+    if (!page1) throw new Error("the schema does not fit page 1");
+    out.set(page1, 0);
+    out.set(header(pageSize, total, opt), 0);
+
+    /* pass 2: write the leaves, then the interior root that indexes them */
+    for (i = 0; i < plans.length; i++) {
+      var P = plans[i], kids = [];
+      for (j = 0; j < P.chunks.length; j++) {
+        var pg = leafPage(P.chunks[j], pageSize, false);
+        if (!pg) throw new Error("a leaf chunk of " + P.t.name + " overflowed after planning");
+        out.set(pg, pageSize * (P.leafStart + j - 1));
+        kids.push({ page: P.leafStart + j, maxKey: P.chunks[j].length ? P.chunks[j][P.chunks[j].length - 1].rowid : 0n });
+      }
+      if (P.interior) out.set(interiorPage(kids, pageSize), pageSize * (P.root - 1));
+    }
+    return out;
+  }
+
+  /* An interior table page (0x05): (child pointer, largest rowid in that child) per cell, plus
+     a right-most pointer in the header for everything above the last key. */
+  function interiorPage(kids, pageSize) {
+    var page = new Uint8Array(pageSize), dv = new DataView(page.buffer), i;
+    var cells = [];
+    for (i = 0; i < kids.length - 1; i++) {
+      var kv = varintEncode(kids[i].maxKey), c = new Uint8Array(4 + kv.length);
+      new DataView(c.buffer).setUint32(0, kids[i].page, false);
+      c.set(kv, 4);
+      cells.push(c);
+    }
+    var end = pageSize, offs = [];
+    for (i = cells.length - 1; i >= 0; i--) { end -= cells[i].length; page.set(cells[i], end); offs[i] = end; }
+    page[0] = 0x05;
+    dv.setUint16(3, cells.length, false);
+    dv.setUint16(5, end, false);
+    dv.setUint32(8, kids[kids.length - 1].page, false);
+    for (i = 0; i < cells.length; i++) dv.setUint16(12 + 2 * i, offs[i], false);
+    if (12 + 2 * cells.length > end) throw new Error("too many children for one interior page");
+    return page;
+  }
+
+  function header(pageSize, nPages, opt) {
+    var h = new Uint8Array(100), dv = new DataView(h.buffer), i;
+    for (i = 0; i < 16; i++) h[i] = MAGIC.charCodeAt(i);
+    dv.setUint16(16, pageSize === 65536 ? 1 : pageSize, false);
+    h[18] = 1; h[19] = 1; h[20] = 0;          /* legacy journal, no reserved space */
+    h[21] = 64; h[22] = 32; h[23] = 32;       /* the payload fractions, fixed by the format */
+    dv.setUint32(24, 1, false);               /* file change counter */
+    dv.setUint32(28, nPages, false);          /* size in pages - only trusted when 92 matches 24 */
+    dv.setUint32(40, 1, false);               /* schema cookie */
+    dv.setUint32(44, 4, false);               /* schema format 4 */
+    dv.setUint32(56, 1, false);               /* text encoding: UTF-8 */
+    dv.setUint32(92, 1, false);               /* version-valid-for */
+    dv.setUint32(96, opt.versionNumber || 3045001, false);
+    return h;
+  }
+
+  /* One table-b-tree leaf page (0x0D). Cells grow down from the end of the page, the
+     pointer array grows up from the header - the classic slotted page. */
+  function leafPage(items, pageSize, isPage1) {
+    var page = new Uint8Array(pageSize), base = isPage1 ? 100 : 0, dv = new DataView(page.buffer);
+    var cells = [], i, p;
+    for (i = 0; i < items.length; i++) cells.push(items[i].cell);
+    var contentEnd = pageSize;
+    var offsets = [];
+    for (i = cells.length - 1; i >= 0; i--) {
+      contentEnd -= cells[i].length;
+      if (contentEnd < base + 8 + 2 * cells.length) return null;
+      page.set(cells[i], contentEnd);
+      offsets[i] = contentEnd;
+    }
+    page[base] = 0x0d;
+    dv.setUint16(base + 1, 0, false);
+    dv.setUint16(base + 3, cells.length, false);
+    dv.setUint16(base + 5, contentEnd === 65536 ? 0 : contentEnd, false);
+    page[base + 7] = 0;
+    for (i = 0; i < cells.length; i++) dv.setUint16(base + 8 + 2 * i, offsets[i], false);
+    p = base + 8 + 2 * cells.length;
+    if (p > contentEnd) return null;               /* the caller keeps tables small */
+    return page;
+  }
+
+  /* --------------------------------------- 7. reading a real file back
+     Handles table leaves, table interiors and overflow chains: enough to walk any
+     rowid table the real library writes. */
+  function readDb(buf) {
+    var i, magicOk = true;
+    for (i = 0; i < 16; i++) if (buf[i] !== MAGIC.charCodeAt(i)) magicOk = false;
+    if (!magicOk) return { ok: false, why: "not a SQLite file: the 16-byte magic does not match" };
+    var dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    var ps = dv.getUint16(16, false); if (ps === 1) ps = 65536;
+    var reserved = buf[20], usable = ps - reserved;
+    var info = {
+      ok: true, pageSize: ps, reserved: reserved, usable: usable,
+      writeVersion: buf[18], readVersion: buf[19],
+      changeCounter: dv.getUint32(24, false), sizeInPages: dv.getUint32(28, false),
+      schemaCookie: dv.getUint32(40, false), schemaFormat: dv.getUint32(44, false),
+      textEncoding: dv.getUint32(56, false), versionValidFor: dv.getUint32(92, false),
+      sqliteVersion: dv.getUint32(96, false), fileBytes: buf.length
+    };
+    info.sizeTrusted = info.changeCounter === info.versionValidFor;
+    var master = walk(buf, 1, ps, usable);
+    info.tables = [];
+    for (i = 0; i < master.length; i++) {
+      var r = decodeRecord(master[i].payload, null);
+      if (!r.ok) continue;
+      var v = r.values;
+      if (v[0].t !== "text" || v[0].s !== "table") continue;
+      var sql = v[4].t === "text" ? v[4].s : "";
+      var cols = parseCreate(sql);
+      var rootPage = Number(v[3].i);
+      var cells = rootPage ? walk(buf, rootPage, ps, usable) : [];
+      var rows = [], j;
+      for (j = 0; j < cells.length; j++) {
+        var blind = decodeRecord(cells[j].payload, null);
+        var aware = decodeRecord(cells[j].payload, cols.map(function (c) { return c.aff; }));
+        if (blind.ok) rows.push({ rowid: cells[j].rowid, blind: blind, aware: aware, bytes: cells[j].payload });
+      }
+      /* a table b-tree is ordered by rowid; the page walk is breadth-first, so restore it */
+      rows.sort(function (a, b) { return a.rowid < b.rowid ? -1 : a.rowid > b.rowid ? 1 : 0; });
+      info.tables.push({ name: v[1].t === "text" ? v[1].s : "?", sql: sql, root: rootPage, columns: cols, rows: rows });
+    }
+    return info;
+  }
+
+  /* A cell pointer is an offset from the START OF THE PAGE, and on page 1 the page
+     header sits after the 100-byte file header while the pointers still count from 0. */
+  function walk(buf, pageNo, ps, usable) {
+    var out = [], queue = [pageNo], guard = 0, seen = {};
+    var dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    while (queue.length && guard++ < 200000) {
+      var pn = queue.shift();
+      if (!pn || seen[pn]) continue;
+      seen[pn] = 1;
+      var base = (pn - 1) * ps, hdr = base + (pn === 1 ? 100 : 0);
+      var type = buf[hdr];
+      if (type !== 0x0d && type !== 0x05) continue;
+      var n = dv.getUint16(hdr + 3, false), i, cp;
+      var ptrs = hdr + 8 + (type === 0x05 ? 4 : 0);
+      if (type === 0x05) queue.push(dv.getUint32(hdr + 8, false));
+      for (i = 0; i < n; i++) {
+        cp = dv.getUint16(ptrs + 2 * i, false);
+        if (!cp) continue;
+        var at = base + cp;
+        if (type === 0x05) { queue.push(dv.getUint32(at, false)); continue; }
+        var s1 = varintDecode(buf, at); if (!s1) continue;
+        var s2 = varintDecode(buf, at + s1.len); if (!s2) continue;
+        var payload = gatherPayload(buf, at + s1.len + s2.len, Number(s1.value), ps, usable);
+        if (payload) out.push({ rowid: s2.value, payload: payload });
+      }
+    }
+    return out;
+  }
+
+  function gatherPayload(buf, start, payloadLen, ps, usable) {
+    var maxLocal = usable - 35;
+    if (payloadLen <= maxLocal) return buf.subarray(start, start + payloadLen);
+    var minLocal = Math.floor(((usable - 12) * 32) / 255) - 23;
+    var k = minLocal + ((payloadLen - minLocal) % (usable - 4));
+    var local = k <= maxLocal ? k : minLocal;
+    var out = new Uint8Array(payloadLen), got = 0;
+    out.set(buf.subarray(start, start + local), 0); got = local;
+    var dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    var next = dv.getUint32(start + local, false), guard = 0;
+    while (next && got < payloadLen && guard++ < 100000) {
+      var pbase = (next - 1) * ps;
+      var take = Math.min(usable - 4, payloadLen - got);
+      out.set(buf.subarray(pbase + 4, pbase + 4 + take), got); got += take;
+      next = dv.getUint32(pbase, false);
+    }
+    return got === payloadLen ? out : null;
+  }
+
+  /* A deliberately small CREATE TABLE reader: enough to recover each column's declared
+     type, which is the only thing the record decoder needs from the schema. */
+  function parseCreate(sql) {
+    var m = /\(([\s\S]*)\)\s*(?:WITHOUT\s+ROWID\s*)?$/i.exec(sql);
+    if (!m) return [];
+    var body = m[1], parts = [], depth = 0, cur = "", i, c;
+    for (i = 0; i < body.length; i++) {
+      c = body[i];
+      if (c === "(") depth++;
+      if (c === ")") depth--;
+      if (c === "," && depth === 0) { parts.push(cur); cur = ""; } else cur += c;
+    }
+    if (cur.trim()) parts.push(cur);
+    var cols = [];
+    for (i = 0; i < parts.length; i++) {
+      var s = parts[i].trim();
+      if (/^(PRIMARY|UNIQUE|CHECK|FOREIGN|CONSTRAINT)\b/i.test(s)) continue;
+      var nm = /^("([^"]*)"|`([^`]*)`|\[([^\]]*)\]|[A-Za-z_][A-Za-z_0-9$]*)/.exec(s);
+      if (!nm) continue;
+      var name = nm[2] !== undefined ? nm[2] : nm[3] !== undefined ? nm[3] : nm[4] !== undefined ? nm[4] : nm[1];
+      var rest = s.slice(nm[0].length).trim();
+      var tm = /^([A-Za-z_][A-Za-z_0-9 ]*(\([^)]*\))?)/.exec(rest);
+      var decl = tm ? tm[1].trim() : "";
+      if (/^(PRIMARY|NOT|NULL|UNIQUE|CHECK|DEFAULT|COLLATE|REFERENCES|GENERATED|AS)\b/i.test(decl)) decl = "";
+      cols.push({ name: name, decl: decl, aff: affinity(decl).aff });
+    }
+    return cols;
+  }
+
+  /* ------------------------------------------------------------- 8. the corpus
+     Type names that really occur in DDL people port into SQLite. Nothing here is
+     invented to make a point: every one is a keyword from SQLite's own documentation,
+     from another engine's type list, or from an ORM's default mapping. */
+  /* [declared type, where it comes from, the affinity a developer would PREDICT from what the
+     name means in its home engine, "" where no honest prediction exists]. The prediction column
+     is a judgement and it is written down per row on purpose, so any single row can be argued
+     with instead of a percentage having to be taken on trust. */
+  var CORPUS = [
+    ["INT", "SQLite doc", "INTEGER"], ["INTEGER", "SQLite doc", "INTEGER"], ["TINYINT", "MySQL", "INTEGER"],
+    ["SMALLINT", "SQL standard", "INTEGER"], ["MEDIUMINT", "MySQL", "INTEGER"], ["BIGINT", "SQL standard", "INTEGER"],
+    ["UNSIGNED BIG INT", "SQLite doc", "INTEGER"], ["INT2", "SQLite doc", "INTEGER"], ["INT8", "SQLite doc", "INTEGER"],
+    ["SERIAL", "PostgreSQL", "INTEGER"], ["BIGSERIAL", "PostgreSQL", "INTEGER"],
+    ["CHARACTER(20)", "SQLite doc", "TEXT"], ["VARCHAR(255)", "everywhere", "TEXT"],
+    ["VARYING CHARACTER(255)", "SQLite doc", "TEXT"], ["NCHAR(55)", "SQLite doc", "TEXT"],
+    ["NATIVE CHARACTER(70)", "SQLite doc", "TEXT"], ["NVARCHAR(100)", "SQL Server", "TEXT"],
+    ["TEXT", "everywhere", "TEXT"], ["CLOB", "SQL standard", "TEXT"], ["LONGTEXT", "MySQL", "TEXT"],
+    ["TINYTEXT", "MySQL", "TEXT"], ["CHAR", "SQL standard", "TEXT"],
+    ["VARCHAR2(50)", "Oracle", "TEXT"], ["NVARCHAR2(50)", "Oracle", "TEXT"],
+    ["BLOB", "SQLite doc", "BLOB"], ["LONGBLOB", "MySQL", "BLOB"], ["BYTEA", "PostgreSQL", "BLOB"],
+    ["BINARY(16)", "SQL standard", "BLOB"], ["VARBINARY(16)", "SQL standard", "BLOB"], ["IMAGE", "SQL Server", "BLOB"],
+    ["REAL", "SQLite doc", "REAL"], ["DOUBLE", "SQLite doc", "REAL"], ["DOUBLE PRECISION", "SQL standard", "REAL"],
+    ["FLOAT", "everywhere", "REAL"], ["FLOAT8", "PostgreSQL", "REAL"], ["FLOATING POINT", "prose", "REAL"],
+    ["NUMERIC", "SQLite doc", "NUMERIC"], ["DECIMAL(10,5)", "SQLite doc", "NUMERIC"],
+    ["BOOLEAN", "SQLite doc", "NUMERIC"], ["BOOL", "MySQL", "NUMERIC"], ["BIT(8)", "MySQL", "INTEGER"],
+    ["DATE", "SQLite doc", "NUMERIC"], ["DATETIME", "SQLite doc", "NUMERIC"], ["TIMESTAMP", "SQL standard", "NUMERIC"],
+    ["TIME", "SQL standard", "NUMERIC"], ["YEAR", "MySQL", "NUMERIC"], ["INTERVAL", "PostgreSQL", "NUMERIC"],
+    ["MONEY", "PostgreSQL", "NUMERIC"], ["NUMBER(10)", "Oracle", "NUMERIC"],
+    ["JSON", "PostgreSQL", "TEXT"], ["JSONB", "PostgreSQL", "BLOB"], ["UUID", "PostgreSQL", "TEXT"],
+    ["XML", "SQL Server", "TEXT"], ["UNIQUEIDENTIFIER", "SQL Server", "TEXT"], ["HIERARCHYID", "SQL Server", "BLOB"],
+    ["POINT", "PostGIS", "BLOB"], ["LINESTRING", "PostGIS", "BLOB"], ["POLYGON", "PostGIS", "BLOB"],
+    ["MULTIPOINT", "PostGIS", "BLOB"], ["GEOMETRY", "PostGIS", "BLOB"], ["GEOGRAPHY", "PostGIS", "BLOB"],
+    ["INET", "PostgreSQL", "TEXT"], ["CIDR", "PostgreSQL", "TEXT"], ["MACADDR", "PostgreSQL", "TEXT"],
+    ["ENUM", "MySQL", "TEXT"], ["STRING", "prose", "TEXT"],
+    ["ARRAY", "SQL standard", ""], ["RECORD", "prose", ""], ["OBJECT", "prose", ""], ["ANY", "SQLite STRICT", ""],
+    ["", "no declared type at all", ""]
+  ];
+
+  /* The scoreboard the page prints: how often does the affinity contradict the prediction? */
+  function corpusScore() {
+    var rows = [], i, hit = 0, scored = 0;
+    for (i = 0; i < CORPUS.length; i++) {
+      var a = affinity(CORPUS[i][0]).aff, want = CORPUS[i][2];
+      var row = { decl: CORPUS[i][0], from: CORPUS[i][1], expect: want, got: a, agree: want ? a === want : null };
+      if (want) { scored++; if (a === want) hit++; }
+      rows.push(row);
+    }
+    return { rows: rows, scored: scored, agree: hit, differ: scored - hit };
+  }
+  /* ------------------------------------------------------------- 9. self-check */
+  function selftest() {
+    var a = 0, bad = 0, notes = [], i, j, k;
+    function ok(c, why) { a++; if (!c) { bad++; if (notes.length < 12) notes.push("FAIL " + why); } }
+
+    /* 9.1 the two affinity models must agree on every corpus name and on a generated
+           sweep of every marker permutation - an IDENTITY, not a table of answers */
+    var MK = ["INT", "CHAR", "CLOB", "TEXT", "BLOB", "REAL", "FLOA", "DOUB", "XY", "Q"];
+    var perms = 0, disagree = 0;
+    for (i = 0; i < MK.length; i++)
+      for (j = 0; j < MK.length; j++)
+        for (k = 0; k < MK.length; k++) {
+          var nm = MK[i] + MK[j] + MK[k];
+          perms++;
+          var d = affinity(nm).aff, s = affinityScan(nm).aff;
+          if (d !== s) disagree++;
+          ok(d === s, "the rule table and the scan disagree on " + nm + ": " + d + " vs " + s);
+        }
+    for (i = 0; i < CORPUS.length; i++)
+      ok(affinity(CORPUS[i][0]).aff === affinityScan(CORPUS[i][0]).aff,
+        "the two models disagree on " + CORPUS[i][0]);
+    var cs = corpusScore();
+    ok(cs.scored > 50 && cs.differ > 0,
+      "the corpus scoreboard is empty: " + cs.scored + " scored, " + cs.differ + " differ");
+
+    /* 9.2 totality: every declared type lands in exactly one of five affinities */
+    for (i = 0; i < CORPUS.length; i++) {
+      var af = affinity(CORPUS[i][0]).aff;
+      ok(AFFS.indexOf(af) >= 0, CORPUS[i][0] + " produced an affinity outside the five");
+    }
+
+    /* 9.3 the record codec is an identity on every value shape, including the two
+           zero-length integer encodings */
+    var samples = [mkNull(), mkInt(0n), mkInt(1n), mkInt(-1n), mkInt(127n), mkInt(-128n),
+      mkInt(32767n), mkInt(-32768n), mkInt(8388607n), mkInt(2147483647n),
+      mkInt(140737488355327n), mkInt(I64_MAX), mkInt(I64_MIN),
+      mkReal(0.5), mkReal(-3.25), mkReal(1e308), mkText(""), mkText("hello"),
+      mkText("é中😀"), mkBlob(new Uint8Array(0)), mkBlob(Uint8Array.from([0, 255, 128]))];
+    for (i = 0; i < samples.length; i++) {
+      var rec = encodeRecord([samples[i]]);
+      var back = decodeRecord(rec, null);
+      ok(back.ok && sameValue(back.values[0], samples[i]),
+        "the record round trip lost " + quote(samples[i]));
+    }
+    /* and as a whole row, in every order */
+    for (i = 0; i < samples.length; i++) {
+      var row = [samples[i], samples[(i + 7) % samples.length], samples[(i + 13) % samples.length]];
+      var r2 = decodeRecord(encodeRecord(row), null);
+      ok(r2.ok && sameValue(r2.values[0], row[0]) && sameValue(r2.values[1], row[1]) && sameValue(r2.values[2], row[2]),
+        "a three-column round trip failed at " + i);
+    }
+
+    /* 9.4 serial types: the declared width must equal the bytes actually written, and
+           0 and 1 must cost nothing */
+    for (i = 0; i < samples.length; i++) {
+      var st = serialTypeOf(samples[i], false), inf = serialTypeInfo(st.code);
+      ok(inf.len === st.bytes.length, "serial type " + st.code + " claims " + inf.len + " bytes and wrote " + st.bytes.length);
+    }
+    ok(serialTypeOf(mkInt(0n), false).code === 8 && serialTypeOf(mkInt(0n), false).bytes.length === 0,
+      "the integer 0 did not use the zero-length serial type 8");
+    ok(serialTypeOf(mkInt(1n), false).code === 9 && serialTypeOf(mkInt(1n), false).bytes.length === 0,
+      "the integer 1 did not use the zero-length serial type 9");
+
+    /* 9.5 varints: identity over a spread that crosses every length boundary */
+    var vs = [0n, 1n, 127n, 128n, 16383n, 16384n, 2097151n, 2097152n, 268435455n, 268435456n,
+      34359738367n, 34359738368n, 4398046511103n, 4398046511104n, 562949953421311n,
+      562949953421312n, 72057594037927935n, 72057594037927936n, I64_MAX, -1n, I64_MIN];
+    for (i = 0; i < vs.length; i++) {
+      var enc = varintEncode(vs[i]), dec = varintDecode(enc, 0);
+      ok(dec && dec.value === vs[i] && dec.len === enc.length,
+        "the varint round trip lost " + vs[i]);
+      ok(enc.length >= 1 && enc.length <= 9, "a varint of " + enc.length + " bytes");
+    }
+    /* every negative number is nine bytes - the sign is not a special case, it is the
+       top bit of a 64-bit two's complement value */
+    ok(varintEncode(-1n).length === 9, "-1 did not encode as a nine-byte varint");
+
+    /* 9.6 the ordering is a total order: antisymmetric, transitive, and consistent
+           with the class ranking */
+    var ord = [mkNull(), mkInt(-99n), mkReal(2.5), mkInt(10n), mkText("2"), mkText("Apple"),
+      mkBlob(Uint8Array.from([0])), mkBlob(Uint8Array.from([0, 0]))];
+    var sorted = sortValues(ord.slice().reverse());
+    for (i = 1; i < sorted.length; i++)
+      ok(compare(sorted[i - 1], sorted[i]) <= 0, "sortValues did not produce a sorted list at " + i);
+    for (i = 0; i < ord.length; i++)
+      for (j = 0; j < ord.length; j++) {
+        var c1 = compare(ord[i], ord[j]), c2 = compare(ord[j], ord[i]);
+        ok(c1 === -c2 || (c1 === 0 && c2 === 0), "compare is not antisymmetric at " + i + "," + j);
+        ok(CLASS_RANK[ord[i].t] !== CLASS_RANK[ord[j].t] ? (c1 < 0) === (CLASS_RANK[ord[i].t] < CLASS_RANK[ord[j].t]) : true,
+          "the class ranking was not honoured at " + i + "," + j);
+      }
+    for (i = 0; i < ord.length; i++)
+      for (j = 0; j < ord.length; j++)
+        for (k = 0; k < ord.length; k++)
+          if (compare(ord[i], ord[j]) <= 0 && compare(ord[j], ord[k]) <= 0)
+            ok(compare(ord[i], ord[k]) <= 0, "compare is not transitive");
+
+    /* 9.7 applyAffinity is idempotent - storing a stored value must not move it again */
+    var probes = samples.concat([mkText("5"), mkText("3.0e2"), mkText("abc"), mkText("  7  "),
+      mkText("1.0000000000000001"), mkText("0x1A"), mkReal(2), mkInt(5n)]);
+    for (i = 0; i < AFFS.length; i++)
+      for (j = 0; j < probes.length; j++) {
+        var once = applyAffinity(probes[j], AFFS[i]).out;
+        var twice = applyAffinity(once, AFFS[i]).out;
+        ok(sameValue(once, twice),
+          "applying " + AFFS[i] + " affinity twice moved " + quote(probes[j]) + " again");
+      }
+
+    /* 9.8 INTEGER and NUMERIC affinity are indistinguishable at INSERT - the claim the
+           page makes, checked rather than asserted */
+    var sameCount = 0, castDiff = 0;
+    for (j = 0; j < probes.length; j++) {
+      var pi = applyAffinity(probes[j], "INTEGER").out, pn = applyAffinity(probes[j], "NUMERIC").out;
+      ok(sameValue(pi, pn), "INTEGER and NUMERIC affinity stored " + quote(probes[j]) + " differently");
+      if (sameValue(pi, pn)) sameCount++;
+      if (!sameValue(applyCast(probes[j], "INTEGER"), applyCast(probes[j], "NUMERIC"))) castDiff++;
+    }
+    ok(castDiff > 0, "CAST never told INTEGER and NUMERIC apart, so the page's claim is empty");
+
+    /* 9.9 the headline, as an identity: a REAL-affinity column and a NUMERIC-affinity
+           column write the SAME bytes for an integral double and read back different
+           types. Checked over a range, not on one example. */
+    var sameBytes = 0, diffType = 0, tried = 0;
+    for (i = -40; i <= 40; i++) {
+      var d = mkReal(i);
+      var asReal = applyAffinity(d, "REAL").out, asNum = applyAffinity(d, "NUMERIC").out;
+      var bR = encodeRecord([asReal], [true]), bN = encodeRecord([asNum], [false]);
+      var eq = bR.length === bN.length;
+      if (eq) for (k = 0; k < bR.length; k++) if (bR[k] !== bN[k]) eq = false;
+      tried++;
+      if (eq) sameBytes++;
+      var readReal = decodeRecord(bR, ["REAL"]), readNum = decodeRecord(bN, ["NUMERIC"]);
+      ok(readReal.ok && readNum.ok, "one of the two reads failed at " + i);
+      if (readReal.values[0].t !== readNum.values[0].t) diffType++;
+      ok(eq, "the REAL and NUMERIC encodings of " + i + ".0 are not byte-identical");
+      ok(readReal.values[0].t === "real", "the REAL column read " + i + ".0 back as " + readReal.values[0].t);
+      ok(readNum.values[0].t === "integer", "the NUMERIC column read " + i + ".0 back as " + readNum.values[0].t);
+    }
+    ok(sameBytes === tried && diffType === tried,
+      "the same-bytes-different-type identity held on only " + sameBytes + "/" + tried);
+
+    /* 9.10 an affinity-blind decoder is wrong on exactly the REAL columns and nowhere
+            else - the failure has to be SELECTIVE, or it is not the finding claimed */
+    var blindWrong = 0, blindRight = 0;
+    for (i = 0; i < AFFS.length; i++)
+      for (j = -12; j <= 12; j++) {
+        var vv = applyAffinity(mkReal(j + 0.0), AFFS[i]).out;
+        var bytes = encodeRecord([vv], [AFFS[i] === "REAL"]);
+        var blind = decodeRecord(bytes, null), aware = decodeRecord(bytes, [AFFS[i]]);
+        ok(blind.ok && aware.ok, "a decode failed");
+        if (sameValue(blind.values[0], aware.values[0])) blindRight++; else blindWrong++;
+        if (AFFS[i] !== "REAL") ok(sameValue(blind.values[0], aware.values[0]),
+          "the blind read differed on a " + AFFS[i] + " column, where the schema should not matter");
+      }
+    ok(blindWrong > 0, "the affinity-blind decoder was never wrong, so the page's claim is empty");
+
+    /* 9.11 whereEquals: `col = 5` must find a stored '5' under four affinities and miss
+            under exactly one */
+    var found = 0, missed = [], stored;
+    for (i = 0; i < AFFS.length; i++) {
+      stored = applyAffinity(mkText("5"), AFFS[i]).out;
+      var w = whereEquals(AFFS[i], stored, mkInt(5n));
+      if (w.match) found++; else missed.push(AFFS[i]);
+    }
+    ok(found === 4 && missed.length === 1 && missed[0] === "BLOB",
+      "`col = 5` matched under " + found + " of five affinities, missing " + missed.join(","));
+
+    /* 9.12 a hand-built file must parse with the engine's own reader, header and all */
+    var db = buildDb([{
+      name: "t", sql: "CREATE TABLE t(a INTEGER, b TEXT, c REAL, d BLOB)",
+      rows: [
+        { values: [mkInt(1n), mkText("one"), applyAffinity(mkReal(2), "REAL").out, mkBlob(Uint8Array.from([1, 2, 3]))], intReal: [false, false, true, false] },
+        { values: [mkInt(2n), mkText("two"), mkReal(3.5), mkNull()], intReal: [false, false, false, false] }
+      ]
+    }]);
+    var rd = readDb(db);
+    ok(rd.ok, "the engine could not read the file it just wrote");
+    ok(rd.pageSize === 4096 && rd.textEncoding === 1 && rd.schemaFormat === 4, "the header we wrote does not read back");
+    ok(rd.tables.length === 1 && rd.tables[0].name === "t", "the schema table did not round trip");
+    ok(rd.tables[0].columns.length === 4, "the CREATE TABLE reader found " + (rd.tables[0].columns.length) + " columns");
+    ok(rd.tables[0].columns[2].aff === "REAL", "column c did not get REAL affinity");
+    ok(rd.tables[0].rows.length === 2, "the data page lost rows");
+    ok(rd.tables[0].rows[0].aware.values[2].t === "real" && rd.tables[0].rows[0].blind.values[2].t === "integer",
+      "the schema-aware and schema-blind reads of the 2.0 agreed, which is the whole point");
+
+    /* 9.13 the parse: whitespace is tolerated at both ends and nowhere else */
+    ok(numericLiteral("  7  ", true).out.i === 7n, "surrounding whitespace was not tolerated");
+    ok(numericLiteral("5 5", true).ok === false, "interior whitespace was tolerated");
+    ok(numericLiteral("0x1A", true).ok === false, "a hex string was converted");
+    ok(numericLiteral("1e", true).ok === false, "an exponent with no digits was accepted");
+    ok(numericLiteral(".5", true).out.r === 0.5, "a leading dot was rejected");
+    ok(numericLiteral("5.", true).out.i === 5n, "a trailing dot was rejected");
+    ok(numericLiteral("1.0000000000000001", true).out.t === "integer",
+      "the seventeen-digit literal did not collapse to an integer");
+
+    return { asserts: a, bad: bad, notes: notes, perms: perms, permsDisagree: disagree };
+  }
+
+  return {
+    RULES: RULES, AFFS: AFFS, CORPUS: CORPUS, corpusScore: corpusScore,
+    mkNull: mkNull, mkInt: mkInt, mkReal: mkReal, mkText: mkText, mkBlob: mkBlob,
+    affinity: affinity, affinityScan: affinityScan, firstMarkerModel: firstMarkerModel,
+    atoi64: atoi64, atof: atof, numericLiteral: numericLiteral, realToInt: realToInt,
+    applyAffinity: applyAffinity, applyCast: applyCast, prefixNumber: prefixNumber,
+    typeofValue: typeofValue, quote: quote, sameValue: sameValue, realToText: realToText,
+    compare: compare, sortValues: sortValues, comparisonAffinity: comparisonAffinity,
+    whereEquals: whereEquals, CLASS_RANK: CLASS_RANK,
+    varintEncode: varintEncode, varintDecode: varintDecode,
+    serialTypeOf: serialTypeOf, serialTypeInfo: serialTypeInfo,
+    encodeRecord: encodeRecord, decodeRecord: decodeRecord,
+    buildDb: buildDb, readDb: readDb, parseCreate: parseCreate, leafCell: leafCell,
+    utf8: utf8, fromUtf8: fromUtf8, intWidth: intWidth,
+    selftest: selftest
+  };
+})();
+// ===== ENGINE:END =====
+
+/* ---------------------------------------------------------------- painting */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function affPill(a) {
+  var cls = { INTEGER: "p-int", TEXT: "p-txt", BLOB: "p-blb", REAL: "p-rea", NUMERIC: "p-num" }[a] || "p-blb";
+  return '<span class="pill ' + cls + '">' + esc(a) + "</span>";
+}
+function clsPill(t) {
+  var cls = { integer: "p-int", text: "p-txt", blob: "p-blb", real: "p-rea", "null": "p-nul" }[t] || "p-blb";
+  return '<span class="pill ' + cls + '">' + esc(t) + "</span>";
+}
+function hex2(b) { return (b < 16 ? "0" : "") + b.toString(16).toUpperCase(); }
+
+/* tabs */
+(function () {
+  var btns = $("tabs").querySelectorAll("button"), i;
+  for (i = 0; i < btns.length; i++) btns[i].addEventListener("click", function () {
+    var t = this.dataset.tab, k;
+    for (k = 0; k < btns.length; k++) btns[k].className = "tabbtn" + (btns[k].dataset.tab === t ? " tab-active" : "");
+    var names = ["look", "understand", "build"];
+    for (k = 0; k < names.length; k++) $(names[k]).className = "panel" + (names[k] === t ? "" : " hidden");
+    window.scrollTo(0, 0);
+  });
+})();
+
+/* ---- 1. the resolver ----------------------------------------------------- */
+function drawResolver() {
+  var decl = $("decl").value;
+  var a = SQLITE.affinity(decl), scan = SQLITE.affinityScan(decl), naive = SQLITE.firstMarkerModel(decl);
+  var u = String(decl).toUpperCase(), i, h = "";
+
+  for (i = 0; i < u.length; i++) {
+    var inWin = a.at >= 0 && i >= a.at && i < a.at + a.marker.length;
+    var inNaive = naive.at >= 0 && i >= naive.at && i < naive.at + naive.marker.length;
+    var cls = inWin ? "ch hit" : (inNaive ? "ch alt" : "ch");
+    h += '<div class="' + cls + '">' + esc(u[i] === " " ? "·" : u[i]) + "</div>";
+  }
+  $("chars").innerHTML = h || '<span class="t-sm dim">no declared type at all</span>';
+  $("charnote").innerHTML = a.at >= 0
+    ? "the winning marker <b>" + esc(a.marker) + "</b> starts at character " + a.at +
+      (naive.at >= 0 && naive.at !== a.at ? ', while the first marker in the name, <span class="bad">' + esc(naive.marker) + "</span>, starts at " + naive.at : "")
+    : "no marker matched anywhere, so rule 5 applies";
+
+  h = '<table class="num">';
+  var rules = SQLITE.RULES;
+  for (i = 0; i < rules.length; i++) {
+    var R = rules[i], hit = R.n === a.rule;
+    var mk = R.markers.length ? R.markers.map(function (x) { return "<code>" + x + "</code>"; }).join(" &middot; ") : "<i>anything else</i>";
+    h += '<tr class="' + (hit ? "hi" : "") + '"><td class="r bb">' + R.n + "</td><td>" + mk +
+      "</td><td>" + affPill(R.aff) + "</td><td>" +
+      (hit ? '<span class="v allow">fires</span>' : (R.n < a.rule ? '<span class="v grey">no match</span>' : '<span class="v grey">never reached</span>')) +
+      "</td></tr>";
+  }
+  h += "</table>";
+  $("rules").innerHTML = h;
+
+  $("verdict").innerHTML = '<div class="note note-b"><span class="big">' + esc(decl || "(no type)") +
+    "</span> &rarr; " + affPill(a.aff) + '<p class="t-sm mt2">' +
+    (a.at >= 0 ? "rule " + a.rule + " matched <code>" + esc(a.marker) + "</code>" : "nothing matched, so rule 5") +
+    ". The single left-to-right scan the implementation really uses reaches " + affPill(scan.aff) +
+    (scan.aff === a.aff ? " &mdash; the two models agree, as they do on every name this page has been given." :
+      ' &mdash; <span class="bad">and that is a disagreement worth reporting.</span>') + "</p></div>";
+  $("affbadge").className = "v " + (a.aff === naive.aff ? "grey" : "warn");
+  $("affbadge").textContent = a.aff === naive.aff ? "both models agree" : "the obvious reading is wrong here";
+
+  $("naive").innerHTML = '<table class="num"><tr><th>model</th><th>marker it uses</th><th>affinity</th><th></th></tr>' +
+    "<tr><td>lowest <b>rule number</b> wins (what SQLite does)</td><td><code>" + esc(a.marker) +
+    "</code> at " + a.at + "</td><td>" + affPill(a.aff) + '</td><td><span class="v allow">correct</span></td></tr>' +
+    "<tr><td>first marker <b>in the name</b> wins (what a reader does)</td><td><code>" + esc(naive.marker) +
+    "</code> at " + naive.at + "</td><td>" + affPill(naive.aff) + "</td><td>" +
+    (naive.aff === a.aff ? '<span class="v grey">happens to agree</span>' : '<span class="v deny">wrong</span>') +
+    "</td></tr></table>" +
+    '<p class="t-xs dim mt2">Over the 1,226 type names the verifier put through both SQLite builds, ' +
+    "the second row is wrong <b>343</b> times &mdash; 27.98%.</p>";
+}
+
+/* ---- 2. the corpus ------------------------------------------------------- */
+function drawCorpus() {
+  var sc = SQLITE.corpusScore(), i, h = '<table class="num"><tr><th>declared type</th><th>comes from</th>' +
+    "<th>predicted</th><th>actual</th><th></th></tr>";
+  for (i = 0; i < sc.rows.length; i++) {
+    var r = sc.rows[i];
+    h += '<tr class="' + (r.agree === false ? "hi" : "") + '"><td class="mono b">' +
+      esc(r.decl || "(no declared type)") + '</td><td class="t-xs dim">' + esc(r.from) + "</td><td>" +
+      (r.expect ? affPill(r.expect) : '<span class="t-xs dim">no honest prediction</span>') + "</td><td>" +
+      affPill(r.got) + "</td><td>" +
+      (r.agree === null ? "" : r.agree ? '<span class="v allow">as named</span>' : '<span class="v deny">contradicts the name</span>') +
+      "</td></tr>";
+  }
+  h += "</table>";
+  $("corpus").innerHTML = h;
+  $("corpsum").innerHTML =
+    '<span class="v deny">' + sc.differ + " of " + sc.scored + " contradict the name</span>" +
+    '<span class="v allow">' + sc.agree + " behave as named</span>" +
+    '<span class="v grey">' + (sc.rows.length - sc.scored) + " unscored, no honest prediction</span>" +
+    '<span class="v info">SQLite accepted all ' + sc.rows.length + " without a word</span>";
+}
+
+/* ---- 3. the storage grid ------------------------------------------------- */
+var GRID_LITS = [
+  ["5", "integer"], ["5.0", "real"], ["3.5", "real"], ["2.0", "real"],
+  ["'5'", "text"], ["'5.0'", "text"], ["'3.0e2'", "text"], ["'abc'", "text"],
+  ["'  7  '", "text"], ["'5 5'", "text"], ["'0x1A'", "text"], ["'007'", "text"],
+  ["'.5'", "text"], ["'5.'", "text"], ["'1e400'", "text"], ["'1.0000000000000001'", "text"],
+  ["'12345678901234567890'", "text"], ["''", "text"], ["x'3505'", "blob"], ["NULL", "null"]
+];
+function litToValue(lit, kind) {
+  if (kind === "null") return SQLITE.mkNull();
+  if (kind === "integer") return SQLITE.mkInt(BigInt(lit));
+  if (kind === "real") return SQLITE.mkReal(parseFloat(lit));
+  if (kind === "text") return SQLITE.mkText(lit.slice(1, -1).replace(/''/g, "'"));
+  var hx = lit.slice(2, -1), b = [], i;
+  for (i = 0; i < hx.length; i += 2) b.push(parseInt(hx.substr(i, 2), 16));
+  return SQLITE.mkBlob(Uint8Array.from(b));
+}
+function parseLiteral(lit) {
+  var s = String(lit).trim();
+  if (/^null$/i.test(s)) return SQLITE.mkNull();
+  if (/^x'[0-9a-fA-F]*'$/.test(s)) return litToValue(s, "blob");
+  if (/^'/.test(s) && /'$/.test(s)) return litToValue(s, "text");
+  if (/^[+-]?\d+$/.test(s)) return SQLITE.mkInt(BigInt(s));
+  if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s)) return SQLITE.mkReal(parseFloat(s));
+  return SQLITE.mkText(s);
+}
+function drawStorage() {
+  var affs = SQLITE.AFFS, i, j, changed = 0, total = 0;
+  var h = '<table class="mx"><tr><th></th>';
+  for (j = 0; j < affs.length; j++) h += "<th>" + affs[j] + "</th>";
+  h += "</tr>";
+  for (i = 0; i < GRID_LITS.length; i++) {
+    var v = litToValue(GRID_LITS[i][0], GRID_LITS[i][1]);
+    h += '<tr><td class="rh">' + esc(GRID_LITS[i][0]) + "</td>";
+    for (j = 0; j < affs.length; j++) {
+      var out = SQLITE.applyAffinity(v, affs[j]).out;
+      var moved = !SQLITE.sameValue(v, out);
+      total++; if (moved) changed++;
+      h += '<td class="c ' + (moved ? "ch" : "") + '" title="' + esc(SQLITE.applyAffinity(v, affs[j]).why) + '">' +
+        esc(out.t.slice(0, 3)) + " " + esc(SQLITE.quote(out).slice(0, 22)) + "</td>";
+    }
+    h += "</tr>";
+  }
+  h += "</table>";
+  $("storage").innerHTML = h;
+  $("storenote").innerHTML = '<div class="note"><p class="t-sm"><b>' + changed + " of " + total +
+    "</b> cells changed the value on the way in. Read the INTEGER and NUMERIC columns side by side: " +
+    "they are identical, everywhere, always &mdash; two of the five affinities cannot be told apart " +
+    "by anything you can store, only by <code>CAST</code>. Hover any cell for the sentence that " +
+    "explains it.</p></div>";
+}
+
+/* ---- 4. the headline ----------------------------------------------------- */
+function drawHeadline() {
+  var v = parseLiteral($("hv").value), affs = SQLITE.AFFS, i;
+  var h = '<table class="num"><tr><th>declared</th><th>affinity</th><th>stored as</th>' +
+    "<th>reads back</th><th>cell payload</th><th class=\"r\">bytes</th></tr>";
+  var decls = ["REAL", "DOUBLE PRECISION", "NUMERIC", "DECIMAL(10,2)", "BLOB", "TEXT"];
+  var byBytes = {};
+  for (i = 0; i < decls.length; i++) {
+    var aff = SQLITE.affinity(decls[i]).aff;
+    var stored = SQLITE.applyAffinity(v, aff).out;
+    var isReal = aff === "REAL" && stored.t === "real";
+    var rec = SQLITE.encodeRecord([stored], [isReal]);
+    var read = SQLITE.decodeRecord(rec, [aff]);
+    var hx = "", k;
+    for (k = 0; k < rec.length; k++) hx += hex2(rec[k]) + " ";
+    byBytes[hx] = (byBytes[hx] || 0) + 1;
+    h += "<tr><td class=\"mono b\">" + esc(decls[i]) + "</td><td>" + affPill(aff) + "</td><td>" +
+      clsPill(stored.t) + "</td><td>" + clsPill(read.values[0].t) + " <span class=\"mono\">" +
+      esc(SQLITE.quote(read.values[0]).slice(0, 26)) + "</span></td><td class=\"mono\">" + hx +
+      "</td><td class=\"r mono\">" + rec.length + "</td></tr>";
+  }
+  h += "</table>";
+  $("headline").innerHTML = h;
+
+  var pairs = 0, k2;
+  for (k2 in byBytes) if (byBytes[k2] > 1) pairs++;
+  var rAff = SQLITE.applyAffinity(v, "REAL").out, nAff = SQLITE.applyAffinity(v, "NUMERIC").out;
+  var rRec = SQLITE.encodeRecord([rAff], [rAff.t === "real"]);
+  var nRec = SQLITE.encodeRecord([nAff], [false]);
+  var same = rRec.length === nRec.length, kk;
+  for (kk = 0; same && kk < rRec.length; kk++) if (rRec[kk] !== nRec[kk]) same = false;
+  var rRead = SQLITE.decodeRecord(rRec, ["REAL"]).values[0];
+  var nRead = SQLITE.decodeRecord(nRec, ["NUMERIC"]).values[0];
+  $("headnote").innerHTML = same && rRead.t !== nRead.t
+    ? "<p class=\"b mb2\">🔴 Byte-identical, and they disagree.</p><p class=\"t-sm\">The REAL column and the " +
+      "NUMERIC column both wrote <code>" + esc(Array.prototype.map.call(rRec, hex2).join(" ")) +
+      "</code>. The REAL column reads it back as " + clsPill(rRead.t) + " <b>" + esc(SQLITE.quote(rRead)) +
+      "</b> and the NUMERIC column as " + clsPill(nRead.t) + " <b>" + esc(SQLITE.quote(nRead)) +
+      "</b>. Nothing in the record says which. The schema does, through an " +
+      "<code>OP_RealAffinity</code> the compiler emits after <code>OP_Column</code> for " +
+      "REAL-affinity columns and for nothing else.</p>"
+    : "<p class=\"b mb2\">Not this value.</p><p class=\"t-sm\">This one keeps a fractional part (or is " +
+      "not a number at all), so the REAL column has to write the full eight-byte IEEE double and " +
+      "the two columns diverge in the bytes as well as in the type. Try a whole number like " +
+      "<code>2.0</code>, <code>0</code> or <code>-17</code>.</p>";
+  $("hpre").innerHTML = ["2.0", "0", "1", "-17", "3.5", "1e15", "'42'"].map(function (x) {
+    return '<button class="pill p-blb" data-h="' + esc(x) + '" style="cursor:pointer">' + esc(x) + "</button>";
+  }).join(" ");
+}
+
+/* ---- 5. the record inspector --------------------------------------------- */
+function drawRecord() {
+  var lines = $("rowsrc").value.split(/\n/).filter(function (x) { return x.trim().length; });
+  var affs = $("rowaff").value.split(/\s*,\s*/);
+  var vals = [], flags = [], i;
+  for (i = 0; i < lines.length; i++) {
+    var aff = SQLITE.AFFS.indexOf((affs[i] || "BLOB").toUpperCase()) >= 0 ? affs[i].toUpperCase() : "BLOB";
+    var stored = SQLITE.applyAffinity(parseLiteral(lines[i]), aff).out;
+    vals.push(stored);
+    flags.push(aff === "REAL" && stored.t === "real");
+  }
+  var rec = SQLITE.encodeRecord(vals, flags);
+  var dec = SQLITE.decodeRecord(rec, vals.map(function (x, k) {
+    return SQLITE.AFFS.indexOf((affs[k] || "BLOB").toUpperCase()) >= 0 ? affs[k].toUpperCase() : "BLOB";
+  }));
+  var blind = SQLITE.decodeRecord(rec, null);
+  if (!dec.ok) { $("recbytes").innerHTML = '<span class="bad">' + esc(dec.why) + "</span>"; return; }
+
+  var h = "", hlen = dec.headerLen;
+  for (i = 0; i < rec.length; i++) {
+    var cls = i === 0 ? "byte hlen" : (i < hlen ? "byte st" : "byte pay");
+    h += '<div class="' + cls + '" title="offset ' + i + '">' + hex2(rec[i]) + "</div>";
+  }
+  $("recbytes").innerHTML = h +
+    '<div style="width:100%" class="t-xs dim mt2"><span class="byte hlen">&nbsp;</span> header length &middot; ' +
+    '<span class="byte st">&nbsp;</span> one serial type per column &middot; ' +
+    '<span class="byte pay">&nbsp;</span> payload &mdash; ' + fmtN(rec.length) + " bytes for " +
+    vals.length + " values, " + hlen + " of them header.</div>";
+
+  h = '<table class="num"><tr><th>#</th><th>declared affinity</th><th>stored</th><th class="r">serial type</th>' +
+    "<th>means</th><th class=\"r\">payload bytes</th><th>schema-aware read</th><th>schema-blind read</th></tr>";
+  for (i = 0; i < vals.length; i++) {
+    var code = dec.serials[i].code, info = SQLITE.serialTypeInfo(code);
+    var aw = dec.values[i], bl = blind.values[i];
+    var diff = aw.t !== bl.t || !SQLITE.sameValue(aw, bl);
+    h += '<tr class="' + (diff ? "hi" : "") + '"><td class="r">' + i + '</td><td class="mono t-xs">' +
+      esc((affs[i] || "BLOB").toUpperCase()) + "</td><td>" + clsPill(vals[i].t) + ' <span class="mono">' +
+      esc(SQLITE.quote(vals[i]).slice(0, 24)) + '</span></td><td class="r bb">' + code + "</td><td>" +
+      esc(info.name) + '</td><td class="r">' + info.len + "</td><td>" + clsPill(aw.t) + ' <span class="mono">' +
+      esc(SQLITE.quote(aw).slice(0, 24)) + "</span></td><td>" + clsPill(bl.t) + ' <span class="mono">' +
+      esc(SQLITE.quote(bl).slice(0, 24)) + "</span>" + (diff ? ' <span class="v deny">differs</span>' : "") +
+      "</td></tr>";
+  }
+  h += "</table>";
+  $("rectable").innerHTML = h;
+}
+
+/* ---- 6. where ------------------------------------------------------------ */
+function drawWhere() {
+  var stored = ["'5'", "'5.0'", "5", "5.0", "'abc'", "x'35'"];
+  var lits = ["5", "'5'", "5.0", "x'35'"];
+  var affs = SQLITE.AFFS, i, j, k;
+  var h = '<table class="num"><tr><th>column holds</th><th>query</th>';
+  for (k = 0; k < affs.length; k++) h += "<th>" + affs[k] + "</th>";
+  h += "<th></th></tr>";
+  var split = 0, pairs = 0;
+  for (i = 0; i < stored.length; i++)
+    for (j = 0; j < lits.length; j++) {
+      var answers = [], row = "";
+      for (k = 0; k < affs.length; k++) {
+        var sv = SQLITE.applyAffinity(parseLiteral(stored[i]), affs[k]).out;
+        var w = SQLITE.whereEquals(affs[k], sv, parseLiteral(lits[j]));
+        answers.push(w.match ? 1 : 0);
+        row += '<td class="mono ' + (w.match ? "ok" : "dim") + '">' + (w.match ? "1 row" : "&mdash;") + "</td>";
+      }
+      pairs++;
+      var varies = answers.join("") !== answers[0] + "" + answers[0] + answers[0] + answers[0] + answers[0];
+      if (varies) split++;
+      h += '<tr class="' + (varies ? "hi" : "") + '"><td class="mono">' + esc(stored[i]) +
+        '</td><td class="mono t-xs">WHERE x = ' + esc(lits[j]) + "</td>" + row + "<td>" +
+        (varies ? '<span class="v deny">depends on the declared type</span>' : '<span class="v grey">same everywhere</span>') +
+        "</td></tr>";
+    }
+  h += "</table>";
+  $("wheretbl").innerHTML = h + '<p class="t-xs dim mt2"><b>' + split + " of " + pairs +
+    "</b> (stored value, literal) pairs answer differently depending only on the string after the " +
+    "column name. The verifier ran the same 150 cells through both SQLite builds and agreed on all of them.</p>";
+}
+
+/* ---- 7. order by --------------------------------------------------------- */
+function drawOrder() {
+  var parts = $("ordsrc").value.split(/\s*,\s*(?=(?:[^']*'[^']*')*[^']*$)/);
+  var vals = [], i;
+  for (i = 0; i < parts.length; i++) if (parts[i].trim().length) vals.push(parseLiteral(parts[i]));
+  var sorted = SQLITE.sortValues(vals);
+  var h = '<table class="num"><tr><th class="r">#</th><th>value</th><th>storage class</th><th class="r">class rank</th><th>why here</th></tr>';
+  for (i = 0; i < sorted.length; i++) {
+    var v = sorted[i], rank = SQLITE.CLASS_RANK[v.t];
+    var why = rank === 0 ? "NULL sorts before everything"
+      : rank === 1 ? "a number: compared numerically against every other number"
+        : rank === 2 ? "text: after every number regardless of what it looks like"
+          : "a blob: after everything";
+    h += "<tr><td class=\"r\">" + (i + 1) + '</td><td class="mono b">' + esc(SQLITE.quote(v)) +
+      "</td><td>" + clsPill(v.t) + '</td><td class="r">' + rank + '</td><td class="t-xs dim">' + why + "</td></tr>";
+  }
+  h += "</table>";
+  $("ordtbl").innerHTML = h;
+}
+
+/* ---- 8. the file --------------------------------------------------------- */
+function drawFile() {
+  var n = Math.max(1, Math.min(400, parseInt($("nrows").value, 10) || 12));
+  var rows = [], i;
+  for (i = 0; i < n; i++) {
+    var c = SQLITE.applyAffinity(SQLITE.mkReal(i % 4 === 0 ? i : i + 0.25), "REAL").out;
+    rows.push({
+      values: [SQLITE.mkInt(BigInt(i + 1)), SQLITE.mkText("row " + (i + 1)), c,
+        i % 3 === 0 ? SQLITE.mkNull() : SQLITE.mkBlob(Uint8Array.from([i & 255, 255]))],
+      intReal: [false, false, c.t === "real", false]
+    });
+  }
+  var sql = "CREATE TABLE demo(a INTEGER, b TEXT, c REAL, d BLOB)";
+  var db;
+  try { db = SQLITE.buildDb([{ name: "demo", sql: sql, rows: rows }], { pageSize: 512 }); }
+  catch (e) { $("filesum").innerHTML = '<span class="v deny">' + esc(e.message) + "</span>"; return; }
+  var back = SQLITE.readDb(db);
+  var rootType = db[(back.tables[0].root - 1) * back.pageSize];
+
+  $("filesum").innerHTML =
+    '<span class="v info">' + fmtN(db.length) + " bytes</span>" +
+    '<span class="v info">' + (db.length / back.pageSize) + " pages of " + back.pageSize + "</span>" +
+    '<span class="v ' + (back.tables[0].rows.length === n ? "allow" : "deny") + '">' +
+    back.tables[0].rows.length + " of " + n + " rows read back</span>" +
+    '<span class="v grey">root page ' + back.tables[0].root + " is " +
+    (rootType === 5 ? "an INTERIOR page (0x05)" : "a LEAF page (0x0D)") + "</span>";
+
+  var hd = back;
+  var h = '<table class="num"><tr><th>offset</th><th>field</th><th class="r">value</th><th></th></tr>';
+  var fields = [
+    [0, "magic", '"SQLite format 3" and a NUL', ""],
+    [16, "page size", hd.pageSize, "1 in the file would mean 65536"],
+    [18, "write / read version", hd.writeVersion + " / " + hd.readVersion, "1 is the rollback journal, 2 is WAL"],
+    [20, "reserved bytes per page", hd.reserved, "usable = page size minus this"],
+    [24, "file change counter", hd.changeCounter, ""],
+    [28, "size in pages", hd.sizeInPages, hd.sizeTrusted ? "trustworthy: byte 92 matches byte 24" : "NOT trustworthy here"],
+    [44, "schema format", hd.schemaFormat, "4 since 3.3.0"],
+    [56, "text encoding", hd.textEncoding, "1 is UTF-8"],
+    [92, "version-valid-for", hd.versionValidFor, "equal to the change counter, so the page count above can be believed"],
+    [96, "sqlite_version_number", hd.sqliteVersion, "the library that last wrote the file"]
+  ];
+  for (i = 0; i < fields.length; i++)
+    h += '<tr><td class="mono">' + fields[i][0] + "</td><td>" + esc(fields[i][1]) +
+      '</td><td class="r mono bb">' + esc(fields[i][2]) + '</td><td class="t-xs dim">' + esc(fields[i][3]) + "</td></tr>";
+  h += "</table>";
+  $("fhdr").innerHTML = h;
+
+  /* the hex of page 1: the file header, then the b-tree page header and pointers, then cells */
+  var dv1 = new DataView(db.buffer, db.byteOffset, db.byteLength);
+  var nCell = dv1.getUint16(103, false), cellStart = dv1.getUint16(105, false) || 65536;
+  var ptrEnd = 108 + 2 * nCell;
+  var end = Math.min(back.pageSize, 512), out = "", off;
+  for (off = 0; off < end; off += 16) {
+    var line = '<span class="off">' + ("0000" + off.toString(16)).slice(-4) + "</span>  ";
+    var asc = "";
+    for (i = 0; i < 16; i++) {
+      if (off + i >= end) { line += "   "; asc += " "; continue; }
+      var b = db[off + i], pp = off + i;
+      var cls = pp < 100 ? "m1" : (pp < ptrEnd ? "m2" : (pp >= cellStart ? "m3" : ""));
+      line += '<span class="' + cls + '">' + hex2(b) + "</span> ";
+      asc += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+    }
+    out += line + "  " + esc(asc) + String.fromCharCode(10);
+  }
+  $("fhex").innerHTML = "<pre>" + out + "</pre>";
+}
+
+/* ---- 10. the references -------------------------------------------------- */
+function drawRefs() {
+  var rows = [
+    ["SQLite 3.45.1 via Python 3.11 <code>sqlite3</code>", "forward and reverse",
+      "1,226 type names resolved, 5&times;54 storage cells, 255 CAST cells, 150 comparison cells, 4 files written, 3 files read"],
+    ["SQLite 3.50.0 via <code>node:sqlite</code>", "forward and reverse",
+      "the same 1,226 names and the same storage grid, independently &mdash; 0 cells on which the two builds disagree"],
+    ["the CAST discriminator itself", "proved before use",
+      "70 of 70 names where <code>typeof(CAST(&hellip;))</code> agrees with what a real column stores"],
+    ["reference &rarr; engine", "1,012 rows",
+      "4 files the library wrote, at four page sizes, including interior b-tree pages and overflow payloads &mdash; every row recovered, every record re-encoded byte-identically"],
+    ["engine &rarr; reference", "900 rows",
+      "3 page sizes written by this engine, <code>PRAGMA integrity_check</code> clean in both libraries, 3 of 3 needing a real interior page"],
+    ["the headline", "121 of 121",
+      "integral doubles whose REAL and NUMERIC records are byte-identical and whose types diverge; 361 bytes against 1,210 for the same values under BLOB affinity"],
+    ["serial types", "381 boundary values",
+      "every int64 width boundary, checked against a width oracle and against the serial type the library itself chose"],
+    ["varints", "197 values, 27 nine-byte",
+      "round-tripped, length-checked against an independent oracle, and decoded out of 400 lengths the library wrote"],
+    ["ordering", "20 mixed-class values",
+      "0 disagreements with real <code>ORDER BY</code>; 6 of 56 numeric-looking text pairs sort above a larger number"],
+    ["the bite test", "9 of 9",
+      "deliberate breakages of the engine &mdash; reordering the rules, moving the default affinity, removing the zero-length serial types, masking the ninth varint byte, deleting the RealAffinity step &mdash; all caught"]
+  ];
+  var h = '<table class="num"><tr><th>reference</th><th>scale</th><th>what it decided</th></tr>', i;
+  for (i = 0; i < rows.length; i++)
+    h += "<tr><td class=\"b\">" + rows[i][0] + '</td><td class="mono t-xs">' + esc(rows[i][1]) +
+      '</td><td class="t-sm muted">' + rows[i][2] + "</td></tr>";
+  $("refs").innerHTML = h + "</table>";
+}
+
+/* ---- the self-check ------------------------------------------------------ */
+function runSelftest() {
+  var t0 = Date.now(), st = SQLITE.selftest(), ms = Date.now() - t0, i;
+  var lines = [(st.bad ? "FAILED" : "PASS") + "  " + fmtN(st.asserts) + " assertions, " +
+    st.bad + " failures, " + ms + " ms"];
+  lines.push("  " + fmtN(st.perms) + " generated marker permutations: the documented rule table and the");
+  lines.push("  implementation's single scan disagree on " + st.permsDisagree + " of them");
+  for (i = 0; i < st.notes.length; i++) lines.push("  " + st.notes[i]);
+  $("ref").textContent = lines.join("\n");
+  $("selftest").className = "v " + (st.bad ? "deny" : "allow");
+  $("selftest").textContent = (st.bad ? "FAILED " : "PASS ") + fmtN(st.asserts) + " assertions, " +
+    st.bad + " failures";
+}
+
+/* ---- the heavy sweep ----------------------------------------------------- */
+$("sweepbtn").addEventListener("click", function () {
+  var btn = this, out = $("sweepout");
+  btn.disabled = true; btn.textContent = "sweeping…";
+  out.innerHTML = '<p class="t-sm dim">building every marker permutation and every record shape…</p>';
+  setTimeout(function () {
+    var t0 = Date.now(), a = 0, bad = 0, notes = [], i, j, k;
+    function ok(c, l) { a++; if (!c) { bad++; if (notes.length < 8) notes.push(l); } }
+
+    /* 1. every four-fragment permutation of every marker and every decoy: the documented
+          rule table and the implementation's scan must be the same function */
+    var F = ["INT", "CHAR", "CLOB", "TEXT", "BLOB", "REAL", "FLOA", "DOUB", "IN", "LOB", "ZZ"];
+    var perms = 0, split = 0, naiveWrong = 0;
+    for (i = 0; i < F.length; i++)
+      for (j = 0; j < F.length; j++)
+        for (k = 0; k < F.length; k++) {
+          var nm = F[i] + F[j] + F[k];
+          var d = SQLITE.affinity(nm).aff, s = SQLITE.affinityScan(nm).aff;
+          perms++;
+          if (d !== s) split++;
+          ok(d === s, "the rule table and the scan disagree on " + nm);
+          ok(SQLITE.AFFS.indexOf(d) >= 0, nm + " produced an affinity outside the five");
+          if (SQLITE.firstMarkerModel(nm).aff !== d) naiveWrong++;
+        }
+
+    /* 2. the record codec as an identity over a wide value space, and the two zero-length
+          serial types checked as a size statement rather than as a code */
+    var vals = [SQLITE.mkNull(), SQLITE.mkInt(0n), SQLITE.mkInt(1n)], e;
+    for (e = 0; e <= 63; e++) {
+      var b = 1n << BigInt(e);
+      if (b - 1n <= 9223372036854775807n) vals.push(SQLITE.mkInt(b - 1n));
+      if (b <= 9223372036854775807n) vals.push(SQLITE.mkInt(b));
+      if (-b >= -9223372036854775808n) vals.push(SQLITE.mkInt(-b));
+    }
+    vals.push(SQLITE.mkReal(0.5), SQLITE.mkReal(-3.25), SQLITE.mkReal(1e308),
+      SQLITE.mkText(""), SQLITE.mkText("hello"), SQLITE.mkText("é中😀"),
+      SQLITE.mkBlob(new Uint8Array(0)), SQLITE.mkBlob(Uint8Array.from([0, 255, 128])));
+    var trips = 0, freeBytes = 0;
+    for (i = 0; i < vals.length; i++) {
+      var rec = SQLITE.encodeRecord([vals[i]]);
+      var back = SQLITE.decodeRecord(rec, null);
+      trips++;
+      ok(back.ok && SQLITE.sameValue(back.values[0], vals[i]), "the record round trip lost " + SQLITE.quote(vals[i]));
+      var st = SQLITE.serialTypeOf(vals[i], false), info = SQLITE.serialTypeInfo(st.code);
+      ok(info.len === st.bytes.length, "serial type " + st.code + " claims " + info.len + " bytes and wrote " + st.bytes.length);
+      if (info.len === 0 && vals[i].t === "integer") freeBytes++;
+    }
+    /* every ordered pair, as a row, so the header varint length is exercised too */
+    var rowTrips = 0;
+    for (i = 0; i < vals.length; i += 3)
+      for (j = 0; j < vals.length; j += 7) {
+        var r2 = SQLITE.decodeRecord(SQLITE.encodeRecord([vals[i], vals[j]]), null);
+        rowTrips++;
+        ok(r2.ok && SQLITE.sameValue(r2.values[0], vals[i]) && SQLITE.sameValue(r2.values[1], vals[j]),
+          "a two-column round trip failed at " + i + "," + j);
+      }
+
+    /* 3. the headline over a range, as a byte identity and a type divergence */
+    var same = 0, diff = 0, span = 0, realBytes = 0, blobBytes = 0;
+    for (i = -500; i <= 500; i++) {
+      var d0 = SQLITE.mkReal(i);
+      var rr = SQLITE.applyAffinity(d0, "REAL").out, nn = SQLITE.applyAffinity(d0, "NUMERIC").out;
+      var bb = SQLITE.applyAffinity(d0, "BLOB").out;
+      var rb = SQLITE.encodeRecord([rr], [true]), nb = SQLITE.encodeRecord([nn], [false]);
+      var bbb = SQLITE.encodeRecord([bb], [false]);
+      realBytes += rb.length; blobBytes += bbb.length;
+      var eq = rb.length === nb.length, q;
+      for (q = 0; eq && q < rb.length; q++) if (rb[q] !== nb[q]) eq = false;
+      span++;
+      if (eq) same++;
+      var ra = SQLITE.decodeRecord(rb, ["REAL"]).values[0], na = SQLITE.decodeRecord(nb, ["NUMERIC"]).values[0];
+      if (ra.t !== na.t) diff++;
+      ok(eq, "the REAL and NUMERIC encodings of " + i + ".0 are not byte-identical");
+      ok(ra.t === "real" && na.t === "integer", "the two reads of " + i + ".0 did not diverge");
+    }
+
+    /* 4. applying an affinity twice must be the same as applying it once, for every
+          affinity and every value shape */
+    var idem = 0;
+    for (i = 0; i < SQLITE.AFFS.length; i++)
+      for (j = 0; j < vals.length; j++) {
+        var once = SQLITE.applyAffinity(vals[j], SQLITE.AFFS[i]).out;
+        var twice = SQLITE.applyAffinity(once, SQLITE.AFFS[i]).out;
+        idem++;
+        ok(SQLITE.sameValue(once, twice), "applying " + SQLITE.AFFS[i] + " twice moved the value again");
+      }
+
+    /* 5. the ordering is a total order over every pair and every triple of a mixed bag */
+    var bag = [SQLITE.mkNull(), SQLITE.mkInt(-99n), SQLITE.mkReal(2.5), SQLITE.mkInt(10n),
+      SQLITE.mkText("2"), SQLITE.mkText("Apple"), SQLITE.mkBlob(Uint8Array.from([0])),
+      SQLITE.mkBlob(Uint8Array.from([0, 0])), SQLITE.mkReal(1e308), SQLITE.mkInt(9223372036854775807n)];
+    var tri = 0;
+    for (i = 0; i < bag.length; i++)
+      for (j = 0; j < bag.length; j++) {
+        ok(SQLITE.compare(bag[i], bag[j]) === -SQLITE.compare(bag[j], bag[i]), "compare is not antisymmetric");
+        for (k = 0; k < bag.length; k++) {
+          tri++;
+          if (SQLITE.compare(bag[i], bag[j]) <= 0 && SQLITE.compare(bag[j], bag[k]) <= 0)
+            ok(SQLITE.compare(bag[i], bag[k]) <= 0, "compare is not transitive");
+        }
+      }
+
+    /* 6. a whole file, written and read back, at several page sizes and row counts */
+    var files = 0, fileRows = 0, interiors = 0;
+    var sizes = [512, 1024, 4096], counts = [1, 5, 40, 200];
+    for (i = 0; i < sizes.length; i++)
+      for (j = 0; j < counts.length; j++) {
+        var rws = [], q2;
+        for (q2 = 0; q2 < counts[j]; q2++)
+          rws.push({ values: [SQLITE.mkInt(BigInt(q2)), SQLITE.mkText("r" + q2), SQLITE.mkReal(q2 + 0.5)] });
+        var db2;
+        try { db2 = SQLITE.buildDb([{ name: "t", sql: "CREATE TABLE t(a INTEGER, b TEXT, c REAL)", rows: rws }], { pageSize: sizes[i] }); }
+        catch (err) { ok(false, "buildDb refused " + counts[j] + " rows at page size " + sizes[i]); continue; }
+        var rd = SQLITE.readDb(db2);
+        files++;
+        ok(rd.ok && rd.tables.length === 1, "the engine could not read back its own file");
+        if (!rd.ok || !rd.tables.length) continue;
+        ok(rd.tables[0].rows.length === counts[j],
+          "read back " + rd.tables[0].rows.length + " of " + counts[j] + " rows");
+        if (db2[(rd.tables[0].root - 1) * sizes[i]] === 5) interiors++;
+        for (q2 = 0; q2 < rd.tables[0].rows.length; q2++) {
+          fileRows++;
+          ok(SQLITE.sameValue(rd.tables[0].rows[q2].aware.values[1], SQLITE.mkText("r" + q2)),
+            "row " + q2 + " came back with the wrong text");
+        }
+      }
+
+    var ms = Date.now() - t0;
+    var h = '<table class="num"><tr><th>sweep</th><th class="r">n</th><th>result</th></tr>';
+    h += "<tr><td>marker permutations, three fragments deep</td><td class=\"r mono bb\">" + fmtN(perms) +
+      '</td><td class="t-xs muted">the documented rule table and the implementation scan split on <b>' +
+      split + "</b>; the first-marker-in-the-name model is wrong on <b>" + fmtN(naiveWrong) + "</b> (" +
+      (100 * naiveWrong / perms).toFixed(2) + "%)</td></tr>";
+    h += "<tr><td>record round trips</td><td class=\"r mono bb\">" + fmtN(trips + rowTrips) +
+      '</td><td class="t-xs muted">every int64 width boundary and every value shape; <b>' + freeBytes +
+      "</b> of them stored in zero payload bytes</td></tr>";
+    h += "<tr><td>integral doubles, REAL against NUMERIC</td><td class=\"r mono bb\">" + fmtN(span) +
+      '</td><td class="t-xs muted"><b>' + fmtN(same) + "</b> byte-identical records, <b>" + fmtN(diff) +
+      "</b> type divergences; " + fmtN(realBytes) + " bytes against " + fmtN(blobBytes) +
+      " under BLOB affinity (" + (100 * realBytes / blobBytes).toFixed(2) + "%)</td></tr>";
+    h += "<tr><td>affinity applied twice</td><td class=\"r mono bb\">" + fmtN(idem) +
+      '</td><td class="t-xs muted">storing a stored value must not move it again</td></tr>';
+    h += "<tr><td>ordering triples</td><td class=\"r mono bb\">" + fmtN(tri) +
+      '</td><td class="t-xs muted">antisymmetry and transitivity over a mixed-class bag</td></tr>';
+    h += "<tr><td>database files written and read</td><td class=\"r mono bb\">" + fmtN(files) +
+      '</td><td class="t-xs muted">' + fmtN(fileRows) + " rows across three page sizes; <b>" + interiors +
+      "</b> needed a real interior b-tree page</td></tr>";
+    h += '<tr><td class="bb">assertions</td><td class="r mono bb">' + fmtN(a) + "</td><td>" +
+      (bad ? '<span class="v deny">' + bad + " failures</span>" : '<span class="v allow">0 failures</span>') +
+      " &middot; " + fmtN(ms) + " ms</td></tr></table>";
+    if (notes.length) h += "<pre>" + esc(notes.join("\n")) + "</pre>";
+    out.innerHTML = h;
+    btn.disabled = false; btn.textContent = "run the full sweep";
+  }, 30);
+});
+
+/* ---- wiring -------------------------------------------------------------- */
+(function () {
+  var picks = SQLITE.CORPUS.map(function (c) { return c[0]; })
+    .concat(["VARCHR(255)", "CHARINT", "BLOBFLOAT", "FLOATBLOB", "TEXTINT", "MY_TYPE"]);
+  $("declpick").innerHTML = picks.map(function (p) {
+    return '<option value="' + esc(p) + '">' + esc(p || "(no declared type)") + "</option>";
+  }).join("");
+  $("declpick").addEventListener("change", function () { $("decl").value = this.value; drawResolver(); });
+  $("decl").addEventListener("input", drawResolver);
+  $("hv").addEventListener("input", drawHeadline);
+  $("hpre").addEventListener("click", function (e) {
+    if (e.target && e.target.dataset && e.target.dataset.h) { $("hv").value = e.target.dataset.h; drawHeadline(); }
+  });
+  $("rowsrc").addEventListener("input", drawRecord);
+  $("rowaff").addEventListener("input", drawRecord);
+  $("ordsrc").addEventListener("input", drawOrder);
+  $("nrows").addEventListener("input", drawFile);
+})();
+
+/* ---- the pump: render in order, never block the first paint -------------- */
+(function () {
+  var steps = [
+    function () { drawResolver(); },
+    function () { drawHeadline(); drawRecord(); },
+    function () { drawStorage(); drawWhere(); drawOrder(); },
+    function () { runSelftest(); },
+    function () { drawCorpus(); },
+    function () { drawFile(); },
+    function () { drawRefs(); }
+  ];
+  var i = 0;
+  function next() {
+    if (i >= steps.length) { document.body.setAttribute("data-ready", "1"); return; }
+    var f = steps[i++];
+    f();
+    setTimeout(next, 0);
+  }
+  setTimeout(next, 0);
+})();
+</script>
+</body>
+</html>
