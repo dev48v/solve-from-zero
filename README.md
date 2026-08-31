@@ -77,6 +77,7 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 73 — Tar Archive Reader](https://dev48.infy.uk/solve/day73-tar-archive-reader.html) — `day73-tar-archive-reader.html`
 - [SolveFromZero · Day 74 — DEFLATE / INFLATE decoder (RFC 1951)](https://dev48.infy.uk/solve/day74-deflate-decoder.html) — `day74-deflate-decoder.html`
 - [SolveFromZero · Day 75 — SQLite type affinity + the record codec](https://dev48.infy.uk/solve/day75-sqlite-type-affinity.html) — `day75-sqlite-type-affinity.html`
+- [SolveFromZero · Day 76 — Unicode normalisation (UAX #15): NFC, NFD, NFKC, NFKD](https://dev48.infy.uk/solve/day76-unicode-normalization.html) — `day76-unicode-normalization.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

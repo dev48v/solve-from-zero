@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 76 &mdash; Unicode normalisation (UAX&nbsp;#15): NFC, NFD, NFKC, NFKD</title>
+<style>
+/* ---- no CDN, no build step: only the utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:13px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+table.num td.r, table.num th.r { text-align:right; font-variant-numeric:tabular-nums; }
+table.num tr.hi td { background:#fff7ed; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+/* layout utilities */
+.wrap  { max-width:1120px; margin:0 auto; }
+.p4 { padding:16px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+ol { margin:8px 0; padding-left:22px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+.go:disabled { background:#94a3b8; cursor:default; }
+.hdrrow { display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.pill { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:12px; padding:3px 10px;
+     border-radius:6px; display:inline-block; }
+.p-nfd {background:#dbeafe;color:#1e3a8a} .p-nfc {background:#dcfce7;color:#14532d}
+.p-nfkd {background:#f3e8ff;color:#581c87} .p-nfkc {background:#ffedd5;color:#7c2d12}
+/* one box per code point */
+.cps { display:flex; flex-wrap:wrap; gap:3px; align-items:stretch; }
+.cp { border-radius:5px; background:#e2e8f0; color:#334155; padding:3px 6px; min-width:52px;
+     font-family:ui-monospace,Consolas,monospace; font-size:10px; text-align:center; line-height:1.3; }
+.cp b { display:block; font-size:16px; font-weight:700; line-height:1.25; }
+.cp.starter { background:#dbeafe; color:#1e3a8a; }
+.cp.mark    { background:#fef3c7; color:#78350f; }
+.cp.made    { background:#bbf7d0; color:#14532d; font-weight:700; }
+.cp.moved   { background:#fed7aa; color:#7c2d12; }
+.cp.gone    { background:#fee2e2; color:#991b1b; text-decoration:line-through; }
+.cp .cc { display:block; font-size:9px; opacity:.75; }
+.arrow { align-self:center; color:#94a3b8; font-size:18px; padding:0 4px; }
+.stage { display:grid; grid-template-columns:118px 1fr; gap:10px; align-items:start; padding:7px 0;
+     border-top:1px solid #e2e8f0; }
+@media (max-width:640px){ .stage { grid-template-columns:1fr; } }
+.stage .lbl { padding-top:6px; }
+.bar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; display:inline-block; }
+.swatch { display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:5px; }
+.presets button { font-size:11.5px; padding:5px 9px; border-radius:7px; background:#e2e8f0; color:#0f172a; font-weight:600; }
+.presets button:hover { background:#cbd5e1; }
+.glyph { font-size:24px; line-height:1.1; }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 76</p>
+    <h1 class="mb4">
+      🔤 A real UAX&nbsp;#15 normaliser &mdash; recursive canonical and compatibility
+      decomposition, the canonical ordering algorithm, the derivation of
+      <code>Full_Composition_Exclusion</code>, the blocked-composition rule and the Hangul
+      arithmetic &mdash; written from the raw UCD fields rather than called out to a library.
+      Everyone knows NFC composes and NFD decomposes, and that the two undo each other.
+      Over the <strong>2,061</strong> characters that actually have a canonical decomposition,
+      <code>NFC(NFD(c)) === c</code> holds for <strong>941</strong> and fails for
+      <strong>1,120</strong> &mdash; <strong>54.34%</strong>, more than half. <code>U+0958</code>
+      DEVANAGARI&nbsp;LETTER&nbsp;QA is one assigned character; the <em>composed</em> form turns it
+      into <strong>two</strong> and will never put it back. And for <strong>1,035</strong> of the
+      failures NFC does not merely decline &mdash; it hands back a <em>different character</em>:
+      <code>U+212B</code> ANGSTROM&nbsp;SIGN normalises to <code>U+00C5</code>, the letter Å.
+      🔴 The finding is positional. <code>a</code>&nbsp;+&nbsp;<code>◌̂</code>&nbsp;+&nbsp;<code>◌̀</code>
+      is <strong>one</strong> code point after NFC &mdash; <code>U+1EA7</code>, Vietnamese ầ.
+      <code>a</code>&nbsp;+&nbsp;<code>◌̀</code>&nbsp;+&nbsp;<code>◌̂</code>, the same three
+      characters with the two accents swapped, is <strong>two</strong> &mdash;
+      <code>U+00E0 U+0302</code> &mdash; and no normalisation form will ever make them equal.
+      Both marks carry combining class 230, and canonical ordering is a <strong>stable</strong>
+      sort that refuses to reorder marks that share a class, because in that case their order is
+      data. Swap that same acute past a <em>cedilla</em> (class 202) instead and nothing happens
+      at all: over 3,600 different-class pairs the swap is erased <strong>3,600</strong> times,
+      over 53,232 same-class pairs it survives <strong>53,184</strong> &mdash; and the zeroes are
+      the tell. The shortcut everybody writes, <em>compose every adjacent pair you can</em>, is
+      wrong on <strong>9.88%</strong> of 40,000 marked strings; <em>sort every run of marks by
+      class</em> is wrong on <strong>20.01%</strong>; and two strings that are each already NFC
+      concatenate into a string that is not, <strong>8.93%</strong> of the time.
+      Every verdict is differential against <strong>five</strong> independent implementations
+      across <strong>four</strong> Unicode versions &mdash; ICU&nbsp;77 (Node&nbsp;22,
+      Unicode&nbsp;16.0), Python&nbsp;3.13 (15.1), Java&nbsp;21 (15.0), Perl&nbsp;5.38 (15.0) and
+      Python&nbsp;3.11 (14.0).
+      Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🔤 NORMALISE</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ NORMALISE -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <!-- 1. the normaliser -->
+    <div class="card">
+      <div class="flex mb3" style="justify-content:space-between;align-items:baseline">
+        <h3>Type anything. Watch the three stages.</h3>
+        <span class="v grey" id="selftest">running&hellip;</span>
+      </div>
+      <p class="t-sm muted mb3">Normalisation is not one operation, it is three in a fixed order:
+        expand every mapping recursively, <b>stably</b> sort each run of combining marks by class,
+        and &mdash; for the composed forms only &mdash; walk left to right putting back the pairs
+        that are allowed back. The trace below is the engine&rsquo;s own steps, not a
+        re-telling of them.</p>
+      <div class="flex presets mb3" id="presets"></div>
+      <input id="inp" value="a&#x0302;&#x0300;" spellcheck="false" />
+      <div class="mt3" id="glyphrow"></div>
+      <div class="mt3" id="stages"></div>
+      <div class="mt3" id="verdicts"></div>
+      <div class="sep"></div>
+      <div class="lbl mb2">The four forms</div>
+      <div class="scroll"><table class="num" id="fourforms"></table></div>
+      <p class="t-xs dim mt2">A box is <span class="swatch" style="background:#dbeafe"></span>a starter
+        (combining class 0), <span class="swatch" style="background:#fef3c7"></span>a combining mark,
+        <span class="swatch" style="background:#bbf7d0"></span>a character composition just created,
+        <span class="swatch" style="background:#fed7aa"></span>a mark canonical ordering moved.</p>
+    </div>
+
+    <!-- 2. the swap -->
+    <div class="card">
+      <h3 class="mb2">Two accents, two orders, two different strings</h3>
+      <p class="t-sm muted mb3">Every row is one base letter and the same two combining marks,
+        written in both orders. When the marks share a combining class, canonical ordering leaves
+        them alone and the two spellings stay different <em>forever</em> &mdash; no form makes them
+        equal. When the classes differ, ordering rewrites both to the same sequence and the
+        difference disappears. Nothing in either string says which case you are in except the two
+        class numbers.</p>
+      <div class="scroll"><table class="num" id="swaptbl"></table></div>
+      <div class="note note-r mt3 t-sm" id="swapnote"></div>
+    </div>
+
+    <!-- 3. NFC does not mean composed -->
+    <div class="card">
+      <h3 class="mb2">&ldquo;NFC&rdquo; does not mean composed</h3>
+      <p class="t-sm muted mb3">Composition is allowed only for pairs that are <em>not</em> in
+        <code>Full_Composition_Exclusion</code>. That property has three sources and only one of
+        them is a list &mdash; the other two are computed from the decomposition itself, which is
+        why the file that ships the list has four numbered sections and only publishes two of
+        them.</p>
+      <div class="grid g2">
+        <div><div class="scroll"><table class="num" id="census"></table></div></div>
+        <div><div class="scroll"><table class="num" id="exclex"></table></div></div>
+      </div>
+      <div class="note note-b mt3 t-sm" id="censusnote"></div>
+    </div>
+
+    <!-- 4. the two shortcuts -->
+    <div class="card">
+      <h3 class="mb2">The two shortcuts, scored</h3>
+      <p class="t-sm muted mb3">Both are re-implemented in the engine and run against it over the
+        same deterministic corpus of 40,000 base-plus-marks strings, so the comparison is code
+        against code, not code against a claim.</p>
+      <div class="scroll"><table class="num" id="scoretbl"></table></div>
+      <div class="lbl mt3 mb2">Where &ldquo;compose every adjacent pair&rdquo; breaks</div>
+      <div class="scroll"><table class="num" id="greedyex"></table></div>
+      <div class="lbl mt3 mb2">Where &ldquo;sort the marks by class&rdquo; breaks</div>
+      <div class="scroll"><table class="num" id="sortex"></table></div>
+    </div>
+
+    <!-- 5. concatenation -->
+    <div class="card">
+      <h3 class="mb2">Two normalised strings, joined, are not normalised</h3>
+      <p class="t-sm muted mb3">This is the one that reaches production. A template engine, a
+        string builder, a streaming decoder: each piece is normalised on the way in, and the join
+        undoes it. NFC is not closed under concatenation and there is no cheap test for it &mdash;
+        you have to re-normalise across the seam.</p>
+      <div class="scroll"><table class="num" id="cattbl"></table></div>
+      <div class="note note-r mt3 t-sm" id="catnote"></div>
+    </div>
+
+    <!-- 6. NFKC -->
+    <div class="card">
+      <h3 class="mb2">NFKC is not cosmetic</h3>
+      <p class="t-sm muted mb3">The compatibility forms are a different contract: they throw
+        information away on purpose. That is what makes them useful for search and dangerous for
+        identity. Below: every non-ASCII code point up to U+1FBFF whose NFKC is pure ASCII.</p>
+      <div class="grid g2">
+        <div><div class="scroll"><table class="num" id="folds"></table></div></div>
+        <div>
+          <div class="scroll"><table class="num" id="foldex"></table></div>
+          <div class="note note-r mt3 t-sm" id="foldnote"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. two inputs -->
+    <div class="card">
+      <h3 class="mb2">Are these two strings the same?</h3>
+      <p class="t-sm muted mb3">Four different answers to one question, and the one your
+        <code>===</code> gives is the first row.</p>
+      <div class="grid g2">
+        <div><div class="lbl mb1">Left</div><input id="cmpA" value="&#x00C5;ngstr&#x00F6;m" spellcheck="false" /></div>
+        <div><div class="lbl mb1">Right</div><input id="cmpB" value="&#x212B;ngstro&#x0308;m" spellcheck="false" /></div>
+      </div>
+      <div class="scroll mt3"><table class="num" id="cmptbl"></table></div>
+    </div>
+
+    <!-- 8. references -->
+    <div class="card">
+      <h3 class="mb2">Five implementations, four Unicode versions</h3>
+      <p class="t-sm muted mb3">The engine ships one UCD version. The machines it runs on do not
+        agree on which one that should be. The table below is what the verifier measured by
+        driving each implementation from an empty working directory
+        (<code>bot10-verify-day76-solve.mjs</code>); the page cannot start a subprocess, so these
+        are reported numbers, not live ones &mdash; everything else on this page is computed in
+        front of you.</p>
+      <div class="scroll"><table class="num" id="reftbl"></table></div>
+      <div class="note note-g mt3 t-sm">
+        <b>The asymmetry is worth keeping.</b> Over all 1,112,064 code points &times; 4 forms,
+        <b>NFC</b> agreed with every one of the five, across all four Unicode versions.
+        <b>NFD</b>, <b>NFKD</b> and <b>NFKC</b> did not. A precomposed character your library has
+        never heard of is left alone, and &ldquo;left alone&rdquo; <em>is</em> its NFC &mdash; so
+        the composed form looks version-proof. Hand the same engine the <em>decomposed</em>
+        spelling of those same characters and NFC breaks on <b>20 of 20</b>. The stability
+        guarantee is real, and it is conditional on every character in your string already
+        existing in your version.
+      </div>
+    </div>
+
+    <!-- 9. full sweep -->
+    <div class="card">
+      <h3 class="mb2">Sweep the whole code space</h3>
+      <p class="t-sm muted mb3">1,112,064 code points, four forms each, checked against the
+        identities that must hold for any correct normaliser &mdash; idempotence, the
+        <code>NFD&nbsp;&#8728;&nbsp;NFC&nbsp;=&nbsp;NFD</code> law, the composition table matching
+        its own decompositions, and the two composed forms never being longer than the two
+        decomposed ones.</p>
+      <button class="go" id="sweepbtn">Run the full sweep</button>
+      <pre class="mt3" id="sweepout">not started</pre>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">A normaliser is three passes, and two of them are not what they sound like</h2>
+      <p class="t-sm muted">Unicode lets the same text be spelled more than one way on purpose.
+        <b>é</b> is <code>U+00E9</code> and it is also <code>U+0065 U+0301</code>, and both are
+        correct. Normalisation is the function that picks one spelling so that comparison,
+        hashing, sorting and indexing have something stable to work on. Four forms, two axes: NFD
+        and NFC use only <em>canonical</em> mappings, which preserve meaning; NFKD and NFKC also
+        use <em>compatibility</em> mappings, which do not. D means decomposed, C means composed.
+        That is the entire folklore, and almost every mistake below survives it.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">1 &middot; Decomposition is recursive, and the table is only half the story</h3>
+      <p class="t-sm muted">A decomposition mapping can point at a character that itself has a
+        decomposition. <code>U+1E14</code> (Ē with grave) maps to <code>U+0112 U+0300</code>, and
+        <code>U+0112</code> maps to <code>U+0045 U+0304</code>, so the real answer is three code
+        points, not two. Every implementation either recurses or pre-flattens the table. The
+        engine recurses, in <code>decomposeCp</code>, which is nine lines.</p>
+      <p class="t-sm muted mt2">The 11,172 Hangul syllables carry <em>no table entry at all</em>.
+        <code>U+AC01</code> is <code>U+1100 U+1161 U+11A8</code> by arithmetic:
+        <code>(cp&nbsp;&minus;&nbsp;0xAC00)</code> divided by 588 gives the leading jamo, the
+        remainder divided by 28 the vowel, the remainder after that the optional trailing
+        consonant. Half a screen of algebra replaces a table with more entries than every other
+        canonical decomposition in Unicode combined. The self-check walks all 11,172.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">2 &middot; Canonical ordering is a STABLE sort, and that is the whole rule</h3>
+      <p class="t-sm muted">Every character has a <b>canonical combining class</b>: 0 for a
+        starter, and a positive number for a mark, roughly &ldquo;where it sits relative to the
+        base&rdquo; &mdash; 230 above, 220 below, 202 attached below, and so on. Two marks with
+        <em>different</em> classes render in different places, so their order in the string is
+        arbitrary and normalisation sorts it away. Two marks with the <em>same</em> class stack on
+        top of each other, so their order is <b>visible</b>, and normalisation must not touch it.
+      </p>
+      <p class="t-sm muted mt2">That one distinction is the source of the finding at the top of
+        this page. Because the sort is stable, <code>a&nbsp;+&nbsp;◌̂&nbsp;+&nbsp;◌̀</code> and
+        <code>a&nbsp;+&nbsp;◌̀&nbsp;+&nbsp;◌̂</code> survive it unchanged, go into composition in
+        different orders, and come out as one code point and two. They are not canonically
+        equivalent under any form. Meanwhile a cedilla (202) and an acute (230) get sorted into a
+        fixed order and the same swap is invisible. Same acute, same base, opposite consequence,
+        decided by a number attached to the <em>other</em> mark.</p>
+      <p class="t-sm muted mt2">Use a <code>sort()</code> that is not stable, or add a tie-break
+        on code point to make the output &ldquo;deterministic&rdquo;, and you have written a
+        different function. The scoreboard above measures that one: it is wrong on a fifth of all
+        marked strings.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">3 &middot; Composition walks to the last starter, not to the previous character</h3>
+      <p class="t-sm muted">The composition pass keeps a pointer to the last <em>starter</em> it
+        emitted and tries to fold each following character into <b>that</b>, not into whatever is
+        immediately to the left. The guard is the blocked rule: a character <code>C</code> is
+        blocked from starter <code>L</code> if anything between them has a combining class greater
+        than or equal to <code>ccc(C)</code>.</p>
+      <p class="t-sm muted mt2">So in <code>a&nbsp;U+033A&nbsp;U+0353&nbsp;U+0302</code> the two
+        marks of class 220 are left where they are and the circumflex, which is <em>third</em>,
+        reaches back over both of them and merges into the <code>a</code>: the result is
+        <code>U+00E2 U+033A U+0353</code>. The mark that composed is not the mark that was
+        adjacent. In the corpus above that happens 3,978 times in 40,000 strings, and it is
+        exactly the case that a greedy pairwise composer gets wrong.</p>
+      <p class="t-sm muted mt2">The subtle half: when a composition succeeds, the <em>last class
+        seen</em> is deliberately not updated, because the character that carried it is gone.
+        Update it and you have written a normaliser that passes almost every test anyone writes
+        and disagrees with ICU on strings with three marks.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">4 &middot; Not every decomposition may be composed again</h3>
+      <p class="t-sm muted">This is the one that breaks the mental model. A character is in
+        <code>Full_Composition_Exclusion</code> &mdash; NFC will never re-create it &mdash; for
+        one of three reasons:</p>
+      <ul class="t-sm muted">
+        <li><b>It is on a list.</b> <code>CompositionExclusions.txt</code> sections 1 and 2:
+          Devanagari, Bengali, Gurmukhi, Oriya, Tibetan, Hebrew presentation forms, one maths
+          symbol and the stemmed musical notes. Composing them back would erase a distinction the
+          scripts need. 81 characters, frozen since Unicode 4.1.</li>
+        <li><b>Its decomposition is a single character</b> &mdash; a <em>singleton</em>. There is
+          no pair to compose, so NFC has nothing to do and simply keeps the decomposition. This is
+          the big bucket: 1,035 characters, and it is why NFC can hand you a code point you never
+          wrote.</li>
+        <li><b>Its decomposition starts with a non-starter.</b> Four characters, including
+          <code>U+0344</code> COMBINING GREEK DIALYTIKA TONOS. Composition only ever attaches to a
+          starter, so these can never come back either.</li>
+      </ul>
+      <p class="t-sm muted mt2">Only the first bucket is data. The engine derives the other two
+        from the decomposition table in six lines &mdash; and the self-check asserts that the
+        three buckets are disjoint and that together they account for exactly the characters that
+        fail the round trip. That is an identity between two independent derivations, not a
+        constant anybody typed in.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">5 &middot; So NFC is not &ldquo;the composed one&rdquo;</h3>
+      <p class="t-sm muted">Feed NFC the single character <code>U+0958</code> DEVANAGARI LETTER QA
+        and it gives you back <code>U+0915 U+093C</code> &mdash; two code points, longer than
+        what you handed it, from the form whose name means composed. Feed it <code>U+212B</code>
+        ANGSTROM SIGN and it gives you <code>U+00C5</code>, a different character with a different
+        name and a different purpose. Feed it <code>U+2126</code> OHM SIGN and it gives you Greek
+        capital omega.</p>
+      <p class="t-sm muted mt2">The right mental model is not compose/decompose. It is: <b>every
+        canonically equivalent string has one designated spelling per form, and NFC&rsquo;s
+        designated spelling is not always the shortest one.</b> Length is not the invariant.
+        <code>NFD(NFC(s)) === NFD(s)</code> is &mdash; that one holds on every string, and the
+        self-check asserts it rather than any particular output.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">6 &middot; Concatenation is where this reaches your logs</h3>
+      <p class="t-sm muted">Normalisation is not a closure over concatenation. Take
+        <code>&quot;a&quot;</code>, already NFC. Take <code>&quot;◌́&quot;</code>, a lone acute,
+        also already NFC. Join them and you have <code>U+0061 U+0301</code>, which is not NFC.
+        Nothing was wrong with either half and nothing checked the seam.</p>
+      <p class="t-sm muted mt2">In the census above that happens 350 times over 3,920 base/mark
+        joins &mdash; 8.93% &mdash; and it is the mechanism behind the whole family of bugs where
+        a value is normalised at the API boundary, assembled into a key, and then fails to match
+        the stored version. The fix is not more normalisation calls, it is normalising the
+        <em>final</em> string, or knowing that the seam can never carry a mark.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">7 &middot; The compatibility forms delete information on purpose</h3>
+      <p class="t-sm muted">NFKC maps <code>U+00BD</code> &frac12; to three characters
+        <code>1</code>, <code>U+2044</code> FRACTION SLASH, <code>2</code> &mdash; note that it is
+        <em>not</em> an ASCII <code>/</code>, so the obvious string compare against
+        <code>&quot;1/2&quot;</code> still fails. It maps <code>U+00A0</code> NO-BREAK SPACE to an
+        ordinary space, which quietly changes what a whitespace-trimming parser sees. It maps
+        <code>U+FF41</code> and <code>U+1D43</code> and 16 other code points to the single letter
+        <code>a</code>. Counted over every non-ASCII code point below U+1FBFF, <b>1,403</b> of
+        them have a pure-ASCII NFKC and they collapse onto just <b>399</b> distinct ASCII
+        strings.</p>
+      <p class="t-sm muted mt2">Which is why &ldquo;normalise usernames with NFKC then compare&rdquo;
+        is a two-edged rule: it defeats a homograph, and it also means at least 2,592,702 distinct
+        strings collapse onto <code>admin</code> and 39,767,760 onto <code>paypal</code> &mdash;
+        lower bounds, counting only single code points, before ligatures and multi-character
+        mappings. Whether that is a defence or a hole depends entirely on whether you normalise
+        <em>before</em> the uniqueness check or after it.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">8 &middot; Your library&rsquo;s Unicode version is a wire-format decision</h3>
+      <p class="t-sm muted">Five implementations on one laptop, four Unicode versions between
+        them. The Unicode Normalization Stability Policy says the normalisation of a string is
+        fixed for all future versions &mdash; <em>provided every character in it was already
+        assigned</em> in the version you are using. That proviso is doing all the work.</p>
+      <p class="t-sm muted mt2">Measured: over all 1,112,064 code points, this 15.1 engine agrees
+        with ICU 77 (Unicode 16.0) on NFC every single time, and disagrees on NFD 20 times, NFKD
+        56 and NFKC 36. Feed it the <em>decomposed</em> spelling of those 20 and NFC breaks on all
+        20. A newer character arrives at an older service, is not recognised, is passed through
+        unchanged, and is stored next to the same text normalised by a newer node. No error, two
+        rows.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">9 &middot; What the verifier does that this page cannot</h3>
+      <p class="t-sm muted">The page runs its own engine. The verifier runs everyone
+        else&rsquo;s: it drives Node/ICU, both Pythons, a Java single-file program and a Perl
+        script, each from a freshly created empty directory, passing every payload as a file path
+        rather than as a shell argument &mdash; a scar from Day 72, where a MinGW binary expanded
+        its own <code>*</code> argument into a file listing and made the reference lie.</p>
+      <p class="t-sm muted mt2">It also re-derives the exclusion set the other way round:
+        instead of reading the frozen list, it asks each reference which characters fail
+        <code>NFC(NFD(c)) === c</code> and checks that the answer is the set this engine derived.
+        That is the one direction that could catch a wrong hard-coded list, and hard-coded lists
+        are the only data on this page.</p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">What to do about it on Monday</h2>
+      <ol class="t-sm muted">
+        <li><b>Pick a form per column and write it in the schema.</b> NFC for anything a human
+          typed and will read back. NFKC only for a fold you are willing to lose data to &mdash;
+          search keys, lookup columns. Never both in one column.</li>
+        <li><b>Normalise at exactly one boundary, and make it the last one.</b> Because
+          concatenation is not closed, normalising each part and then joining is not the same as
+          joining and then normalising. Normalise the final value.</li>
+        <li><b>Never assume NFC is shorter.</b> <code>U+0958</code> gets longer. If you have a
+          length budget in bytes &mdash; a column width, a protocol field &mdash; measure the
+          normalised form, not the input.</li>
+        <li><b>Do not sort combining marks yourself.</b> If you find yourself writing
+          <code>marks.sort(byClass)</code>, that is a fifth of your marked strings wrong. Use a
+          stable sort or, better, use the library.</li>
+        <li><b>Treat NFKC as a one-way fold.</b> Store the original, index the fold. Once
+          <code>ﬁ</code> is <code>fi</code> and <code>U+00A0</code> is a space you cannot get the
+          user&rsquo;s text back.</li>
+        <li><b>Do the uniqueness check on the fold, and store the original.</b> If
+          <code>NFKC(casefold(name))</code> is what makes two accounts &ldquo;the same&rdquo;,
+          that has to be the unique index, not a validation the API layer runs.</li>
+        <li><b>Pin the Unicode version across services.</b> Two runtimes, two versions, and a
+          newly assigned character passes through one unchanged and gets rewritten by the other.
+          Nothing raises.</li>
+        <li><b>Test on three marks, not one.</b> Every wrong normaliser in this page&rsquo;s
+          scoreboard is correct on a base plus a single mark. The blocked rule only shows up from
+          the third character.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">Ten strings worth putting in a test suite</h3>
+      <div class="scroll"><table class="num" id="suite"></table></div>
+      <p class="t-xs dim mt2">Generated by the engine, not typed in &mdash; every expectation
+        below is what it computed while this page loaded.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">Where the numbers came from</h3>
+      <p class="t-sm muted">The engine ships three UCD fields as strings &mdash;
+        <code>Canonical_Combining_Class</code>, <code>Decomposition_Mapping</code> with its
+        compatibility tag, and sections 1 and 2 of <code>CompositionExclusions.txt</code>. That
+        is all the data. The composition table, the exclusion property, the ordering algorithm,
+        the blocked rule and every Hangul syllable are computed from it.</p>
+      <p class="t-sm muted mt2">The differential reference is five independent implementations
+        across four Unicode versions: <b>ICU 77.1</b> through Node 22 (Unicode 16.0),
+        <b>CPython 3.13</b> (15.1), <b>Java 21</b> <code>java.text.Normalizer</code> (15.0),
+        <b>Perl 5.38</b> <code>Unicode::Normalize</code> (15.0) and <b>CPython 3.11</b> (14.0).
+        ICU is C++, CPython&rsquo;s normaliser is its own C, Java&rsquo;s is its own Java, and
+        Perl&rsquo;s is its own XS &mdash; four separate codebases with four separate data
+        pipelines, which is what makes an agreement mean something.</p>
+      <p class="t-sm muted mt2">The lineage is the same one as <b>Day 61</b>
+        (<code>git check-ignore</code>), <b>Day 69</b> (ICU through <code>new URL()</code>),
+        <b>Day 72</b> (OpenSSL and Node), <b>Day 73</b> (GNU tar and Python tarfile),
+        <b>Day 74</b> (zlib and gzip) and <b>Day 75</b> (two SQLite builds): build the engine from
+        the specification, then let something that is not the engine decide whether it is right.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="mb2">Read the source</h3>
+      <p class="t-sm muted">The engine between <code>ENGINE:BEGIN</code> and
+        <code>ENGINE:END</code> in this file touches no DOM, reads no clock and has no random
+        source, which is what lets the verifier load it straight out of the HTML and run it
+        against five other implementations. It is the UCD unpacker, the exclusion derivation, the
+        composition table, recursive decomposition, canonical ordering, canonical composition,
+        the Hangul arithmetic, the four forms, the two deliberately wrong models and the censuses
+        &mdash; and nothing else. If a number on this page is wrong, it is wrong in there.</p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// A real UAX #15 normalizer. Four forms, written from the raw UCD fields.
+//
+// What is DATA here and what is CODE. The three strings below are Unicode Character
+// Database fields, nothing more: Canonical_Combining_Class, Decomposition_Mapping and its
+// compatibility tag, plus the frozen sections (1) and (2) of CompositionExclusions.txt.
+// Everything that MAKES a normalizer -- recursive decomposition, the canonical ordering
+// algorithm, the derivation of Full_Composition_Exclusion, the composition table, the
+// blocked-composition rule and the Hangul algorithm -- is written out below. The Hangul
+// syllables carry no table at all: all 11,172 are computed.
+//
+// No DOM, no clock, no Math.random. Deterministic corpora come from a seeded xorshift.
+var UNORM = (function () {
+  "use strict";
+
+  var DATA = {
+    version: "15.1.0",              // the UCD version these three fields came from
+    ccc:    "300-314:E6,315:E8,316-319:DC,31A:E8,31B:D8,31C-320:DC,321-322:CA,323-326:DC,327-328:CA,329-333:DC,334-338:1,339-33C:DC,33D-344:E6,345:F0,346:E6,347-349:DC,34A-34C:E6,34D-34E:DC,350-352:E6,353-356:DC,357:E6,358:E8,359-35A:DC,35B:E6,35C:E9,35D-35E:EA,35F:E9,360-361:EA,362:E9,363-36F:E6,483-487:E6,591:DC,592-595:E6,596:DC,597-599:E6,59A:DE,59B:DC,59C-5A1:E6,5A2-5A7:DC,5A8-5A9:E6,5AA:DC,5AB-5AC:E6,5AD:DE,5AE:E4,5AF:E6,5B0:A,5B1:B,5B2:C,5B3:D,5B4:E,5B5:F,5B6:10,5B7:11,5B8:12,5B9-5BA:13,5BB:14,5BC:15,5BD:16,5BF:17,5C1:18,5C2:19,5C4:E6,5C5:DC,5C7:12,610-617:E6,618:1E,619:1F,61A:20,64B:1B,64C:1C,64D:1D,64E:1E,64F:1F,650:20,651:21,652:22,653-654:E6,655-656:DC,657-65B:E6,65C:DC,65D-65E:E6,65F:DC,670:23,6D6-6DC:E6,6DF-6E2:E6,6E3:DC,6E4:E6,6E7-6E8:E6,6EA:DC,6EB-6EC:E6,6ED:DC,711:24,730:E6,731:DC,732-733:E6,734:DC,735-736:E6,737-739:DC,73A:E6,73B-73C:DC,73D:E6,73E:DC,73F-741:E6,742:DC,743:E6,744:DC,745:E6,746:DC,747:E6,748:DC,749-74A:E6,7EB-7F1:E6,7F2:DC,7F3:E6,7FD:DC,816-819:E6,81B-823:E6,825-827:E6,829-82D:E6,859-85B:DC,898:E6,899-89B:DC,89C-89F:E6,8CA-8CE:E6,8CF-8D3:DC,8D4-8E1:E6,8E3:DC,8E4-8E5:E6,8E6:DC,8E7-8E8:E6,8E9:DC,8EA-8EC:E6,8ED-8EF:DC,8F0:1B,8F1:1C,8F2:1D,8F3-8F5:E6,8F6:DC,8F7-8F8:E6,8F9-8FA:DC,8FB-8FF:E6,93C:7,94D:9,951:E6,952:DC,953-954:E6,9BC:7,9CD:9,9FE:E6,A3C:7,A4D:9,ABC:7,ACD:9,B3C:7,B4D:9,BCD:9,C3C:7,C4D:9,C55:54,C56:5B,CBC:7,CCD:9,D3B-D3C:9,D4D:9,DCA:9,E38-E39:67,E3A:9,E48-E4B:6B,EB8-EB9:76,EBA:9,EC8-ECB:7A,F18-F19:DC,F35:DC,F37:DC,F39:D8,F71:81,F72:82,F74:84,F7A-F7D:82,F80:82,F82-F83:E6,F84:9,F86-F87:E6,FC6:DC,1037:7,1039-103A:9,108D:DC,135D-135F:E6,1714-1715:9,1734:9,17D2:9,17DD:E6,18A9:E4,1939:DE,193A:E6,193B:DC,1A17:E6,1A18:DC,1A60:9,1A75-1A7C:E6,1A7F:DC,1AB0-1AB4:E6,1AB5-1ABA:DC,1ABB-1ABC:E6,1ABD:DC,1ABF-1AC0:DC,1AC1-1AC2:E6,1AC3-1AC4:DC,1AC5-1AC9:E6,1ACA:DC,1ACB-1ACE:E6,1B34:7,1B44:9,1B6B:E6,1B6C:DC,1B6D-1B73:E6,1BAA-1BAB:9,1BE6:7,1BF2-1BF3:9,1C37:7,1CD0-1CD2:E6,1CD4:1,1CD5-1CD9:DC,1CDA-1CDB:E6,1CDC-1CDF:DC,1CE0:E6,1CE2-1CE8:1,1CED:DC,1CF4:E6,1CF8-1CF9:E6,1DC0-1DC1:E6,1DC2:DC,1DC3-1DC9:E6,1DCA:DC,1DCB-1DCC:E6,1DCD:EA,1DCE:D6,1DCF:DC,1DD0:CA,1DD1-1DF5:E6,1DF6:E8,1DF7-1DF8:E4,1DF9:DC,1DFA:DA,1DFB:E6,1DFC:E9,1DFD:DC,1DFE:E6,1DFF:DC,20D0-20D1:E6,20D2-20D3:1,20D4-20D7:E6,20D8-20DA:1,20DB-20DC:E6,20E1:E6,20E5-20E6:1,20E7:E6,20E8:DC,20E9:E6,20EA-20EB:1,20EC-20EF:DC,20F0:E6,2CEF-2CF1:E6,2D7F:9,2DE0-2DFF:E6,302A:DA,302B:E4,302C:E8,302D:DE,302E-302F:E0,3099-309A:8,A66F:E6,A674-A67D:E6,A69E-A69F:E6,A6F0-A6F1:E6,A806:9,A82C:9,A8C4:9,A8E0-A8F1:E6,A92B-A92D:DC,A953:9,A9B3:7,A9C0:9,AAB0:E6,AAB2-AAB3:E6,AAB4:DC,AAB7-AAB8:E6,AABE-AABF:E6,AAC1:E6,AAF6:9,ABED:9,FB1E:1A,FE20-FE26:E6,FE27-FE2D:DC,FE2E-FE2F:E6,101FD:DC,102E0:DC,10376-1037A:E6,10A0D:DC,10A0F:E6,10A38:E6,10A39:1,10A3A:DC,10A3F:9,10AE5:E6,10AE6:DC,10D24-10D27:E6,10EAB-10EAC:E6,10EFD-10EFF:DC,10F46-10F47:DC,10F48-10F4A:E6,10F4B:DC,10F4C:E6,10F4D-10F50:DC,10F82:E6,10F83:DC,10F84:E6,10F85:DC,11046:9,11070:9,1107F:9,110B9:9,110BA:7,11100-11102:E6,11133-11134:9,11173:7,111C0:9,111CA:7,11235:9,11236:7,112E9:7,112EA:9,1133B-1133C:7,1134D:9,11366-1136C:E6,11370-11374:E6,11442:9,11446:7,1145E:E6,114C2:9,114C3:7,115BF:9,115C0:7,1163F:9,116B6:9,116B7:7,1172B:9,11839:9,1183A:7,1193D-1193E:9,11943:7,119E0:9,11A34:9,11A47:9,11A99:9,11C3F:9,11D42:7,11D44-11D45:9,11D97:9,11F41-11F42:9,16AF0-16AF4:1,16B30-16B36:E6,16FF0-16FF1:6,1BC9E:1,1D165-1D166:D8,1D167-1D169:1,1D16D:E2,1D16E-1D172:D8,1D17B-1D182:DC,1D185-1D189:E6,1D18A-1D18B:DC,1D1AA-1D1AD:E6,1D242-1D244:E6,1E000-1E006:E6,1E008-1E018:E6,1E01B-1E021:E6,1E023-1E024:E6,1E026-1E02A:E6,1E08F:E6,1E130-1E136:E6,1E2AE:E6,1E2EC-1E2EF:E6,1E4EC-1E4ED:E8,1E4EE:DC,1E4EF:E6,1E8D0-1E8D6:DC,1E944-1E949:E6,1E94A:7",
+    canon:  "C0>41 300,1>41 301,1>41 302,1>41 303,1>41 308,1>41 30A,2>43 327,1>45 300,1>45 301,1>45 302,1>45 308,1>49 300,1>49 301,1>49 302,1>49 308,2>4E 303,1>4F 300,1>4F 301,1>4F 302,1>4F 303,1>4F 308,3>55 300,1>55 301,1>55 302,1>55 308,1>59 301,3>61 300,1>61 301,1>61 302,1>61 303,1>61 308,1>61 30A,2>63 327,1>65 300,1>65 301,1>65 302,1>65 308,1>69 300,1>69 301,1>69 302,1>69 308,2>6E 303,1>6F 300,1>6F 301,1>6F 302,1>6F 303,1>6F 308,3>75 300,1>75 301,1>75 302,1>75 308,1>79 301,2>79 308,1>41 304,1>61 304,1>41 306,1>61 306,1>41 328,1>61 328,1>43 301,1>63 301,1>43 302,1>63 302,1>43 307,1>63 307,1>43 30C,1>63 30C,1>44 30C,1>64 30C,3>45 304,1>65 304,1>45 306,1>65 306,1>45 307,1>65 307,1>45 328,1>65 328,1>45 30C,1>65 30C,1>47 302,1>67 302,1>47 306,1>67 306,1>47 307,1>67 307,1>47 327,1>67 327,1>48 302,1>68 302,3>49 303,1>69 303,1>49 304,1>69 304,1>49 306,1>69 306,1>49 328,1>69 328,1>49 307,4>4A 302,1>6A 302,1>4B 327,1>6B 327,2>4C 301,1>6C 301,1>4C 327,1>6C 327,1>4C 30C,1>6C 30C,5>4E 301,1>6E 301,1>4E 327,1>6E 327,1>4E 30C,1>6E 30C,4>4F 304,1>6F 304,1>4F 306,1>6F 306,1>4F 30B,1>6F 30B,3>52 301,1>72 301,1>52 327,1>72 327,1>52 30C,1>72 30C,1>53 301,1>73 301,1>53 302,1>73 302,1>53 327,1>73 327,1>53 30C,1>73 30C,1>54 327,1>74 327,1>54 30C,1>74 30C,3>55 303,1>75 303,1>55 304,1>75 304,1>55 306,1>75 306,1>55 30A,1>75 30A,1>55 30B,1>75 30B,1>55 328,1>75 328,1>57 302,1>77 302,1>59 302,1>79 302,1>59 308,1>5A 301,1>7A 301,1>5A 307,1>7A 307,1>5A 30C,1>7A 30C,22>4F 31B,1>6F 31B,E>55 31B,1>75 31B,1D>41 30C,1>61 30C,1>49 30C,1>69 30C,1>4F 30C,1>6F 30C,1>55 30C,1>75 30C,1>DC 304,1>FC 304,1>DC 301,1>FC 301,1>DC 30C,1>FC 30C,1>DC 300,1>FC 300,2>C4 304,1>E4 304,1>226 304,1>227 304,1>C6 304,1>E6 304,3>47 30C,1>67 30C,1>4B 30C,1>6B 30C,1>4F 328,1>6F 328,1>1EA 304,1>1EB 304,1>1B7 30C,1>292 30C,1>6A 30C,4>47 301,1>67 301,3>4E 300,1>6E 300,1>C5 301,1>E5 301,1>C6 301,1>E6 301,1>D8 301,1>F8 301,1>41 30F,1>61 30F,1>41 311,1>61 311,1>45 30F,1>65 30F,1>45 311,1>65 311,1>49 30F,1>69 30F,1>49 311,1>69 311,1>4F 30F,1>6F 30F,1>4F 311,1>6F 311,1>52 30F,1>72 30F,1>52 311,1>72 311,1>55 30F,1>75 30F,1>55 311,1>75 311,1>53 326,1>73 326,1>54 326,1>74 326,3>48 30C,1>68 30C,7>41 307,1>61 307,1>45 327,1>65 327,1>D6 304,1>F6 304,1>D5 304,1>F5 304,1>4F 307,1>6F 307,1>22E 304,1>22F 304,1>59 304,1>79 304,10D>300,1>301,2>313,1>308 301,30>2B9,A>3B,7>A8 301,1>391 301,1>B7,1>395 301,1>397 301,1>399 301,2>39F 301,2>3A5 301,1>3A9 301,1>3CA 301,1A>399 308,1>3A5 308,1>3B1 301,1>3B5 301,1>3B7 301,1>3B9 301,1>3CB 301,1A>3B9 308,1>3C5 308,1>3BF 301,1>3C5 301,1>3C9 301,5>3D2 301,1>3D2 308,2C>415 300,1>415 308,2>413 301,4>406 308,5>41A 301,1>418 300,1>423 306,B>418 306,20>438 306,17>435 300,1>435 308,2>433 301,4>456 308,5>43A 301,1>438 300,1>443 306,18>474 30F,1>475 30F,4A>416 306,1>436 306,E>410 306,1>430 306,1>410 308,1>430 308,3>415 306,1>435 306,3>4D8 308,1>4D9 308,1>416 308,1>436 308,1>417 308,1>437 308,3>418 304,1>438 304,1>418 308,1>438 308,1>41E 308,1>43E 308,3>4E8 308,1>4E9 308,1>42D 308,1>44D 308,1>423 304,1>443 304,1>423 308,1>443 308,1>423 30B,1>443 30B,1>427 308,1>447 308,3>42B 308,1>44B 308,129>627 653,1>627 654,1>648 654,1>627 655,1>64A 654,9A>6D5 654,2>6C1 654,11>6D2 654,256>928 93C,8>930 93C,3>933 93C,24>915 93C,1>916 93C,1>917 93C,1>91C 93C,1>921 93C,1>922 93C,1>92B 93C,1>92F 93C,6C>9C7 9BE,1>9C7 9D7,10>9A1 9BC,1>9A2 9BC,2>9AF 9BC,54>A32 A3C,3>A38 A3C,23>A16 A3C,1>A17 A3C,1>A1C A3C,3>A2B A3C,EA>B47 B56,3>B47 B3E,1>B47 B57,10>B21 B3C,1>B22 B3C,37>B92 BD7,36>BC6 BBE,1>BC7 BBE,1>BC6 BD7,7C>C46 C56,78>CBF CD5,7>CC6 CD5,1>CC6 CD6,2>CC6 CC2,1>CCA CD5,7F>D46 D3E,1>D47 D3E,1>D46 D57,8E>DD9 DCA,2>DD9 DCF,1>DDC DCA,1>DD9 DDF,165>F42 FB7,A>F4C FB7,5>F51 FB7,5>F56 FB7,5>F5B FB7,D>F40 FB5,A>F71 F72,2>F71 F74,1>FB2 F80,2>FB3 F80,9>F71 F80,12>F92 FB7,A>F9C FB7,5>FA1 FB7,5>FA6 FB7,5>FAB FB7,D>F90 FB5,6D>1025 102E,AE0>1B05 1B35,2>1B07 1B35,2>1B09 1B35,2>1B0B 1B35,2>1B0D 1B35,4>1B11 1B35,29>1B3A 1B35,2>1B3C 1B35,3>1B3E 1B35,1>1B3F 1B35,2>1B42 1B35,2BD>41 325,1>61 325,1>42 307,1>62 307,1>42 323,1>62 323,1>42 331,1>62 331,1>C7 301,1>E7 301,1>44 307,1>64 307,1>44 323,1>64 323,1>44 331,1>64 331,1>44 327,1>64 327,1>44 32D,1>64 32D,1>112 300,1>113 300,1>112 301,1>113 301,1>45 32D,1>65 32D,1>45 330,1>65 330,1>228 306,1>229 306,1>46 307,1>66 307,1>47 304,1>67 304,1>48 307,1>68 307,1>48 323,1>68 323,1>48 308,1>68 308,1>48 327,1>68 327,1>48 32E,1>68 32E,1>49 330,1>69 330,1>CF 301,1>EF 301,1>4B 301,1>6B 301,1>4B 323,1>6B 323,1>4B 331,1>6B 331,1>4C 323,1>6C 323,1>1E36 304,1>1E37 304,1>4C 331,1>6C 331,1>4C 32D,1>6C 32D,1>4D 301,1>6D 301,1>4D 307,1>6D 307,1>4D 323,1>6D 323,1>4E 307,1>6E 307,1>4E 323,1>6E 323,1>4E 331,1>6E 331,1>4E 32D,1>6E 32D,1>D5 301,1>F5 301,1>D5 308,1>F5 308,1>14C 300,1>14D 300,1>14C 301,1>14D 301,1>50 301,1>70 301,1>50 307,1>70 307,1>52 307,1>72 307,1>52 323,1>72 323,1>1E5A 304,1>1E5B 304,1>52 331,1>72 331,1>53 307,1>73 307,1>53 323,1>73 323,1>15A 307,1>15B 307,1>160 307,1>161 307,1>1E62 307,1>1E63 307,1>54 307,1>74 307,1>54 323,1>74 323,1>54 331,1>74 331,1>54 32D,1>74 32D,1>55 324,1>75 324,1>55 330,1>75 330,1>55 32D,1>75 32D,1>168 301,1>169 301,1>16A 308,1>16B 308,1>56 303,1>76 303,1>56 323,1>76 323,1>57 300,1>77 300,1>57 301,1>77 301,1>57 308,1>77 308,1>57 307,1>77 307,1>57 323,1>77 323,1>58 307,1>78 307,1>58 308,1>78 308,1>59 307,1>79 307,1>5A 302,1>7A 302,1>5A 323,1>7A 323,1>5A 331,1>7A 331,1>68 331,1>74 308,1>77 30A,1>79 30A,2>17F 307,5>41 323,1>61 323,1>41 309,1>61 309,1>C2 301,1>E2 301,1>C2 300,1>E2 300,1>C2 309,1>E2 309,1>C2 303,1>E2 303,1>1EA0 302,1>1EA1 302,1>102 301,1>103 301,1>102 300,1>103 300,1>102 309,1>103 309,1>102 303,1>103 303,1>1EA0 306,1>1EA1 306,1>45 323,1>65 323,1>45 309,1>65 309,1>45 303,1>65 303,1>CA 301,1>EA 301,1>CA 300,1>EA 300,1>CA 309,1>EA 309,1>CA 303,1>EA 303,1>1EB8 302,1>1EB9 302,1>49 309,1>69 309,1>49 323,1>69 323,1>4F 323,1>6F 323,1>4F 309,1>6F 309,1>D4 301,1>F4 301,1>D4 300,1>F4 300,1>D4 309,1>F4 309,1>D4 303,1>F4 303,1>1ECC 302,1>1ECD 302,1>1A0 301,1>1A1 301,1>1A0 300,1>1A1 300,1>1A0 309,1>1A1 309,1>1A0 303,1>1A1 303,1>1A0 323,1>1A1 323,1>55 323,1>75 323,1>55 309,1>75 309,1>1AF 301,1>1B0 301,1>1AF 300,1>1B0 300,1>1AF 309,1>1B0 309,1>1AF 303,1>1B0 303,1>1AF 323,1>1B0 323,1>59 300,1>79 300,1>59 323,1>79 323,1>59 309,1>79 309,1>59 303,1>79 303,7>3B1 313,1>3B1 314,1>1F00 300,1>1F01 300,1>1F00 301,1>1F01 301,1>1F00 342,1>1F01 342,1>391 313,1>391 314,1>1F08 300,1>1F09 300,1>1F08 301,1>1F09 301,1>1F08 342,1>1F09 342,1>3B5 313,1>3B5 314,1>1F10 300,1>1F11 300,1>1F10 301,1>1F11 301,3>395 313,1>395 314,1>1F18 300,1>1F19 300,1>1F18 301,1>1F19 301,3>3B7 313,1>3B7 314,1>1F20 300,1>1F21 300,1>1F20 301,1>1F21 301,1>1F20 342,1>1F21 342,1>397 313,1>397 314,1>1F28 300,1>1F29 300,1>1F28 301,1>1F29 301,1>1F28 342,1>1F29 342,1>3B9 313,1>3B9 314,1>1F30 300,1>1F31 300,1>1F30 301,1>1F31 301,1>1F30 342,1>1F31 342,1>399 313,1>399 314,1>1F38 300,1>1F39 300,1>1F38 301,1>1F39 301,1>1F38 342,1>1F39 342,1>3BF 313,1>3BF 314,1>1F40 300,1>1F41 300,1>1F40 301,1>1F41 301,3>39F 313,1>39F 314,1>1F48 300,1>1F49 300,1>1F48 301,1>1F49 301,3>3C5 313,1>3C5 314,1>1F50 300,1>1F51 300,1>1F50 301,1>1F51 301,1>1F50 342,1>1F51 342,2>3A5 314,2>1F59 300,2>1F59 301,2>1F59 342,1>3C9 313,1>3C9 314,1>1F60 300,1>1F61 300,1>1F60 301,1>1F61 301,1>1F60 342,1>1F61 342,1>3A9 313,1>3A9 314,1>1F68 300,1>1F69 300,1>1F68 301,1>1F69 301,1>1F68 342,1>1F69 342,1>3B1 300,1>3AC,1>3B5 300,1>3AD,1>3B7 300,1>3AE,1>3B9 300,1>3AF,1>3BF 300,1>3CC,1>3C5 300,1>3CD,1>3C9 300,1>3CE,3>1F00 345,1>1F01 345,1>1F02 345,1>1F03 345,1>1F04 345,1>1F05 345,1>1F06 345,1>1F07 345,1>1F08 345,1>1F09 345,1>1F0A 345,1>1F0B 345,1>1F0C 345,1>1F0D 345,1>1F0E 345,1>1F0F 345,1>1F20 345,1>1F21 345,1>1F22 345,1>1F23 345,1>1F24 345,1>1F25 345,1>1F26 345,1>1F27 345,1>1F28 345,1>1F29 345,1>1F2A 345,1>1F2B 345,1>1F2C 345,1>1F2D 345,1>1F2E 345,1>1F2F 345,1>1F60 345,1>1F61 345,1>1F62 345,1>1F63 345,1>1F64 345,1>1F65 345,1>1F66 345,1>1F67 345,1>1F68 345,1>1F69 345,1>1F6A 345,1>1F6B 345,1>1F6C 345,1>1F6D 345,1>1F6E 345,1>1F6F 345,1>3B1 306,1>3B1 304,1>1F70 345,1>3B1 345,1>3AC 345,2>3B1 342,1>1FB6 345,1>391 306,1>391 304,1>391 300,1>386,1>391 345,2>3B9,3>A8 342,1>1F74 345,1>3B7 345,1>3AE 345,2>3B7 342,1>1FC6 345,1>395 300,1>388,1>397 300,1>389,1>397 345,1>1FBF 300,1>1FBF 301,1>1FBF 342,1>3B9 306,1>3B9 304,1>3CA 300,1>390,3>3B9 342,1>3CA 342,1>399 306,1>399 304,1>399 300,1>38A,2>1FFE 300,1>1FFE 301,1>1FFE 342,1>3C5 306,1>3C5 304,1>3CB 300,1>3B0,1>3C1 313,1>3C1 314,1>3C5 342,1>3CB 342,1>3A5 306,1>3A5 304,1>3A5 300,1>38E,1>3A1 314,1>A8 300,1>385,1>60,3>1F7C 345,1>3C9 345,1>3CE 345,2>3C9 342,1>1FF6 345,1>39F 300,1>38C,1>3A9 300,1>38F,1>3A9 345,1>B4,3>2002,1>2003,125>3A9,4>4B,1>C5,6F>2190 338,1>2192 338,13>2194 338,1F>21D0 338,1>21D4 338,1>21D2 338,35>2203 338,5>2208 338,3>220B 338,18>2223 338,2>2225 338,1B>223C 338,3>2243 338,3>2245 338,2>2248 338,17>3D 338,2>2261 338,B>224D 338,1>3C 338,1>3E 338,1>2264 338,1>2265 338,3>2272 338,1>2273 338,3>2276 338,1>2277 338,7>227A 338,1>227B 338,3>2282 338,1>2283 338,3>2286 338,1>2287 338,23>22A2 338,1>22A8 338,1>22A9 338,1>22AB 338,31>227C 338,1>227D 338,1>2291 338,1>2292 338,7>22B2 338,1>22B3 338,1>22B4 338,1>22B5 338,3C>3008,1>3009,7B2>2ADD 338,570>304B 3099,2>304D 3099,2>304F 3099,2>3051 3099,2>3053 3099,2>3055 3099,2>3057 3099,2>3059 3099,2>305B 3099,2>305D 3099,2>305F 3099,2>3061 3099,3>3064 3099,2>3066 3099,2>3068 3099,7>306F 3099,1>306F 309A,2>3072 3099,1>3072 309A,2>3075 3099,1>3075 309A,2>3078 3099,1>3078 309A,2>307B 3099,1>307B 309A,17>3046 3099,A>309D 3099,E>30AB 3099,2>30AD 3099,2>30AF 3099,2>30B1 3099,2>30B3 3099,2>30B5 3099,2>30B7 3099,2>30B9 3099,2>30BB 3099,2>30BD 3099,2>30BF 3099,2>30C1 3099,3>30C4 3099,2>30C6 3099,2>30C8 3099,7>30CF 3099,1>30CF 309A,2>30D2 3099,1>30D2 309A,2>30D5 3099,1>30D5 309A,2>30D8 3099,1>30D8 309A,2>30DB 3099,1>30DB 309A,17>30A6 3099,3>30EF 3099,1>30F0 3099,1>30F1 3099,1>30F2 3099,4>30FD 3099,C802>8C48,1>66F4,1>8ECA,1>8CC8,1>6ED1,1>4E32,1>53E5,1>9F9C,1>9F9C,1>5951,1>91D1,1>5587,1>5948,1>61F6,1>7669,1>7F85,1>863F,1>87BA,1>88F8,1>908F,1>6A02,1>6D1B,1>70D9,1>73DE,1>843D,1>916A,1>99F1,1>4E82,1>5375,1>6B04,1>721B,1>862D,1>9E1E,1>5D50,1>6FEB,1>85CD,1>8964,1>62C9,1>81D8,1>881F,1>5ECA,1>6717,1>6D6A,1>72FC,1>90CE,1>4F86,1>51B7,1>52DE,1>64C4,1>6AD3,1>7210,1>76E7,1>8001,1>8606,1>865C,1>8DEF,1>9732,1>9B6F,1>9DFA,1>788C,1>797F,1>7DA0,1>83C9,1>9304,1>9E7F,1>8AD6,1>58DF,1>5F04,1>7C60,1>807E,1>7262,1>78CA,1>8CC2,1>96F7,1>58D8,1>5C62,1>6A13,1>6DDA,1>6F0F,1>7D2F,1>7E37,1>964B,1>52D2,1>808B,1>51DC,1>51CC,1>7A1C,1>7DBE,1>83F1,1>9675,1>8B80,1>62CF,1>6A02,1>8AFE,1>4E39,1>5BE7,1>6012,1>7387,1>7570,1>5317,1>78FB,1>4FBF,1>5FA9,1>4E0D,1>6CCC,1>6578,1>7D22,1>53C3,1>585E,1>7701,1>8449,1>8AAA,1>6BBA,1>8FB0,1>6C88,1>62FE,1>82E5,1>63A0,1>7565,1>4EAE,1>5169,1>51C9,1>6881,1>7CE7,1>826F,1>8AD2,1>91CF,1>52F5,1>5442,1>5973,1>5EEC,1>65C5,1>6FFE,1>792A,1>95AD,1>9A6A,1>9E97,1>9ECE,1>529B,1>66C6,1>6B77,1>8F62,1>5E74,1>6190,1>6200,1>649A,1>6F23,1>7149,1>7489,1>79CA,1>7DF4,1>806F,1>8F26,1>84EE,1>9023,1>934A,1>5217,1>52A3,1>54BD,1>70C8,1>88C2,1>8AAA,1>5EC9,1>5FF5,1>637B,1>6BAE,1>7C3E,1>7375,1>4EE4,1>56F9,1>5BE7,1>5DBA,1>601C,1>73B2,1>7469,1>7F9A,1>8046,1>9234,1>96F6,1>9748,1>9818,1>4F8B,1>79AE,1>91B4,1>96B8,1>60E1,1>4E86,1>50DA,1>5BEE,1>5C3F,1>6599,1>6A02,1>71CE,1>7642,1>84FC,1>907C,1>9F8D,1>6688,1>962E,1>5289,1>677B,1>67F3,1>6D41,1>6E9C,1>7409,1>7559,1>786B,1>7D10,1>985E,1>516D,1>622E,1>9678,1>502B,1>5D19,1>6DEA,1>8F2A,1>5F8B,1>6144,1>6817,1>7387,1>9686,1>5229,1>540F,1>5C65,1>6613,1>674E,1>68A8,1>6CE5,1>7406,1>75E2,1>7F79,1>88CF,1>88E1,1>91CC,1>96E2,1>533F,1>6EBA,1>541D,1>71D0,1>7498,1>85FA,1>96A3,1>9C57,1>9E9F,1>6797,1>6DCB,1>81E8,1>7ACB,1>7B20,1>7C92,1>72C0,1>7099,1>8B58,1>4EC0,1>8336,1>523A,1>5207,1>5EA6,1>62D3,1>7CD6,1>5B85,1>6D1E,1>66B4,1>8F3B,1>884C,1>964D,1>898B,1>5ED3,1>5140,1>55C0,3>585A,2>6674,3>51DE,1>732A,1>76CA,1>793C,1>795E,1>7965,1>798F,1>9756,1>7CBE,1>7FBD,2>8612,2>8AF8,3>9038,1>90FD,4>98EF,1>98FC,1>9928,1>9DB4,1>90DE,1>96B7,1>4FAE,1>50E7,1>514D,1>52C9,1>52E4,1>5351,1>559D,1>5606,1>5668,1>5840,1>58A8,1>5C64,1>5C6E,1>6094,1>6168,1>618E,1>61F2,1>654F,1>65E2,1>6691,1>6885,1>6D77,1>6E1A,1>6F22,1>716E,1>722B,1>7422,1>7891,1>793E,1>7949,1>7948,1>7950,1>7956,1>795D,1>798D,1>798E,1>7A40,1>7A81,1>7BC0,1>7DF4,1>7E09,1>7E41,1>7F72,1>8005,1>81ED,1>8279,1>8279,1>8457,1>8910,1>8996,1>8B01,1>8B39,1>8CD3,1>8D08,1>8FB6,1>9038,1>96E3,1>97FF,1>983B,1>6075,1>242EE,1>8218,3>4E26,1>51B5,1>5168,1>4F80,1>5145,1>5180,1>52C7,1>52FA,1>559D,1>5555,1>5599,1>55E2,1>585A,1>58B3,1>5944,1>5954,1>5A62,1>5B28,1>5ED2,1>5ED9,1>5F69,1>5FAD,1>60D8,1>614E,1>6108,1>618E,1>6160,1>61F2,1>6234,1>63C4,1>641C,1>6452,1>6556,1>6674,1>6717,1>671B,1>6756,1>6B79,1>6BBA,1>6D41,1>6EDB,1>6ECB,1>6F22,1>701E,1>716E,1>77A7,1>7235,1>72AF,1>732A,1>7471,1>7506,1>753B,1>761D,1>761F,1>76CA,1>76DB,1>76F4,1>774A,1>7740,1>78CC,1>7AB1,1>7BC0,1>7C7B,1>7D5B,1>7DF4,1>7F3E,1>8005,1>8352,1>83EF,1>8779,1>8941,1>8986,1>8996,1>8ABF,1>8AF8,1>8ACB,1>8B01,1>8AFE,1>8AED,1>8B39,1>8B8A,1>8D08,1>8F38,1>9072,1>9199,1>9276,1>967C,1>96E3,1>9756,1>97DB,1>97FF,1>980B,1>983B,1>9B12,1>9F9C,1>2284A,1>22844,1>233D5,1>3B9D,1>4018,1>4039,1>25249,1>25CD0,1>27ED3,1>9F43,1>9F8E,44>5D9 5B4,2>5F2 5B7,B>5E9 5C1,1>5E9 5C2,1>FB49 5C1,1>FB49 5C2,1>5D0 5B7,1>5D0 5B8,1>5D0 5BC,1>5D1 5BC,1>5D2 5BC,1>5D3 5BC,1>5D4 5BC,1>5D5 5BC,1>5D6 5BC,2>5D8 5BC,1>5D9 5BC,1>5DA 5BC,1>5DB 5BC,1>5DC 5BC,2>5DE 5BC,2>5E0 5BC,1>5E1 5BC,2>5E3 5BC,1>5E4 5BC,2>5E6 5BC,1>5E7 5BC,1>5E8 5BC,1>5E9 5BC,1>5EA 5BC,1>5D5 5B9,1>5D1 5BF,1>5DB 5BF,1>5E4 5BF,154C>11099 110BA,2>1109B 110BA,F>110A5 110BA,83>11131 11127,1>11132 11127,21C>11347 1133E,1>11347 11357,16F>114B9 114BA,1>114B9 114B0,2>114B9 114BD,FC>115B8 115AF,1>115B9 115AF,37D>11935 11930,B826>1D157 1D165,1>1D158 1D165,1>1D15F 1D16E,1>1D15F 1D16F,1>1D15F 1D170,1>1D15F 1D171,1>1D15F 1D172,57>1D1B9 1D165,1>1D1BA 1D165,1>1D1BB 1D16E,1>1D1BC 1D16E,1>1D1BB 1D16F,1>1D1BC 1D16F,12640>4E3D,1>4E38,1>4E41,1>20122,1>4F60,1>4FAE,1>4FBB,1>5002,1>507A,1>5099,1>50E7,1>50CF,1>349E,1>2063A,1>514D,1>5154,1>5164,1>5177,1>2051C,1>34B9,1>5167,1>518D,1>2054B,1>5197,1>51A4,1>4ECC,1>51AC,1>51B5,1>291DF,1>51F5,1>5203,1>34DF,1>523B,1>5246,1>5272,1>5277,1>3515,1>52C7,1>52C9,1>52E4,1>52FA,1>5305,1>5306,1>5317,1>5349,1>5351,1>535A,1>5373,1>537D,1>537F,1>537F,1>537F,1>20A2C,1>7070,1>53CA,1>53DF,1>20B63,1>53EB,1>53F1,1>5406,1>549E,1>5438,1>5448,1>5468,1>54A2,1>54F6,1>5510,1>5553,1>5563,1>5584,1>5584,1>5599,1>55AB,1>55B3,1>55C2,1>5716,1>5606,1>5717,1>5651,1>5674,1>5207,1>58EE,1>57CE,1>57F4,1>580D,1>578B,1>5832,1>5831,1>58AC,1>214E4,1>58F2,1>58F7,1>5906,1>591A,1>5922,1>5962,1>216A8,1>216EA,1>59EC,1>5A1B,1>5A27,1>59D8,1>5A66,1>36EE,1>36FC,1>5B08,1>5B3E,1>5B3E,1>219C8,1>5BC3,1>5BD8,1>5BE7,1>5BF3,1>21B18,1>5BFF,1>5C06,1>5F53,1>5C22,1>3781,1>5C60,1>5C6E,1>5CC0,1>5C8D,1>21DE4,1>5D43,1>21DE6,1>5D6E,1>5D6B,1>5D7C,1>5DE1,1>5DE2,1>382F,1>5DFD,1>5E28,1>5E3D,1>5E69,1>3862,1>22183,1>387C,1>5EB0,1>5EB3,1>5EB6,1>5ECA,1>2A392,1>5EFE,1>22331,1>22331,1>8201,1>5F22,1>5F22,1>38C7,1>232B8,1>261DA,1>5F62,1>5F6B,1>38E3,1>5F9A,1>5FCD,1>5FD7,1>5FF9,1>6081,1>393A,1>391C,1>6094,1>226D4,1>60C7,1>6148,1>614C,1>614E,1>614C,1>617A,1>618E,1>61B2,1>61A4,1>61AF,1>61DE,1>61F2,1>61F6,1>6210,1>621B,1>625D,1>62B1,1>62D4,1>6350,1>22B0C,1>633D,1>62FC,1>6368,1>6383,1>63E4,1>22BF1,1>6422,1>63C5,1>63A9,1>3A2E,1>6469,1>647E,1>649D,1>6477,1>3A6C,1>654F,1>656C,1>2300A,1>65E3,1>66F8,1>6649,1>3B19,1>6691,1>3B08,1>3AE4,1>5192,1>5195,1>6700,1>669C,1>80AD,1>43D9,1>6717,1>671B,1>6721,1>675E,1>6753,1>233C3,1>3B49,1>67FA,1>6785,1>6852,1>6885,1>2346D,1>688E,1>681F,1>6914,1>3B9D,1>6942,1>69A3,1>69EA,1>6AA8,1>236A3,1>6ADB,1>3C18,1>6B21,1>238A7,1>6B54,1>3C4E,1>6B72,1>6B9F,1>6BBA,1>6BBB,1>23A8D,1>21D0B,1>23AFA,1>6C4E,1>23CBC,1>6CBF,1>6CCD,1>6C67,1>6D16,1>6D3E,1>6D77,1>6D41,1>6D69,1>6D78,1>6D85,1>23D1E,1>6D34,1>6E2F,1>6E6E,1>3D33,1>6ECB,1>6EC7,1>23ED1,1>6DF9,1>6F6E,1>23F5E,1>23F8E,1>6FC6,1>7039,1>701E,1>701B,1>3D96,1>704A,1>707D,1>7077,1>70AD,1>20525,1>7145,1>24263,1>719C,1>243AB,1>7228,1>7235,1>7250,1>24608,1>7280,1>7295,1>24735,1>24814,1>737A,1>738B,1>3EAC,1>73A5,1>3EB8,1>3EB8,1>7447,1>745C,1>7471,1>7485,1>74CA,1>3F1B,1>7524,1>24C36,1>753E,1>24C92,1>7570,1>2219F,1>7610,1>24FA1,1>24FB8,1>25044,1>3FFC,1>4008,1>76F4,1>250F3,1>250F2,1>25119,1>25133,1>771E,1>771F,1>771F,1>774A,1>4039,1>778B,1>4046,1>4096,1>2541D,1>784E,1>788C,1>78CC,1>40E3,1>25626,1>7956,1>2569A,1>256C5,1>798F,1>79EB,1>412F,1>7A40,1>7A4A,1>7A4F,1>2597C,1>25AA7,1>25AA7,1>7AEE,1>4202,1>25BAB,1>7BC6,1>7BC9,1>4227,1>25C80,1>7CD2,1>42A0,1>7CE8,1>7CE3,1>7D00,1>25F86,1>7D63,1>4301,1>7DC7,1>7E02,1>7E45,1>4334,1>26228,1>26247,1>4359,1>262D9,1>7F7A,1>2633E,1>7F95,1>7FFA,1>8005,1>264DA,1>26523,1>8060,1>265A8,1>8070,1>2335F,1>43D5,1>80B2,1>8103,1>440B,1>813E,1>5AB5,1>267A7,1>267B5,1>23393,1>2339C,1>8201,1>8204,1>8F9E,1>446B,1>8291,1>828B,1>829D,1>52B3,1>82B1,1>82B3,1>82BD,1>82E6,1>26B3C,1>82E5,1>831D,1>8363,1>83AD,1>8323,1>83BD,1>83E7,1>8457,1>8353,1>83CA,1>83CC,1>83DC,1>26C36,1>26D6B,1>26CD5,1>452B,1>84F1,1>84F3,1>8516,1>273CA,1>8564,1>26F2C,1>455D,1>4561,1>26FB1,1>270D2,1>456B,1>8650,1>865C,1>8667,1>8669,1>86A9,1>8688,1>870E,1>86E2,1>8779,1>8728,1>876B,1>8786,1>45D7,1>87E1,1>8801,1>45F9,1>8860,1>8863,1>27667,1>88D7,1>88DE,1>4635,1>88FA,1>34BB,1>278AE,1>27966,1>46BE,1>46C7,1>8AA0,1>8AED,1>8B8A,1>8C55,1>27CA8,1>8CAB,1>8CC1,1>8D1B,1>8D77,1>27F2F,1>20804,1>8DCB,1>8DBC,1>8DF0,1>208DE,1>8ED4,1>8F38,1>285D2,1>285ED,1>9094,1>90F1,1>9111,1>2872E,1>911B,1>9238,1>92D7,1>92D8,1>927C,1>93F9,1>9415,1>28BFA,1>958B,1>4995,1>95B7,1>28D77,1>49E6,1>96C3,1>5DB2,1>9723,1>29145,1>2921A,1>4A6E,1>4A76,1>97E0,1>2940A,1>4AB2,1>29496,1>980B,1>980B,1>9829,1>295B6,1>98E2,1>4B33,1>9929,1>99A7,1>99C2,1>99FE,1>4BCE,1>29B30,1>9B12,1>9C40,1>9CFD,1>4CCE,1>4CED,1>9D67,1>2A0CE,1>4CF8,1>2A105,1>2A20E,1>2A291,1>9EBB,1>4D56,1>9EF9,1>9EFE,1>9F05,1>9F0F,1>9F16,1>9F3B,1>2A600",
+    compat: "A0>0|20,8>1|20 308,2>2|61,5>1|20 304,3>2|32,1>2|33,1>1|20 301,1>1|3BC,3>1|20 327,1>2|31,1>2|6F,2>3|31 2044 34,1>3|31 2044 32,1>3|33 2044 34,74>1|49 4A,1>1|69 6A,C>1|4C B7,1>1|6C B7,9>1|2BC 6E,36>1|73,45>1|44 17D,1>1|44 17E,1>1|64 17E,1>1|4C 4A,1>1|4C 6A,1>1|6C 6A,1>1|4E 4A,1>1|4E 6A,1>1|6E 6A,25>1|44 5A,1>1|44 7A,1>1|64 7A,BD>2|68,1>2|266,1>2|6A,1>2|72,1>2|279,1>2|27B,1>2|281,1>2|77,1>2|79,20>1|20 306,1>1|20 307,1>1|20 30A,1>1|20 328,1>1|20 303,1>1|20 30B,3>2|263,1>2|6C,1>2|73,1>2|78,1>2|295,96>1|20 345,A>1|20 301,4C>1|3B2,1>1|3B8,1>1|3A5,3>1|3C6,1>1|3C0,1A>1|3BA,1>1|3C1,1>1|3C2,2>1|398,1>1|3B5,4>1|3A3,18E>1|565 582,EE>1|627 674,1>1|648 674,1>1|6C7 674,1>1|64A 674,7BB>1|E4D E32,80>1|ECD EB2,29>1|EAB E99,1>1|EAB EA1,2F>0|F0B,6B>1|FB2 F81,2>1|FB3 F81,183>2|10DC,C30>2|41,1>2|C6,1>2|42,2>2|44,1>2|45,1>2|18E,1>2|47,1>2|48,1>2|49,1>2|4A,1>2|4B,1>2|4C,1>2|4D,1>2|4E,2>2|4F,1>2|222,1>2|50,1>2|52,1>2|54,1>2|55,1>2|57,1>2|61,1>2|250,1>2|251,1>2|1D02,1>2|62,1>2|64,1>2|65,1>2|259,1>2|25B,1>2|25C,1>2|67,2>2|6B,1>2|6D,1>2|14B,1>2|6F,1>2|254,1>2|1D16,1>2|1D17,1>2|70,1>2|74,1>2|75,1>2|1D1D,1>2|26F,1>2|76,1>2|1D25,1>2|3B2,1>2|3B3,1>2|3B4,1>2|3C6,1>2|3C7,1>4|69,1>4|72,1>4|75,1>4|76,1>4|3B2,1>4|3B3,1>4|3C1,1>4|3C6,1>4|3C7,E>2|43D,23>2|252,1>2|63,1>2|255,1>2|F0,1>2|25C,1>2|66,1>2|25F,1>2|261,1>2|265,1>2|268,1>2|269,1>2|26A,1>2|1D7B,1>2|29D,1>2|26D,1>2|1D85,1>2|29F,1>2|271,1>2|270,1>2|272,1>2|273,1>2|274,1>2|275,1>2|278,1>2|282,1>2|283,1>2|1AB,1>2|289,1>2|28A,1>2|1D1C,1>2|28B,1>2|28C,1>2|7A,1>2|290,1>2|291,1>2|292,1>2|3B8,DB>1|61 2BE,123>1|20 313,2>1|20 313,1>1|20 342,3E>1|20 314,4>1|20,1>1|20,1>1|20,1>1|20,1>1|20,1>0|20,1>1|20,1>1|20,1>1|20,7>0|2010,6>1|20 333,D>1|2E,1>1|2E 2E,1>1|2E 2E 2E,9>0|20,4>1|2032 2032,1>1|2032 2032 2032,2>1|2035 2035,1>1|2035 2035 2035,5>1|21 21,2>1|20 305,9>1|3F 3F,1>1|3F 21,1>1|21 3F,E>1|2032 2032 2032 2032,8>1|20,11>2|30,1>2|69,3>2|34,1>2|35,1>2|36,1>2|37,1>2|38,1>2|39,1>2|2B,1>2|2212,1>2|3D,1>2|28,1>2|29,1>2|6E,1>4|30,1>4|31,1>4|32,1>4|33,1>4|34,1>4|35,1>4|36,1>4|37,1>4|38,1>4|39,1>4|2B,1>4|2212,1>4|3D,1>4|28,1>4|29,2>4|61,1>4|65,1>4|6F,1>4|78,1>4|259,1>4|68,1>4|6B,1>4|6C,1>4|6D,1>4|6E,1>4|70,1>4|73,1>4|74,C>1|52 73,58>1|61 2F 63,1>1|61 2F 73,1>5|43,1>1|B0 43,2>1|63 2F 6F,1>1|63 2F 75,1>1|190,2>1|B0 46,1>5|67,1>5|48,1>5|48,1>5|48,1>5|68,1>5|127,1>5|49,1>5|49,1>5|4C,1>5|6C,2>5|4E,1>1|4E 6F,3>5|50,1>5|51,1>5|52,1>5|52,1>5|52,3>2|53 4D,1>1|54 45 4C,1>2|54 4D,2>5|5A,4>5|5A,4>5|42,1>5|43,2>5|65,1>5|45,1>5|46,2>5|4D,1>5|6F,1>1|5D0,1>1|5D1,1>1|5D2,1>1|5D3,1>5|69,2>1|46 41 58,1>5|3C0,1>5|3B3,1>5|393,1>5|3A0,1>5|2211,5>5|44,1>5|64,1>5|65,1>5|69,1>5|6A,7>3|31 2044 37,1>3|31 2044 39,1>3|31 2044 31 30,1>3|31 2044 33,1>3|32 2044 33,1>3|31 2044 35,1>3|32 2044 35,1>3|33 2044 35,1>3|34 2044 35,1>3|31 2044 36,1>3|35 2044 36,1>3|31 2044 38,1>3|33 2044 38,1>3|35 2044 38,1>3|37 2044 38,1>3|31 2044,1>1|49,1>1|49 49,1>1|49 49 49,1>1|49 56,1>1|56,1>1|56 49,1>1|56 49 49,1>1|56 49 49 49,1>1|49 58,1>1|58,1>1|58 49,1>1|58 49 49,1>1|4C,1>1|43,1>1|44,1>1|4D,1>1|69,1>1|69 69,1>1|69 69 69,1>1|69 76,1>1|76,1>1|76 69,1>1|76 69 69,1>1|76 69 69 69,1>1|69 78,1>1|78,1>1|78 69,1>1|78 69 69,1>1|6C,1>1|63,1>1|64,1>1|6D,A>3|30 2044 33,A3>1|222B 222B,1>1|222B 222B 222B,2>1|222E 222E,1>1|222E 222E 222E,230>6|31,1>6|32,1>6|33,1>6|34,1>6|35,1>6|36,1>6|37,1>6|38,1>6|39,1>6|31 30,1>6|31 31,1>6|31 32,1>6|31 33,1>6|31 34,1>6|31 35,1>6|31 36,1>6|31 37,1>6|31 38,1>6|31 39,1>6|32 30,1>1|28 31 29,1>1|28 32 29,1>1|28 33 29,1>1|28 34 29,1>1|28 35 29,1>1|28 36 29,1>1|28 37 29,1>1|28 38 29,1>1|28 39 29,1>1|28 31 30 29,1>1|28 31 31 29,1>1|28 31 32 29,1>1|28 31 33 29,1>1|28 31 34 29,1>1|28 31 35 29,1>1|28 31 36 29,1>1|28 31 37 29,1>1|28 31 38 29,1>1|28 31 39 29,1>1|28 32 30 29,1>1|31 2E,1>1|32 2E,1>1|33 2E,1>1|34 2E,1>1|35 2E,1>1|36 2E,1>1|37 2E,1>1|38 2E,1>1|39 2E,1>1|31 30 2E,1>1|31 31 2E,1>1|31 32 2E,1>1|31 33 2E,1>1|31 34 2E,1>1|31 35 2E,1>1|31 36 2E,1>1|31 37 2E,1>1|31 38 2E,1>1|31 39 2E,1>1|32 30 2E,1>1|28 61 29,1>1|28 62 29,1>1|28 63 29,1>1|28 64 29,1>1|28 65 29,1>1|28 66 29,1>1|28 67 29,1>1|28 68 29,1>1|28 69 29,1>1|28 6A 29,1>1|28 6B 29,1>1|28 6C 29,1>1|28 6D 29,1>1|28 6E 29,1>1|28 6F 29,1>1|28 70 29,1>1|28 71 29,1>1|28 72 29,1>1|28 73 29,1>1|28 74 29,1>1|28 75 29,1>1|28 76 29,1>1|28 77 29,1>1|28 78 29,1>1|28 79 29,1>1|28 7A 29,1>6|41,1>6|42,1>6|43,1>6|44,1>6|45,1>6|46,1>6|47,1>6|48,1>6|49,1>6|4A,1>6|4B,1>6|4C,1>6|4D,1>6|4E,1>6|4F,1>6|50,1>6|51,1>6|52,1>6|53,1>6|54,1>6|55,1>6|56,1>6|57,1>6|58,1>6|59,1>6|5A,1>6|61,1>6|62,1>6|63,1>6|64,1>6|65,1>6|66,1>6|67,1>6|68,1>6|69,1>6|6A,1>6|6B,1>6|6C,1>6|6D,1>6|6E,1>6|6F,1>6|70,1>6|71,1>6|72,1>6|73,1>6|74,1>6|75,1>6|76,1>6|77,1>6|78,1>6|79,1>6|7A,1>6|30,522>1|222B 222B 222B 222B,68>1|3A 3A 3D,1>1|3D 3D,1>1|3D 3D 3D,206>4|6A,1>2|56,F2>2|2D61,130>1|6BCD,54>1|9F9F,D>1|4E00,1>1|4E28,1>1|4E36,1>1|4E3F,1>1|4E59,1>1|4E85,1>1|4E8C,1>1|4EA0,1>1|4EBA,1>1|513F,1>1|5165,1>1|516B,1>1|5182,1>1|5196,1>1|51AB,1>1|51E0,1>1|51F5,1>1|5200,1>1|529B,1>1|52F9,1>1|5315,1>1|531A,1>1|5338,1>1|5341,1>1|535C,1>1|5369,1>1|5382,1>1|53B6,1>1|53C8,1>1|53E3,1>1|56D7,1>1|571F,1>1|58EB,1>1|5902,1>1|590A,1>1|5915,1>1|5927,1>1|5973,1>1|5B50,1>1|5B80,1>1|5BF8,1>1|5C0F,1>1|5C22,1>1|5C38,1>1|5C6E,1>1|5C71,1>1|5DDB,1>1|5DE5,1>1|5DF1,1>1|5DFE,1>1|5E72,1>1|5E7A,1>1|5E7F,1>1|5EF4,1>1|5EFE,1>1|5F0B,1>1|5F13,1>1|5F50,1>1|5F61,1>1|5F73,1>1|5FC3,1>1|6208,1>1|6236,1>1|624B,1>1|652F,1>1|6534,1>1|6587,1>1|6597,1>1|65A4,1>1|65B9,1>1|65E0,1>1|65E5,1>1|66F0,1>1|6708,1>1|6728,1>1|6B20,1>1|6B62,1>1|6B79,1>1|6BB3,1>1|6BCB,1>1|6BD4,1>1|6BDB,1>1|6C0F,1>1|6C14,1>1|6C34,1>1|706B,1>1|722A,1>1|7236,1>1|723B,1>1|723F,1>1|7247,1>1|7259,1>1|725B,1>1|72AC,1>1|7384,1>1|7389,1>1|74DC,1>1|74E6,1>1|7518,1>1|751F,1>1|7528,1>1|7530,1>1|758B,1>1|7592,1>1|7676,1>1|767D,1>1|76AE,1>1|76BF,1>1|76EE,1>1|77DB,1>1|77E2,1>1|77F3,1>1|793A,1>1|79B8,1>1|79BE,1>1|7A74,1>1|7ACB,1>1|7AF9,1>1|7C73,1>1|7CF8,1>1|7F36,1>1|7F51,1>1|7F8A,1>1|7FBD,1>1|8001,1>1|800C,1>1|8012,1>1|8033,1>1|807F,1>1|8089,1>1|81E3,1>1|81EA,1>1|81F3,1>1|81FC,1>1|820C,1>1|821B,1>1|821F,1>1|826E,1>1|8272,1>1|8278,1>1|864D,1>1|866B,1>1|8840,1>1|884C,1>1|8863,1>1|897E,1>1|898B,1>1|89D2,1>1|8A00,1>1|8C37,1>1|8C46,1>1|8C55,1>1|8C78,1>1|8C9D,1>1|8D64,1>1|8D70,1>1|8DB3,1>1|8EAB,1>1|8ECA,1>1|8F9B,1>1|8FB0,1>1|8FB5,1>1|9091,1>1|9149,1>1|91C6,1>1|91CC,1>1|91D1,1>1|9577,1>1|9580,1>1|961C,1>1|96B6,1>1|96B9,1>1|96E8,1>1|9751,1>1|975E,1>1|9762,1>1|9769,1>1|97CB,1>1|97ED,1>1|97F3,1>1|9801,1>1|98A8,1>1|98DB,1>1|98DF,1>1|9996,1>1|9999,1>1|99AC,1>1|9AA8,1>1|9AD8,1>1|9ADF,1>1|9B25,1>1|9B2F,1>1|9B32,1>1|9B3C,1>1|9B5A,1>1|9CE5,1>1|9E75,1>1|9E7F,1>1|9EA5,1>1|9EBB,1>1|9EC3,1>1|9ECD,1>1|9ED1,1>1|9EF9,1>1|9EFD,1>1|9F0E,1>1|9F13,1>1|9F20,1>1|9F3B,1>1|9F4A,1>1|9F52,1>1|9F8D,1>1|9F9C,1>1|9FA0,2B>7|20,36>1|3012,2>1|5341,1>1|5344,1>1|5345,61>1|20 3099,1>1|20 309A,3>8|3088 308A,60>8|30B3 30C8,32>1|1100,1>1|1101,1>1|11AA,1>1|1102,1>1|11AC,1>1|11AD,1>1|1103,1>1|1104,1>1|1105,1>1|11B0,1>1|11B1,1>1|11B2,1>1|11B3,1>1|11B4,1>1|11B5,1>1|111A,1>1|1106,1>1|1107,1>1|1108,1>1|1121,1>1|1109,1>1|110A,1>1|110B,1>1|110C,1>1|110D,1>1|110E,1>1|110F,1>1|1110,1>1|1111,1>1|1112,1>1|1161,1>1|1162,1>1|1163,1>1|1164,1>1|1165,1>1|1166,1>1|1167,1>1|1168,1>1|1169,1>1|116A,1>1|116B,1>1|116C,1>1|116D,1>1|116E,1>1|116F,1>1|1170,1>1|1171,1>1|1172,1>1|1173,1>1|1174,1>1|1175,1>1|1160,1>1|1114,1>1|1115,1>1|11C7,1>1|11C8,1>1|11CC,1>1|11CE,1>1|11D3,1>1|11D7,1>1|11D9,1>1|111C,1>1|11DD,1>1|11DF,1>1|111D,1>1|111E,1>1|1120,1>1|1122,1>1|1123,1>1|1127,1>1|1129,1>1|112B,1>1|112C,1>1|112D,1>1|112E,1>1|112F,1>1|1132,1>1|1136,1>1|1140,1>1|1147,1>1|114C,1>1|11F1,1>1|11F2,1>1|1157,1>1|1158,1>1|1159,1>1|1184,1>1|1185,1>1|1188,1>1|1191,1>1|1192,1>1|1194,1>1|119E,1>1|11A1,4>2|4E00,1>2|4E8C,1>2|4E09,1>2|56DB,1>2|4E0A,1>2|4E2D,1>2|4E0B,1>2|7532,1>2|4E59,1>2|4E19,1>2|4E01,1>2|5929,1>2|5730,1>2|4EBA,61>1|28 1100 29,1>1|28 1102 29,1>1|28 1103 29,1>1|28 1105 29,1>1|28 1106 29,1>1|28 1107 29,1>1|28 1109 29,1>1|28 110B 29,1>1|28 110C 29,1>1|28 110E 29,1>1|28 110F 29,1>1|28 1110 29,1>1|28 1111 29,1>1|28 1112 29,1>1|28 1100 1161 29,1>1|28 1102 1161 29,1>1|28 1103 1161 29,1>1|28 1105 1161 29,1>1|28 1106 1161 29,1>1|28 1107 1161 29,1>1|28 1109 1161 29,1>1|28 110B 1161 29,1>1|28 110C 1161 29,1>1|28 110E 1161 29,1>1|28 110F 1161 29,1>1|28 1110 1161 29,1>1|28 1111 1161 29,1>1|28 1112 1161 29,1>1|28 110C 116E 29,1>1|28 110B 1169 110C 1165 11AB 29,1>1|28 110B 1169 1112 116E 29,2>1|28 4E00 29,1>1|28 4E8C 29,1>1|28 4E09 29,1>1|28 56DB 29,1>1|28 4E94 29,1>1|28 516D 29,1>1|28 4E03 29,1>1|28 516B 29,1>1|28 4E5D 29,1>1|28 5341 29,1>1|28 6708 29,1>1|28 706B 29,1>1|28 6C34 29,1>1|28 6728 29,1>1|28 91D1 29,1>1|28 571F 29,1>1|28 65E5 29,1>1|28 682A 29,1>1|28 6709 29,1>1|28 793E 29,1>1|28 540D 29,1>1|28 7279 29,1>1|28 8CA1 29,1>1|28 795D 29,1>1|28 52B4 29,1>1|28 4EE3 29,1>1|28 547C 29,1>1|28 5B66 29,1>1|28 76E3 29,1>1|28 4F01 29,1>1|28 8CC7 29,1>1|28 5354 29,1>1|28 796D 29,1>1|28 4F11 29,1>1|28 81EA 29,1>1|28 81F3 29,1>6|554F,1>6|5E7C,1>6|6587,1>6|7B8F,9>9|50 54 45,1>6|32 31,1>6|32 32,1>6|32 33,1>6|32 34,1>6|32 35,1>6|32 36,1>6|32 37,1>6|32 38,1>6|32 39,1>6|33 30,1>6|33 31,1>6|33 32,1>6|33 33,1>6|33 34,1>6|33 35,1>6|1100,1>6|1102,1>6|1103,1>6|1105,1>6|1106,1>6|1107,1>6|1109,1>6|110B,1>6|110C,1>6|110E,1>6|110F,1>6|1110,1>6|1111,1>6|1112,1>6|1100 1161,1>6|1102 1161,1>6|1103 1161,1>6|1105 1161,1>6|1106 1161,1>6|1107 1161,1>6|1109 1161,1>6|110B 1161,1>6|110C 1161,1>6|110E 1161,1>6|110F 1161,1>6|1110 1161,1>6|1111 1161,1>6|1112 1161,1>6|110E 1161 11B7 1100 1169,1>6|110C 116E 110B 1174,1>6|110B 116E,2>6|4E00,1>6|4E8C,1>6|4E09,1>6|56DB,1>6|4E94,1>6|516D,1>6|4E03,1>6|516B,1>6|4E5D,1>6|5341,1>6|6708,1>6|706B,1>6|6C34,1>6|6728,1>6|91D1,1>6|571F,1>6|65E5,1>6|682A,1>6|6709,1>6|793E,1>6|540D,1>6|7279,1>6|8CA1,1>6|795D,1>6|52B4,1>6|79D8,1>6|7537,1>6|5973,1>6|9069,1>6|512A,1>6|5370,1>6|6CE8,1>6|9805,1>6|4F11,1>6|5199,1>6|6B63,1>6|4E0A,1>6|4E2D,1>6|4E0B,1>6|5DE6,1>6|53F3,1>6|533B,1>6|5B97,1>6|5B66,1>6|76E3,1>6|4F01,1>6|8CC7,1>6|5354,1>6|591C,1>6|33 36,1>6|33 37,1>6|33 38,1>6|33 39,1>6|34 30,1>6|34 31,1>6|34 32,1>6|34 33,1>6|34 34,1>6|34 35,1>6|34 36,1>6|34 37,1>6|34 38,1>6|34 39,1>6|35 30,1>1|31 6708,1>1|32 6708,1>1|33 6708,1>1|34 6708,1>1|35 6708,1>1|36 6708,1>1|37 6708,1>1|38 6708,1>1|39 6708,1>1|31 30 6708,1>1|31 31 6708,1>1|31 32 6708,1>9|48 67,1>9|65 72 67,1>9|65 56,1>9|4C 54 44,1>6|30A2,1>6|30A4,1>6|30A6,1>6|30A8,1>6|30AA,1>6|30AB,1>6|30AD,1>6|30AF,1>6|30B1,1>6|30B3,1>6|30B5,1>6|30B7,1>6|30B9,1>6|30BB,1>6|30BD,1>6|30BF,1>6|30C1,1>6|30C4,1>6|30C6,1>6|30C8,1>6|30CA,1>6|30CB,1>6|30CC,1>6|30CD,1>6|30CE,1>6|30CF,1>6|30D2,1>6|30D5,1>6|30D8,1>6|30DB,1>6|30DE,1>6|30DF,1>6|30E0,1>6|30E1,1>6|30E2,1>6|30E4,1>6|30E6,1>6|30E8,1>6|30E9,1>6|30EA,1>6|30EB,1>6|30EC,1>6|30ED,1>6|30EF,1>6|30F0,1>6|30F1,1>6|30F2,1>9|4EE4 548C,1>9|30A2 30D1 30FC 30C8,1>9|30A2 30EB 30D5 30A1,1>9|30A2 30F3 30DA 30A2,1>9|30A2 30FC 30EB,1>9|30A4 30CB 30F3 30B0,1>9|30A4 30F3 30C1,1>9|30A6 30A9 30F3,1>9|30A8 30B9 30AF 30FC 30C9,1>9|30A8 30FC 30AB 30FC,1>9|30AA 30F3 30B9,1>9|30AA 30FC 30E0,1>9|30AB 30A4 30EA,1>9|30AB 30E9 30C3 30C8,1>9|30AB 30ED 30EA 30FC,1>9|30AC 30ED 30F3,1>9|30AC 30F3 30DE,1>9|30AE 30AC,1>9|30AE 30CB 30FC,1>9|30AD 30E5 30EA 30FC,1>9|30AE 30EB 30C0 30FC,1>9|30AD 30ED,1>9|30AD 30ED 30B0 30E9 30E0,1>9|30AD 30ED 30E1 30FC 30C8 30EB,1>9|30AD 30ED 30EF 30C3 30C8,1>9|30B0 30E9 30E0,1>9|30B0 30E9 30E0 30C8 30F3,1>9|30AF 30EB 30BC 30A4 30ED,1>9|30AF 30ED 30FC 30CD,1>9|30B1 30FC 30B9,1>9|30B3 30EB 30CA,1>9|30B3 30FC 30DD,1>9|30B5 30A4 30AF 30EB,1>9|30B5 30F3 30C1 30FC 30E0,1>9|30B7 30EA 30F3 30B0,1>9|30BB 30F3 30C1,1>9|30BB 30F3 30C8,1>9|30C0 30FC 30B9,1>9|30C7 30B7,1>9|30C9 30EB,1>9|30C8 30F3,1>9|30CA 30CE,1>9|30CE 30C3 30C8,1>9|30CF 30A4 30C4,1>9|30D1 30FC 30BB 30F3 30C8,1>9|30D1 30FC 30C4,1>9|30D0 30FC 30EC 30EB,1>9|30D4 30A2 30B9 30C8 30EB,1>9|30D4 30AF 30EB,1>9|30D4 30B3,1>9|30D3 30EB,1>9|30D5 30A1 30E9 30C3 30C9,1>9|30D5 30A3 30FC 30C8,1>9|30D6 30C3 30B7 30A7 30EB,1>9|30D5 30E9 30F3,1>9|30D8 30AF 30BF 30FC 30EB,1>9|30DA 30BD,1>9|30DA 30CB 30D2,1>9|30D8 30EB 30C4,1>9|30DA 30F3 30B9,1>9|30DA 30FC 30B8,1>9|30D9 30FC 30BF,1>9|30DD 30A4 30F3 30C8,1>9|30DC 30EB 30C8,1>9|30DB 30F3,1>9|30DD 30F3 30C9,1>9|30DB 30FC 30EB,1>9|30DB 30FC 30F3,1>9|30DE 30A4 30AF 30ED,1>9|30DE 30A4 30EB,1>9|30DE 30C3 30CF,1>9|30DE 30EB 30AF,1>9|30DE 30F3 30B7 30E7 30F3,1>9|30DF 30AF 30ED 30F3,1>9|30DF 30EA,1>9|30DF 30EA 30D0 30FC 30EB,1>9|30E1 30AC,1>9|30E1 30AC 30C8 30F3,1>9|30E1 30FC 30C8 30EB,1>9|30E4 30FC 30C9,1>9|30E4 30FC 30EB,1>9|30E6 30A2 30F3,1>9|30EA 30C3 30C8 30EB,1>9|30EA 30E9,1>9|30EB 30D4 30FC,1>9|30EB 30FC 30D6 30EB,1>9|30EC 30E0,1>9|30EC 30F3 30C8 30B2 30F3,1>9|30EF 30C3 30C8,1>1|30 70B9,1>1|31 70B9,1>1|32 70B9,1>1|33 70B9,1>1|34 70B9,1>1|35 70B9,1>1|36 70B9,1>1|37 70B9,1>1|38 70B9,1>1|39 70B9,1>1|31 30 70B9,1>1|31 31 70B9,1>1|31 32 70B9,1>1|31 33 70B9,1>1|31 34 70B9,1>1|31 35 70B9,1>1|31 36 70B9,1>1|31 37 70B9,1>1|31 38 70B9,1>1|31 39 70B9,1>1|32 30 70B9,1>1|32 31 70B9,1>1|32 32 70B9,1>1|32 33 70B9,1>1|32 34 70B9,1>9|68 50 61,1>9|64 61,1>9|41 55,1>9|62 61 72,1>9|6F 56,1>9|70 63,1>9|64 6D,1>9|64 6D B2,1>9|64 6D B3,1>9|49 55,1>9|5E73 6210,1>9|662D 548C,1>9|5927 6B63,1>9|660E 6CBB,1>9|682A 5F0F 4F1A 793E,1>9|70 41,1>9|6E 41,1>9|3BC 41,1>9|6D 41,1>9|6B 41,1>9|4B 42,1>9|4D 42,1>9|47 42,1>9|63 61 6C,1>9|6B 63 61 6C,1>9|70 46,1>9|6E 46,1>9|3BC 46,1>9|3BC 67,1>9|6D 67,1>9|6B 67,1>9|48 7A,1>9|6B 48 7A,1>9|4D 48 7A,1>9|47 48 7A,1>9|54 48 7A,1>9|3BC 2113,1>9|6D 2113,1>9|64 2113,1>9|6B 2113,1>9|66 6D,1>9|6E 6D,1>9|3BC 6D,1>9|6D 6D,1>9|63 6D,1>9|6B 6D,1>9|6D 6D B2,1>9|63 6D B2,1>9|6D B2,1>9|6B 6D B2,1>9|6D 6D B3,1>9|63 6D B3,1>9|6D B3,1>9|6B 6D B3,1>9|6D 2215 73,1>9|6D 2215 73 B2,1>9|50 61,1>9|6B 50 61,1>9|4D 50 61,1>9|47 50 61,1>9|72 61 64,1>9|72 61 64 2215 73,1>9|72 61 64 2215 73 B2,1>9|70 73,1>9|6E 73,1>9|3BC 73,1>9|6D 73,1>9|70 56,1>9|6E 56,1>9|3BC 56,1>9|6D 56,1>9|6B 56,1>9|4D 56,1>9|70 57,1>9|6E 57,1>9|3BC 57,1>9|6D 57,1>9|6B 57,1>9|4D 57,1>9|6B 3A9,1>9|4D 3A9,1>9|61 2E 6D 2E,1>9|42 71,1>9|63 63,1>9|63 64,1>9|43 2215 6B 67,1>9|43 6F 2E,1>9|64 42,1>9|47 79,1>9|68 61,1>9|48 50,1>9|69 6E,1>9|4B 4B,1>9|4B 4D,1>9|6B 74,1>9|6C 6D,1>9|6C 6E,1>9|6C 6F 67,1>9|6C 78,1>9|6D 62,1>9|6D 69 6C,1>9|6D 6F 6C,1>9|50 48,1>9|70 2E 6D 2E,1>9|50 50 4D,1>9|50 52,1>9|73 72,1>9|53 76,1>9|57 62,1>9|56 2215 6D,1>9|41 2215 6D,1>1|31 65E5,1>1|32 65E5,1>1|33 65E5,1>1|34 65E5,1>1|35 65E5,1>1|36 65E5,1>1|37 65E5,1>1|38 65E5,1>1|39 65E5,1>1|31 30 65E5,1>1|31 31 65E5,1>1|31 32 65E5,1>1|31 33 65E5,1>1|31 34 65E5,1>1|31 35 65E5,1>1|31 36 65E5,1>1|31 37 65E5,1>1|31 38 65E5,1>1|31 39 65E5,1>1|32 30 65E5,1>1|32 31 65E5,1>1|32 32 65E5,1>1|32 33 65E5,1>1|32 34 65E5,1>1|32 35 65E5,1>1|32 36 65E5,1>1|32 37 65E5,1>1|32 38 65E5,1>1|32 39 65E5,1>1|33 30 65E5,1>1|33 31 65E5,1>9|67 61 6C,729D>2|44A,1>2|44C,D3>2|A76F,82>2|43,1>2|46,1>2|51,4>2|126,1>2|153,363>2|A727,1>2|AB37,1>2|26B,1>2|AB52,A>2|28D,4F97>1|66 66,1>1|66 69,1>1|66 6C,1>1|66 66 69,1>1|66 66 6C,1>1|17F 74,1>1|73 74,D>1|574 576,1>1|574 565,1>1|574 56B,1>1|57E 576,1>1|574 56D,9>5|5E2,1>5|5D0,1>5|5D3,1>5|5D4,1>5|5DB,1>5|5DC,1>5|5DD,1>5|5E8,1>5|5EA,1>5|2B,26>1|5D0 5DC,1>A|671,1>B|671,1>A|67B,1>B|67B,1>C|67B,1>D|67B,1>A|67E,1>B|67E,1>C|67E,1>D|67E,1>A|680,1>B|680,1>C|680,1>D|680,1>A|67A,1>B|67A,1>C|67A,1>D|67A,1>A|67F,1>B|67F,1>C|67F,1>D|67F,1>A|679,1>B|679,1>C|679,1>D|679,1>A|6A4,1>B|6A4,1>C|6A4,1>D|6A4,1>A|6A6,1>B|6A6,1>C|6A6,1>D|6A6,1>A|684,1>B|684,1>C|684,1>D|684,1>A|683,1>B|683,1>C|683,1>D|683,1>A|686,1>B|686,1>C|686,1>D|686,1>A|687,1>B|687,1>C|687,1>D|687,1>A|68D,1>B|68D,1>A|68C,1>B|68C,1>A|68E,1>B|68E,1>A|688,1>B|688,1>A|698,1>B|698,1>A|691,1>B|691,1>A|6A9,1>B|6A9,1>C|6A9,1>D|6A9,1>A|6AF,1>B|6AF,1>C|6AF,1>D|6AF,1>A|6B3,1>B|6B3,1>C|6B3,1>D|6B3,1>A|6B1,1>B|6B1,1>C|6B1,1>D|6B1,1>A|6BA,1>B|6BA,1>A|6BB,1>B|6BB,1>C|6BB,1>D|6BB,1>A|6C0,1>B|6C0,1>A|6C1,1>B|6C1,1>C|6C1,1>D|6C1,1>A|6BE,1>B|6BE,1>C|6BE,1>D|6BE,1>A|6D2,1>B|6D2,1>A|6D3,1>B|6D3,22>A|6AD,1>B|6AD,1>C|6AD,1>D|6AD,1>A|6C7,1>B|6C7,1>A|6C6,1>B|6C6,1>A|6C8,1>B|6C8,1>A|677,1>A|6CB,1>B|6CB,1>A|6C5,1>B|6C5,1>A|6C9,1>B|6C9,1>A|6D0,1>B|6D0,1>C|6D0,1>D|6D0,1>C|649,1>D|649,1>A|626 627,1>B|626 627,1>A|626 6D5,1>B|626 6D5,1>A|626 648,1>B|626 648,1>A|626 6C7,1>B|626 6C7,1>A|626 6C6,1>B|626 6C6,1>A|626 6C8,1>B|626 6C8,1>A|626 6D0,1>B|626 6D0,1>C|626 6D0,1>A|626 649,1>B|626 649,1>C|626 649,1>A|6CC,1>B|6CC,1>C|6CC,1>D|6CC,1>A|626 62C,1>A|626 62D,1>A|626 645,1>A|626 649,1>A|626 64A,1>A|628 62C,1>A|628 62D,1>A|628 62E,1>A|628 645,1>A|628 649,1>A|628 64A,1>A|62A 62C,1>A|62A 62D,1>A|62A 62E,1>A|62A 645,1>A|62A 649,1>A|62A 64A,1>A|62B 62C,1>A|62B 645,1>A|62B 649,1>A|62B 64A,1>A|62C 62D,1>A|62C 645,1>A|62D 62C,1>A|62D 645,1>A|62E 62C,1>A|62E 62D,1>A|62E 645,1>A|633 62C,1>A|633 62D,1>A|633 62E,1>A|633 645,1>A|635 62D,1>A|635 645,1>A|636 62C,1>A|636 62D,1>A|636 62E,1>A|636 645,1>A|637 62D,1>A|637 645,1>A|638 645,1>A|639 62C,1>A|639 645,1>A|63A 62C,1>A|63A 645,1>A|641 62C,1>A|641 62D,1>A|641 62E,1>A|641 645,1>A|641 649,1>A|641 64A,1>A|642 62D,1>A|642 645,1>A|642 649,1>A|642 64A,1>A|643 627,1>A|643 62C,1>A|643 62D,1>A|643 62E,1>A|643 644,1>A|643 645,1>A|643 649,1>A|643 64A,1>A|644 62C,1>A|644 62D,1>A|644 62E,1>A|644 645,1>A|644 649,1>A|644 64A,1>A|645 62C,1>A|645 62D,1>A|645 62E,1>A|645 645,1>A|645 649,1>A|645 64A,1>A|646 62C,1>A|646 62D,1>A|646 62E,1>A|646 645,1>A|646 649,1>A|646 64A,1>A|647 62C,1>A|647 645,1>A|647 649,1>A|647 64A,1>A|64A 62C,1>A|64A 62D,1>A|64A 62E,1>A|64A 645,1>A|64A 649,1>A|64A 64A,1>A|630 670,1>A|631 670,1>A|649 670,1>A|20 64C 651,1>A|20 64D 651,1>A|20 64E 651,1>A|20 64F 651,1>A|20 650 651,1>A|20 651 670,1>B|626 631,1>B|626 632,1>B|626 645,1>B|626 646,1>B|626 649,1>B|626 64A,1>B|628 631,1>B|628 632,1>B|628 645,1>B|628 646,1>B|628 649,1>B|628 64A,1>B|62A 631,1>B|62A 632,1>B|62A 645,1>B|62A 646,1>B|62A 649,1>B|62A 64A,1>B|62B 631,1>B|62B 632,1>B|62B 645,1>B|62B 646,1>B|62B 649,1>B|62B 64A,1>B|641 649,1>B|641 64A,1>B|642 649,1>B|642 64A,1>B|643 627,1>B|643 644,1>B|643 645,1>B|643 649,1>B|643 64A,1>B|644 645,1>B|644 649,1>B|644 64A,1>B|645 627,1>B|645 645,1>B|646 631,1>B|646 632,1>B|646 645,1>B|646 646,1>B|646 649,1>B|646 64A,1>B|649 670,1>B|64A 631,1>B|64A 632,1>B|64A 645,1>B|64A 646,1>B|64A 649,1>B|64A 64A,1>C|626 62C,1>C|626 62D,1>C|626 62E,1>C|626 645,1>C|626 647,1>C|628 62C,1>C|628 62D,1>C|628 62E,1>C|628 645,1>C|628 647,1>C|62A 62C,1>C|62A 62D,1>C|62A 62E,1>C|62A 645,1>C|62A 647,1>C|62B 645,1>C|62C 62D,1>C|62C 645,1>C|62D 62C,1>C|62D 645,1>C|62E 62C,1>C|62E 645,1>C|633 62C,1>C|633 62D,1>C|633 62E,1>C|633 645,1>C|635 62D,1>C|635 62E,1>C|635 645,1>C|636 62C,1>C|636 62D,1>C|636 62E,1>C|636 645,1>C|637 62D,1>C|638 645,1>C|639 62C,1>C|639 645,1>C|63A 62C,1>C|63A 645,1>C|641 62C,1>C|641 62D,1>C|641 62E,1>C|641 645,1>C|642 62D,1>C|642 645,1>C|643 62C,1>C|643 62D,1>C|643 62E,1>C|643 644,1>C|643 645,1>C|644 62C,1>C|644 62D,1>C|644 62E,1>C|644 645,1>C|644 647,1>C|645 62C,1>C|645 62D,1>C|645 62E,1>C|645 645,1>C|646 62C,1>C|646 62D,1>C|646 62E,1>C|646 645,1>C|646 647,1>C|647 62C,1>C|647 645,1>C|647 670,1>C|64A 62C,1>C|64A 62D,1>C|64A 62E,1>C|64A 645,1>C|64A 647,1>D|626 645,1>D|626 647,1>D|628 645,1>D|628 647,1>D|62A 645,1>D|62A 647,1>D|62B 645,1>D|62B 647,1>D|633 645,1>D|633 647,1>D|634 645,1>D|634 647,1>D|643 644,1>D|643 645,1>D|644 645,1>D|646 645,1>D|646 647,1>D|64A 645,1>D|64A 647,1>D|640 64E 651,1>D|640 64F 651,1>D|640 650 651,1>A|637 649,1>A|637 64A,1>A|639 649,1>A|639 64A,1>A|63A 649,1>A|63A 64A,1>A|633 649,1>A|633 64A,1>A|634 649,1>A|634 64A,1>A|62D 649,1>A|62D 64A,1>A|62C 649,1>A|62C 64A,1>A|62E 649,1>A|62E 64A,1>A|635 649,1>A|635 64A,1>A|636 649,1>A|636 64A,1>A|634 62C,1>A|634 62D,1>A|634 62E,1>A|634 645,1>A|634 631,1>A|633 631,1>A|635 631,1>A|636 631,1>B|637 649,1>B|637 64A,1>B|639 649,1>B|639 64A,1>B|63A 649,1>B|63A 64A,1>B|633 649,1>B|633 64A,1>B|634 649,1>B|634 64A,1>B|62D 649,1>B|62D 64A,1>B|62C 649,1>B|62C 64A,1>B|62E 649,1>B|62E 64A,1>B|635 649,1>B|635 64A,1>B|636 649,1>B|636 64A,1>B|634 62C,1>B|634 62D,1>B|634 62E,1>B|634 645,1>B|634 631,1>B|633 631,1>B|635 631,1>B|636 631,1>C|634 62C,1>C|634 62D,1>C|634 62E,1>C|634 645,1>C|633 647,1>C|634 647,1>C|637 645,1>D|633 62C,1>D|633 62D,1>D|633 62E,1>D|634 62C,1>D|634 62D,1>D|634 62E,1>D|637 645,1>D|638 645,1>B|627 64B,1>A|627 64B,13>C|62A 62C 645,1>B|62A 62D 62C,1>C|62A 62D 62C,1>C|62A 62D 645,1>C|62A 62E 645,1>C|62A 645 62C,1>C|62A 645 62D,1>C|62A 645 62E,1>B|62C 645 62D,1>C|62C 645 62D,1>B|62D 645 64A,1>B|62D 645 649,1>C|633 62D 62C,1>C|633 62C 62D,1>B|633 62C 649,1>B|633 645 62D,1>C|633 645 62D,1>C|633 645 62C,1>B|633 645 645,1>C|633 645 645,1>B|635 62D 62D,1>C|635 62D 62D,1>B|635 645 645,1>B|634 62D 645,1>C|634 62D 645,1>B|634 62C 64A,1>B|634 645 62E,1>C|634 645 62E,1>B|634 645 645,1>C|634 645 645,1>B|636 62D 649,1>B|636 62E 645,1>C|636 62E 645,1>B|637 645 62D,1>C|637 645 62D,1>C|637 645 645,1>B|637 645 64A,1>B|639 62C 645,1>B|639 645 645,1>C|639 645 645,1>B|639 645 649,1>B|63A 645 645,1>B|63A 645 64A,1>B|63A 645 649,1>B|641 62E 645,1>C|641 62E 645,1>B|642 645 62D,1>B|642 645 645,1>B|644 62D 645,1>B|644 62D 64A,1>B|644 62D 649,1>C|644 62C 62C,1>B|644 62C 62C,1>B|644 62E 645,1>C|644 62E 645,1>B|644 645 62D,1>C|644 645 62D,1>C|645 62D 62C,1>C|645 62D 645,1>B|645 62D 64A,1>C|645 62C 62D,1>C|645 62C 645,1>C|645 62E 62C,1>C|645 62E 645,3>C|645 62C 62E,1>C|647 645 62C,1>C|647 645 645,1>C|646 62D 645,1>B|646 62D 649,1>B|646 62C 645,1>C|646 62C 645,1>B|646 62C 649,1>B|646 645 64A,1>B|646 645 649,1>B|64A 645 645,1>C|64A 645 645,1>B|628 62E 64A,1>B|62A 62C 64A,1>B|62A 62C 649,1>B|62A 62E 64A,1>B|62A 62E 649,1>B|62A 645 64A,1>B|62A 645 649,1>B|62C 645 64A,1>B|62C 62D 649,1>B|62C 645 649,1>B|633 62E 649,1>B|635 62D 64A,1>B|634 62D 64A,1>B|636 62D 64A,1>B|644 62C 64A,1>B|644 645 64A,1>B|64A 62D 64A,1>B|64A 62C 64A,1>B|64A 645 64A,1>B|645 645 64A,1>B|642 645 64A,1>B|646 62D 64A,1>C|642 645 62D,1>C|644 62D 645,1>B|639 645 64A,1>B|643 645 64A,1>C|646 62C 62D,1>B|645 62E 64A,1>C|644 62C 645,1>B|643 645 645,1>B|644 62C 645,1>B|646 62C 62D,1>B|62C 62D 64A,1>B|62D 62C 64A,1>B|645 62C 64A,1>B|641 645 64A,1>B|628 62D 64A,1>C|643 645 645,1>C|639 62C 645,1>C|635 645 645,1>B|633 62E 64A,1>B|646 62C 64A,29>A|635 644 6D2,1>A|642 644 6D2,1>A|627 644 644 647,1>A|627 643 628 631,1>A|645 62D 645 62F,1>A|635 644 639 645,1>A|631 633 648 644,1>A|639 644 64A 647,1>A|648 633 644 645,1>A|635 644 649,1>A|635 644 649 20 627 644 644 647 20 639 644 64A 647 20 648 633 644 645,1>A|62C 644 20 62C 644 627 644 647,1>A|631 6CC 627 644,14>8|2C,1>8|3001,1>8|3002,1>8|3A,1>8|3B,1>8|21,1>8|3F,1>8|3016,1>8|3017,1>8|2026,17>8|2025,1>8|2014,1>8|2013,1>8|5F,1>8|5F,1>8|28,1>8|29,1>8|7B,1>8|7D,1>8|3014,1>8|3015,1>8|3010,1>8|3011,1>8|300A,1>8|300B,1>8|3008,1>8|3009,1>8|300C,1>8|300D,1>8|300E,1>8|300F,3>8|5B,1>8|5D,1>1|203E,1>1|203E,1>1|203E,1>1|203E,1>1|5F,1>1|5F,1>1|5F,1>E|2C,1>E|3001,1>E|2E,2>E|3B,1>E|3A,1>E|3F,1>E|21,1>E|2014,1>E|28,1>E|29,1>E|7B,1>E|7D,1>E|3014,1>E|3015,1>E|23,1>E|26,1>E|2A,1>E|2B,1>E|2D,1>E|3C,1>E|3E,1>E|3D,2>E|5C,1>E|24,1>E|25,1>E|40,5>A|20 64B,1>D|640 64B,1>A|20 64C,2>A|20 64D,2>A|20 64E,1>D|640 64E,1>A|20 64F,1>D|640 64F,1>A|20 650,1>D|640 650,1>A|20 651,1>D|640 651,1>A|20 652,1>D|640 652,1>A|621,1>A|622,1>B|622,1>A|623,1>B|623,1>A|624,1>B|624,1>A|625,1>B|625,1>A|626,1>B|626,1>C|626,1>D|626,1>A|627,1>B|627,1>A|628,1>B|628,1>C|628,1>D|628,1>A|629,1>B|629,1>A|62A,1>B|62A,1>C|62A,1>D|62A,1>A|62B,1>B|62B,1>C|62B,1>D|62B,1>A|62C,1>B|62C,1>C|62C,1>D|62C,1>A|62D,1>B|62D,1>C|62D,1>D|62D,1>A|62E,1>B|62E,1>C|62E,1>D|62E,1>A|62F,1>B|62F,1>A|630,1>B|630,1>A|631,1>B|631,1>A|632,1>B|632,1>A|633,1>B|633,1>C|633,1>D|633,1>A|634,1>B|634,1>C|634,1>D|634,1>A|635,1>B|635,1>C|635,1>D|635,1>A|636,1>B|636,1>C|636,1>D|636,1>A|637,1>B|637,1>C|637,1>D|637,1>A|638,1>B|638,1>C|638,1>D|638,1>A|639,1>B|639,1>C|639,1>D|639,1>A|63A,1>B|63A,1>C|63A,1>D|63A,1>A|641,1>B|641,1>C|641,1>D|641,1>A|642,1>B|642,1>C|642,1>D|642,1>A|643,1>B|643,1>C|643,1>D|643,1>A|644,1>B|644,1>C|644,1>D|644,1>A|645,1>B|645,1>C|645,1>D|645,1>A|646,1>B|646,1>C|646,1>D|646,1>A|647,1>B|647,1>C|647,1>D|647,1>A|648,1>B|648,1>A|649,1>B|649,1>A|64A,1>B|64A,1>C|64A,1>D|64A,1>A|644 622,1>B|644 622,1>A|644 623,1>B|644 623,1>A|644 625,1>B|644 625,1>A|644 627,1>B|644 627,5>7|21,1>7|22,1>7|23,1>7|24,1>7|25,1>7|26,1>7|27,1>7|28,1>7|29,1>7|2A,1>7|2B,1>7|2C,1>7|2D,1>7|2E,1>7|2F,1>7|30,1>7|31,1>7|32,1>7|33,1>7|34,1>7|35,1>7|36,1>7|37,1>7|38,1>7|39,1>7|3A,1>7|3B,1>7|3C,1>7|3D,1>7|3E,1>7|3F,1>7|40,1>7|41,1>7|42,1>7|43,1>7|44,1>7|45,1>7|46,1>7|47,1>7|48,1>7|49,1>7|4A,1>7|4B,1>7|4C,1>7|4D,1>7|4E,1>7|4F,1>7|50,1>7|51,1>7|52,1>7|53,1>7|54,1>7|55,1>7|56,1>7|57,1>7|58,1>7|59,1>7|5A,1>7|5B,1>7|5C,1>7|5D,1>7|5E,1>7|5F,1>7|60,1>7|61,1>7|62,1>7|63,1>7|64,1>7|65,1>7|66,1>7|67,1>7|68,1>7|69,1>7|6A,1>7|6B,1>7|6C,1>7|6D,1>7|6E,1>7|6F,1>7|70,1>7|71,1>7|72,1>7|73,1>7|74,1>7|75,1>7|76,1>7|77,1>7|78,1>7|79,1>7|7A,1>7|7B,1>7|7C,1>7|7D,1>7|7E,1>7|2985,1>7|2986,1>F|3002,1>F|300C,1>F|300D,1>F|3001,1>F|30FB,1>F|30F2,1>F|30A1,1>F|30A3,1>F|30A5,1>F|30A7,1>F|30A9,1>F|30E3,1>F|30E5,1>F|30E7,1>F|30C3,1>F|30FC,1>F|30A2,1>F|30A4,1>F|30A6,1>F|30A8,1>F|30AA,1>F|30AB,1>F|30AD,1>F|30AF,1>F|30B1,1>F|30B3,1>F|30B5,1>F|30B7,1>F|30B9,1>F|30BB,1>F|30BD,1>F|30BF,1>F|30C1,1>F|30C4,1>F|30C6,1>F|30C8,1>F|30CA,1>F|30CB,1>F|30CC,1>F|30CD,1>F|30CE,1>F|30CF,1>F|30D2,1>F|30D5,1>F|30D8,1>F|30DB,1>F|30DE,1>F|30DF,1>F|30E0,1>F|30E1,1>F|30E2,1>F|30E4,1>F|30E6,1>F|30E8,1>F|30E9,1>F|30EA,1>F|30EB,1>F|30EC,1>F|30ED,1>F|30EF,1>F|30F3,1>F|3099,1>F|309A,1>F|3164,1>F|3131,1>F|3132,1>F|3133,1>F|3134,1>F|3135,1>F|3136,1>F|3137,1>F|3138,1>F|3139,1>F|313A,1>F|313B,1>F|313C,1>F|313D,1>F|313E,1>F|313F,1>F|3140,1>F|3141,1>F|3142,1>F|3143,1>F|3144,1>F|3145,1>F|3146,1>F|3147,1>F|3148,1>F|3149,1>F|314A,1>F|314B,1>F|314C,1>F|314D,1>F|314E,4>F|314F,1>F|3150,1>F|3151,1>F|3152,1>F|3153,1>F|3154,3>F|3155,1>F|3156,1>F|3157,1>F|3158,1>F|3159,1>F|315A,3>F|315B,1>F|315C,1>F|315D,1>F|315E,1>F|315F,1>F|3160,3>F|3161,1>F|3162,1>F|3163,4>7|A2,1>7|A3,1>7|AC,1>7|AF,1>7|A6,1>7|A5,1>7|20A9,2>F|2502,1>F|2190,1>F|2191,1>F|2192,1>F|2193,1>F|25A0,1>F|25CB,793>2|2D0,1>2|2D1,1>2|E6,1>2|299,1>2|253,2>2|2A3,1>2|AB66,1>2|2A5,1>2|2A4,1>2|256,1>2|257,1>2|1D91,1>2|258,1>2|25E,1>2|2A9,1>2|264,1>2|262,1>2|260,1>2|29B,1>2|127,1>2|29C,1>2|267,1>2|284,1>2|2AA,1>2|2AB,1>2|26C,1>2|1DF04,1>2|A78E,1>2|26E,1>2|1DF05,1>2|28E,1>2|1DF06,1>2|F8,1>2|276,1>2|277,1>2|71,1>2|27A,1>2|1DF08,1>2|27D,1>2|27E,1>2|280,1>2|2A8,1>2|2A6,1>2|AB67,1>2|2A7,1>2|288,1>2|2C71,2>2|28F,1>2|2A1,1>2|2A2,1>2|298,1>2|1C0,1>2|1C1,1>2|1C2,1>2|1DF0A,1>2|1DF1E,CC46>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,2>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,2>5|43,1>5|44,3>5|47,3>5|4A,1>5|4B,3>5|4E,1>5|4F,1>5|50,1>5|51,2>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,2>5|66,2>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,2>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,2>5|44,1>5|45,1>5|46,1>5|47,3>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,2>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,2>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,2>5|44,1>5|45,1>5|46,1>5|47,2>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,2>5|4F,4>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,2>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|41,1>5|42,1>5|43,1>5|44,1>5|45,1>5|46,1>5|47,1>5|48,1>5|49,1>5|4A,1>5|4B,1>5|4C,1>5|4D,1>5|4E,1>5|4F,1>5|50,1>5|51,1>5|52,1>5|53,1>5|54,1>5|55,1>5|56,1>5|57,1>5|58,1>5|59,1>5|5A,1>5|61,1>5|62,1>5|63,1>5|64,1>5|65,1>5|66,1>5|67,1>5|68,1>5|69,1>5|6A,1>5|6B,1>5|6C,1>5|6D,1>5|6E,1>5|6F,1>5|70,1>5|71,1>5|72,1>5|73,1>5|74,1>5|75,1>5|76,1>5|77,1>5|78,1>5|79,1>5|7A,1>5|131,1>5|237,3>5|391,1>5|392,1>5|393,1>5|394,1>5|395,1>5|396,1>5|397,1>5|398,1>5|399,1>5|39A,1>5|39B,1>5|39C,1>5|39D,1>5|39E,1>5|39F,1>5|3A0,1>5|3A1,1>5|3F4,1>5|3A3,1>5|3A4,1>5|3A5,1>5|3A6,1>5|3A7,1>5|3A8,1>5|3A9,1>5|2207,1>5|3B1,1>5|3B2,1>5|3B3,1>5|3B4,1>5|3B5,1>5|3B6,1>5|3B7,1>5|3B8,1>5|3B9,1>5|3BA,1>5|3BB,1>5|3BC,1>5|3BD,1>5|3BE,1>5|3BF,1>5|3C0,1>5|3C1,1>5|3C2,1>5|3C3,1>5|3C4,1>5|3C5,1>5|3C6,1>5|3C7,1>5|3C8,1>5|3C9,1>5|2202,1>5|3F5,1>5|3D1,1>5|3F0,1>5|3D5,1>5|3F1,1>5|3D6,1>5|391,1>5|392,1>5|393,1>5|394,1>5|395,1>5|396,1>5|397,1>5|398,1>5|399,1>5|39A,1>5|39B,1>5|39C,1>5|39D,1>5|39E,1>5|39F,1>5|3A0,1>5|3A1,1>5|3F4,1>5|3A3,1>5|3A4,1>5|3A5,1>5|3A6,1>5|3A7,1>5|3A8,1>5|3A9,1>5|2207,1>5|3B1,1>5|3B2,1>5|3B3,1>5|3B4,1>5|3B5,1>5|3B6,1>5|3B7,1>5|3B8,1>5|3B9,1>5|3BA,1>5|3BB,1>5|3BC,1>5|3BD,1>5|3BE,1>5|3BF,1>5|3C0,1>5|3C1,1>5|3C2,1>5|3C3,1>5|3C4,1>5|3C5,1>5|3C6,1>5|3C7,1>5|3C8,1>5|3C9,1>5|2202,1>5|3F5,1>5|3D1,1>5|3F0,1>5|3D5,1>5|3F1,1>5|3D6,1>5|391,1>5|392,1>5|393,1>5|394,1>5|395,1>5|396,1>5|397,1>5|398,1>5|399,1>5|39A,1>5|39B,1>5|39C,1>5|39D,1>5|39E,1>5|39F,1>5|3A0,1>5|3A1,1>5|3F4,1>5|3A3,1>5|3A4,1>5|3A5,1>5|3A6,1>5|3A7,1>5|3A8,1>5|3A9,1>5|2207,1>5|3B1,1>5|3B2,1>5|3B3,1>5|3B4,1>5|3B5,1>5|3B6,1>5|3B7,1>5|3B8,1>5|3B9,1>5|3BA,1>5|3BB,1>5|3BC,1>5|3BD,1>5|3BE,1>5|3BF,1>5|3C0,1>5|3C1,1>5|3C2,1>5|3C3,1>5|3C4,1>5|3C5,1>5|3C6,1>5|3C7,1>5|3C8,1>5|3C9,1>5|2202,1>5|3F5,1>5|3D1,1>5|3F0,1>5|3D5,1>5|3F1,1>5|3D6,1>5|391,1>5|392,1>5|393,1>5|394,1>5|395,1>5|396,1>5|397,1>5|398,1>5|399,1>5|39A,1>5|39B,1>5|39C,1>5|39D,1>5|39E,1>5|39F,1>5|3A0,1>5|3A1,1>5|3F4,1>5|3A3,1>5|3A4,1>5|3A5,1>5|3A6,1>5|3A7,1>5|3A8,1>5|3A9,1>5|2207,1>5|3B1,1>5|3B2,1>5|3B3,1>5|3B4,1>5|3B5,1>5|3B6,1>5|3B7,1>5|3B8,1>5|3B9,1>5|3BA,1>5|3BB,1>5|3BC,1>5|3BD,1>5|3BE,1>5|3BF,1>5|3C0,1>5|3C1,1>5|3C2,1>5|3C3,1>5|3C4,1>5|3C5,1>5|3C6,1>5|3C7,1>5|3C8,1>5|3C9,1>5|2202,1>5|3F5,1>5|3D1,1>5|3F0,1>5|3D5,1>5|3F1,1>5|3D6,1>5|391,1>5|392,1>5|393,1>5|394,1>5|395,1>5|396,1>5|397,1>5|398,1>5|399,1>5|39A,1>5|39B,1>5|39C,1>5|39D,1>5|39E,1>5|39F,1>5|3A0,1>5|3A1,1>5|3F4,1>5|3A3,1>5|3A4,1>5|3A5,1>5|3A6,1>5|3A7,1>5|3A8,1>5|3A9,1>5|2207,1>5|3B1,1>5|3B2,1>5|3B3,1>5|3B4,1>5|3B5,1>5|3B6,1>5|3B7,1>5|3B8,1>5|3B9,1>5|3BA,1>5|3BB,1>5|3BC,1>5|3BD,1>5|3BE,1>5|3BF,1>5|3C0,1>5|3C1,1>5|3C2,1>5|3C3,1>5|3C4,1>5|3C5,1>5|3C6,1>5|3C7,1>5|3C8,1>5|3C9,1>5|2202,1>5|3F5,1>5|3D1,1>5|3F0,1>5|3D5,1>5|3F1,1>5|3D6,1>5|3DC,1>5|3DD,3>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39,1>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39,1>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39,1>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39,1>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39,831>2|430,1>2|431,1>2|432,1>2|433,1>2|434,1>2|435,1>2|436,1>2|437,1>2|438,1>2|43A,1>2|43B,1>2|43C,1>2|43E,1>2|43F,1>2|440,1>2|441,1>2|442,1>2|443,1>2|444,1>2|445,1>2|446,1>2|447,1>2|448,1>2|44B,1>2|44D,1>2|44E,1>2|A689,1>2|4D9,1>2|456,1>2|458,1>2|4E9,1>2|4AF,1>2|4CF,1>4|430,1>4|431,1>4|432,1>4|433,1>4|434,1>4|435,1>4|436,1>4|437,1>4|438,1>4|43A,1>4|43B,1>4|43E,1>4|43F,1>4|441,1>4|443,1>4|444,1>4|445,1>4|446,1>4|447,1>4|448,1>4|44A,1>4|44B,1>4|491,1>4|456,1>4|455,1>4|45F,1>2|4AB,1>2|A651,1>2|4B1,D93>5|627,1>5|628,1>5|62C,1>5|62F,2>5|648,1>5|632,1>5|62D,1>5|637,1>5|64A,1>5|643,1>5|644,1>5|645,1>5|646,1>5|633,1>5|639,1>5|641,1>5|635,1>5|642,1>5|631,1>5|634,1>5|62A,1>5|62B,1>5|62E,1>5|630,1>5|636,1>5|638,1>5|63A,1>5|66E,1>5|6BA,1>5|6A1,1>5|66F,2>5|628,1>5|62C,2>5|647,3>5|62D,2>5|64A,1>5|643,1>5|644,1>5|645,1>5|646,1>5|633,1>5|639,1>5|641,1>5|635,1>5|642,2>5|634,1>5|62A,1>5|62B,1>5|62E,2>5|636,2>5|63A,7>5|62C,5>5|62D,2>5|64A,2>5|644,2>5|646,1>5|633,1>5|639,2>5|635,1>5|642,2>5|634,3>5|62E,2>5|636,2>5|63A,2>5|6BA,2>5|66F,2>5|628,1>5|62C,2>5|647,3>5|62D,1>5|637,1>5|64A,1>5|643,2>5|645,1>5|646,1>5|633,1>5|639,1>5|641,1>5|635,1>5|642,2>5|634,1>5|62A,1>5|62B,1>5|62E,2>5|636,1>5|638,1>5|63A,1>5|66E,2>5|6A1,2>5|627,1>5|628,1>5|62C,1>5|62F,1>5|647,1>5|648,1>5|632,1>5|62D,1>5|637,1>5|64A,2>5|644,1>5|645,1>5|646,1>5|633,1>5|639,1>5|641,1>5|635,1>5|642,1>5|631,1>5|634,1>5|62A,1>5|62B,1>5|62E,1>5|630,1>5|636,1>5|638,1>5|63A,6>5|628,1>5|62C,1>5|62F,2>5|648,1>5|632,1>5|62D,1>5|637,1>5|64A,2>5|644,1>5|645,1>5|646,1>5|633,1>5|639,1>5|641,1>5|635,1>5|642,1>5|631,1>5|634,1>5|62A,1>5|62B,1>5|62E,1>5|630,1>5|636,1>5|638,1>5|63A,245>1|30 2E,1>1|30 2C,1>1|31 2C,1>1|32 2C,1>1|33 2C,1>1|34 2C,1>1|35 2C,1>1|36 2C,1>1|37 2C,1>1|38 2C,1>1|39 2C,6>1|28 41 29,1>1|28 42 29,1>1|28 43 29,1>1|28 44 29,1>1|28 45 29,1>1|28 46 29,1>1|28 47 29,1>1|28 48 29,1>1|28 49 29,1>1|28 4A 29,1>1|28 4B 29,1>1|28 4C 29,1>1|28 4D 29,1>1|28 4E 29,1>1|28 4F 29,1>1|28 50 29,1>1|28 51 29,1>1|28 52 29,1>1|28 53 29,1>1|28 54 29,1>1|28 55 29,1>1|28 56 29,1>1|28 57 29,1>1|28 58 29,1>1|28 59 29,1>1|28 5A 29,1>1|3014 53 3015,1>6|43,1>6|52,1>6|43 44,1>6|57 5A,2>9|41,1>9|42,1>9|43,1>9|44,1>9|45,1>9|46,1>9|47,1>9|48,1>9|49,1>9|4A,1>9|4B,1>9|4C,1>9|4D,1>9|4E,1>9|4F,1>9|50,1>9|51,1>9|52,1>9|53,1>9|54,1>9|55,1>9|56,1>9|57,1>9|58,1>9|59,1>9|5A,1>9|48 56,1>9|4D 56,1>9|53 44,1>9|53 53,1>9|50 50 56,1>9|57 43,1B>2|4D 43,1>2|4D 44,1>2|4D 52,24>9|44 4A,70>9|307B 304B,1>9|30B3 30B3,1>9|30B5,E>9|624B,1>9|5B57,1>9|53CC,1>9|30C7,1>9|4E8C,1>9|591A,1>9|89E3,1>9|5929,1>9|4EA4,1>9|6620,1>9|7121,1>9|6599,1>9|524D,1>9|5F8C,1>9|518D,1>9|65B0,1>9|521D,1>9|7D42,1>9|751F,1>9|8CA9,1>9|58F0,1>9|5439,1>9|6F14,1>9|6295,1>9|6355,1>9|4E00,1>9|4E09,1>9|904A,1>9|5DE6,1>9|4E2D,1>9|53F3,1>9|6307,1>9|8D70,1>9|6253,1>9|7981,1>9|7A7A,1>9|5408,1>9|6E80,1>9|6709,1>9|6708,1>9|7533,1>9|5272,1>9|55B6,1>9|914D,5>1|3014 672C 3015,1>1|3014 4E09 3015,1>1|3014 4E8C 3015,1>1|3014 5B89 3015,1>1|3014 70B9 3015,1>1|3014 6253 3015,1>1|3014 76D7 3015,1>1|3014 52DD 3015,1>1|3014 6557 3015,8>6|5F97,1>6|53EF,99F>5|30,1>5|31,1>5|32,1>5|33,1>5|34,1>5|35,1>5|36,1>5|37,1>5|38,1>5|39",
+    tags:   ["noBreak","compat","super","fraction","sub","font","circle","wide","vertical","square","isolated","final","initial","medial","small","narrow"],
+    // CompositionExclusions.txt sections (1) Script Specifics and (2) Post Composition
+    // Version. Sections (3) Singleton Decompositions and (4) Non-Starter Decompositions are
+    // NOT listed -- they are derived below, which is the whole point of that file's layout.
+    exclusions: "0958-095F,09DC-09DD,09DF,0A33,0A36,0A59-0A5B,0A5E,0B5C-0B5D," +
+                "0F43,0F4D,0F52,0F57,0F5C,0F69,0F76,0F78,0F93,0F9D,0FA2,0FA7,0FAC,0FB9," +
+                "FB1D,FB1F,FB2A-FB36,FB38-FB3C,FB3E,FB40-FB41,FB43-FB44,FB46-FB4E," +
+                "2ADC,1D15E-1D164,1D1BB-1D1C0"
+  };
+
+  // ---------------------------------------------------------------- Hangul constants
+  var SBASE = 0xAC00, LBASE = 0x1100, VBASE = 0x1161, TBASE = 0x11A7;
+  var LCOUNT = 19, VCOUNT = 21, TCOUNT = 28;
+  var NCOUNT = VCOUNT * TCOUNT;          // 588 syllables per leading jamo
+  var SCOUNT = LCOUNT * NCOUNT;          // 11,172 syllables, none of them in any table
+
+  // ---------------------------------------------------------------- unpack the UCD fields
+  var CCC = new Map(), CANON = new Map(), COMPAT = new Map(), TAG = new Map();
+
+  function eachRange(spec, fn) {
+    var parts = spec.split(","), i, a, lo, hi;
+    for (i = 0; i < parts.length; i++) {
+      a = parts[i].split("-");
+      lo = parseInt(a[0], 16); hi = a.length > 1 ? parseInt(a[1], 16) : lo;
+      fn(lo, hi);
+    }
+  }
+
+  (function () {
+    var rows = DATA.ccc.split(","), i, kv, a, lo, hi, v, c;
+    for (i = 0; i < rows.length; i++) {
+      kv = rows[i].split(":"); a = kv[0].split("-");
+      lo = parseInt(a[0], 16); hi = a.length > 1 ? parseInt(a[1], 16) : lo;
+      v = parseInt(kv[1], 16);
+      for (c = lo; c <= hi; c++) CCC.set(c, v);
+    }
+    var cp = 0, rec, gt;
+    rows = DATA.canon.split(",");
+    for (i = 0; i < rows.length; i++) {
+      rec = rows[i]; gt = rec.indexOf(">");
+      cp += parseInt(rec.slice(0, gt), 16);
+      CANON.set(cp, rec.slice(gt + 1).split(" ").map(function (x) { return parseInt(x, 16); }));
+    }
+    cp = 0; rows = DATA.compat.split(",");
+    for (i = 0; i < rows.length; i++) {
+      rec = rows[i]; gt = rec.indexOf(">");
+      var bar = rec.indexOf("|");
+      cp += parseInt(rec.slice(0, gt), 16);
+      TAG.set(cp, DATA.tags[parseInt(rec.slice(gt + 1, bar), 16)]);
+      COMPAT.set(cp, rec.slice(bar + 1).split(" ").map(function (x) { return parseInt(x, 16); }));
+    }
+  }());
+
+  function ccc(cp) { var v = CCC.get(cp); return v === undefined ? 0 : v; }
+
+  // ------------------------------------------- derive Full_Composition_Exclusion
+  // A character is excluded from composition if it is (1)(2) on the frozen list, or (3) its
+  // canonical decomposition is a SINGLE character, or (4) its decomposition starts with a
+  // non-starter. (3) and (4) are properties of the decomposition, so they are computed.
+  var EXCL = new Set(), EX_LIST = new Set(), EX_SINGLETON = new Set(), EX_NONSTARTER = new Set();
+  eachRange(DATA.exclusions, function (lo, hi) {
+    for (var c = lo; c <= hi; c++) { EXCL.add(c); EX_LIST.add(c); }
+  });
+  CANON.forEach(function (d, c) {
+    if (d.length === 1) { EXCL.add(c); EX_SINGLETON.add(c); }
+    else if (ccc(d[0]) !== 0) { EXCL.add(c); EX_NONSTARTER.add(c); }
+  });
+
+  // the primary-composite table: exactly the pairs NFC is allowed to put back together
+  var COMP = new Map();
+  CANON.forEach(function (d, c) {
+    if (d.length !== 2 || EXCL.has(c)) return;
+    COMP.set(d[0] * 0x110000 + d[1], c);
+  });
+  function primaryComposite(L, C) {
+    // Hangul first: L+V and LV+T are arithmetic, and are never composition exclusions
+    if (L >= LBASE && L < LBASE + LCOUNT && C >= VBASE && C < VBASE + VCOUNT)
+      return SBASE + ((L - LBASE) * VCOUNT + (C - VBASE)) * TCOUNT;
+    if (L >= SBASE && L < SBASE + SCOUNT && (L - SBASE) % TCOUNT === 0 &&
+        C > TBASE && C < TBASE + TCOUNT) return L + (C - TBASE);
+    var t = COMP.get(L * 0x110000 + C);
+    return t === undefined ? -1 : t;
+  }
+
+  // ---------------------------------------------------------------- code point helpers
+  function cps(s) { var a = [], i; for (i of s) a.push(i.codePointAt(0)); return a; }
+  function str(a) { var s = "", i; for (i = 0; i < a.length; i++) s += String.fromCodePoint(a[i]); return s; }
+
+  // ---------------------------------------------------------------- decomposition
+  function decomposeCp(cp, compat, out) {
+    if (cp >= SBASE && cp < SBASE + SCOUNT) {          // Hangul: computed, never looked up
+      var i = cp - SBASE, t = i % TCOUNT;
+      out.push(LBASE + Math.floor(i / NCOUNT));
+      out.push(VBASE + Math.floor((i % NCOUNT) / TCOUNT));
+      if (t !== 0) out.push(TBASE + t);
+      return;
+    }
+    var d = CANON.get(cp);
+    if (d === undefined && compat) d = COMPAT.get(cp);
+    if (d === undefined) { out.push(cp); return; }
+    for (var k = 0; k < d.length; k++) decomposeCp(d[k], compat, out);  // mappings nest
+  }
+
+  // Canonical ordering: a STABLE sort of each run of non-starters by combining class.
+  // Marks that share a class are never swapped -- their order is meaning, not spelling.
+  function canonicalOrder(a) {
+    for (var i = 1; i < a.length; i++) {
+      var cc = ccc(a[i]);
+      if (cc === 0) continue;
+      var j = i;
+      while (j > 0 && ccc(a[j - 1]) > cc) { var t = a[j]; a[j] = a[j - 1]; a[j - 1] = t; j--; }
+    }
+    return a;
+  }
+
+  function decomposeArr(s, compat) {
+    var out = [], a = cps(s), i;
+    for (i = 0; i < a.length; i++) decomposeCp(a[i], compat, out);
+    return canonicalOrder(out);
+  }
+
+  // ---------------------------------------------------------------- canonical composition
+  // UAX #15 D117. C composes onto the last starter L only if nothing BETWEEN them has a
+  // combining class >= ccc(C). That is the whole "blocked" rule, and it is why the mark that
+  // ends up attached to the base is not always the one written next to it.
+  function composeArr(a) {
+    if (a.length === 0) return a;
+    var out = [a[0]];
+    var starter = ccc(a[0]) === 0 ? 0 : -1;   // index in out of the last starter, -1 = none yet
+    var lastCC = ccc(a[0]);
+    for (var i = 1; i < a.length; i++) {
+      var c = a[i], cc = ccc(c), made = -1;
+      if (starter >= 0 && (lastCC === 0 || lastCC < cc)) made = primaryComposite(out[starter], c);
+      if (made >= 0) { out[starter] = made; }   // lastCC deliberately unchanged: C is gone
+      else {
+        out.push(c);
+        if (cc === 0) starter = out.length - 1;
+        lastCC = cc;
+      }
+    }
+    return out;
+  }
+
+  function nfd(s)  { return str(decomposeArr(s, false)); }
+  function nfkd(s) { return str(decomposeArr(s, true)); }
+  function nfc(s)  { return str(composeArr(decomposeArr(s, false))); }
+  function nfkc(s) { return str(composeArr(decomposeArr(s, true))); }
+  var FORMS = { NFD: nfd, NFC: nfc, NFKD: nfkd, NFKC: nfkc };
+  function normalize(form, s) { return FORMS[form](s); }
+  function isNormalized(form, s) { return FORMS[form](s) === s; }
+  function equivalent(a, b) { return nfd(a) === nfd(b); }
+  function compatEquivalent(a, b) { return nfkd(a) === nfkd(b); }
+
+  // ---------------------------------------------------------------- the two wrong models
+  // Model A -- "compose every adjacent pair you can". Ignores the blocked rule.
+  function greedyCompose(s) {
+    var a = decomposeArr(s, false).slice(), again = true, i, t;
+    while (again) {
+      again = false;
+      for (i = 0; i + 1 < a.length; i++) {
+        t = primaryComposite(a[i], a[i + 1]);
+        if (t >= 0) { a.splice(i, 2, t); again = true; break; }
+      }
+    }
+    return str(a);
+  }
+  // Model B -- "sort every run of marks by combining class". A full sort, not a stable one.
+  function sortAllMarks(s) {
+    var raw = [], a = cps(s), i, out = [], j, run;
+    for (i = 0; i < a.length; i++) decomposeCp(a[i], false, raw);
+    i = 0;
+    while (i < raw.length) {
+      if (ccc(raw[i]) === 0) { out.push(raw[i]); i++; continue; }
+      j = i; while (j < raw.length && ccc(raw[j]) !== 0) j++;
+      run = raw.slice(i, j).sort(function (x, y) { return (ccc(x) - ccc(y)) || (x - y); });
+      out = out.concat(run); i = j;
+    }
+    return str(composeArr(out));
+  }
+
+  // ---------------------------------------------------------------- explain one string
+  // Returns the three stages plus, for every mark, the clause that decided its fate.
+  function trace(s, compat) {
+    var raw = [], a = cps(s), i;
+    for (i = 0; i < a.length; i++) decomposeCp(a[i], !!compat, raw);
+    var expanded = raw.slice();
+    var ordered = canonicalOrder(raw.slice());
+    var moved = 0;
+    for (i = 0; i < ordered.length; i++) if (ordered[i] !== expanded[i]) moved++;
+    // replay composition, recording why
+    var out = [], notes = [];
+    if (ordered.length) {
+      out.push(ordered[0]);
+      var starter = ccc(ordered[0]) === 0 ? 0 : -1, lastCC = ccc(ordered[0]);
+      notes.push({ cp: ordered[0], act: ccc(ordered[0]) === 0 ? "starter" : "leading mark", into: -1 });
+      for (i = 1; i < ordered.length; i++) {
+        var c = ordered[i], cc = ccc(c), blocked = !(starter >= 0 && (lastCC === 0 || lastCC < cc));
+        var made = blocked ? -1 : primaryComposite(out[starter], c);
+        if (made >= 0) {
+          notes.push({ cp: c, act: "composed", into: out[starter], made: made, cc: cc });
+          out[starter] = made;
+        } else {
+          notes.push({
+            cp: c, cc: cc, made: -1,
+            act: starter < 0 ? "no starter" : blocked ? "blocked" : "no primary composite",
+            blocker: blocked && starter >= 0 ? lastCC : -1
+          });
+          out.push(c);
+          if (cc === 0) starter = out.length - 1;
+          lastCC = cc;
+        }
+      }
+    }
+    return {
+      input: cps(s), expanded: expanded, ordered: ordered, composed: out,
+      reordered: moved, notes: notes,
+      nfd: str(canonicalOrder(expanded.slice())), nfc: str(out)
+    };
+  }
+
+  // ---------------------------------------------------------------- deterministic corpora
+  function rng(seed) {                     // xorshift32: no Math.random anywhere on this page
+    var x = seed >>> 0 || 1;
+    return function () {
+      x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+      return x / 4294967296;
+    };
+  }
+  var MARKS = [], COMMON_MARKS = [], BASES = [];
+  CCC.forEach(function (v, c) { if (v !== 0) MARKS.push(c); });
+  MARKS.sort(function (a, b) { return a - b; });
+  for (var _c = 0x300; _c <= 0x36F; _c++) COMMON_MARKS.push(_c);
+  (function () {
+    var s = "aeiouncszgyAEIOUYNCSZ", i;
+    for (i = 0; i < s.length; i++) BASES.push(s.charCodeAt(i));
+    BASES = BASES.concat([0x3B1, 0x3B5, 0x3B9, 0x3C9, 0x430, 0x435, 0x438, 0x4E3,
+                          0x915, 0x627, 0x1100, 0xAC00, 0x212B, 0x1E9B]);
+  }());
+
+  function corpus(n, seed) {
+    var r = rng(seed || 20260831), out = [], i, k, a, j;
+    for (i = 0; i < n; i++) {
+      a = [BASES[Math.floor(r() * BASES.length)]];
+      k = 1 + Math.floor(r() * 3);
+      for (j = 0; j < k; j++)
+        a.push(r() < 0.75 ? COMMON_MARKS[Math.floor(r() * COMMON_MARKS.length)]
+                          : MARKS[Math.floor(r() * MARKS.length)]);
+      out.push(str(a));
+    }
+    return out;
+  }
+
+  // score the two shortcuts against the engine over a deterministic corpus
+  function scoreboard(n, seed) {
+    var C = corpus(n || 40000, seed), i, s, real, res = {
+      n: C.length, greedy: 0, sorted: 0, lengthChanged: 0, jumped: 0,
+      greedyEx: [], sortedEx: [], jumpedEx: []
+    };
+    for (i = 0; i < C.length; i++) {
+      s = C[i]; real = nfc(s);
+      var g = greedyCompose(s), o = sortAllMarks(s);
+      if (g !== real) { res.greedy++; if (res.greedyEx.length < 6) res.greedyEx.push([s, real, g]); }
+      if (o !== real) { res.sorted++; if (res.sortedEx.length < 6) res.sortedEx.push([s, real, o]); }
+      if (cps(real).length !== cps(nfd(s)).length) res.lengthChanged++;
+      var dec = decomposeArr(s, false), rc = cps(real);
+      if (dec.length >= 3 && ccc(dec[0]) === 0 && rc.length < dec.length &&
+          rc.length >= 2 && rc[1] === dec[1] && rc[0] !== dec[0]) {
+        res.jumped++; if (res.jumpedEx.length < 6) res.jumpedEx.push([s, real]);
+      }
+    }
+    return res;
+  }
+
+  // both halves already NFC; is the join still NFC?
+  function concatClosure() {
+    var res = { n: 0, broken: 0, ex: [] }, i, j, L, R;
+    for (i = 0; i < BASES.length; i++) {
+      L = nfc(String.fromCodePoint(BASES[i]));
+      for (j = 0; j < COMMON_MARKS.length; j++) {
+        R = nfc(String.fromCodePoint(COMMON_MARKS[j]));
+        res.n++;
+        if (nfc(L + R) !== L + R) { res.broken++; if (res.ex.length < 6) res.ex.push([L, R, nfc(L + R)]); }
+      }
+    }
+    return res;
+  }
+
+  // ---------------------------------------------------------------- the swap experiment
+  // Same base, same two marks, two orders. Same class -> two different strings forever.
+  // Different class -> canonical ordering erases the difference.
+  function swapCensus(limitPerClass) {
+    var byClass = new Map(), i, k;
+    for (i = 0; i < MARKS.length; i++) {
+      k = ccc(MARKS[i]);
+      if (!byClass.has(k)) byClass.set(k, []);
+      byClass.get(k).push(MARKS[i]);
+    }
+    var lim = limitPerClass || 40;
+    var same = { n: 0, distinct: 0, lenDiff: 0, ex: [] };
+    byClass.forEach(function (ms, cls) {
+      if (ms.length < 2) return;
+      var a, b, bi, s1, s2, n1, n2;
+      for (a = 0; a < ms.length && a < lim; a++) for (b = a + 1; b < ms.length && b < lim; b++) {
+        for (bi = 0; bi < 16; bi++) {
+          s1 = String.fromCodePoint(BASES[bi], ms[a], ms[b]);
+          s2 = String.fromCodePoint(BASES[bi], ms[b], ms[a]);
+          same.n++;
+          if (nfd(s1) !== nfd(s2)) {
+            same.distinct++;
+            n1 = nfc(s1); n2 = nfc(s2);
+            if (cps(n1).length !== cps(n2).length) {
+              same.lenDiff++;
+              if (same.ex.length < 8) same.ex.push([cls, s1, n1, s2, n2]);
+            }
+          }
+        }
+      }
+    });
+    var classes = [];
+    byClass.forEach(function (ms, cls) { classes.push(cls); });
+    classes.sort(function (x, y) { return x - y; });
+    var diff = { n: 0, merged: 0 };
+    for (i = 0; i < classes.length && i < 25; i++)
+      for (k = 0; k < classes.length && k < 25; k++) {
+        if (classes[i] === classes[k]) continue;
+        var m1 = byClass.get(classes[i])[0], m2 = byClass.get(classes[k])[0], bb;
+        for (bb = 0; bb < 6; bb++) {
+          var t1 = String.fromCodePoint(BASES[bb], m1, m2), t2 = String.fromCodePoint(BASES[bb], m2, m1);
+          diff.n++; if (nfd(t1) === nfd(t2)) diff.merged++;
+        }
+      }
+    return { same: same, diff: diff, classes: classes.length };
+  }
+
+  // ---------------------------------------------------------------- the round-trip census
+  function roundTripCensus() {
+    var total = 0, back = 0, brokeList = [], singles = [];
+    CANON.forEach(function (d, c) {
+      total++;
+      var s = String.fromCodePoint(c);
+      if (nfc(nfd(s)) === s) back++;
+      else { brokeList.push(c); if (cps(nfc(s)).length === 1 && nfc(s) !== s) singles.push([c, cps(nfc(s))[0]]); }
+    });
+    return {
+      total: total, back: back, broke: brokeList.length,
+      singleton: EX_SINGLETON.size, listed: EX_LIST.size, nonStarter: EX_NONSTARTER.size,
+      fce: EXCL.size, comps: COMP.size, replaced: singles.length, replacedEx: singles.slice(0, 12)
+    };
+  }
+
+  // ---------------------------------------------------------------- NFKC folds onto ASCII
+  function asciiFold(hi) {
+    var top = hi || 0x1FBFF, map = new Map(), cp, r, k;
+    for (cp = 0x80; cp <= top; cp++) {
+      if (cp >= 0xD800 && cp <= 0xDFFF) continue;
+      r = nfkc(String.fromCodePoint(cp));
+      if (!r) continue;
+      var ok = true;
+      for (k = 0; k < r.length; k++) { var q = r.charCodeAt(k); if (q < 0x20 || q > 0x7E) { ok = false; break; } }
+      if (!ok) continue;
+      if (!map.has(r)) map.set(r, []);
+      map.get(r).push(cp);
+    }
+    var total = 0;
+    map.forEach(function (v) { total += v.length; });
+    return { map: map, total: total, distinct: map.size };
+  }
+  // a lower bound on how many ways a word can be spelled and still NFKC to itself
+  function spellings(word, fold) {
+    var f = fold || asciiFold(), n = 1, i, v;
+    for (i = 0; i < word.length; i++) {
+      v = f.map.get(word[i]);
+      n *= ((v ? v.length : 0) + 1);
+    }
+    return n;
+  }
+
+  // ---------------------------------------------------------------- self-check
+  // Identities and bounds only. Nothing here asserts a number this file wrote down.
+  function selftest() {
+    var bad = [], asserts = 0, i, j, s;
+    function ok(cond, label) { asserts++; if (!cond) bad.push(label); }
+
+    // 1. the tables are internally consistent
+    ok(CANON.size > 1000 && CANON.size < 5000, "canonical table size in range");
+    ok(COMPAT.size > 2000 && COMPAT.size < 8000, "compatibility table size in range");
+    ok(COMP.size > 0 && COMP.size < CANON.size, "composite table is a strict subset");
+    ok(EXCL.size === EX_LIST.size + EX_SINGLETON.size + EX_NONSTARTER.size,
+       "the three exclusion sources are disjoint and exhaust FCE");
+    ok(EXCL.size + COMP.size === CANON.size, "every canonical decomposition is either excluded or composable");
+    COMP.forEach(function (c, key) {
+      var L = Math.floor(key / 0x110000), C = key % 0x110000;
+      asserts += 3;
+      if (ccc(L) !== 0) bad.push("composite " + L + " left side is a starter");
+      if (EXCL.has(c)) bad.push("composite " + c + " not excluded");
+      var d = CANON.get(c);
+      if (!d || d.length !== 2 || d[0] !== L || d[1] !== C) bad.push("composite " + c + " matches its decomposition");
+    });
+
+    // 2. canonical ordering is a stable sort by combining class
+    var r = rng(7777), a, before, after, k;
+    for (i = 0; i < 400; i++) {
+      a = [BASES[Math.floor(r() * BASES.length)]];
+      for (j = 0; j < 5; j++) a.push(MARKS[Math.floor(r() * MARKS.length)]);
+      before = a.slice(); after = canonicalOrder(a.slice());
+      ok(after.length === before.length, "ordering preserves length");
+      for (k = 1; k < after.length; k++)
+        if (ccc(after[k]) !== 0 && ccc(after[k - 1]) !== 0)
+          ok(ccc(after[k - 1]) <= ccc(after[k]), "ordering is ascending by class");
+      // stability: the subsequence of any single class is unchanged
+      var cls = {}, ci;
+      for (k = 0; k < before.length; k++) { ci = ccc(before[k]); if (ci) { (cls[ci] = cls[ci] || []).push(before[k]); } }
+      var seen = {};
+      for (k = 0; k < after.length; k++) { ci = ccc(after[k]); if (ci) { (seen[ci] = seen[ci] || []).push(after[k]); } }
+      for (ci in cls) ok(cls[ci].join() === (seen[ci] || []).join(), "class " + ci + " order preserved");
+    }
+
+    // 3. the four forms: idempotence and the cross-form identities
+    var C = corpus(600, 4242);
+    for (i = 0; i < C.length; i++) {
+      s = C[i];
+      ok(nfd(nfd(s)) === nfd(s), "NFD idempotent");
+      ok(nfc(nfc(s)) === nfc(s), "NFC idempotent");
+      ok(nfkd(nfkd(s)) === nfkd(s), "NFKD idempotent");
+      ok(nfkc(nfkc(s)) === nfkc(s), "NFKC idempotent");
+      ok(nfd(nfc(s)) === nfd(s), "NFC changes spelling, never identity");
+      ok(nfkd(nfkc(s)) === nfkd(s), "NFKC changes spelling, never compatibility identity");
+      ok(nfkd(nfd(s)) === nfkd(s), "NFKD absorbs NFD");
+      ok(nfkc(nfc(s)) === nfkc(s), "NFKC absorbs NFC");
+      ok(cps(nfc(s)).length <= cps(nfd(s)).length, "NFC is never longer than NFD");
+      ok(equivalent(s, nfd(s)) && equivalent(s, nfc(s)), "both canonical forms stay equivalent");
+      ok(isNormalized("NFD", nfd(s)) && isNormalized("NFC", nfc(s)), "output is normalized");
+    }
+
+    // 4. Hangul is arithmetic, and the arithmetic is a bijection
+    var syl, dec;
+    for (i = 0; i < SCOUNT; i += 7) {
+      syl = String.fromCodePoint(SBASE + i);
+      dec = cps(nfd(syl));
+      asserts += 3;
+      if (dec.length !== 2 && dec.length !== 3) bad.push("hangul decomposes to 2 or 3 jamo");
+      if (nfc(nfd(syl)) !== syl) bad.push("hangul round-trips");
+      if (CANON.has(SBASE + i)) bad.push("hangul carries no table entry");
+    }
+    ok(SCOUNT === 11172, "the Hangul block is L x V x T");
+
+    // 5. the round-trip census agrees with the derived exclusion set
+    var rt = roundTripCensus();
+    ok(rt.total === CANON.size, "census covers the canonical table");
+    ok(rt.broke === EXCL.size, "exactly the excluded characters fail NFC(NFD(c)) === c");
+    ok(rt.back === COMP.size, "exactly the composable characters survive the round trip");
+    ok(rt.broke > rt.back, "more than half of all decomposable characters do not round-trip");
+
+    // 6. the wrong models are wrong, and wrong in bounded amounts
+    var sb = scoreboard(1500, 991);
+    ok(sb.greedy > 0 && sb.greedy < sb.n, "greedy composition is wrong sometimes, not always");
+    ok(sb.sorted > sb.greedy, "sorting every mark run is the worse shortcut");
+    ok(sb.jumped > 0 && sb.jumped <= sb.n, "a non-adjacent mark does reach the base");
+    ok(sb.lengthChanged > 0 && sb.lengthChanged <= sb.n, "composition shortens some strings");
+
+    // 7. the swap experiment
+    var sw = swapCensus(12);
+    ok(sw.diff.merged === sw.diff.n, "different-class marks always merge under reordering");
+    ok(sw.same.distinct > 0 && sw.same.distinct <= sw.same.n, "same-class marks mostly do not");
+    ok(sw.same.lenDiff > 0, "and the two orders can differ in code point count");
+
+    // 8. concatenation is not closed
+    var cc = concatClosure();
+    ok(cc.broken > 0 && cc.broken < cc.n, "NFC is not closed under concatenation");
+
+    // 9. every compatibility decomposition carries a tag, and NFD never uses it
+    var tagged = 0;
+    COMPAT.forEach(function (d, c) { if (TAG.get(c)) tagged++; });
+    ok(tagged === COMPAT.size, "every compatibility mapping is tagged");
+    var probe = 0;
+    COMPAT.forEach(function (d, c) {
+      if (probe++ % 37) return;
+      asserts += 2;
+      var t = String.fromCodePoint(c);
+      if (nfd(t) !== t && !CANON.has(c)) bad.push("NFD ignores compatibility mappings");
+      if (nfkd(t) === t && !CANON.has(c)) bad.push("NFKD uses them");
+    });
+
+    return { asserts: asserts, bad: bad, fails: bad.length };
+  }
+
+  return {
+    version: DATA.version, data: DATA,
+    CCC: CCC, CANON: CANON, COMPAT: COMPAT, TAG: TAG, COMP: COMP,
+    EXCL: EXCL, EX_LIST: EX_LIST, EX_SINGLETON: EX_SINGLETON, EX_NONSTARTER: EX_NONSTARTER,
+    SBASE: SBASE, LBASE: LBASE, VBASE: VBASE, TBASE: TBASE,
+    LCOUNT: LCOUNT, VCOUNT: VCOUNT, TCOUNT: TCOUNT, NCOUNT: NCOUNT, SCOUNT: SCOUNT,
+    ccc: ccc, cps: cps, str: str, primaryComposite: primaryComposite,
+    decomposeCp: decomposeCp, decomposeArr: decomposeArr, canonicalOrder: canonicalOrder,
+    composeArr: composeArr,
+    nfd: nfd, nfc: nfc, nfkd: nfkd, nfkc: nfkc, forms: FORMS, normalize: normalize,
+    isNormalized: isNormalized, equivalent: equivalent, compatEquivalent: compatEquivalent,
+    greedyCompose: greedyCompose, sortAllMarks: sortAllMarks,
+    trace: trace, rng: rng, corpus: corpus, MARKS: MARKS, BASES: BASES,
+    scoreboard: scoreboard, concatClosure: concatClosure, swapCensus: swapCensus,
+    roundTripCensus: roundTripCensus, asciiFold: asciiFold, spellings: spellings,
+    selftest: selftest
+  };
+}());
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI (DOM lives here only)
+(function () {
+  "use strict";
+  var U = UNORM;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+  function pc(a, b) { return b ? (100 * a / b).toFixed(2) + "%" : "0.00%"; }
+  function hx(cp) { var s = cp.toString(16).toUpperCase(); while (s.length < 4) s = "0" + s; return "U+" + s; }
+  function hxs(s) { return U.cps(s).map(hx).join(" "); }
+
+  // one box per code point, optionally classed
+  function boxes(arr, cls) {
+    var h = '<div class="cps">', i, cp, c;
+    for (i = 0; i < arr.length; i++) {
+      cp = arr[i];
+      c = cls ? cls(cp, i) : (U.ccc(cp) === 0 ? "starter" : "mark");
+      h += '<div class="cp ' + c + '"><b>' + (U.ccc(cp) ? "◌" : "") + esc(String.fromCodePoint(cp)) + "</b>" +
+           hx(cp) + '<span class="cc">cc ' + U.ccc(cp) + "</span></div>";
+    }
+    return h + "</div>";
+  }
+  function tiny(s) {
+    return '<span class="mono">' + esc(hxs(s)) + "</span>";
+  }
+
+  // ------------------------------------------------------------ tabs
+  var tabs = $("tabs").querySelectorAll("button"), i;
+  for (i = 0; i < tabs.length; i++) tabs[i].addEventListener("click", function (e) {
+    var t = e.currentTarget.getAttribute("data-tab"), k;
+    for (k = 0; k < tabs.length; k++) tabs[k].className = "tabbtn" + (tabs[k] === e.currentTarget ? " tab-active" : "");
+    ["look", "understand", "build"].forEach(function (id) {
+      $(id).className = "panel" + (id === t ? "" : " hidden");
+    });
+  });
+
+  // ------------------------------------------------------------ 1. the normaliser
+  var PRESETS = [
+    ["ầ", "a + circumflex + grave"],
+    ["à̂", "a + grave + circumflex"],
+    ["á̧", "a + cedilla + acute"],
+    ["â̺͓", "a + two class-220 + circumflex"],
+    ["क़", "U+0958 QA"],
+    ["Å", "U+212B ANGSTROM"],
+    ["ẛ̣", "long s + dot below"],
+    ["각", "Hangul 각"],
+    ["각", "the same three jamo"],
+    ["½   ﬁ Ⅸ", "½ nbsp ﬁ Ⅸ"],
+    ["ᵃdmin", "modifier-a + dmin"],
+    ["q̈́", "q + diaeresis + acute"]
+  ];
+  (function () {
+    var h = "", i;
+    for (i = 0; i < PRESETS.length; i++)
+      h += '<button data-s="' + esc(PRESETS[i][0]) + '">' + esc(PRESETS[i][1]) + "</button>";
+    $("presets").innerHTML = h;
+    var bs = $("presets").querySelectorAll("button"), k;
+    for (k = 0; k < bs.length; k++) bs[k].addEventListener("click", function (e) {
+      $("inp").value = e.currentTarget.getAttribute("data-s"); render();
+    });
+  }());
+
+  var VERDICT = {
+    composed: ["allow", "composed into the last starter"],
+    blocked: ["deny", "blocked &mdash; something in between has an equal or higher class"],
+    "no primary composite": ["warn", "reachable, but no such composite exists"],
+    "no starter": ["grey", "nothing to compose onto"],
+    starter: ["info", "starter"],
+    "leading mark": ["grey", "leading mark, nothing before it"]
+  };
+
+  function render() {
+    var s = $("inp").value, t = U.trace(s, false);
+    $("glyphrow").innerHTML = '<span class="glyph">' + esc(s) + '</span>' +
+      '<span class="mono dim" style="margin-left:12px">' + esc(hxs(s)) + " &middot; " +
+      U.cps(s).length + " code point" + (U.cps(s).length === 1 ? "" : "s") + "</span>";
+
+    var moved = {}, i;
+    for (i = 0; i < t.ordered.length; i++) if (t.ordered[i] !== t.expanded[i]) moved[i] = 1;
+    var madeIdx = {};
+    for (i = 0; i < t.notes.length; i++) if (t.notes[i].act === "composed") madeIdx[i] = 1;
+
+    var h = "";
+    h += '<div class="stage"><div class="lbl">1 &middot; as typed</div><div>' + boxes(t.input) + "</div></div>";
+    h += '<div class="stage"><div class="lbl">2 &middot; expanded</div><div>' + boxes(t.expanded) +
+         '<p class="t-xs dim mt2">Every mapping applied recursively. ' +
+         (t.expanded.length === t.input.length ? "Nothing expanded." :
+          (t.expanded.length - t.input.length) + " code point(s) added.") + "</p></div></div>";
+    h += '<div class="stage"><div class="lbl">3 &middot; canonically ordered</div><div>' +
+         boxes(t.ordered, function (cp, ix) { return moved[ix] ? "moved" : (U.ccc(cp) ? "mark" : "starter"); }) +
+         '<p class="t-xs dim mt2">Stable sort by combining class. ' +
+         (t.reordered ? t.reordered + " position(s) changed." : "No mark moved.") + "</p></div></div>";
+    h += '<div class="stage"><div class="lbl">4 &middot; composed (NFC)</div><div>' +
+         boxes(t.composed, function (cp, ix) { return madeIdx[ix] ? "made" : (U.ccc(cp) ? "mark" : "starter"); }) +
+         '<p class="t-xs dim mt2">' + t.composed.length + " code point" +
+         (t.composed.length === 1 ? "" : "s") + " out of " + t.ordered.length + ".</p></div></div>";
+    $("stages").innerHTML = h;
+
+    h = '<table class="num"><tr><th>#</th><th>code point</th><th class="r">class</th><th>what happened</th><th>result</th></tr>';
+    for (i = 0; i < t.notes.length; i++) {
+      var n = t.notes[i], v = VERDICT[n.act] || ["grey", n.act];
+      h += "<tr" + (n.act === "composed" ? ' class="hi"' : "") + "><td class='r'>" + (i + 1) + "</td>" +
+           '<td class="mono">' + hx(n.cp) + " " + esc(String.fromCodePoint(n.cp)) + "</td>" +
+           '<td class="r">' + U.ccc(n.cp) + "</td>" +
+           '<td><span class="v ' + v[0] + '">' + n.act + "</span> <span class='t-xs dim'>" + v[1] + "</span>" +
+           (n.act === "blocked" ? ' <span class="t-xs">(class in the way: ' + n.blocker + ")</span>" : "") + "</td>" +
+           "<td class='mono'>" + (n.act === "composed" ? hx(n.into) + " + " + hx(n.cp) + " &rarr; " + hx(n.made) : "&mdash;") + "</td></tr>";
+    }
+    $("verdicts").innerHTML = h + "</table>";
+
+    var forms = ["NFD", "NFC", "NFKD", "NFKC"], cls = { NFD: "p-nfd", NFC: "p-nfc", NFKD: "p-nfkd", NFKC: "p-nfkc" };
+    h = "<tr><th>form</th><th>result</th><th>code points</th><th class='r'>length</th><th>already normalised?</th></tr>";
+    h += '<tr><td><span class="pill grey">input</span></td><td class="glyph">' + esc(s) +
+         '</td><td class="mono">' + esc(hxs(s)) + '</td><td class="r">' + U.cps(s).length + "</td><td>&mdash;</td></tr>";
+    for (i = 0; i < forms.length; i++) {
+      var f = forms[i], r = U.normalize(f, s);
+      h += '<tr><td><span class="pill ' + cls[f] + '">' + f + '</span></td><td class="glyph">' + esc(r) +
+           '</td><td class="mono">' + esc(hxs(r)) + '</td><td class="r">' + U.cps(r).length + "</td><td>" +
+           (U.isNormalized(f, s) ? '<span class="v allow">yes</span>' : '<span class="v deny">no</span>') + "</td></tr>";
+    }
+    $("fourforms").innerHTML = h;
+  }
+  $("inp").addEventListener("input", render);
+
+  // ------------------------------------------------------------ 2. the swap
+  var SWAPS = [
+    [0x61, 0x0302, 0x0300], [0x63, 0x0300, 0x0301], [0x65, 0x0302, 0x0300],
+    [0x6F, 0x0302, 0x0303], [0x61, 0x0308, 0x0301], [0x71, 0x0308, 0x0301],
+    [0x61, 0x0327, 0x0301], [0x63, 0x0327, 0x0301], [0x61, 0x0316, 0x0301],
+    [0x73, 0x0323, 0x0307]
+  ];
+  function renderSwap() {
+    var h = "<tr><th>base</th><th>marks</th><th class='r'>classes</th><th>written A&nbsp;B</th>" +
+            "<th>written B&nbsp;A</th><th>equivalent?</th></tr>", i;
+    for (i = 0; i < SWAPS.length; i++) {
+      var b = SWAPS[i][0], m1 = SWAPS[i][1], m2 = SWAPS[i][2];
+      var s1 = String.fromCodePoint(b, m1, m2), s2 = String.fromCodePoint(b, m2, m1);
+      var n1 = U.nfc(s1), n2 = U.nfc(s2), eq = U.equivalent(s1, s2), same = U.ccc(m1) === U.ccc(m2);
+      h += "<tr" + (same && !eq ? ' class="hi"' : "") + '><td class="mono">' + hx(b) + " " + esc(String.fromCodePoint(b)) +
+           '</td><td class="mono">' + hx(m1) + " " + hx(m2) +
+           '</td><td class="r">' + U.ccc(m1) + " / " + U.ccc(m2) + (same ? " <b>same</b>" : "") +
+           '</td><td class="mono">' + esc(hxs(n1)) + ' <span class="dim">(' + U.cps(n1).length + ")</span>" +
+           '</td><td class="mono">' + esc(hxs(n2)) + ' <span class="dim">(' + U.cps(n2).length + ")</span>" +
+           "</td><td>" + (eq ? '<span class="v allow">yes &mdash; order erased</span>'
+                             : '<span class="v deny">no &mdash; two strings</span>') + "</td></tr>";
+    }
+    $("swaptbl").innerHTML = h;
+  }
+
+  // ------------------------------------------------------------ pump
+  var steps = [], t0 = Date.now();
+  function push(fn) { steps.push(fn); }
+
+  push(function () { render(); renderSwap(); });
+
+  push(function () {
+    var sw = U.swapCensus(40);
+    $("swapnote").innerHTML =
+      "Over <b>" + fmtN(sw.same.n) + "</b> base + two-same-class-mark pairs, swapping the two marks " +
+      "produces a string that is <b>not canonically equivalent</b> to the original <b>" + fmtN(sw.same.distinct) +
+      "</b> times (" + pc(sw.same.distinct, sw.same.n) + "), and in <b>" + fmtN(sw.same.lenDiff) +
+      "</b> of those the two NFC results do not even have the same number of code points. " +
+      "Over <b>" + fmtN(sw.diff.n) + "</b> different-class pairs the same swap is erased <b>" +
+      fmtN(sw.diff.merged) + "</b> times &mdash; <b>every single one</b>. " +
+      "There are " + sw.classes + " distinct non-zero combining classes in this UCD version; which side of " +
+      "this line you are on is decided by whether two numbers happen to be equal.";
+  });
+
+  push(function () {
+    var rt = U.roundTripCensus();
+    var h = "<tr><th>the claim</th><th class='r'>count</th><th class='r'>share</th></tr>";
+    h += "<tr><td>characters with a canonical decomposition</td><td class='r'>" + fmtN(rt.total) + "</td><td class='r'>100%</td></tr>";
+    h += "<tr><td><code>NFC(NFD(c)) === c</code> &mdash; the round trip works</td><td class='r'>" + fmtN(rt.back) + "</td><td class='r'>" + pc(rt.back, rt.total) + "</td></tr>";
+    h += "<tr class='hi'><td><b>the round trip fails</b></td><td class='r'><b>" + fmtN(rt.broke) + "</b></td><td class='r'><b>" + pc(rt.broke, rt.total) + "</b></td></tr>";
+    h += "<tr><td>&nbsp;&nbsp;&mdash; because the decomposition is a singleton</td><td class='r'>" + fmtN(rt.singleton) + "</td><td class='r'>" + pc(rt.singleton, rt.broke) + "</td></tr>";
+    h += "<tr><td>&nbsp;&nbsp;&mdash; because it is on the frozen list</td><td class='r'>" + fmtN(rt.listed) + "</td><td class='r'>" + pc(rt.listed, rt.broke) + "</td></tr>";
+    h += "<tr><td>&nbsp;&nbsp;&mdash; because it starts with a non-starter</td><td class='r'>" + fmtN(rt.nonStarter) + "</td><td class='r'>" + pc(rt.nonStarter, rt.broke) + "</td></tr>";
+    h += "<tr><td>pairs NFC is allowed to put back together</td><td class='r'>" + fmtN(rt.comps) + "</td><td class='r'>" + pc(rt.comps, rt.total) + "</td></tr>";
+    h += "<tr><td>Hangul syllables composed with no table at all</td><td class='r'>" + fmtN(U.SCOUNT) + "</td><td class='r'>&mdash;</td></tr>";
+    $("census").innerHTML = h;
+
+    var EX = [0x0958, 0x09DC, 0x0F43, 0xFB1D, 0x1D15E, 0x212B, 0x2126, 0x0374, 0x0344, 0x0340, 0x00C5, 0x1E14];
+    h = "<tr><th>character</th><th>NFD</th><th>NFC</th><th>why</th></tr>";
+    for (var i = 0; i < EX.length; i++) {
+      var c = EX[i], s = String.fromCodePoint(c);
+      var why = U.EX_SINGLETON.has(c) ? "singleton" : U.EX_LIST.has(c) ? "on the frozen list"
+              : U.EX_NONSTARTER.has(c) ? "non-starter head" : "composes normally";
+      h += "<tr" + (U.EXCL.has(c) ? ' class="hi"' : "") + '><td class="mono">' + hx(c) + " " + esc(s) +
+           '</td><td class="mono">' + esc(hxs(U.nfd(s))) + '</td><td class="mono">' + esc(hxs(U.nfc(s))) +
+           "</td><td>" + (U.EXCL.has(c) ? '<span class="v deny">' + why + "</span>" : '<span class="v allow">' + why + "</span>") + "</td></tr>";
+    }
+    $("exclex").innerHTML = h;
+    $("censusnote").innerHTML =
+      "<b>" + fmtN(rt.replaced) + "</b> of the failures are not a refusal to compose but a " +
+      "<b>substitution</b>: one code point in, a <em>different</em> code point out. That is what a " +
+      "singleton decomposition is &mdash; and it is why &ldquo;normalise to NFC&rdquo; can change " +
+      "which character your data contains without changing its length, its rendering or anything a " +
+      "diff will show you.";
+  });
+
+  push(function () {
+    var sb = U.scoreboard(40000);
+    var rows = [
+      ["<code>NFC(NFD(x)) === x</code> for every character", "the round-trip model", null],
+      ["compose every adjacent pair you can", "greedy pairwise composition", sb.greedy],
+      ["sort every run of marks by combining class", "an unstable / tie-broken sort", sb.sorted]
+    ];
+    var h = "<tr><th>the shortcut</th><th>what it really is</th><th class='r'>wrong on</th><th class='r'>of " +
+            fmtN(sb.n) + "</th><th>bar</th></tr>";
+    for (var i = 1; i < rows.length; i++) {
+      var w = rows[i][2];
+      h += "<tr class='hi'><td><b>" + rows[i][0] + "</b></td><td class='dim'>" + rows[i][1] +
+           "</td><td class='r'><b>" + pc(w, sb.n) + "</b></td><td class='r'>" + fmtN(w) +
+           "</td><td><span class='bar' style='width:" + Math.max(2, Math.round(200 * w / sb.n)) + "px'></span></td></tr>";
+    }
+    h += "<tr><td>a later mark reached the base over one in the way</td><td class='dim'>the blocked rule firing</td>" +
+         "<td class='r'>" + pc(sb.jumped, sb.n) + "</td><td class='r'>" + fmtN(sb.jumped) + "</td><td></td></tr>";
+    h += "<tr><td>composition made the string shorter</td><td class='dim'>at least one pair merged</td>" +
+         "<td class='r'>" + pc(sb.lengthChanged, sb.n) + "</td><td class='r'>" + fmtN(sb.lengthChanged) + "</td><td></td></tr>";
+    $("scoretbl").innerHTML = h;
+
+    function exTable(list, label) {
+      var g = "<tr><th>input</th><th>this engine (NFC)</th><th>" + label + "</th></tr>", k;
+      for (k = 0; k < list.length; k++)
+        g += '<tr><td class="mono">' + esc(hxs(list[k][0])) + '</td><td class="mono ok">' + esc(hxs(list[k][1])) +
+             '</td><td class="mono bad">' + esc(hxs(list[k][2])) + "</td></tr>";
+      return g;
+    }
+    $("greedyex").innerHTML = exTable(sb.greedyEx, "greedy pairwise");
+    $("sortex").innerHTML = exTable(sb.sortedEx, "sorted by class");
+  });
+
+  push(function () {
+    var cc = U.concatClosure();
+    var h = "<tr><th>left (already NFC)</th><th>right (already NFC)</th><th>joined</th><th>NFC of the join</th><th></th></tr>", i;
+    for (i = 0; i < cc.ex.length; i++) {
+      var e = cc.ex[i];
+      h += '<tr class="hi"><td class="mono">' + esc(hxs(e[0])) + '</td><td class="mono">' + esc(hxs(e[1])) +
+           '</td><td class="mono">' + esc(hxs(e[0] + e[1])) + '</td><td class="mono ok">' + esc(hxs(e[2])) +
+           '</td><td><span class="v deny">seam not normalised</span></td></tr>';
+    }
+    $("cattbl").innerHTML = h;
+    $("catnote").innerHTML = "Over <b>" + fmtN(cc.n) + "</b> joins of one already-NFC base and one " +
+      "already-NFC combining mark, the concatenation is <b>not</b> NFC <b>" + fmtN(cc.broken) + "</b> times &mdash; <b>" +
+      pc(cc.broken, cc.n) + "</b>. Neither half was wrong and no API call was skipped.";
+  });
+
+  push(function () {
+    var af = U.asciiFold();
+    var pairs = [];
+    af.map.forEach(function (v, k) { pairs.push([k, v]); });
+    pairs.sort(function (a, b) { return b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1); });
+    var h = "<tr><th>NFKC result</th><th class='r'>code points that fold to it</th><th>a few of them</th></tr>", i;
+    for (i = 0; i < 14; i++) {
+      var p = pairs[i];
+      h += "<tr" + (i === 0 ? ' class="hi"' : "") + '><td class="mono">&quot;' + esc(p[0]) + '&quot;</td><td class="r">' +
+           p[1].length + '</td><td class="mono">' + p[1].slice(0, 5).map(hx).join(" ") + "</td></tr>";
+    }
+    $("folds").innerHTML = h;
+
+    var EXC = [0x00BD, 0x00A0, 0xFB01, 0x2168, 0x33A1, 0x2460, 0xFF41, 0x1D43, 0x2126, 0x1E9E];
+    h = "<tr><th>character</th><th>NFC</th><th>NFKC</th><th class='r'>len</th></tr>";
+    for (i = 0; i < EXC.length; i++) {
+      var c = EXC[i], s = String.fromCodePoint(c), k = U.nfkc(s);
+      h += "<tr" + (k !== U.nfc(s) ? ' class="hi"' : "") + '><td class="mono">' + hx(c) + " " + esc(s) +
+           '</td><td class="mono">' + esc(hxs(U.nfc(s))) + '</td><td class="mono">' + esc(hxs(k)) +
+           ' <span class="dim">&quot;' + esc(k) + '&quot;</span></td><td class="r">' + U.cps(s).length + " &rarr; " + U.cps(k).length + "</td></tr>";
+    }
+    $("foldex").innerHTML = h;
+    $("foldnote").innerHTML = "<b>" + fmtN(af.total) + "</b> non-ASCII code points below U+1FBFF have a " +
+      "pure-ASCII NFKC, collapsing onto <b>" + fmtN(af.distinct) + "</b> distinct ASCII strings. " +
+      "That is at least <b>" + fmtN(U.spellings("admin", af)) + "</b> spellings of <code>admin</code> and <b>" +
+      fmtN(U.spellings("paypal", af)) + "</b> of <code>paypal</code> that survive an NFKC comparison &mdash; " +
+      "counting single code points only, before ligatures.";
+  });
+
+  push(function () {
+    function cmp() {
+      var a = $("cmpA").value, b = $("cmpB").value;
+      var rows = [
+        ["raw <code>===</code>", a === b, hxs(a) + "  vs  " + hxs(b)],
+        ["NFC then compare", U.nfc(a) === U.nfc(b), hxs(U.nfc(a)) + "  vs  " + hxs(U.nfc(b))],
+        ["NFD then compare (canonical equivalence)", U.equivalent(a, b), hxs(U.nfd(a)) + "  vs  " + hxs(U.nfd(b))],
+        ["NFKC then compare", U.nfkc(a) === U.nfkc(b), hxs(U.nfkc(a)) + "  vs  " + hxs(U.nfkc(b))],
+        ["NFKD then compare (compatibility equivalence)", U.compatEquivalent(a, b), hxs(U.nfkd(a)) + "  vs  " + hxs(U.nfkd(b))]
+      ];
+      var h = "<tr><th>test</th><th>answer</th><th>what was actually compared</th></tr>", i;
+      for (i = 0; i < rows.length; i++)
+        h += "<tr><td>" + rows[i][0] + "</td><td>" + (rows[i][1] ? '<span class="v allow">equal</span>' :
+             '<span class="v deny">different</span>') + '</td><td class="mono">' + esc(rows[i][2]) + "</td></tr>";
+      $("cmptbl").innerHTML = h;
+    }
+    $("cmpA").addEventListener("input", cmp);
+    $("cmpB").addEventListener("input", cmp);
+    cmp();
+  });
+
+  push(function () {
+    // measured by bot10-verify-day76-solve.mjs; the page cannot spawn a process
+    var REFS = [
+      ["ICU 77.1", "Node 22.17.1", "16.0", "C++", 0, 20, 56, 36],
+      ["CPython 3.13.14", "unicodedata", "15.1", "C", 0, 0, 0, 0],
+      ["Java 21.0.10", "java.text.Normalizer", "15.0", "Java", 0, 0, 0, 0],
+      ["Perl 5.38.2", "Unicode::Normalize", "15.0", "XS/C", 0, 0, 0, 0],
+      ["CPython 3.11.9", "unicodedata", "14.0", "C", 0, 0, 62, 62]
+    ];
+    var h = "<tr><th>implementation</th><th>entry point</th><th>Unicode</th><th>written in</th>" +
+            "<th class='r'>NFC</th><th class='r'>NFD</th><th class='r'>NFKD</th><th class='r'>NFKC</th></tr>", i;
+    for (i = 0; i < REFS.length; i++) {
+      var r = REFS[i], tot = r[4] + r[5] + r[6] + r[7];
+      h += "<tr" + (tot ? ' class="hi"' : "") + "><td><b>" + r[0] + "</b></td><td class='mono'>" + r[1] +
+           "</td><td class='r'>" + r[2] + "</td><td class='dim'>" + r[3] + "</td>";
+      for (var k = 4; k < 8; k++)
+        h += "<td class='r'>" + (r[k] ? '<span class="bad">' + r[k] + "</span>" : '<span class="ok">0</span>') + "</td>";
+      h += "</tr>";
+    }
+    h += "<tr><td colspan='4' class='dim'>disagreements with this engine over 1,112,064 code points, per form</td>" +
+         "<td class='r'><b>0</b></td><td class='r'>20</td><td class='r'>118</td><td class='r'>98</td></tr>";
+    $("reftbl").innerHTML = h;
+  });
+
+  push(function () {
+    var CASES = ["ầ", "à̂", "क़", "Å", "̈́", "각",
+                 "â̺͓", "ẛ̣", "½", " ", "שׁ", "ᴖ0"];
+    var h = "<tr><th>input</th><th>NFD</th><th>NFC</th><th>NFKC</th><th>the trap</th></tr>", i;
+    var WHY = ["composes to one code point", "the swap: composes to two, never equal to the row above",
+               "NFC gets LONGER: the composed form is two code points",
+               "NFC returns a DIFFERENT character", "a mark whose decomposition never comes back",
+               "no table entry exists: arithmetic both ways", "the third mark composes, the first two do not",
+               "the UAX #15 worked example", "not an ASCII slash", "NFKC eats a no-break space",
+               "a Hebrew presentation form on the frozen list", "a musical symbol on the frozen list"];
+    for (i = 0; i < CASES.length; i++) {
+      var s = CASES[i];
+      h += '<tr><td class="mono">' + esc(hxs(s)) + '</td><td class="mono">' + esc(hxs(U.nfd(s))) +
+           '</td><td class="mono">' + esc(hxs(U.nfc(s))) + '</td><td class="mono">' + esc(hxs(U.nfkc(s))) +
+           "</td><td class='t-xs'>" + WHY[i] + "</td></tr>";
+    }
+    $("suite").innerHTML = h;
+  });
+
+  push(function () {
+    var st = U.selftest(), ms = Date.now() - t0;
+    $("selftest").className = "v " + (st.fails ? "deny" : "allow");
+    $("selftest").textContent = (st.fails ? "FAILED " : "PASS ") + fmtN(st.asserts) +
+      " assertions, " + st.fails + " failing, " + ms + " ms";
+    if (st.fails) console.error("ASSERT FAIL: " + st.bad.slice(0, 20).join(" | "));
+    document.body.setAttribute("data-ready", "1");
+  });
+
+  // ------------------------------------------------------------ the full sweep
+  $("sweepbtn").addEventListener("click", function () {
+    var btn = $("sweepbtn"); btn.disabled = true;
+    var out = $("sweepout"), cp = 0, asserts = 0, fails = 0, changed = 0, t = Date.now();
+    var CHUNK = 40000;
+    out.textContent = "sweeping...";
+    function step() {
+      var end = Math.min(cp + CHUNK, 0x110000), s, d, c, kd, kc;
+      for (; cp < end; cp++) {
+        if (cp >= 0xD800 && cp <= 0xDFFF) continue;
+        s = String.fromCodePoint(cp);
+        d = U.nfd(s); c = U.nfc(s); kd = U.nfkd(s); kc = U.nfkc(s);
+        asserts += 6;
+        if (U.nfd(d) !== d) fails++;
+        if (U.nfc(c) !== c) fails++;
+        if (U.nfd(c) !== d) fails++;
+        if (U.nfkd(kc) !== kd) fails++;
+        if (U.cps(c).length > U.cps(d).length) fails++;
+        if (U.cps(kc).length > U.cps(kd).length) fails++;
+        if (d !== s || kd !== s) changed++;
+      }
+      out.textContent = "swept " + fmtN(cp) + " of 1,114,112 code points  ·  " +
+        fmtN(asserts) + " assertions  ·  " + fails + " failing  ·  " +
+        fmtN(changed) + " code points that any form rewrites  ·  " + (Date.now() - t) + " ms";
+      if (cp < 0x110000) setTimeout(step, 0);
+      else {
+        out.textContent += "\n\nidentities checked on every code point: NFD and NFC are idempotent, " +
+          "NFD(NFC(c)) === NFD(c), NFKD(NFKC(c)) === NFKD(c), and neither composed form is longer " +
+          "than its decomposed counterpart. " + (fails ? "FAILURES: " + fails : "0 failures.");
+        btn.disabled = false;
+      }
+    }
+    setTimeout(step, 0);
+  });
+
+  // run the pump
+  var ix = 0;
+  function next() {
+    if (ix >= steps.length) return;
+    steps[ix++]();
+    setTimeout(next, 0);
+  }
+  setTimeout(next, 0);
+}());
+</script>
+</body>
+</html>
