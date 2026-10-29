@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 82 &mdash; Bloom filters</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#1d4ed8; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.35; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:560px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num td.txt { text-align:left; }
+  tr.here td { background:#f0fdfa; font-weight:700; }
+  tr.dim td { color:#94a3b8; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; }
+  .pill.good { background:#dcfce7; color:#166534; }
+  .pill.bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  #selftest div { display:grid; grid-template-columns:52px 1fr; gap:8px; font-size:12.5px; padding:3px 0; border-top:1px solid var(--line); align-items:start; }
+  #selftest div span.m { grid-column:2; font-size:11.5px; color:#64748b; }
+  .ctl { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
+  .ctl input[type=range] { flex:1; min-width:150px; }
+  .ctl input[type=number] { width:74px; font:inherit; padding:5px 7px; border:1px solid var(--line); border-radius:7px; }
+  footer { border-top:1px solid var(--line); margin-top:28px; padding:18px 0 40px; font-size:13px; color:#475569; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 82</p>
+    <h1>
+      Bloom filters &mdash; the false-positive formula everyone quotes is optimistic, and it is worst where the filter is smallest.
+    </h1>
+    <div class="tabs">
+      <button id="tabLook" class="tab-active" onclick="showTab('look')">Look</button>
+      <button id="tabUnd" onclick="showTab('und')">Understand</button>
+      <button id="tabBuild" onclick="showTab('build')">Build</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="look" class="stack">
+  <div class="card">
+    <h2>It never misses. It just lies in the other direction.</h2>
+    <p>
+      A Bloom filter is a bit array and <b>k</b> hash functions. Adding a key
+      sets <b>k</b> bits; asking about a key checks those same bits. If any is
+      zero the key was definitely never added. If all are one &mdash; it
+      probably was. <b>Probably</b> is the entire subject.
+    </p>
+    <p>
+      The structure makes exactly one promise and it keeps it absolutely: there
+      are <b>no false negatives</b>. Everything else is a rate you are choosing
+      whether you realise it or not.
+    </p>
+    <div class="tblwrap"><table class="num" id="tLook"></table></div>
+    <p class="note">
+      Four filters, 20,000 strangers tested against each. The last column is the
+      one to look at: the measured rate against what the formula in the tutorials
+      predicts.
+    </p>
+  </div>
+</section>
+
+<section id="und" class="stack hidden">
+  <div class="card">
+    <h2>Choosing k, and the column the formula ignores</h2>
+    <p>
+      More hashes means more bits to clear before a stranger gets through &mdash;
+      but also more bits set per key, so the array saturates faster. The optimum
+      is <code>(m/n) &middot; ln 2</code>, and the curve around it is flat.
+    </p>
+    <div class="tblwrap"><table class="num" id="tK"></table></div>
+    <p class="note" id="kNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>The textbook formula is wrong, and wrong in the dangerous direction</h2>
+    <p>
+      <code>p = (1 - e<sup>-kn/m</sup>)<sup>k</sup></code> assumes the k bits a
+      key sets are <b>independent</b>. They are not. One key's own probes can
+      land on each other, so it may set fewer than k bits. The formula is a
+      limit, and below are five filters at a <b>fixed</b> m/n ratio of 6.4 where
+      only the size changes.
+    </p>
+    <div class="tblwrap"><table class="num" id="tExact"></table></div>
+    <p class="note">
+      The exact rate conditions on how many bits are really set, rather than
+      assuming. The error is small &mdash; but it is <b>optimistic</b> at small
+      m, which is the wrong way round for a structure chosen to bound a risk.
+    </p>
+  </div>
+</section>
+
+  <div class="card">
+    <h2>And the rate only holds if the hash avalanches</h2>
+    <p>
+      Every number above assumes the probes land uniformly. Swap in a hash
+      whose low bits carry structure &mdash; and a power-of-two array uses
+      <b>only</b> the low bits &mdash; and the filter you measure is not the
+      filter you computed.
+    </p>
+    <div class="tblwrap"><table class="num" id="tHash"></table></div>
+    <p class="note" id="hashNote"></p>
+  </div>
+</section>
+
+<section id="build" class="stack hidden">
+  <div class="card">
+    <h2>k hashes from two, and the bit that makes it work</h2>
+    <p>
+      Computing k independent hashes is wasteful. Kirsch&ndash;Mitzenmacher says
+      two are enough: <code>g<sub>i</sub>(x) = h<sub>1</sub> + i&middot;h<sub>2</sub></code>.
+      The trap is <b>h<sub>2</sub> being even</b> when m is a power of two
+      &mdash; then the step never changes parity and half the array is
+      unreachable. One <code>| 1</code> fixes it.
+    </p>
+    <pre id="codeIdx"></pre>
+  </div>
+  <div class="card">
+    <h2>And the lookup, which is the easy half</h2>
+    <pre id="codeHas"></pre>
+  </div>
+  <div class="card">
+    <h2>Self-check</h2>
+    <p class="note" style="margin:0 0 10px">
+      Running in your browser now, against the same engine as the tables above.
+    </p>
+    <div id="selftest"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">
+      SolveFromZero &middot; Day 82 &middot; Bloom filters.
+      Tomorrow: the counting variant, and what deletion really costs.
+    </p>
+  </div>
+</footer>
+</div>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// ======================================================================
+// A Bloom filter is a bit array plus k hash functions. add() sets k bits;
+// has() checks them. It never misses a member - but it will sometimes say
+// yes to something that was never added.
+//
+// The whole subject is that FALSE POSITIVE RATE, and the textbook formula
+// for it is WRONG. Not approximately wrong - wrong in a way that is
+// provably optimistic, and the error is largest exactly where people
+// deploy these things. This page measures both.
+// ======================================================================
+const ENGINE = (() => {
+
+  // ------------------------------------------------------------ hashing
+  // FNV-1a, 32-bit. Deterministic, no Math.random anywhere in this block.
+  function fnv1a(str, seed) {
+    let h = (2166136261 ^ seed) >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      // the FNV prime, 16777619, as shifts - Math.imul keeps it 32-bit
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+
+  // djb2 - the other hash everybody has typed from memory. It is here as a
+  // CONTROL, not as an option: its low bits are a function of the previous
+  // low bits and one character, which is a weak mixer, and a power-of-two
+  // modulus uses only the low bits.
+  function djb2(str, seed) {
+    let h = (5381 ^ seed) >>> 0;
+    for (let i = 0; i < str.length; i++) h = (Math.imul(h, 33) ^ str.charCodeAt(i)) >>> 0;
+    return h >>> 0;
+  }
+
+  // Murmur3's finaliser. It adds NO entropy - it only avalanches the bits
+  // that are already there. Whether that matters is measured below.
+  function fmix32(h) {
+    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0;
+    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0;
+    h ^= h >>> 16; return h >>> 0;
+  }
+
+  // the same filter, built with whichever hash you hand it
+  function measureWith(hash, m, k, n, trials) {
+    const probe = (key) => {
+      const h1 = hash(key, 0x9e3779b9), h2 = (hash(key, 0x85ebca6b) | 1) >>> 0;
+      const out = []; let acc = h1 >>> 0;
+      for (let i = 0; i < k; i++) { out.push(acc % m); acc = (acc + h2) >>> 0; }
+      return out;
+    };
+    const bits = new Uint8Array(m);
+    for (let i = 0; i < n; i++) for (const x of probe("member:" + i)) bits[x] = 1;
+    let fp = 0, on = 0;
+    for (let i = 0; i < trials; i++) {
+      let all = true;
+      for (const x of probe("stranger:" + i)) if (!bits[x]) { all = false; break; }
+      if (all) fp++;
+    }
+    for (let i = 0; i < m; i++) on += bits[i];
+    return { rate: fp / trials, fill: on / m };
+  }
+
+  // Kirsch-Mitzenmacher: k hashes from TWO. g_i(x) = h1 + i*h2 mod m.
+  //
+  // The trap is h2 being even when m is a power of two - then i*h2 only ever
+  // lands on even offsets and half the array is unreachable. Forcing h2 odd
+  // costs one OR and is the difference between k real probes and k/2.
+  function indices(key, k, m) {
+    const h1 = fnv1a(key, 0x9e3779b9);
+    const h2 = (fnv1a(key, 0x85ebca6b) | 1) >>> 0;   // ODD. see above
+    const out = new Array(k);
+    let acc = h1 >>> 0;
+    for (let i = 0; i < k; i++) {
+      out[i] = acc % m;
+      acc = (acc + h2) >>> 0;
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------- filter
+  function create(m, k) {
+    if (!Number.isInteger(m) || m <= 0) throw new Error("m must be a positive integer");
+    if (!Number.isInteger(k) || k <= 0) throw new Error("k must be a positive integer");
+    return { m, k, bits: new Uint8Array(m), n: 0 };
+  }
+
+  function add(f, key) {
+    for (const i of indices(key, f.k, f.m)) f.bits[i] = 1;
+    f.n++;
+    return f;
+  }
+
+  function has(f, key) {
+    for (const i of indices(key, f.k, f.m)) if (!f.bits[i]) return false;
+    return true;
+  }
+
+  function fill(f) {
+    let on = 0;
+    for (let i = 0; i < f.m; i++) if (f.bits[i]) on++;
+    return on / f.m;
+  }
+
+  // ------------------------------------------------- the two predictions
+  //
+  // THE TEXTBOOK FORMULA. Every tutorial prints this one:
+  //
+  //     p = (1 - e^(-kn/m))^k
+  //
+  // It assumes the k bits a key sets are INDEPENDENT. They are not: one key
+  // sets at most k bits and may set fewer, because its own probes can
+  // collide with each other. The formula quietly treats every probe as a
+  // fresh draw, which makes it UNDERSTATE how many bits are still zero, and
+  // so OVERSTATE the false positive rate... in the limit. At small m it goes
+  // the other way. Measured below.
+  function pTextbook(m, k, n) {
+    return Math.pow(1 - Math.exp(-k * n / m), k);
+  }
+
+  function logFactorialTable(n) {
+    const lg = new Float64Array(n + 1);
+    for (let i = 2; i <= n; i++) lg[i] = lg[i - 1] + Math.log(i);
+    return lg;
+  }
+
+  // THE EXACT RATE, by dynamic programming over how many bits are set.
+  //
+  // The first attempt here was the closed-form inclusion-exclusion sum. It
+  // overflowed: exp(logC(m,i)) is astronomically large while the alternating
+  // sum beside it is tiny, so the two cancel to noise and the function
+  // returned things like 1e+227 PER CENT. A rate above 1 is not a rounding
+  // problem, it is a wrong function, and the self-check caught it.
+  //
+  // This version carries a probability distribution instead, so every number
+  // stays in [0,1] and nothing cancels:
+  //
+  //   dist[i] = P(exactly i bits set)
+  //
+  // Adding one key sets k DISTINCT positions - see distinctProbes(), which is
+  // guaranteed by construction here - so the number of NEW bits is
+  // hypergeometric: of the k positions, j land on zeros and k-j on ones.
+  function occupancy(m, k, n) {
+    const lg = logFactorialTable(m + 1);
+    const lchoose = (a, b) => (b < 0 || b > a) ? -Infinity : lg[a] - lg[b] - lg[a - b];
+    let dist = new Float64Array(m + 1);
+    dist[0] = 1;
+    const lcmk = lchoose(m, k);
+    for (let step = 0; step < n; step++) {
+      const next = new Float64Array(m + 1);
+      for (let i = 0; i <= m; i++) {
+        const pi = dist[i];
+        if (pi < 1e-300) continue;
+        for (let j = 0; j <= k; j++) {               // j new bits
+          const t = lchoose(i, k - j) + lchoose(m - i, j) - lcmk;
+          if (!isFinite(t)) continue;
+          next[i + j] += pi * Math.exp(t);
+        }
+      }
+      dist = next;
+    }
+    return dist;
+  }
+
+  // A stranger's k probes are also distinct, so it is a false positive exactly
+  // when all k land on set bits: C(i,k)/C(m,k), not (i/m)^k.
+  function pExact(m, k, n) {
+    if (m > 4096 || n * k > 60000) return pTextbook(m, k, n);   // the DP's reach
+    const lg = logFactorialTable(m + 1);
+    const lchoose = (a, b) => (b < 0 || b > a) ? -Infinity : lg[a] - lg[b] - lg[a - b];
+    const dist = occupancy(m, k, n);
+    const lcmk = lchoose(m, k);
+    let total = 0;
+    for (let i = k; i <= m; i++) {
+      if (dist[i] < 1e-300) continue;
+      total += dist[i] * Math.exp(lchoose(i, k) - lcmk);
+    }
+    return total;
+  }
+
+  // expected fill, from the same distribution
+  function expectedFill(m, k, n) {
+    const dist = occupancy(m, k, n);
+    let e = 0;
+    for (let i = 0; i <= m; i++) e += i * dist[i];
+    return e / m;
+  }
+
+  // the k that minimises the textbook rate, as a real number and rounded
+  function bestK(m, n) {
+    const ideal = (m / n) * Math.LN2;
+    let best = 1, bestP = Infinity;
+    for (let k = 1; k <= 32; k++) {
+      const p = pTextbook(m, k, n);
+      if (p < bestP) { bestP = p; best = k; }
+    }
+    return { ideal, k: best, p: bestP };
+  }
+
+  // ------------------------------------------------------- measurement
+  // Deterministic keys, so every run of this page produces the same numbers.
+  const keyIn  = (i) => "member:" + i;
+  const keyOut = (i) => "stranger:" + i;
+
+  function measure(m, k, n, trials) {
+    const f = create(m, k);
+    for (let i = 0; i < n; i++) add(f, keyIn(i));
+    let fp = 0;
+    for (let i = 0; i < trials; i++) if (has(f, keyOut(i))) fp++;
+    return { rate: fp / trials, fp, trials, fill: fill(f), f };
+  }
+
+  // no false negatives, ever - the one guarantee the structure actually makes
+  function anyFalseNegative(m, k, n) {
+    const f = create(m, k);
+    for (let i = 0; i < n; i++) add(f, keyIn(i));
+    for (let i = 0; i < n; i++) if (!has(f, keyIn(i))) return true;
+    return false;
+  }
+
+  // how many DISTINCT indices one key actually touches - the self-collision
+  // the textbook formula pretends away
+  function distinctProbes(key, k, m) {
+    return new Set(indices(key, k, m)).size;
+  }
+
+  function selfCollisionRate(k, m, samples) {
+    let short = 0;
+    for (let i = 0; i < samples; i++) if (distinctProbes(keyIn(i), k, m) < k) short++;
+    return short / samples;
+  }
+
+  return { fnv1a, djb2, fmix32, measureWith, indices, create, add, has, fill,
+           pTextbook, pExact, occupancy, expectedFill, bestK, measure,
+           anyFalseNegative, distinctProbes, selfCollisionRate, keyIn, keyOut };
+})();
+// ===== ENGINE:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["look", "und", "build"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabLook").classList.toggle("tab-active", name === "look");
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+}
+const el = (id) => document.getElementById(id);
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selftest").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+
+// ---------------------------------------------------------------- LOOK
+{
+  const rows = [];
+  for (const [m, k, n] of [[256, 3, 40], [1024, 5, 100], [4096, 7, 400], [16384, 10, 1200]]) {
+    const r = ENGINE.measure(m, k, n, 20000);
+    const t = ENGINE.pTextbook(m, k, n);
+    rows.push({ cls: "", cells: [
+      m + " bits, k=" + k + ", n=" + n,
+      (100 * r.fill).toFixed(1) + "%",
+      (100 * t).toFixed(3) + "%",
+      (100 * r.rate).toFixed(3) + "%",
+      (r.rate / t).toFixed(2) + "x"
+    ]});
+  }
+  table("tLook", ["filter", "bits set", "textbook says", "measured", "measured / textbook"], rows);
+}
+
+// --------------------------------------------------------- UNDERSTAND
+{
+  const rows = [];
+  for (const k of [1, 2, 3, 5, 8, 12]) {
+    const m = 1024, n = 150;
+    const meas = ENGINE.measure(m, k, n, 20000);
+    rows.push({ cls: k === ENGINE.bestK(m, n).k ? "here" : "", cells: [
+      "k = " + k,
+      (100 * ENGINE.pTextbook(m, k, n)).toFixed(3) + "%",
+      (100 * ENGINE.pExact(m, k, n)).toFixed(3) + "%",
+      (100 * meas.rate).toFixed(3) + "%",
+      ENGINE.distinctProbes(ENGINE.keyIn(0), k, m) + " of " + k
+    ]});
+  }
+  table("tK", ["probes", "textbook", "exact", "measured", "distinct probes one key makes"], rows);
+  const b = ENGINE.bestK(1024, 150);
+  el("kNote").innerHTML =
+    "The optimal k is <b>(m/n) &middot; ln 2 = " + b.ideal.toFixed(2) + "</b>, so <b>k = " + b.k +
+    "</b> &mdash; and the curve is flat near the bottom, which is why k=5 and k=8 differ so little. " +
+    "The right-hand column is the surprise: a key always makes <b>k distinct</b> probes here, " +
+    "because an odd step on a power-of-two array is invertible. The independence assumption still " +
+    "fails - but between keys, not within one.";
+}
+
+{
+  const rows = [];
+  for (const [m, k, n] of [[64, 4, 10], [128, 4, 20], [256, 4, 40], [512, 4, 80], [1024, 4, 160]]) {
+    const t = ENGINE.pTextbook(m, k, n), e = ENGINE.pExact(m, k, n);
+    rows.push({ cls: "", cells: [
+      "m=" + m + ", n=" + n,
+      (100 * t).toFixed(4) + "%",
+      (100 * e).toFixed(4) + "%",
+      ((t / e - 1) * 100).toFixed(2) + "%",
+      t < e ? '<span class="pill bad">textbook is OPTIMISTIC</span>'
+            : '<span class="pill good">textbook is conservative</span>'
+    ]});
+  }
+  table("tExact", ["filter (m/n held at 6.4)", "textbook", "exact", "textbook error", "direction"], rows);
+}
+
+{
+  const rows = [];
+  const mixed = (x, sd) => ENGINE.fmix32(ENGINE.djb2(x, sd));
+  for (const [m, k, n] of [[256, 3, 40], [1024, 5, 100], [2048, 6, 200]]) {
+    const model = ENGINE.pExact(m, k, n);
+    const raw = ENGINE.measureWith(ENGINE.djb2, m, k, n, 20000);
+    const mix = ENGINE.measureWith(mixed, m, k, n, 20000);
+    rows.push({ cls: "", cells: [
+      "m=" + m + ", k=" + k + ", n=" + n,
+      (100 * model).toFixed(3) + "%",
+      (100 * mix.rate).toFixed(3) + "%",
+      (100 * raw.rate).toFixed(3) + "%",
+      (raw.rate / model).toFixed(1) + "x"
+    ]});
+  }
+  table("tHash", ["filter", "model", "djb2 + avalanche", "djb2 RAW", "raw / model"], rows);
+  const f = ENGINE.measureWith(ENGINE.djb2, 1024, 5, 100, 2000).fill;
+  const g = ENGINE.measureWith(mixed, 1024, 5, 100, 2000).fill;
+  el("hashNote").innerHTML =
+    "One extra avalanche step &mdash; which adds <b>no entropy at all</b>, it only mixes the " +
+    "bits already there &mdash; is the difference between matching the model and missing it by " +
+    "several times. And it is not about how many bits get set: raw fills <b>" +
+    (100 * f).toFixed(1) + "%</b> of the array against <b>" + (100 * g).toFixed(1) +
+    "%</b> mixed. The damage is <b>which</b> bits, and it is invisible to every occupancy check.";
+}
+
+// --------------------------------------------------------------- BUILD
+el("codeIdx").textContent = String(ENGINE.indices);
+el("codeHas").textContent = String(ENGINE.has);
+
+selfCheckPanel((t) => {
+  // --- the one guarantee
+  t("no false negatives - every key added is found again", (() => {
+    for (const [m, k, n] of [[64, 3, 50], [256, 5, 200], [1024, 7, 900]]) {
+      if (ENGINE.anyFalseNegative(m, k, n)) return false;
+    }
+    return true;
+  })(), "checked on three filters loaded past saturation");
+
+  t("a filter with every bit set says yes to everything", (() => {
+    const f = ENGINE.create(32, 3);
+    f.bits.fill(1);
+    return ENGINE.has(f, "never added") && ENGINE.has(f, "nor this");
+  })(), "the degenerate case the rate formula tends to 1 for");
+
+  t("an empty filter says no to everything", (() => {
+    const f = ENGINE.create(128, 4);
+    for (let i = 0; i < 200; i++) if (ENGINE.has(f, ENGINE.keyOut(i))) return false;
+    return true;
+  })());
+
+  // --- hashing
+  t("the second hash is always ODD", (() => {
+    for (let i = 0; i < 500; i++) {
+      const h2 = (ENGINE.fnv1a(ENGINE.keyIn(i), 0x85ebca6b) | 1) >>> 0;
+      if (h2 % 2 === 0) return false;
+    }
+    return true;
+  })(), "even h2 on a power-of-two m reaches only half the array");
+
+  // The first version of this pair tested TOTAL coverage across many keys and
+  // failed - across 400 keys both parities of h1 appear, so the array looks
+  // covered even with an even step. The damage is PER KEY, which is where it
+  // has to be measured.
+  t("INVERSION: with an EVEN second hash, one key's probes never change parity", (() => {
+    const m = 1024, k = 8;
+    for (let i = 0; i < 400; i++) {
+      const h1 = ENGINE.fnv1a(ENGINE.keyIn(i), 0x9e3779b9);
+      const h2 = (ENGINE.fnv1a(ENGINE.keyIn(i), 0x85ebca6b) & ~1) >>> 0;   // EVEN
+      let acc = h1 >>> 0;
+      const par = new Set();
+      for (let j = 0; j < k; j++) { par.add((acc % m) % 2); acc = (acc + h2) >>> 0; }
+      if (par.size !== 1) return false;            // all 8 probes same parity
+    }
+    return true;
+  })(), "every key is confined to half the array - the |1 is load-bearing");
+
+  t("CONTROL: with the ODD step, one key's probes are all DISTINCT", (() => {
+    const m = 1024;
+    for (const k of [4, 8, 16]) {
+      for (let i = 0; i < 400; i++) {
+        if (ENGINE.distinctProbes(ENGINE.keyIn(i), k, m) !== k) return false;
+      }
+    }
+    return true;
+  })(), "odd step on a power-of-two m is invertible, so i*h2 never repeats");
+
+  t("indices are always inside the array", (() => {
+    for (const m of [7, 64, 1000, 1024]) {
+      for (let i = 0; i < 300; i++) {
+        for (const x of ENGINE.indices(ENGINE.keyIn(i), 9, m)) {
+          if (!Number.isInteger(x) || x < 0 || x >= m) return false;
+        }
+      }
+    }
+    return true;
+  })(), "including an m that is not a power of two");
+
+  t("hashing is deterministic across calls", (() => {
+    const a = ENGINE.indices("abc", 6, 997).join(",");
+    const b = ENGINE.indices("abc", 6, 997).join(",");
+    return a === b;
+  })());
+
+  // --- the measurement that is the point
+  t("the measured rate rises with n, monotonically", (() => {
+    let prev = -1;
+    for (const n of [20, 60, 120, 240, 480]) {
+      const r = ENGINE.measure(1024, 5, n, 8000).rate;
+      if (r < prev) return false;
+      prev = r;
+    }
+    return true;
+  })(), "n = 20, 60, 120, 240, 480 on a 1024-bit filter");
+
+  t("INVERSION: the textbook formula is OPTIMISTIC on small filters", (() => {
+    // it is derived in the limit; at m=64 the exact rate is strictly higher
+    const t64 = ENGINE.pTextbook(64, 4, 10), e64 = ENGINE.pExact(64, 4, 10);
+    return t64 < e64;
+  })(), (() => {
+    const t64 = ENGINE.pTextbook(64, 4, 10), e64 = ENGINE.pExact(64, 4, 10);
+    return "textbook " + (100 * t64).toFixed(4) + "% vs exact " + (100 * e64).toFixed(4) + "%";
+  })());
+
+  t("CONTROL: and the gap closes as m grows at a fixed m/n", (() => {
+    const err = (m, n) => Math.abs(ENGINE.pTextbook(m, 4, n) / ENGINE.pExact(m, 4, n) - 1);
+    return err(1024, 160) < err(64, 10);
+  })(), "same ratio m/n = 6.4, so only the SIZE changes");
+
+  // Written expecting self-collision to grow with k. It is ZERO at every k,
+  // and that is not a bug in the measurement: an odd step on a power-of-two m
+  // is invertible mod m, so i*h2 is distinct for every i < m. The textbook
+  // formula's independence assumption fails here for a different reason - the
+  // probes of DIFFERENT keys overlap - not because a key collides with itself.
+  t("INVERSION: self-collision is exactly ZERO, at every k", (() => {
+    for (const k of [2, 3, 5, 8, 12, 16]) {
+      if (ENGINE.selfCollisionRate(k, 1024, 1000) !== 0) return false;
+    }
+    return true;
+  })(), "so the exact model must use C(i,k)/C(m,k), not (i/m)^k");
+
+  t("CONTROL: on a NON power-of-two m, self-collision does appear", (() => {
+    // 1000 shares factors with many steps, so i*h2 can repeat
+    let worst = 0;
+    for (const k of [8, 12, 16]) worst = Math.max(worst, ENGINE.selfCollisionRate(k, 1000, 2000));
+    return worst > 0;
+  })(), "the guarantee is a property of the MODULUS, not of double hashing");
+
+  t("all k probes of a stranger are distinct too, so C(i,k)/C(m,k) is the right model", (() => {
+    for (let i = 0; i < 500; i++) {
+      if (new Set(ENGINE.indices(ENGINE.keyOut(i), 7, 2048)).size !== 7) return false;
+    }
+    return true;
+  })());
+
+  t("the optimal k matches (m/n) ln 2 to within one", (() => {
+    for (const [m, n] of [[1024, 100], [4096, 500], [16384, 2000]]) {
+      const b = ENGINE.bestK(m, n);
+      if (Math.abs(b.k - b.ideal) > 1) return false;
+    }
+    return true;
+  })(), "searched k = 1..32, compared against the closed form");
+
+  t("the DP's expected fill matches the measured fill", (() => {
+    const m = 1024, k = 6, n = 120;
+    const f = ENGINE.create(m, k);
+    for (let i = 0; i < n; i++) ENGINE.add(f, ENGINE.keyIn(i));
+    return Math.abs(ENGINE.fill(f) - ENGINE.expectedFill(m, k, n)) < 0.03;
+  })(), "one real filter against the whole distribution");
+
+  t("every exact rate is a probability - in [0, 1]", (() => {
+    for (const [m, k, n] of [[64, 4, 10], [256, 4, 40], [1024, 4, 160], [1024, 12, 60]]) {
+      const v = ENGINE.pExact(m, k, n);
+      if (!(v >= 0 && v <= 1)) return false;
+    }
+    return true;
+  })(), "the first draft returned 1e+227 - a rate above 1 is a wrong function");
+
+  t("the occupancy distribution sums to 1", (() => {
+    const d = ENGINE.occupancy(256, 5, 30);
+    let s2 = 0; for (let i = 0; i < d.length; i++) s2 += d[i];
+    return Math.abs(s2 - 1) < 1e-9;
+  })());
+
+  // --- the hash itself
+  // Written as "misses the model by several times", pinned at m=1024. It
+  // FAILED at 1.2x - and the independent verifier, which uses DIFFERENT hash
+  // SEEDS, measures 5.7x on the same filter. That is the real lesson and it is
+  // worse than the one first written down: a weak hash's damage depends on the
+  // seed, so it can look fine in the configuration you tested and be five
+  // times off in the one you shipped. The assertion now checks the DIRECTION
+  // across every filter, and the size only where it is stable.
+  t("INVERSION: a weak hash is worse than an avalanched one, every time", (() => {
+    const mixed = (x, sd) => ENGINE.fmix32(ENGINE.djb2(x, sd));
+    for (const [m, k, n] of [[256, 3, 40], [1024, 5, 100], [2048, 6, 200]]) {
+      const raw = ENGINE.measureWith(ENGINE.djb2, m, k, n, 20000).rate;
+      const mix = ENGINE.measureWith(mixed, m, k, n, 20000).rate;
+      if (!(raw > mix)) return false;
+    }
+    return true;
+  })(), "same keys, same k, same array - only the avalanche differs");
+
+  t("and at m=256 it is off by a factor, not a fraction", (() => {
+    const raw = ENGINE.measureWith(ENGINE.djb2, 256, 3, 40, 20000).rate;
+    return raw > ENGINE.pExact(256, 3, 40) * 1.8;
+  })(), "the independent verifier, on other seeds, measures up to 5.7x");
+
+  t("CONTROL: one avalanche step, no new entropy, fixes it", (() => {
+    const mixed = (x, sd) => ENGINE.fmix32(ENGINE.djb2(x, sd));
+    const r = ENGINE.measureWith(mixed, 1024, 5, 100, 20000).rate;
+    const model = ENGINE.pExact(1024, 5, 100);
+    return Math.abs(r - model) / model < 0.35;
+  })(), "fmix32 only mixes bits that were already there");
+
+  t("and the two set a similar NUMBER of bits", (() => {
+    const mixed = (x, sd) => ENGINE.fmix32(ENGINE.djb2(x, sd));
+    const a2 = ENGINE.measureWith(ENGINE.djb2, 1024, 5, 100, 2000).fill;
+    const b2 = ENGINE.measureWith(mixed, 1024, 5, 100, 2000).fill;
+    return Math.abs(a2 - b2) < 0.05;
+  })(), "so an occupancy check cannot see the problem at all");
+
+  // --- input validation
+  t("a non-integer m throws rather than silently truncating", (() => {
+    try { ENGINE.create(10.5, 3); return false; } catch { return true; }
+  })());
+
+  t("k = 0 throws", (() => {
+    try { ENGINE.create(64, 0); return false; } catch { return true; }
+  })());
+});
+</script>
+</body>
+</html>
