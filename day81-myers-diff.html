@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 81 &mdash; Myers diff</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#1d4ed8; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.35; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:560px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num td.txt { text-align:left; }
+  tr.here td { background:#eff6ff; font-weight:700; }
+  tr.dim td { color:#94a3b8; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; }
+  .pill.good { background:#dcfce7; color:#166534; }
+  .pill.bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  #selftest div { display:grid; grid-template-columns:52px 1fr; gap:8px; font-size:12.5px; padding:3px 0; border-top:1px solid var(--line); align-items:start; }
+  #selftest div span.m { grid-column:2; font-size:11.5px; color:#64748b; }
+  .diff { font-family:"Cascadia Mono",Consolas,monospace; font-size:12px; line-height:1.55; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .diff div { padding:1px 10px; white-space:pre; }
+  .diff .keep { color:#475569; }
+  .diff .del { background:#fef2f2; color:#991b1b; }
+  .diff .ins { background:#f0fdf4; color:#166534; }
+  .ctl { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
+  .ctl input[type=range] { flex:1; min-width:160px; }
+  .ctl input[type=number] { width:74px; font:inherit; padding:5px 7px; border:1px solid var(--line); border-radius:7px; }
+  .grid-graph { overflow-x:auto; }
+  footer { border-top:1px solid var(--line); margin-top:28px; padding:18px 0 40px; font-size:13px; color:#475569; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 81</p>
+    <h1>
+      Myers diff &mdash; the shortest edit script, found by walking a graph
+      diagonally, and why the shortest one is not always the one you want.
+    </h1>
+    <div class="tabs">
+      <button id="tabLook" class="tab-active" onclick="showTab('look')">Look</button>
+      <button id="tabUnd" onclick="showTab('und')">Understand</button>
+      <button id="tabBuild" onclick="showTab('build')">Build</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="look" class="stack">
+  <div class="card">
+    <h2>Two files in, one minimal list of edits out</h2>
+    <p>
+      Every diff you have ever read is the answer to one question: what is the
+      <b>shortest sequence of deletions and insertions</b> that turns the old file
+      into the new one? Myers' 1986 algorithm answers it by treating the two files
+      as the axes of a grid and finding the cheapest path across &mdash; where
+      moving diagonally, on a line both files share, is free.
+    </p>
+    <div class="ctl">
+      <span class="lbl" style="margin:0">EXAMPLE</span>
+      <input type="range" id="exR" min="0" max="5" value="0" />
+      <input type="number" id="exN" min="0" max="5" value="0" />
+    </div>
+    <div class="grid2">
+      <div>
+        <p class="lbl">THE DIFF</p>
+        <div class="diff" id="diffOut"></div>
+      </div>
+      <div class="stack">
+        <div class="grid2">
+          <div><p class="lbl">EDIT DISTANCE</p><p class="big" id="kD">&mdash;</p><p class="note" id="kDNote"></p></div>
+          <div><p class="lbl">COMMON LINES</p><p class="big" id="kL">&mdash;</p><p class="note">the longest common subsequence</p></div>
+        </div>
+        <div class="grid2">
+          <div><p class="lbl">HUNKS</p><p class="big" id="kH">&mdash;</p><p class="note">contiguous blocks of change</p></div>
+          <div><p class="lbl">WORK DONE</p><p class="big" id="kW">&mdash;</p><p class="note" id="kWNote"></p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>D is not a guess &mdash; it is forced by the common subsequence</h2>
+    <p>
+      For two inputs of length N and M sharing a longest common subsequence of
+      length L, the shortest edit script has exactly
+      <b>D = N + M &minus; 2L</b> steps. Every line that is not common must be
+      either deleted or inserted, and no line is touched twice. The table checks
+      that identity on every example, with L computed by a completely different
+      method.
+    </p>
+    <div class="tblwrap"><table class="num" id="tIdentity"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Shortest is not the same as readable</h2>
+    <p>
+      This is the part that surprises people. Several edit scripts can be equally
+      short, and they are not equally good to read. The same minimal distance can
+      be spent as one tidy block or scattered across many &mdash; and a diff tool
+      that only minimises D has no opinion about which you get.
+    </p>
+    <div class="tblwrap"><table class="num" id="tReadable"></table></div>
+    <p class="note" id="readableNote"></p>
+  </div>
+</section>
+
+<section id="und" class="stack hidden">
+  <div class="card">
+    <h2>The edit graph</h2>
+    <p>
+      Lay the old file along the x axis and the new file along the y. You start at
+      (0,0) and must reach (N,M). Moving <b>right</b> deletes a line of the old
+      file and costs 1. Moving <b>down</b> inserts a line of the new file and costs
+      1. Where <code>a[x] === b[y]</code> you may move <b>diagonally</b> for free.
+      The shortest edit script is the cheapest path, and "cheapest" counts only the
+      non-diagonal moves.
+    </p>
+    <div class="grid-graph"><div id="graph"></div></div>
+    <p class="note" id="graphNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Why walk by D rather than by position</h2>
+    <p>
+      The trick is the order of the search. Rather than exploring the grid cell by
+      cell, Myers asks: <i>how far can I get using exactly D edits?</i> For each D
+      it keeps only the <b>furthest-reaching</b> point on each diagonal &mdash; one
+      number per diagonal, not a whole row &mdash; and stops the first time one of
+      them reaches the corner. Because D only ever increases, the first arrival is
+      minimal by construction.
+    </p>
+    <p>
+      That makes the cost <b>O((N+M)D)</b> rather than O(NM). For the files people
+      actually diff, D is small and the difference is enormous. For files with
+      nothing in common D grows until the two converge &mdash; and then keep going,
+      until Myers is doing <b>more</b> work than the table it replaced. The table
+      below measures both regimes rather than quoting only the flattering one.
+    </p>
+    <div class="tblwrap"><table class="num" id="tCost"></table></div>
+    <p class="note" id="costNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Recovering the script, not just its length</h2>
+    <p>
+      Knowing D is not a diff. To produce the edits you must remember the
+      furthest-reaching array <code>V</code> at <b>every</b> value of D, then walk
+      backwards from the corner, at each step asking which predecessor could have
+      reached here. That is why the implementation snapshots V per round instead of
+      overwriting one array.
+    </p>
+    <pre id="codeBack"></pre>
+  </div>
+</section>
+
+<section id="build" class="stack hidden">
+  <div class="card">
+    <h2>The algorithm</h2>
+    <pre id="codeEngine"></pre>
+  </div>
+  <div class="card">
+    <h2>Self-check</h2>
+    <p class="note" style="margin:0 0 10px">
+      Running in your browser now, including a randomised round trip over hundreds
+      of generated pairs.
+    </p>
+    <div id="selftest"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">
+      SolveFromZero &middot; Day 81 &middot; Myers diff.
+      Tomorrow: a bloom filter &mdash; and what a false positive rate really costs you.
+    </p>
+  </div>
+</footer>
+</div>
+
+<script>
+// ===== ENGINE:BEGIN =====
+const ENGINE = (() => {
+
+  // ======================================================================
+  // Myers, "An O(ND) Difference Algorithm and Its Variations" (1986).
+  //
+  // The edit graph: x runs along a, y along b. Right = delete a[x],
+  // down = insert b[y], diagonal = a[x] === b[y] and costs nothing.
+  // k = x - y names a diagonal. V[k] is the furthest x reached on diagonal k
+  // using the current number of edits.
+  // ======================================================================
+
+  function diff(a, b) {
+    const N = a.length, M = b.length, MAX = N + M;
+    // V is indexed by k in [-MAX, MAX], offset into a plain array. The array is
+    // sized 2*MAX+3, not 2*MAX+1: the search reads V[k-1] and V[k+1], so both
+    // ends need one slot of headroom. With two empty inputs MAX is 0 and the
+    // tight sizing reads off the end, returning undefined and never terminating.
+    const V = new Array(2 * MAX + 3).fill(0);
+    const trace = [];                          // V after each D, for backtracking
+    let work = 0;
+
+    for (let D = 0; D <= MAX; D++) {
+      trace.push(V.slice());
+      for (let k = -D; k <= D; k += 2) {
+        let x;
+        // choose the predecessor: down from k+1, or right from k-1
+        if (k === -D || (k !== D && V[k - 1 + MAX] < V[k + 1 + MAX])) {
+          x = V[k + 1 + MAX];                  // moved down (insertion)
+        } else {
+          x = V[k - 1 + MAX] + 1;              // moved right (deletion)
+        }
+        let y = x - k;
+        // slide down the free diagonal as far as it goes
+        while (x < N && y < M && a[x] === b[y]) { x++; y++; work++; }
+        V[k + MAX] = x;
+        work++;
+        if (x >= N && y >= M) {
+          return { distance: D, script: backtrack(a, b, trace, D, MAX), work };
+        }
+      }
+    }
+    throw new Error("unreachable: an edit script always exists");
+  }
+
+  // Walk the snapshots backwards from (N,M) to (0,0), emitting the edits in
+  // reverse and then flipping them. Each step asks which predecessor on an
+  // adjacent diagonal could have produced this point.
+  function backtrack(a, b, trace, D, MAX) {
+    const out = [];
+    let x = a.length, y = b.length;
+    for (let d = D; d > 0; d--) {
+      const V = trace[d];
+      const k = x - y;
+      let prevK;
+      if (k === -d || (k !== d && V[k - 1 + MAX] < V[k + 1 + MAX])) prevK = k + 1;
+      else prevK = k - 1;
+      const prevX = V[prevK + MAX];
+      const prevY = prevX - prevK;
+      // free diagonal moves first, emitted as keeps
+      while (x > prevX && y > prevY) { out.push({ op: "keep", line: a[x - 1] }); x--; y--; }
+      if (x > prevX) { out.push({ op: "del", line: a[x - 1] }); x--; }
+      else { out.push({ op: "ins", line: b[y - 1] }); y--; }
+    }
+    while (x > 0 && y > 0) { out.push({ op: "keep", line: a[x - 1] }); x--; y--; }
+    return out.reverse();
+  }
+
+  // ------------------------------------------------------------- the checks
+  // Apply a script to a and see whether b falls out. This is the only honest
+  // test of a diff: not "does it look right", but "does it reconstruct".
+  function apply(a, script) {
+    const out = [];
+    let i = 0;
+    for (const e of script) {
+      if (e.op === "keep") {
+        if (a[i] !== e.line) throw new Error("keep does not match the source at " + i);
+        out.push(a[i]); i++;
+      } else if (e.op === "del") {
+        if (a[i] !== e.line) throw new Error("delete does not match the source at " + i);
+        i++;
+      } else if (e.op === "ins") {
+        out.push(e.line);
+      } else {
+        throw new Error("unknown op: " + e.op);
+      }
+    }
+    if (i !== a.length) throw new Error("script consumed " + i + " of " + a.length + " source lines");
+    return out;
+  }
+
+  const editCount = (script) => script.filter((e) => e.op !== "keep").length;
+
+  // Hunks: maximal runs of consecutive non-keep edits. This is what a reader
+  // actually experiences, and D says nothing about it.
+  function hunks(script) {
+    let n = 0, inHunk = false;
+    for (const e of script) {
+      if (e.op === "keep") { inHunk = false; continue; }
+      if (!inHunk) { n++; inHunk = true; }
+    }
+    return n;
+  }
+
+  // ---------------------------------------- an independent longest common sub
+  // Classic O(NM) dynamic programme. Used only to CHECK the identity
+  // D = N + M - 2L; the diff never calls it.
+  function lcsLength(a, b) {
+    const N = a.length, M = b.length;
+    let prev = new Array(M + 1).fill(0);
+    let cur = new Array(M + 1).fill(0);
+    for (let i = 1; i <= N; i++) {
+      cur[0] = 0;
+      for (let j = 1; j <= M; j++) {
+        cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+      }
+      const t = prev; prev = cur; cur = t;
+    }
+    return prev[M];
+  }
+
+  // ------------------------------------------------------------------ the PRNG
+  // Park-Miller. below(n) multiplies BEFORE dividing; taking a high bit instead
+  // would be fast and perfectly uniform and still completely predictable.
+  function rng(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    const nextInt = () => (s = (s * 16807) % 2147483647);
+    return {
+      nextInt,
+      below: (n) => Math.floor((nextInt() * n) / 2147483648)
+    };
+  }
+
+  // A pair that looks like a real edit: take a base file and apply a handful of
+  // changes. This is the regime Myers was designed for - D stays small while
+  // N and M grow - and it is NOT what two random strings give you.
+  function similarPair(seed, len = 40, edits = 4, alphabet = 12) {
+    const r = rng(seed);
+    const a = [];
+    for (let i = 0; i < len; i++) a.push("L" + r.below(alphabet));
+    const b = a.slice();
+    for (let e = 0; e < edits; e++) {
+      const at = r.below(b.length);
+      if (r.below(2) === 0) b.splice(at, 1);
+      else b.splice(at, 0, "L" + r.below(alphabet));
+    }
+    return [a, b];
+  }
+
+  // random pair of line arrays over a small alphabet, so collisions are common
+  function randomPair(seed, maxLen = 12, alphabet = 4) {
+    const r = rng(seed);
+    const mk = () => {
+      const n = r.below(maxLen) + 1;
+      const out = [];
+      for (let i = 0; i < n; i++) out.push("L" + r.below(alphabet));
+      return out;
+    };
+    return [mk(), mk()];
+  }
+
+  // ---------------------------------------------------------------- the census
+  // Round trip over many generated pairs: does the script rebuild b, and does
+  // D match the identity every single time?
+  function census(count = 400, seed = 1, gen = randomPair) {
+    let pairs = 0, rebuilt = 0, identity = 0, worstD = 0, totalWork = 0, totalNM = 0;
+    const failures = [];
+    for (let i = 0; i < count; i++) {
+      const [a, b] = gen(seed + i * 7919);
+      const d = diff(a, b);
+      pairs++;
+      totalWork += d.work;
+      totalNM += a.length * b.length;
+      worstD = Math.max(worstD, d.distance);
+      let okRebuild = false;
+      try { okRebuild = apply(a, d.script).join("\u0000") === b.join("\u0000"); } catch { okRebuild = false; }
+      if (okRebuild) rebuilt++; else if (failures.length < 3) failures.push({ a, b });
+      const L = lcsLength(a, b);
+      if (d.distance === a.length + b.length - 2 * L && editCount(d.script) === d.distance) identity++;
+    }
+    return { pairs, rebuilt, identity, worstD, totalWork, totalNM, failures };
+  }
+
+  // ------------------------------------------------------------- the examples
+  const EXAMPLES = [
+    { name: "the paper's own example",
+      a: ["A", "B", "C", "A", "B", "B", "A"], b: ["C", "B", "A", "B", "A", "C"] },
+    { name: "one line changed",
+      a: ["import os", "import sys", "", "def main():", "    run()"],
+      b: ["import os", "import sys", "", "def main():", "    run(debug=True)"] },
+    { name: "a block moved",
+      a: ["header", "alpha", "beta", "gamma", "footer"],
+      b: ["header", "gamma", "alpha", "beta", "footer"] },
+    { name: "nothing in common",
+      a: ["one", "two", "three"], b: ["four", "five", "six"] },
+    { name: "identical files",
+      a: ["same", "same", "same"], b: ["same", "same", "same"] },
+    { name: "a file emptied",
+      a: ["a", "b", "c", "d"], b: [] }
+  ];
+
+  return {
+    diff, backtrack, apply, editCount, hunks, lcsLength,
+    rng, randomPair, similarPair, census, EXAMPLES
+  };
+})();
+// ===== ENGINE:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["look", "und", "build"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabLook").classList.toggle("tab-active", name === "look");
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+}
+const el = (id) => document.getElementById(id);
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selftest").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// ------------------------------------------------------------------ the picker
+function render() {
+  const i = Math.max(0, Math.min(ENGINE.EXAMPLES.length - 1, parseInt(el("exN").value, 10) || 0));
+  el("exR").value = String(i); el("exN").value = String(i);
+  const E = ENGINE.EXAMPLES[i];
+  const d = ENGINE.diff(E.a, E.b);
+  const L = ENGINE.lcsLength(E.a, E.b);
+
+  el("diffOut").innerHTML = d.script.length
+    ? d.script.map((e) => '<div class="' + (e.op === "keep" ? "keep" : e.op) + '">' +
+        (e.op === "keep" ? "  " : e.op === "del" ? "- " : "+ ") + esc(e.line) + "</div>").join("")
+    : '<div class="keep">  (both files are empty)</div>';
+
+  el("kD").textContent = String(d.distance);
+  el("kDNote").textContent = E.a.length + " old lines, " + E.b.length + " new";
+  el("kL").textContent = String(L);
+  el("kH").textContent = String(ENGINE.hunks(d.script));
+  el("kW").textContent = d.work.toLocaleString("en-US");
+  const nm = E.a.length * E.b.length;
+  el("kWNote").textContent = nm ? "against " + nm + " cells for the O(NM) table" : "nothing to compare";
+}
+
+// ---------------------------------------------------------------- the tables
+{
+  const rows = ENGINE.EXAMPLES.map((E) => {
+    const d = ENGINE.diff(E.a, E.b);
+    const L = ENGINE.lcsLength(E.a, E.b);
+    const expect = E.a.length + E.b.length - 2 * L;
+    return {
+      cls: d.distance === expect ? "" : "here",
+      cells: [E.name, E.a.length, E.b.length, L, expect, d.distance,
+        d.distance === expect ? '<span class="pill good">holds</span>' : '<span class="pill bad">BROKEN</span>']
+    };
+  });
+  table("tIdentity", ["example", "N", "M", "L (by DP)", "N + M - 2L", "D (by Myers)", "identity"], rows);
+}
+
+{
+  // Equally short, differently readable: the same D spent as one block or several.
+  const cases = [
+    { name: "one line changed", a: ["a", "b", "c", "d", "e"], b: ["a", "b", "X", "d", "e"] },
+    { name: "two lines changed, adjacent", a: ["a", "b", "c", "d", "e"], b: ["a", "X", "Y", "d", "e"] },
+    { name: "two lines changed, far apart", a: ["a", "b", "c", "d", "e"], b: ["X", "b", "c", "d", "Y"] },
+    { name: "alternating", a: ["a", "b", "a", "b", "a"], b: ["b", "a", "b", "a", "b"] },
+    { name: "a block moved", a: ["h", "x", "y", "z", "f"], b: ["h", "z", "x", "y", "f"] }
+  ];
+  const rows = cases.map((c) => {
+    const d = ENGINE.diff(c.a, c.b);
+    const h = ENGINE.hunks(d.script);
+    return {
+      cls: h > 1 ? "here" : "",
+      cells: [c.name, d.distance, h, (d.distance / h).toFixed(1),
+        h === 1 ? '<span class="pill good">one block</span>'
+                : '<span class="pill bad">' + h + " places to look</span>"]
+    };
+  });
+  table("tReadable", ["change", "edit distance D", "hunks", "edits per hunk", "how it reads"], rows);
+  const sameD = cases.filter((c) => ENGINE.diff(c.a, c.b).distance === 4);
+  el("readableNote").innerHTML =
+    "Rows with the <b>same D</b> are not equally pleasant: " +
+    sameD.map((c) => c.name + " (" + ENGINE.hunks(ENGINE.diff(c.a, c.b).script) + " hunks)").join(", ") +
+    ". Minimising D is the algorithm's whole job, and it says nothing at all about this column &mdash; " +
+    "which is why real diff tools bolt heuristics on top rather than trusting minimality alone.";
+}
+
+{
+  const RAND = ENGINE.census(400, 1, ENGINE.randomPair);
+  const SIM = ENGINE.census(400, 1, ENGINE.similarPair);
+  const rows = [
+    { cls: "", cells: ["random pairs, 4-line alphabet", RAND.pairs,
+      RAND.worstD, RAND.totalWork.toLocaleString("en-US"), RAND.totalNM.toLocaleString("en-US"),
+      ((100 * RAND.totalWork) / RAND.totalNM).toFixed(0) + "%",
+      RAND.totalWork < RAND.totalNM ? '<span class="pill good">Myers wins</span>'
+                                    : '<span class="pill bad">Myers LOSES</span>'] },
+    { cls: "here", cells: ["a 40-line file with 4 edits", SIM.pairs,
+      SIM.worstD, SIM.totalWork.toLocaleString("en-US"), SIM.totalNM.toLocaleString("en-US"),
+      ((100 * SIM.totalWork) / SIM.totalNM).toFixed(1) + "%",
+      SIM.totalWork < SIM.totalNM ? '<span class="pill good">Myers wins</span>'
+                                  : '<span class="pill bad">Myers LOSES</span>'] }
+  ];
+  table("tCost", ["corpus", "pairs", "worst D", "Myers work", "O(NM) cells", "share", "verdict"], rows);
+  const allOk = RAND.rebuilt === RAND.pairs && SIM.rebuilt === SIM.pairs &&
+                RAND.identity === RAND.pairs && SIM.identity === SIM.pairs;
+  el("costNote").innerHTML =
+    "<b>800 generated pairs, every script rebuilt its target and every distance satisfied the identity" +
+    (allOk ? "" : " - EXCEPT SOME, WHICH IS A BUG") + ".</b> " +
+    "But the cost story has two halves, and only one of them is the one people quote. On <b>random</b> " +
+    "strings D is nearly as large as N+M, O((N+M)D) degenerates to O(NM), and Myers does <b>" +
+    ((100 * RAND.totalWork) / RAND.totalNM).toFixed(0) + "%</b> of the table's work - it actually loses. " +
+    "On files that are <b>almost the same</b>, which is what anyone actually diffs, D stays tiny and the " +
+    "same algorithm does <b>" + ((100 * SIM.totalWork) / SIM.totalNM).toFixed(1) +
+    "%</b>. The speed is not a property of the algorithm alone; it is a property of the algorithm " +
+    "meeting the inputs it was designed for.";
+}
+
+// the edit graph, drawn for the first example
+{
+  const E = ENGINE.EXAMPLES[0];
+  const d = ENGINE.diff(E.a, E.b);
+  const N = E.a.length, M = E.b.length, S = 34, P = 26;
+  const W = N * S + 2 * P + 20, H = M * S + 2 * P;
+  const px = (x) => P + 20 + x * S, py = (y) => P + y * S;
+  let s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">';
+  for (let x = 0; x <= N; x++) s += '<line x1="' + px(x) + '" y1="' + py(0) + '" x2="' + px(x) + '" y2="' + py(M) + '" stroke="#e2e8f0"/>';
+  for (let y = 0; y <= M; y++) s += '<line x1="' + px(0) + '" y1="' + py(y) + '" x2="' + px(N) + '" y2="' + py(y) + '" stroke="#e2e8f0"/>';
+  for (let x = 0; x < N; x++) for (let y = 0; y < M; y++) {
+    if (E.a[x] === E.b[y]) {
+      s += '<line x1="' + px(x) + '" y1="' + py(y) + '" x2="' + px(x + 1) + '" y2="' + py(y + 1) +
+        '" stroke="#93c5fd" stroke-width="3"/>';
+    }
+  }
+  for (let x = 0; x < N; x++) s += '<text x="' + (px(x) + S / 2) + '" y="' + (py(0) - 9) +
+    '" text-anchor="middle" font-size="11" font-family="monospace" fill="#475569">' + esc(E.a[x]) + "</text>";
+  for (let y = 0; y < M; y++) s += '<text x="' + (px(0) - 12) + '" y="' + (py(y) + S / 2 + 4) +
+    '" text-anchor="middle" font-size="11" font-family="monospace" fill="#475569">' + esc(E.b[y]) + "</text>";
+  // the path the script describes
+  let x = 0, y = 0, pts = [[px(0), py(0)]];
+  for (const e of d.script) {
+    if (e.op === "keep") { x++; y++; } else if (e.op === "del") { x++; } else { y++; }
+    pts.push([px(x), py(y)]);
+  }
+  s += '<polyline points="' + pts.map((p) => p.join(",")).join(" ") +
+    '" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linejoin="round"/>';
+  s += '<circle cx="' + px(0) + '" cy="' + py(0) + '" r="4" fill="#1d4ed8"/>';
+  s += '<circle cx="' + px(N) + '" cy="' + py(M) + '" r="4" fill="#1d4ed8"/>';
+  s += "</svg>";
+  el("graph").innerHTML = s;
+  el("graphNote").innerHTML =
+    "Pale diagonals are free moves &mdash; the lines the two files share. The dark path is the script " +
+    "above: " + d.distance + " non-diagonal steps from corner to corner, and no shorter path exists.";
+}
+
+el("codeBack").textContent = String(ENGINE.backtrack);
+el("codeEngine").textContent = [
+  "// the search: furthest-reaching point per diagonal, one D at a time",
+  String(ENGINE.diff), "",
+  "// the only honest test of a diff - does the script rebuild the target?",
+  String(ENGINE.apply)
+].join("\n");
+
+el("exN").addEventListener("input", render);
+el("exR").addEventListener("input", () => { el("exN").value = el("exR").value; render(); });
+render();
+
+// --------------------------------------------------------------- the self-check
+selfCheckPanel((t) => {
+  const eqArr = (p, q) => p.length === q.length && p.every((v, i) => v === q[i]);
+
+  // --- the examples round trip
+  t("every example's script rebuilds its target exactly", (() => {
+    for (const E of ENGINE.EXAMPLES) {
+      const d = ENGINE.diff(E.a, E.b);
+      if (!eqArr(ENGINE.apply(E.a, d.script), E.b)) return false;
+    }
+    return true;
+  })(), ENGINE.EXAMPLES.length + " examples");
+
+  t("and the identity D = N + M - 2L holds on every one", (() => {
+    for (const E of ENGINE.EXAMPLES) {
+      const d = ENGINE.diff(E.a, E.b);
+      if (d.distance !== E.a.length + E.b.length - 2 * ENGINE.lcsLength(E.a, E.b)) return false;
+    }
+    return true;
+  })());
+
+  t("the script's non-keep edits number exactly D", (() => {
+    for (const E of ENGINE.EXAMPLES) {
+      const d = ENGINE.diff(E.a, E.b);
+      if (ENGINE.editCount(d.script) !== d.distance) return false;
+    }
+    return true;
+  })());
+
+  t("the kept lines are exactly a common subsequence of both files", (() => {
+    for (const E of ENGINE.EXAMPLES) {
+      const d = ENGINE.diff(E.a, E.b);
+      const keeps = d.script.filter((e) => e.op === "keep").map((e) => e.line);
+      // a subsequence of a
+      let i = 0; for (const k of keeps) { while (i < E.a.length && E.a[i] !== k) i++; if (i++ >= E.a.length) return false; }
+      let j = 0; for (const k of keeps) { while (j < E.b.length && E.b[j] !== k) j++; if (j++ >= E.b.length) return false; }
+      if (keeps.length !== ENGINE.lcsLength(E.a, E.b)) return false;
+    }
+    return true;
+  })(), "and it is a LONGEST one");
+
+  // --- degenerate inputs
+  t("identical files produce no edits at all", (() => {
+    const a = ["x", "y", "z"];
+    const d = ENGINE.diff(a, a.slice());
+    return d.distance === 0 && ENGINE.editCount(d.script) === 0 && d.script.length === 3;
+  })());
+
+  t("two empty files produce an empty script", (() => {
+    const d = ENGINE.diff([], []);
+    return d.distance === 0 && d.script.length === 0;
+  })());
+
+  t("emptying a file is all deletions", (() => {
+    const d = ENGINE.diff(["a", "b", "c"], []);
+    return d.distance === 3 && d.script.every((e) => e.op === "del");
+  })());
+
+  t("filling an empty file is all insertions", (() => {
+    const d = ENGINE.diff([], ["a", "b"]);
+    return d.distance === 2 && d.script.every((e) => e.op === "ins");
+  })());
+
+  t("files with nothing in common cost N + M", (() => {
+    const d = ENGINE.diff(["1", "2", "3"], ["4", "5"]);
+    return d.distance === 5 && ENGINE.lcsLength(["1", "2", "3"], ["4", "5"]) === 0;
+  })());
+
+  // --- symmetry
+  t("reversing the arguments reverses the operations, keeping D", (() => {
+    for (const E of ENGINE.EXAMPLES) {
+      const f = ENGINE.diff(E.a, E.b), r = ENGINE.diff(E.b, E.a);
+      if (f.distance !== r.distance) return false;
+      const fd = f.script.filter((e) => e.op === "del").length;
+      const fi = f.script.filter((e) => e.op === "ins").length;
+      const rd = r.script.filter((e) => e.op === "del").length;
+      const ri = r.script.filter((e) => e.op === "ins").length;
+      if (fd !== ri || fi !== rd) return false;
+    }
+    return true;
+  })(), "deletions one way are insertions the other");
+
+  // --- apply() is strict, which is what makes the round trip meaningful
+  t("apply() rejects a script whose deletes do not match the source", (() => {
+    try { ENGINE.apply(["a", "b"], [{ op: "del", line: "z" }, { op: "keep", line: "b" }]); return false; }
+    catch { return true; }
+  })());
+
+  t("apply() rejects a script that does not consume the whole source", (() => {
+    try { ENGINE.apply(["a", "b", "c"], [{ op: "keep", line: "a" }]); return false; }
+    catch { return true; }
+  })());
+
+  t("apply() rejects an unknown operation", (() => {
+    try { ENGINE.apply(["a"], [{ op: "replace", line: "a" }]); return false; } catch { return true; }
+  })());
+
+  // --- the randomised census, over both regimes
+  const CEN = ENGINE.census(400, 1, ENGINE.randomPair);
+  const SIMC = ENGINE.census(400, 1, ENGINE.similarPair);
+
+  t("400 random pairs all rebuilt exactly",
+    CEN.rebuilt === CEN.pairs, CEN.rebuilt + " of " + CEN.pairs);
+  t("and 400 realistic pairs did too",
+    SIMC.rebuilt === SIMC.pairs, SIMC.rebuilt + " of " + SIMC.pairs);
+  t("every one of the 800 satisfied D = N + M - 2L",
+    CEN.identity === CEN.pairs && SIMC.identity === SIMC.pairs,
+    (CEN.identity + SIMC.identity) + " of " + (CEN.pairs + SIMC.pairs));
+  t("the random census exercised a real range of distances",
+    CEN.worstD >= 8, "worst D seen " + CEN.worstD);
+
+  t("on files that are nearly the same, Myers does far less work than O(NM)",
+    SIMC.totalWork * 4 < SIMC.totalNM,
+    SIMC.totalWork.toLocaleString("en-US") + " vs " + SIMC.totalNM.toLocaleString("en-US") +
+    " = " + ((100 * SIMC.totalWork) / SIMC.totalNM).toFixed(1) + "%");
+
+  t("CONTROL: on random strings it does MORE work than the table it replaced",
+    CEN.totalWork > CEN.totalNM,
+    CEN.totalWork.toLocaleString("en-US") + " vs " + CEN.totalNM.toLocaleString("en-US") +
+    " - O((N+M)D) is only a win while D stays small");
+
+  t("and the reason is visible in D itself", (() => {
+    // on the realistic corpus D is a small constant; on random pairs it scales
+    // with the input length, which is what collapses the advantage.
+    return SIMC.worstD < CEN.worstD || SIMC.worstD <= 12;
+  })(), "realistic worst D " + SIMC.worstD + ", random worst D " + CEN.worstD);
+
+  // --- the PRNG the census rests on
+  t("the generator is reproducible", (() => {
+    const [a1, b1] = ENGINE.randomPair(42);
+    const [a2, b2] = ENGINE.randomPair(42);
+    return eqArr(a1, a2) && eqArr(b1, b2);
+  })());
+
+  t("different seeds give different pairs", (() => {
+    const [a1] = ENGINE.randomPair(1), [a2] = ENGINE.randomPair(2);
+    return !eqArr(a1, a2);
+  })());
+
+  t("below(n) stays in range and uses the whole of it", (() => {
+    const r = ENGINE.rng(7);
+    const seen = new Set();
+    for (let i = 0; i < 4000; i++) {
+      const v = r.below(10);
+      if (v < 0 || v > 9 || !Number.isInteger(v)) return false;
+      seen.add(v);
+    }
+    return seen.size === 10;
+  })(), "4000 draws, all ten values seen");
+
+  t("CONTROL: a high-bit shortcut would be uniform AND predictable", (() => {
+    // the shortcut: take the top bit instead of scaling. Perfectly balanced,
+    // and the sequence is still a straight function of the previous value.
+    const r = ENGINE.rng(99);
+    const bits = [];
+    for (let i = 0; i < 500; i++) bits.push(r.nextInt() >= 1073741824 ? 1 : 0);
+    const ones = bits.filter((b) => b).length;
+    const balanced = Math.abs(ones - 250) < 60;
+    // and it repeats exactly from the same seed, which a uniformity test cannot see
+    const r2 = ENGINE.rng(99);
+    const again = [];
+    for (let i = 0; i < 500; i++) again.push(r2.nextInt() >= 1073741824 ? 1 : 0);
+    return balanced && bits.join("") === again.join("");
+  })(), "uniformity is not randomness - test the sequence, not the histogram");
+
+  // --- hunks, the thing D cannot see
+  t("hunks counts maximal runs of change, not individual edits", (() => {
+    const d = ENGINE.diff(["a", "b", "c", "d", "e"], ["a", "X", "Y", "d", "e"]);
+    return ENGINE.editCount(d.script) > ENGINE.hunks(d.script) && ENGINE.hunks(d.script) === 1;
+  })(), "two adjacent changes are one hunk");
+
+  t("CONTROL: equal D can mean very different numbers of hunks", (() => {
+    const near = ENGINE.diff(["a", "b", "c", "d", "e"], ["a", "X", "Y", "d", "e"]);
+    const far = ENGINE.diff(["a", "b", "c", "d", "e"], ["X", "b", "c", "d", "Y"]);
+    return near.distance === far.distance && ENGINE.hunks(near.script) !== ENGINE.hunks(far.script);
+  })(), "same edit distance, one block versus two");
+
+  t("an unchanged file has no hunks at all",
+    ENGINE.hunks(ENGINE.diff(["a", "b"], ["a", "b"]).script) === 0);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 83 &mdash; URI Template Expander (RFC 6570)</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#1d4ed8; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.35; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:560px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num td.txt { text-align:left; }
+  table.num td.mono, table.num th.mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; text-align:left; }
+  tr.here td { background:#f0fdfa; font-weight:700; }
+  tr.dim td { color:#94a3b8; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; }
+  .pill.good { background:#dcfce7; color:#166534; }
+  .pill.bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  #selftest div { display:grid; grid-template-columns:52px 1fr; gap:8px; font-size:12.5px; padding:3px 0; border-top:1px solid var(--line); align-items:start; }
+  #selftest div span.m { grid-column:2; font-size:11.5px; color:#64748b; }
+  .ctl { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
+  .ctl input[type=range] { flex:1; min-width:150px; }
+  .ctl input[type=number] { width:74px; font:inherit; padding:5px 7px; border:1px solid var(--line); border-radius:7px; }
+  .ctl button { font:inherit; font-size:13px; font-weight:700; padding:6px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; }
+  .ctl button.primary { background:#0f172a; color:#fff; border-color:#0f172a; }
+  textarea { width:100%; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; line-height:1.5;
+             padding:10px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); resize:vertical; }
+  .out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:14px; line-height:2.1;
+         background:#0f172a; color:#e2e8f0; padding:14px; border-radius:10px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; }
+  .out .seg { border-radius:3px; padding:2px 0; }
+  .out .s0 { background:rgba(148,163,184,.22); }
+  .out .s1 { background:rgba(56,189,248,.26); }
+  .out .s2 { background:rgba(74,222,128,.24); }
+  .out .s3 { background:rgba(251,191,36,.26); }
+  .out .s4 { background:rgba(244,114,182,.26); }
+  .err { background:#fee2e2; color:#991b1b; border-radius:10px; padding:10px 12px; font-size:13px; font-weight:700; }
+  .step { font-size:11px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 6px; }
+  footer { border-top:1px solid var(--line); margin-top:28px; padding:18px 0 40px; font-size:13px; color:#475569; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 83</p>
+    <h1>
+      URI Templates (RFC 6570) &mdash; <code>{?a,b}</code> emits the <code>?</code>
+      only if something is defined, <code>{+var}</code> deliberately does
+      <b>not</b> encode <code>/</code>, and <code>{?list*}</code> repeats the name.
+    </h1>
+    <div class="tabs">
+      <button id="tabUnd" class="tab-active" onclick="showTab('und')">Understand</button>
+      <button id="tabBuild" onclick="showTab('build')">Build</button>
+      <button id="tabTool" onclick="showTab('tool')">Tool</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="und" class="stack">
+
+  <div class="card">
+    <h2>What it is, and what it replaces</h2>
+    <p class="step">STEP 1 &middot; THE PROBLEM</p>
+    <p>
+      A URI Template is a string with holes in it: <code>/users/{id}/repos{?page,per_page}</code>.
+      Hand it a set of variables and it becomes a real URI. That sounds like
+      string formatting, and the reason it is a 40-page RFC instead is that
+      <b>building a URL by concatenation is where bugs live</b>. You forget to
+      escape a slash, you leave a dangling <code>?</code> when every parameter
+      turned out to be empty, you emit <code>&amp;&amp;</code> because one value
+      was null, or you escape a path separator that was meant to stay a path
+      separator. Every one of those is a one-line mistake and every one of them
+      ships. RFC 6570 is the list of answers, written down once, so your code
+      stops re-deciding them per endpoint.
+    </p>
+    <div class="tblwrap"><table class="num" id="tNaive"></table></div>
+    <p class="note">
+      The left column is what a careful developer writes by hand. The right
+      column is what the template says. They disagree in every row &mdash; and
+      in the rows where they disagree, the hand-written one is wrong.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>The grammar is two things and nothing else</h2>
+    <p class="step">STEP 2 &middot; LITERALS AND EXPRESSIONS</p>
+    <p>
+      A template is a sequence of <b>literals</b> and <b>expressions</b>.
+      Anything outside <code>{ }</code> is a literal and is copied through
+      almost untouched; anything inside is an expression. An expression is an
+      optional one-character <b>operator</b>, then a comma-separated list of
+      <b>varspecs</b>, where a varspec is a variable name with an optional
+      modifier. That is the entire syntax. Everything that follows &mdash; the
+      eight operators, the encoding rules, explode, prefix &mdash; is about what
+      an expression <i>produces</i>, never about how it is spelled.
+    </p>
+    <div class="tblwrap"><table class="num" id="tParse"></table></div>
+    <p class="note">
+      Note what is <b>not</b> in the grammar: no nesting, no conditionals, no
+      arithmetic. A variable name may contain a dot, but the dot is part of the
+      name &mdash; <code>{a.b}</code> looks up the single key <code>"a.b"</code>,
+      it does not reach into an object.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>One table. Eight rows. The whole specification.</h2>
+    <p class="step">STEP 3 &middot; THE OPERATOR TABLE</p>
+    <p>
+      Every operator is fully described by five numbers: the string emitted
+      <b>before the first</b> value, the string emitted <b>between</b> values,
+      whether values are <b>named</b>, what an <b>empty</b> value becomes, and
+      which characters survive <b>unencoded</b>. Learn this table and you have
+      not learned eight features, you have learned one function with five
+      parameters. The implementation below is literally a lookup into these rows
+      &mdash; there is no branch anywhere that says "if the operator is
+      <code>?</code>". That is the point of writing it down this way: the thing
+      that looks like eight behaviours is one behaviour with a configuration.
+    </p>
+    <div class="tblwrap"><table class="num" id="tOps"></table></div>
+    <p class="note" id="opsNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Two allow-sets, and why <code>{+var}</code> leaves your slashes alone</h2>
+    <p class="step">STEP 4 &middot; PERCENT-ENCODING</p>
+    <p>
+      Expansion encodes values, and it encodes them in one of exactly two ways.
+      The default keeps only <b>unreserved</b> characters
+      (<code>A-Z a-z 0-9 - . _ ~</code>) and percent-encodes everything else,
+      including <code>/</code>, <code>?</code> and <code>:</code>. The
+      <code>+</code> and <code>#</code> operators keep unreserved <b>and
+      reserved</b> characters &mdash; the URI structural punctuation
+      <code>: / ? # [ ] @ ! $ &amp; ' ( ) * + , ; =</code> &mdash; and also copy
+      existing <code>%XX</code> triplets through untouched. That difference is
+      not a convenience, it is a statement about <b>who owns the value</b>: a
+      default expansion treats the value as opaque data, a <code>+</code>
+      expansion treats it as a piece of URI you already trust.
+    </p>
+    <div class="tblwrap"><table class="num" id="tEnc"></table></div>
+    <p class="note" id="encNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Undefined is skipped. Empty is not.</h2>
+    <p class="step">STEP 5 &middot; THE THREE-STATE RULE</p>
+    <p>
+      Most expander bugs are this one. A variable has three states, not two:
+      <b>undefined</b> (absent, or null), <b>empty</b> (the zero-length string),
+      and <b>a value</b>. An undefined variable is skipped entirely &mdash; no
+      separator, no name, nothing, as if the varspec were not written. An empty
+      string is a perfectly good value and still produces its name and its
+      separator. And the spec goes further: an <b>empty list</b> and an
+      <b>empty map</b> count as undefined, because there is nothing to join.
+      Confusing "empty" with "undefined" is how <code>?a=&amp;b=</code> turns
+      into <code>?&amp;</code>, or how a required parameter silently vanishes.
+    </p>
+    <div class="tblwrap"><table class="num" id="tDefined"></table></div>
+    <p class="note">
+      <code>empty_keys</code> is <code>{}</code> and <code>empty_list</code> is
+      <code>[]</code>. Both are undefined. <code>empty</code> is <code>""</code>
+      and is not.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>The <code>?</code> is emitted once, and only if something survived</h2>
+    <p class="step">STEP 6 &middot; FIRST VS SEPARATOR</p>
+    <p>
+      This is the rule that makes the whole thing worth using. The operator's
+      prefix &mdash; the <code>?</code>, the <code>#</code>, the <code>/</code>
+      &mdash; is not emitted when the expression is parsed. It is emitted when
+      the <b>first defined variable</b> is about to be written, and never again;
+      every later variable gets the separator instead. So
+      <code>{?a,b,c}</code> with all three undefined produces the empty string,
+      not <code>?</code>. With only <code>c</code> defined it produces
+      <code>?c=3</code>, not <code>?&amp;&amp;c=3</code>. You cannot get this
+      wrong by accident, because there is nowhere to get it wrong: the flag
+      lives in the loop.
+    </p>
+    <div class="tblwrap"><table class="num" id="tFirst"></table></div>
+    <p class="note">
+      The same loop gives <code>{&amp;x}</code> its purpose: it is
+      <code>{?x}</code> with the prefix changed to <code>&amp;</code>, for when
+      you already wrote a query string by hand and need to continue it.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Named operators write the name; the rest write only the value</h2>
+    <p class="step">STEP 7 &middot; NAMED, AND <code>ifemp</code></p>
+    <p>
+      Three operators are <b>named</b>: <code>;</code>, <code>?</code> and
+      <code>&amp;</code>. For those, each value is preceded by the variable name
+      and an <code>=</code>. The other five emit the value alone. The subtlety
+      is the empty string: a named operator with an empty value emits the name
+      followed by <code>ifemp</code>, which is <code>=</code> for <code>?</code>
+      and <code>&amp;</code> but the <b>empty string</b> for <code>;</code>.
+      That is why <code>{?empty}</code> is <code>?empty=</code> while
+      <code>{;empty}</code> is <code>;empty</code> with no equals sign &mdash;
+      and that asymmetry is deliberate, because a matrix parameter with no value
+      is a real thing and a query parameter with no value conventionally keeps
+      its <code>=</code>.
+    </p>
+    <div class="tblwrap"><table class="num" id="tNamed"></table></div>
+    <p class="note" id="namedNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Lists, maps, and the star that changes the join</h2>
+    <p class="step">STEP 8 &middot; COMPOSITE VALUES AND EXPLODE</p>
+    <p>
+      A variable can hold a string, a list, or an associative array. Without the
+      explode modifier <code>*</code>, a composite value is always flattened
+      with <b>commas</b>, no matter which operator you used &mdash; so
+      <code>{/list}</code> is <code>/red,green,blue</code>, one path segment.
+      A map flattens to a <b>flat alternating list</b>,
+      <code>key,value,key,value</code>, which is why <code>{keys}</code> loses
+      the pairing entirely. Add the star and the operator's own separator takes
+      over: <code>{/list*}</code> becomes <code>/red/green/blue</code>, three
+      segments, and an exploded map emits real <code>key=value</code> pairs.
+      The star is not "spread" &mdash; it is "use my separator instead of the
+      comma".
+    </p>
+    <div class="tblwrap"><table class="num" id="tExplode"></table></div>
+    <p class="note">
+      Read the <code>{keys}</code> row twice. An unexploded map is not
+      <code>key=value</code> pairs with commas between them; it is one flat
+      comma list in which the keys and values alternate. Nothing in the output
+      tells a reader which is which.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Named <b>and</b> exploded: the name comes back, every time</h2>
+    <p class="step">STEP 9 &middot; THE TRAP MOST HAND-ROLLED EXPANDERS FAIL</p>
+    <p>
+      Combine a named operator with an exploded list and the variable name is
+      repeated for every member: <code>{?list*}</code> is
+      <code>?list=red&amp;list=green&amp;list=blue</code>. It is tempting to
+      read the star as "drop the name and just spread the values", producing
+      <code>?red&amp;green&amp;blue</code> &mdash; which is not a query string at
+      all, since none of those are <code>name=value</code> pairs. The
+      expansion algorithm in &sect;3.2.1 is explicit, and the specification's own
+      prose example for <code>{?count*}</code> shows the repeated name. If you
+      only ever test exploded lists against the <b>unnamed</b> operators
+      (<code>/</code>, <code>.</code>, <code>+</code>) you will never see the
+      difference, because for those the name genuinely does disappear.
+    </p>
+    <div class="tblwrap"><table class="num" id="tNamedExplode"></table></div>
+    <p class="note" id="neNote"></p>
+  </div>
+
+  <div class="card">
+    <h2><code>:3</code> counts characters, and is illegal on a list</h2>
+    <p class="step">STEP 10 &middot; THE PREFIX MODIFIER</p>
+    <p>
+      <code>{var:3}</code> takes the first three <b>characters</b> of the value
+      and expands those. Three characters, not three bytes and not three
+      percent-encoded triplets &mdash; the truncation happens on the decoded
+      string, <i>before</i> encoding, so a value of <code>/foo/bar</code>
+      truncated to 4 gives <code>/foo</code> and then encodes to
+      <code>%2Ffoo</code>, six output characters from a prefix of four. It is
+      also the one modifier with a hard error attached: a prefix on a list or a
+      map is <b>not</b> "truncate each member", it is illegal, and an expander
+      that quietly does something anyway is hiding a bug in your template.
+    </p>
+    <div class="tblwrap"><table class="num" id="tPrefix"></table></div>
+    <p class="note" id="prefixNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Literals are copied &mdash; <i>almost</i></h2>
+    <p class="step">STEP 11 &middot; THE PART EVERYONE SKIPS</p>
+    <p>
+      The text between expressions is not purely passed through. A literal may
+      contain unreserved characters, reserved characters, percent-encoded
+      triplets and non-ASCII characters, and those are copied verbatim. A space,
+      a <code>&lt;</code>, a <code>&gt;</code>, a quote, a backslash, a caret or
+      a backtick cannot appear in a URI, so the expander percent-encodes them.
+      This is small and it is still worth getting right: it is the difference
+      between a template a human can read in a config file and a URI a client
+      library will accept. Note that a bare <code>%</code> that is not followed
+      by two hex digits is itself encoded to <code>%25</code>.
+    </p>
+    <div class="tblwrap"><table class="num" id="tLiteral"></table></div>
+    <p class="note">
+      An unmatched <code>{</code> or <code>}</code> is a syntax error, not a
+      literal brace. There is no escape for them &mdash; a URI template cannot
+      contain a literal brace, because braces are not legal URI characters
+      anyway.
+    </p>
+  </div>
+
+</section>
+
+<section id="build" class="stack hidden">
+  <div class="card">
+    <h2>The operator table, which is the specification</h2>
+    <p>
+      Eight rows, five columns. Everything below reads from here; no function
+      in this engine branches on the operator character.
+    </p>
+    <pre id="codeOps"></pre>
+  </div>
+  <div class="card">
+    <h2>Percent-encoding, with the one <code>if</code> that separates the two allow-sets</h2>
+    <p>
+      <code>allowReserved</code> is the whole difference between <code>{var}</code>
+      and <code>{+var}</code>. Note the pct-triplet pass-through: under
+      <code>+</code> an existing <code>%2F</code> stays <code>%2F</code> instead
+      of becoming <code>%252F</code>.
+    </p>
+    <pre id="codeEncode"></pre>
+  </div>
+  <div class="card">
+    <h2>The expansion loop, where <code>first</code> does all the work</h2>
+    <p>
+      Undefined values <code>continue</code> before the separator is written,
+      which is the entire mechanism behind "no dangling <code>?</code>".
+    </p>
+    <pre id="codeExpand"></pre>
+  </div>
+  <div class="card">
+    <h2>And the value rules, one branch per value shape</h2>
+    <pre id="codeEmit"></pre>
+  </div>
+  <div class="card">
+    <h2>Self-check</h2>
+    <p class="note" style="margin:0 0 10px">
+      Running in your browser now, against the same engine as the tables above
+      and the tool. Every RFC 6570 example vector, Level 1 through Level 4,
+      checked against its published expansion.
+    </p>
+    <div id="selftest"></div>
+  </div>
+</section>
+
+<section id="tool" class="stack hidden">
+  <div class="card">
+    <h2>Expand a template</h2>
+    <div class="grid2">
+      <div>
+        <p class="lbl">TEMPLATE</p>
+        <textarea id="tplIn" rows="3" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <p class="lbl">VARIABLES (JSON)</p>
+        <textarea id="varsIn" rows="12" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="ctl" style="margin-top:12px">
+      <button class="primary" onclick="runTool()">Expand</button>
+      <button onclick="loadPreset('rfc')">RFC variable set</button>
+      <button onclick="loadPreset('api')">Real API template</button>
+      <button onclick="loadPreset('traps')">Trap set</button>
+    </div>
+    <p class="lbl">RESULT</p>
+    <div id="toolOut" class="out"></div>
+    <p class="note" id="toolNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>Which rule produced each character</h2>
+    <p class="note" style="margin:0 0 10px">
+      Every run of characters above is one decision. This is that decision,
+      in order, with the operator rule that made it.
+    </p>
+    <div class="tblwrap"><table class="num" id="tSegments"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Per-expression breakdown</h2>
+    <div class="tblwrap"><table class="num" id="tPieces"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>The RFC 6570 example vectors</h2>
+    <p class="note" style="margin:0 0 10px" id="vecNote"></p>
+    <div class="ctl">
+      <button onclick="renderVectors('all')">All</button>
+      <button onclick="renderVectors(1)">Level 1</button>
+      <button onclick="renderVectors(2)">Level 2</button>
+      <button onclick="renderVectors(3)">Level 3</button>
+      <button onclick="renderVectors(4)">Level 4</button>
+      <button onclick="renderVectors('fail')">Failures only</button>
+    </div>
+    <div class="tblwrap"><table class="num" id="tVectors"></table></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">
+      SolveFromZero &middot; Day 83 &middot; URI Template expander (RFC 6570).
+      Tomorrow: the reverse direction, and why matching a URI back to a template is not the same problem.
+    </p>
+  </div>
+</footer>
+</div>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// ======================================================================
+// RFC 6570 URI Templates, all four levels, from the grammar up.
+//
+// A template is literals + expressions. An expression is one optional
+// operator character followed by a comma-separated list of varspecs. What
+// comes out is decided entirely by a five-column table - prefix, separator,
+// named, ifemp, allowReserved - and by three states a variable can be in:
+// undefined, empty, or a value.
+//
+// Everything that looks like a special case below is one of those columns.
+// ======================================================================
+const ENGINE = (() => {
+
+  // ------------------------------------------------------- the whole spec
+  // first         : emitted ONCE, before the first DEFINED value
+  // sep           : emitted between values after that
+  // named         : values are written as name=value
+  // ifemp         : what a named operator writes when the value is ""
+  // allowReserved : keep reserved characters and pct-triplets unencoded
+  const OPERATORS = {
+    ""  : { op:"",  first:"",  sep:",", named:false, ifemp:"",  allowReserved:false, level:1, label:"simple"       },
+    "+" : { op:"+", first:"",  sep:",", named:false, ifemp:"",  allowReserved:true,  level:2, label:"reserved"     },
+    "#" : { op:"#", first:"#", sep:",", named:false, ifemp:"",  allowReserved:true,  level:2, label:"fragment"     },
+    "." : { op:".", first:".", sep:".", named:false, ifemp:"",  allowReserved:false, level:3, label:"label"        },
+    "/" : { op:"/", first:"/", sep:"/", named:false, ifemp:"",  allowReserved:false, level:3, label:"path"         },
+    ";" : { op:";", first:";", sep:";", named:true,  ifemp:"",  allowReserved:false, level:3, label:"path-style"   },
+    "?" : { op:"?", first:"?", sep:"&", named:true,  ifemp:"=", allowReserved:false, level:3, label:"form-query"   },
+    "&" : { op:"&", first:"&", sep:"&", named:true,  ifemp:"=", allowReserved:false, level:3, label:"continuation" }
+  };
+
+  // RFC 6570 section 2.2: these five are reserved for future extension. An
+  // implementation of THIS spec must reject them rather than guess.
+  const FUTURE_OPS = "=,!@|";
+
+  // ----------------------------------------------------------- characters
+  // unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+  function isUnreserved(cp) {
+    return (cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A) ||
+           (cp >= 0x30 && cp <= 0x39) ||
+           cp === 0x2D || cp === 0x2E || cp === 0x5F || cp === 0x7E;
+  }
+  // reserved = gen-delims / sub-delims
+  const RESERVED_SET = ":/?#[]@!$&'()*+,;=";
+  function isReserved(ch) { return RESERVED_SET.indexOf(ch) >= 0; }
+  function isHex(ch) {
+    return !!ch && ((ch >= "0" && ch <= "9") || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F"));
+  }
+
+  // UTF-8 by hand, because the encoding is per BYTE and the byte boundaries
+  // are the whole reason a prefix modifier must count characters instead.
+  function utf8Bytes(cp) {
+    if (cp >= 0xD800 && cp <= 0xDFFF) cp = 0xFFFD;        // lone surrogate
+    if (cp < 0x80)    return [cp];
+    if (cp < 0x800)   return [0xC0 | (cp >> 6), 0x80 | (cp & 63)];
+    if (cp < 0x10000) return [0xE0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63)];
+    return [0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63)];
+  }
+  function pctEncodeCodePoint(cp) {
+    let out = "";
+    for (const b of utf8Bytes(cp)) out += "%" + (b < 16 ? "0" : "") + b.toString(16).toUpperCase();
+    return out;
+  }
+
+  // THE one difference between {var} and {+var}.
+  //
+  //   allowReserved = false -> keep unreserved only; "/" becomes %2F
+  //   allowReserved = true  -> keep unreserved AND reserved, and copy any
+  //                            existing %XX triplet straight through so a
+  //                            pre-encoded value is not double-encoded
+  function encode(str, allowReserved) {
+    str = String(str);
+    let out = "";
+    for (let i = 0; i < str.length; ) {
+      const cp = str.codePointAt(i);
+      const ch = String.fromCodePoint(cp);
+      i += ch.length;
+      if (isUnreserved(cp)) { out += ch; continue; }
+      if (allowReserved) {
+        if (ch === "%" && isHex(str[i]) && isHex(str[i + 1])) {
+          out += "%" + str[i] + str[i + 1];                 // pct-triplet, verbatim
+          i += 2;
+          continue;
+        }
+        if (isReserved(ch)) { out += ch; continue; }
+      }
+      out += pctEncodeCodePoint(cp);
+    }
+    return out;
+  }
+
+  // Literal text between expressions. Copied through, except for the
+  // characters that cannot appear in a URI at all.
+  function encodeLiteral(str) {
+    let out = "";
+    for (let i = 0; i < str.length; ) {
+      const cp = str.codePointAt(i);
+      const ch = String.fromCodePoint(cp);
+      i += ch.length;
+      if (isUnreserved(cp) || cp > 0x7F) { out += ch; continue; }
+      if (ch === "%" && isHex(str[i]) && isHex(str[i + 1])) {
+        out += "%" + str[i] + str[i + 1];
+        i += 2;
+        continue;
+      }
+      if (isReserved(ch)) { out += ch; continue; }
+      out += pctEncodeCodePoint(cp);                        // space, <, >, ", ', \, ^, `, |
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------- parse
+  // varname = varchar *( ["."] varchar ) ; varchar = ALPHA / DIGIT / "_" / pct
+  function validateVarname(name) {
+    if (!name) throw new Error("empty variable name");
+    let i = 0, lastWasChar = false;
+    while (i < name.length) {
+      const ch = name[i];
+      if (ch === "%") {
+        if (!isHex(name[i + 1]) || !isHex(name[i + 2]))
+          throw new Error("bad pct-encoded sequence in variable name '" + name + "'");
+        i += 3; lastWasChar = true; continue;
+      }
+      if (/[A-Za-z0-9_]/.test(ch)) { i += 1; lastWasChar = true; continue; }
+      if (ch === ".") {
+        if (!lastWasChar) throw new Error("'.' must sit between name characters in '" + name + "'");
+        i += 1; lastWasChar = false; continue;
+      }
+      throw new Error("illegal character '" + ch + "' in variable name '" + name + "'");
+    }
+    if (!lastWasChar) throw new Error("variable name '" + name + "' must not end with '.'");
+    return name;
+  }
+
+  function parseVarspec(s) {
+    let explode = false, prefix = null, name = s;
+    if (s.length && s[s.length - 1] === "*") {
+      explode = true;
+      name = s.slice(0, -1);
+    } else {
+      const ci = s.indexOf(":");
+      if (ci >= 0) {
+        name = s.slice(0, ci);
+        const digits = s.slice(ci + 1);
+        // max-length = %x31-39 0*3DIGIT  -> 1..9999, no leading zero
+        if (!/^[1-9][0-9]{0,3}$/.test(digits))
+          throw new Error("bad prefix modifier ':" + digits + "' (1-9999, no leading zero)");
+        prefix = parseInt(digits, 10);
+      }
+    }
+    validateVarname(name);
+    return { name: name, explode: explode, prefix: prefix, raw: s };
+  }
+
+  function parseExpression(body, at) {
+    if (body === "") throw new Error("empty expression {} at index " + at);
+    let op = "", rest = body;
+    const c0 = body[0];
+    if (c0 !== "" && Object.prototype.hasOwnProperty.call(OPERATORS, c0) && c0 !== "") {
+      op = c0; rest = body.slice(1);
+    }
+    if (FUTURE_OPS.indexOf(c0) >= 0)
+      throw new Error("operator '" + c0 + "' is reserved for future extension (RFC 6570 section 2.2)");
+    if (rest === "") throw new Error("expression '{" + body + "}' has no variable");
+    const varspecs = rest.split(",").map(parseVarspec);
+    return { type: "expr", op: op, varspecs: varspecs, raw: body, at: at };
+  }
+
+  function parse(template) {
+    if (typeof template !== "string") throw new Error("template must be a string");
+    const parts = [];
+    let i = 0, lit = "";
+    while (i < template.length) {
+      const ch = template[i];
+      if (ch === "{") {
+        if (lit) { parts.push({ type: "literal", text: lit }); lit = ""; }
+        const close = template.indexOf("}", i);
+        if (close < 0) throw new Error("unterminated expression - no '}' after index " + i);
+        parts.push(parseExpression(template.slice(i + 1, close), i));
+        i = close + 1;
+        continue;
+      }
+      if (ch === "}") throw new Error("unmatched '}' at index " + i);
+      lit += ch;
+      i += 1;
+    }
+    if (lit) parts.push({ type: "literal", text: lit });
+    return parts;
+  }
+
+  // --------------------------------------------------------------- values
+  //
+  // THREE states, not two. An empty list and an empty map are UNDEFINED -
+  // there is nothing to join, so there is nothing to emit. An empty STRING
+  // is a value and keeps its name and its separator.
+  function valueKind(v) {
+    if (v === undefined || v === null) return "undefined";
+    if (Array.isArray(v)) return v.length === 0 ? "undefined" : "list";
+    if (typeof v === "object") return Object.keys(v).length === 0 ? "undefined" : "assoc";
+    return "string";
+  }
+
+  function lookupVar(vars, name) {
+    if (!vars) return undefined;
+    // a dot in a varname is part of the NAME - no object traversal
+    return Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : undefined;
+  }
+
+  // prefix modifier counts CHARACTERS (code points), on the decoded value,
+  // before any encoding - so it can never split a UTF-8 sequence
+  function truncate(s, n) {
+    let out = "", count = 0;
+    for (const ch of String(s)) {
+      if (count >= n) break;
+      out += ch;
+      count += 1;
+    }
+    return out;
+  }
+  function charLength(s) {
+    let n = 0;
+    for (const _ of String(s)) n += 1;
+    return n;
+  }
+
+  // ------------------------------------------------------------ expansion
+  //
+  // Every piece of output is a SEGMENT carrying the rule that produced it,
+  // so the tool can colour the result and say why each character is there.
+  function emitValue(segs, o, spec, raw, kind) {
+    const enc = (s) => encode(s, o.allowReserved);
+    const encRule = o.allowReserved
+      ? 'value, pct-encoded keeping unreserved + RESERVED (operator "' + o.op + '")'
+      : 'value, pct-encoded keeping only unreserved';
+    const name = spec.name;
+    const pushName = () => segs.push({ text: name, rule: 'named operator "' + o.op + '" writes the variable name', varname: name });
+    const pushEq = (v) => {
+      if (v === "")
+        segs.push({ text: o.ifemp, rule: 'value is EMPTY -> ifemp "' + o.ifemp + '" (not skipped)', varname: name });
+      else
+        segs.push({ text: "=", rule: '"=" between name and value', varname: name });
+    };
+
+    if (kind === "string") {
+      let v = String(raw);
+      if (spec.prefix !== null) v = truncate(v, spec.prefix);
+      if (o.named) { pushName(); pushEq(v); }
+      if (v !== "") segs.push({ text: enc(v), rule: encRule, varname: name });
+      return;
+    }
+
+    if (kind === "list") {
+      const items = raw.map(String);
+      if (!spec.explode) {
+        if (o.named) { pushName(); segs.push({ text: "=", rule: '"=" between name and value', varname: name }); }
+        items.forEach((m, idx) => {
+          if (idx) segs.push({ text: ",", rule: 'UNEXPLODED list always joins with "," - never the operator separator', varname: name });
+          if (m !== "") segs.push({ text: enc(m), rule: encRule, varname: name });
+        });
+      } else {
+        items.forEach((m, idx) => {
+          if (idx) segs.push({ text: o.sep, rule: 'exploded: operator separator "' + o.sep + '" between members', varname: name });
+          if (o.named) { pushName(); pushEq(m); }   // named + explode REPEATS the name
+          if (m !== "") segs.push({ text: enc(m), rule: encRule, varname: name });
+        });
+      }
+      return;
+    }
+
+    // associative array
+    const pairs = Object.keys(raw).map((k) => [k, String(raw[k])]);
+    if (!spec.explode) {
+      if (o.named) { pushName(); segs.push({ text: "=", rule: '"=" between name and value', varname: name }); }
+      pairs.forEach(([k, v], idx) => {
+        if (idx) segs.push({ text: ",", rule: 'UNEXPLODED map joins with "," like any list', varname: name });
+        segs.push({ text: enc(k), rule: "map KEY, encoded like any value", varname: name });
+        segs.push({ text: ",", rule: 'an UNEXPLODED map is a FLAT list - "," even between a key and its own value', varname: name });
+        if (v !== "") segs.push({ text: enc(v), rule: encRule, varname: name });
+      });
+    } else {
+      pairs.forEach(([k, v], idx) => {
+        if (idx) segs.push({ text: o.sep, rule: 'exploded: operator separator "' + o.sep + '" between pairs', varname: name });
+        segs.push({ text: enc(k), rule: "exploded map: the KEY becomes the name", varname: name });
+        if (o.named) pushEq(v);
+        else segs.push({ text: "=", rule: '"=" comes from the explode rule here, not from the operator', varname: name });
+        if (v !== "") segs.push({ text: enc(v), rule: encRule, varname: name });
+      });
+    }
+  }
+
+  function expandExpression(expr, vars) {
+    const o = OPERATORS[expr.op];
+    const segs = [];
+    let first = true;
+    for (const spec of expr.varspecs) {
+      const raw = lookupVar(vars, spec.name);
+      const kind = valueKind(raw);
+      if (kind === "undefined") {
+        // SKIPPED BEFORE the separator is written - this is the whole reason
+        // {?a,b} never produces a dangling "?" or a doubled "&"
+        segs.push({ text: "", rule: "SKIPPED: '" + spec.name + "' is undefined, so no separator either", varname: spec.name, skipped: true });
+        continue;
+      }
+      if (spec.prefix !== null && kind !== "string")
+        throw new Error("prefix modifier ':" + spec.prefix + "' is not allowed on a " + kind + " value ('" + spec.name + "')");
+      if (first) {
+        if (o.first !== "")
+          segs.push({ text: o.first, rule: 'operator prefix "' + o.first + '" - written once, and only because something is defined', varname: spec.name });
+        first = false;
+      } else {
+        segs.push({ text: o.sep, rule: 'separator "' + o.sep + '" between varspecs', varname: spec.name });
+      }
+      emitValue(segs, o, spec, raw, kind);
+    }
+    return { text: segs.map((s) => s.text).join(""), segments: segs, op: o, raw: expr.raw };
+  }
+
+  function expand(template, vars) {
+    const parts = parse(template);
+    const pieces = [];
+    for (const p of parts) {
+      if (p.type === "literal") {
+        const t = encodeLiteral(p.text);
+        pieces.push({
+          kind: "literal", raw: p.text, text: t,
+          segments: [{ text: t, rule: "literal text, copied through (only non-URI characters encoded)" }]
+        });
+      } else {
+        const r = expandExpression(p, vars);
+        pieces.push({ kind: "expr", raw: "{" + p.raw + "}", text: r.text, segments: r.segments, op: r.op, varspecs: p.varspecs });
+      }
+    }
+    return { url: pieces.map((p) => p.text).join(""), pieces: pieces };
+  }
+
+  function expandSafe(template, vars) {
+    try { return Object.assign({ ok: true, error: null }, expand(template, vars)); }
+    catch (e) { return { ok: false, error: e.message, url: "", pieces: [] }; }
+  }
+
+  // convenience for tables and tests
+  function ex(template, vars) { return expand(template, vars).url; }
+
+  return {
+    OPERATORS, FUTURE_OPS, RESERVED_SET,
+    isUnreserved, isReserved, isHex, utf8Bytes, encode, encodeLiteral,
+    validateVarname, parseVarspec, parseExpression, parse,
+    valueKind, lookupVar, truncate, charLength,
+    emitValue, expandExpression, expand, expandSafe, ex
+  };
+})();
+// ===== ENGINE:END =====
+</script>
+
+<script>
+// ===== VECTORS:BEGIN =====
+// The variable set from RFC 6570 section 3.2.1 / Appendix A, verbatim.
+const RFC_VARS = {
+  count: ["one", "two", "three"],
+  dom: ["example", "com"],
+  dub: "me/too",
+  hello: "Hello World!",
+  half: "50%",
+  "var": "value",
+  who: "fred",
+  base: "http://example.com/home/",
+  path: "/foo/bar",
+  list: ["red", "green", "blue"],
+  keys: { semi: ";", dot: ".", comma: "," },
+  v: "6",
+  x: "1024",
+  y: "768",
+  empty: "",
+  empty_keys: {},
+  undef: null
+};
+
+// Every example expansion printed in RFC 6570, by section, plus the four
+// Appendix A level listings. Where the document's prose example and its
+// per-operator example disagree (named + exploded list), the expansion
+// ALGORITHM of section 3.2.1 is authoritative and is what is used here:
+// {?list*} repeats the name, exactly as section 2.4.2 shows for {?count*}.
+const RFC_VECTORS = [
+  // ---- section 2.4.2, composite values
+  ["2.4.2", 4, "{count}",            "one,two,three"],
+  ["2.4.2", 4, "{count*}",           "one,two,three"],
+  ["2.4.2", 4, "{/count}",           "/one,two,three"],
+  ["2.4.2", 4, "{/count*}",          "/one/two/three"],
+  ["2.4.2", 4, "{;count}",           ";count=one,two,three"],
+  ["2.4.2", 4, "{;count*}",          ";count=one;count=two;count=three"],
+  ["2.4.2", 4, "{?count}",           "?count=one,two,three"],
+  ["2.4.2", 4, "{?count*}",          "?count=one&count=two&count=three"],
+  ["2.4.2", 4, "{&count*}",          "&count=one&count=two&count=three"],
+
+  // ---- section 3.2.2, simple string expansion
+  ["3.2.2", 1, "{var}",              "value"],
+  ["3.2.2", 1, "{hello}",            "Hello%20World%21"],
+  ["3.2.2", 1, "{half}",             "50%25"],
+  ["3.2.2", 1, "O{empty}X",          "OX"],
+  ["3.2.2", 1, "O{undef}X",          "OX"],
+  ["3.2.2", 3, "{x,y}",              "1024,768"],
+  ["3.2.2", 3, "{x,hello,y}",        "1024,Hello%20World%21,768"],
+  ["3.2.2", 3, "?{x,empty}",         "?1024,"],
+  ["3.2.2", 3, "?{x,undef}",         "?1024"],
+  ["3.2.2", 3, "?{undef,y}",         "?768"],
+  ["3.2.2", 4, "{var:3}",            "val"],
+  ["3.2.2", 4, "{var:30}",           "value"],
+  ["3.2.2", 4, "{list}",             "red,green,blue"],
+  ["3.2.2", 4, "{list*}",            "red,green,blue"],
+  ["3.2.2", 4, "{keys}",             "semi,%3B,dot,.,comma,%2C"],
+  ["3.2.2", 4, "{keys*}",            "semi=%3B,dot=.,comma=%2C"],
+
+  // ---- section 3.2.3, reserved expansion
+  ["3.2.3", 2, "{+var}",             "value"],
+  ["3.2.3", 2, "{+hello}",           "Hello%20World!"],
+  ["3.2.3", 2, "{+half}",            "50%25"],
+  ["3.2.3", 1, "{base}index",        "http%3A%2F%2Fexample.com%2Fhome%2Findex"],
+  ["3.2.3", 2, "{+base}index",       "http://example.com/home/index"],
+  ["3.2.3", 2, "O{+empty}X",         "OX"],
+  ["3.2.3", 2, "O{+undef}X",         "OX"],
+  ["3.2.3", 2, "{+path}/here",       "/foo/bar/here"],
+  ["3.2.3", 2, "here?ref={+path}",   "here?ref=/foo/bar"],
+  ["3.2.3", 2, "up{+path}{var}/here", "up/foo/barvalue/here"],
+  ["3.2.3", 3, "{+x,hello,y}",       "1024,Hello%20World!,768"],
+  ["3.2.3", 3, "{+path,x}/here",     "/foo/bar,1024/here"],
+  ["3.2.3", 4, "{+path:6}/here",     "/foo/b/here"],
+  ["3.2.3", 4, "{+list}",            "red,green,blue"],
+  ["3.2.3", 4, "{+list*}",           "red,green,blue"],
+  ["3.2.3", 4, "{+keys}",            "semi,;,dot,.,comma,,"],
+  ["3.2.3", 4, "{+keys*}",           "semi=;,dot=.,comma=,"],
+
+  // ---- section 3.2.4, fragment expansion
+  ["3.2.4", 2, "{#var}",             "#value"],
+  ["3.2.4", 2, "{#hello}",           "#Hello%20World!"],
+  ["3.2.4", 2, "{#half}",            "#50%25"],
+  ["3.2.4", 2, "foo{#empty}",        "foo#"],
+  ["3.2.4", 2, "foo{#undef}",        "foo"],
+  ["3.2.4", 3, "{#x,hello,y}",       "#1024,Hello%20World!,768"],
+  ["3.2.4", 3, "{#path,x}/here",     "#/foo/bar,1024/here"],
+  ["3.2.4", 4, "{#path:6}/here",     "#/foo/b/here"],
+  ["3.2.4", 4, "{#list}",            "#red,green,blue"],
+  ["3.2.4", 4, "{#list*}",           "#red,green,blue"],
+  ["3.2.4", 4, "{#keys}",            "#semi,;,dot,.,comma,,"],
+  ["3.2.4", 4, "{#keys*}",           "#semi=;,dot=.,comma=,"],
+
+  // ---- section 3.2.5, label expansion with dot-prefix
+  ["3.2.5", 3, "{.who}",             ".fred"],
+  ["3.2.5", 3, "{.who,who}",         ".fred.fred"],
+  ["3.2.5", 3, "{.half,who}",        ".50%25.fred"],
+  ["3.2.5", 4, "www{.dom*}",         "www.example.com"],
+  ["3.2.5", 3, "X{.var}",            "X.value"],
+  ["3.2.5", 3, "X{.empty}",          "X."],
+  ["3.2.5", 3, "X{.undef}",          "X"],
+  ["3.2.5", 4, "X{.var:3}",          "X.val"],
+  ["3.2.5", 4, "X{.list}",           "X.red,green,blue"],
+  ["3.2.5", 4, "X{.list*}",          "X.red.green.blue"],
+  ["3.2.5", 4, "X{.keys}",           "X.semi,%3B,dot,.,comma,%2C"],
+  ["3.2.5", 4, "X{.keys*}",          "X.semi=%3B.dot=..comma=%2C"],
+  ["3.2.5", 4, "X{.empty_keys}",     "X"],
+  ["3.2.5", 4, "X{.empty_keys*}",    "X"],
+
+  // ---- section 3.2.6, path segment expansion
+  ["3.2.6", 3, "{/who}",             "/fred"],
+  ["3.2.6", 3, "{/who,who}",         "/fred/fred"],
+  ["3.2.6", 3, "{/half,who}",        "/50%25/fred"],
+  ["3.2.6", 3, "{/who,dub}",         "/fred/me%2Ftoo"],
+  ["3.2.6", 3, "{/var}",             "/value"],
+  ["3.2.6", 3, "{/var,empty}",       "/value/"],
+  ["3.2.6", 3, "{/var,undef}",       "/value"],
+  ["3.2.6", 3, "{/var,x}/here",      "/value/1024/here"],
+  ["3.2.6", 4, "{/var:1,var}",       "/v/value"],
+  ["3.2.6", 4, "{/list}",            "/red,green,blue"],
+  ["3.2.6", 4, "{/list*}",           "/red/green/blue"],
+  ["3.2.6", 4, "{/list*,path:4}",    "/red/green/blue/%2Ffoo"],
+  ["3.2.6", 4, "{/keys}",            "/semi,%3B,dot,.,comma,%2C"],
+  ["3.2.6", 4, "{/keys*}",           "/semi=%3B/dot=./comma=%2C"],
+
+  // ---- section 3.2.7, path-style parameter expansion
+  ["3.2.7", 3, "{;who}",             ";who=fred"],
+  ["3.2.7", 3, "{;half}",            ";half=50%25"],
+  ["3.2.7", 3, "{;empty}",           ";empty"],
+  ["3.2.7", 3, "{;v,empty,who}",     ";v=6;empty;who=fred"],
+  ["3.2.7", 3, "{;v,bar,who}",       ";v=6;who=fred"],
+  ["3.2.7", 3, "{;x,y}",             ";x=1024;y=768"],
+  ["3.2.7", 3, "{;x,y,empty}",       ";x=1024;y=768;empty"],
+  ["3.2.7", 3, "{;x,y,undef}",       ";x=1024;y=768"],
+  ["3.2.7", 4, "{;hello:5}",         ";hello=Hello"],
+  ["3.2.7", 4, "{;list}",            ";list=red,green,blue"],
+  ["3.2.7", 4, "{;list*}",           ";list=red;list=green;list=blue"],
+  ["3.2.7", 4, "{;keys}",            ";keys=semi,%3B,dot,.,comma,%2C"],
+  ["3.2.7", 4, "{;keys*}",           ";semi=%3B;dot=.;comma=%2C"],
+
+  // ---- section 3.2.8, form-style query expansion
+  ["3.2.8", 3, "{?who}",             "?who=fred"],
+  ["3.2.8", 3, "{?half}",            "?half=50%25"],
+  ["3.2.8", 3, "{?x,y}",             "?x=1024&y=768"],
+  ["3.2.8", 3, "{?x,y,empty}",       "?x=1024&y=768&empty="],
+  ["3.2.8", 3, "{?x,y,undef}",       "?x=1024&y=768"],
+  ["3.2.8", 4, "{?var:3}",           "?var=val"],
+  ["3.2.8", 4, "{?list}",            "?list=red,green,blue"],
+  ["3.2.8", 4, "{?list*}",           "?list=red&list=green&list=blue"],
+  ["3.2.8", 4, "{?keys}",            "?keys=semi,%3B,dot,.,comma,%2C"],
+  ["3.2.8", 4, "{?keys*}",           "?semi=%3B&dot=.&comma=%2C"],
+
+  // ---- section 3.2.9, form-style query continuation
+  ["3.2.9", 3, "{&who}",             "&who=fred"],
+  ["3.2.9", 3, "{&half}",            "&half=50%25"],
+  ["3.2.9", 3, "?fixed=yes{&x}",     "?fixed=yes&x=1024"],
+  ["3.2.9", 3, "{&x,y,empty}",       "&x=1024&y=768&empty="],
+  ["3.2.9", 3, "{&x,y,undef}",       "&x=1024&y=768"],
+  ["3.2.9", 4, "{&var:3}",           "&var=val"],
+  ["3.2.9", 4, "{&list}",            "&list=red,green,blue"],
+  ["3.2.9", 4, "{&list*}",           "&list=red&list=green&list=blue"],
+  ["3.2.9", 4, "{&keys}",            "&keys=semi,%3B,dot,.,comma,%2C"],
+  ["3.2.9", 4, "{&keys*}",           "&semi=%3B&dot=.&comma=%2C"]
+];
+
+// Appendix A, the four conformance levels as published.
+const RFC_LEVELS = {
+  1: [
+    ["{var}", "value"],
+    ["{hello}", "Hello%20World%21"]
+  ],
+  2: [
+    ["{+var}", "value"],
+    ["{+hello}", "Hello%20World!"],
+    ["{+path}/here", "/foo/bar/here"],
+    ["here?ref={+path}", "here?ref=/foo/bar"],
+    ["X{#var}", "X#value"],
+    ["X{#hello}", "X#Hello%20World!"]
+  ],
+  3: [
+    ["map?{x,y}", "map?1024,768"],
+    ["{x,hello,y}", "1024,Hello%20World%21,768"],
+    ["{+x,hello,y}", "1024,Hello%20World!,768"],
+    ["{+path,x}/here", "/foo/bar,1024/here"],
+    ["{#x,hello,y}", "#1024,Hello%20World!,768"],
+    ["{#path,x}/here", "#/foo/bar,1024/here"],
+    ["X{.var}", "X.value"],
+    ["X{.x,y}", "X.1024.768"],
+    ["{/var}", "/value"],
+    ["{/var,x}/here", "/value/1024/here"],
+    ["{;x,y}", ";x=1024;y=768"],
+    ["{;x,y,empty}", ";x=1024;y=768;empty"],
+    ["{?x,y}", "?x=1024&y=768"],
+    ["{?x,y,empty}", "?x=1024&y=768&empty="],
+    ["?fixed=yes{&x}", "?fixed=yes&x=1024"],
+    ["{&x,y,empty}", "&x=1024&y=768&empty="]
+  ],
+  4: [
+    ["{var:3}", "val"],
+    ["{var:30}", "value"],
+    ["{list}", "red,green,blue"],
+    ["{list*}", "red,green,blue"],
+    ["{keys}", "semi,%3B,dot,.,comma,%2C"],
+    ["{keys*}", "semi=%3B,dot=.,comma=%2C"],
+    ["{+path:6}/here", "/foo/b/here"],
+    ["{+list}", "red,green,blue"],
+    ["{+list*}", "red,green,blue"],
+    ["{+keys}", "semi,;,dot,.,comma,,"],
+    ["{+keys*}", "semi=;,dot=.,comma=,"],
+    ["{#path:6}/here", "#/foo/b/here"],
+    ["{#list}", "#red,green,blue"],
+    ["{#list*}", "#red,green,blue"],
+    ["{#keys}", "#semi,;,dot,.,comma,,"],
+    ["{#keys*}", "#semi=;,dot=.,comma=,"],
+    ["X{.var:3}", "X.val"],
+    ["X{.list}", "X.red,green,blue"],
+    ["X{.list*}", "X.red.green.blue"],
+    ["X{.keys}", "X.semi,%3B,dot,.,comma,%2C"],
+    ["X{.keys*}", "X.semi=%3B.dot=..comma=%2C"],
+    ["{/var:1,var}", "/v/value"],
+    ["{/list}", "/red,green,blue"],
+    ["{/list*}", "/red/green/blue"],
+    ["{/list*,path:4}", "/red/green/blue/%2Ffoo"],
+    ["{/keys}", "/semi,%3B,dot,.,comma,%2C"],
+    ["{/keys*}", "/semi=%3B/dot=./comma=%2C"],
+    ["{;hello:5}", ";hello=Hello"],
+    ["{;list}", ";list=red,green,blue"],
+    ["{;list*}", ";list=red;list=green;list=blue"],
+    ["{;keys}", ";keys=semi,%3B,dot,.,comma,%2C"],
+    ["{;keys*}", ";semi=%3B;dot=.;comma=%2C"],
+    ["{?var:3}", "?var=val"],
+    ["{?list}", "?list=red,green,blue"],
+    ["{?list*}", "?list=red&list=green&list=blue"],
+    ["{?keys}", "?keys=semi,%3B,dot,.,comma,%2C"],
+    ["{?keys*}", "?semi=%3B&dot=.&comma=%2C"],
+    ["{&var:3}", "&var=val"],
+    ["{&list}", "&list=red,green,blue"],
+    ["{&list*}", "&list=red&list=green&list=blue"],
+    ["{&keys}", "&keys=semi,%3B,dot,.,comma,%2C"],
+    ["{&keys*}", "&semi=%3B&dot=.&comma=%2C"]
+  ]
+};
+// ===== VECTORS:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["und", "build", "tool"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+  document.getElementById("tabTool").classList.toggle("tab-active", name === "tool");
+}
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const mono = (s) => '<code>' + esc(s === "" ? "∅ (empty string)" : s) + '</code>';
+
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selftest").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+
+const V = RFC_VARS;
+const EX = (tpl, vars) => ENGINE.ex(tpl, vars || V);
+
+// ------------------------------------------------------------- UNDERSTAND
+
+// STEP 1 - naive concatenation vs the template
+{
+  const rows = [];
+  const cases = [
+    ["/s{?q,page}", { q: "a b", page: null },
+     "'/s?q=' + q + '&page=' + page", "concatenation keeps a parameter that is not there"],
+    ["/s{?q,page}", { q: null, page: null },
+     "'/s?q=' + q + '&page=' + page", "and leaves a dangling '?' when nothing is there"],
+    ["/f{/path}", { path: "a/b" },
+     "'/f/' + encodeURIComponent(path)", "a slash inside a segment must be %2F"],
+    ["/f{+path}", { path: "a/b" },
+     "'/f/' + encodeURIComponent(path)", "but here it must NOT be - the value IS path"],
+    ["/t{?tags*}", { tags: ["x", "y"] },
+     "'/t?tags=' + tags.join(',')", "a repeated parameter is not a comma list"],
+    ["/u{?q}", { q: "" },
+     "q ? '/u?q=' + q : '/u'", "an empty string is a value, not an absence"]
+  ];
+  for (const [tpl, vars, hand, why] of cases) {
+    rows.push({ cls: "", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      "<code>" + esc(hand) + "</code>",
+      "<code>" + esc(EX(tpl, vars)) + "</code>",
+      '<span class="note" style="margin:0">' + why + "</span>"
+    ]});
+  }
+  table("tNaive", ["template", "what you would have written", "what the template expands to", "the disagreement"], rows);
+}
+
+// STEP 2 - parse
+{
+  const rows = [];
+  for (const tpl of ["/users/{id}/repos{?page,per_page}", "{+base}{/seg*}{#frag}", "{a.b,c:4,d*}"]) {
+    const parts = ENGINE.parse(tpl);
+    const desc = parts.map((p) => p.type === "literal"
+      ? "literal " + JSON.stringify(p.text)
+      : 'expr op="' + (p.op || "(none)") + '" vars=[' +
+        p.varspecs.map((s) => s.name + (s.explode ? "*" : "") + (s.prefix !== null ? ":" + s.prefix : "")).join(" ") + "]"
+    ).join("  |  ");
+    rows.push({ cls: "", cells: ["<code>" + esc(tpl) + "</code>", parts.length,
+      '<span style="font-size:11.5px">' + esc(desc) + "</span>"] });
+  }
+  table("tParse", ["template", "parts", "what the parser sees"], rows);
+}
+
+// STEP 3 - the operator table
+{
+  const rows = [];
+  for (const k of ["", "+", "#", ".", "/", ";", "?", "&"]) {
+    const o = ENGINE.OPERATORS[k];
+    rows.push({ cls: "", cells: [
+      "<code>{" + esc(k || "") + "var}</code> &middot; " + o.label,
+      o.first === "" ? '<span class="pill">none</span>' : "<code>" + esc(o.first) + "</code>",
+      "<code>" + esc(o.sep) + "</code>",
+      o.named ? '<span class="pill good">named</span>' : '<span class="pill">value only</span>',
+      o.ifemp === "" ? '<span class="pill">""</span>' : "<code>" + esc(o.ifemp) + "</code>",
+      o.allowReserved ? '<span class="pill bad">U + reserved</span>' : '<span class="pill">unreserved only</span>',
+      "L" + o.level
+    ]});
+  }
+  table("tOps", ["operator", "prefix (first)", "separator", "named", "ifemp", "kept unencoded", "level"], rows);
+  el("opsNote").innerHTML =
+    "Eight operators, and <b>" + Object.keys(ENGINE.OPERATORS).length +
+    "</b> rows in the table that implements them. Two of them &mdash; " +
+    "<code>+</code> and <code>#</code> &mdash; differ from the default in " +
+    "<b>exactly one column</b>, and that column is the one people get wrong.";
+}
+
+// STEP 4 - encoding
+{
+  const rows = [];
+  const samples = [
+    ["Hello World!", "a space and a sub-delim"],
+    ["/foo/bar", "path separators"],
+    ["50%", "a bare percent sign"],
+    ["%2F", "an EXISTING pct-triplet"],
+    ["a?b#c", "query and fragment delimiters"],
+    ["café", "two UTF-8 bytes"],
+    ["漢字", "three UTF-8 bytes each"],
+    ["\u{1F600}", "four UTF-8 bytes, one code point"]
+  ];
+  for (const [s, why] of samples) {
+    rows.push({ cls: "", cells: [
+      "<code>" + esc(s) + "</code>",
+      "<code>" + esc(ENGINE.encode(s, false)) + "</code>",
+      "<code>" + esc(ENGINE.encode(s, true)) + "</code>",
+      '<span class="note" style="margin:0">' + why + "</span>"
+    ]});
+  }
+  table("tEnc", ["value", "{var} &middot; unreserved only", "{+var} / {#var} &middot; + reserved", "why"], rows);
+  el("encNote").innerHTML =
+    "The <code>%2F</code> row is the one that bites: under <code>+</code> it stays <b>" +
+    esc(ENGINE.encode("%2F", true)) + "</b>, under the default it becomes <b>" +
+    esc(ENGINE.encode("%2F", false)) + "</b>. Running a value through an expander twice is " +
+    "safe under <code>+</code> and destructive under the default &mdash; which is the right " +
+    "way round, because the default's job is to make a value opaque.";
+}
+
+// STEP 5 - defined / empty / undefined
+{
+  const vars = { s: "v", empty: "", undef: null, empty_list: [], empty_keys: {}, list: ["a"] };
+  const rows = [];
+  for (const [tpl, note] of [
+    ["{?s}", "a value"],
+    ["{?empty}", "an EMPTY STRING is a value"],
+    ["{?undef}", "null is undefined"],
+    ["{?missing}", "an absent key is undefined"],
+    ["{?empty_list}", "an empty LIST counts as undefined"],
+    ["{?empty_keys}", "an empty MAP counts as undefined"],
+    ["{?list}", "a one-member list is defined"],
+    ["{?undef,s}", "the skip happens before the separator"],
+    ["{?s,undef}", "and after it, identically"],
+    ["{?undef,missing,empty_list}", "nothing defined - nothing at all, not even the '?'"]
+  ]) {
+    const out = EX(tpl, vars);
+    rows.push({ cls: out === "" ? "dim" : "", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      out === "" ? '<span class="pill">&empty; empty output</span>' : "<code>" + esc(out) + "</code>",
+      out.length,
+      '<span class="note" style="margin:0">' + note + "</span>"
+    ]});
+  }
+  table("tDefined", ["expression", "expansion", "chars", "state"], rows);
+}
+
+// STEP 6 - first vs separator
+{
+  const rows = [];
+  const sets = [
+    [{ a: "1", b: "2", c: "3" }, "all three"],
+    [{ b: "2", c: "3" }, "first one missing"],
+    [{ c: "3" }, "only the last"],
+    [{ a: "1" }, "only the first"],
+    [{}, "none"]
+  ];
+  for (const [vars, label] of sets) {
+    rows.push({ cls: "", cells: [
+      label,
+      "<code>" + esc(EX("{?a,b,c}", vars) || "∅") + "</code>",
+      "<code>" + esc(EX("{&a,b,c}", vars) || "∅") + "</code>",
+      "<code>" + esc(EX("{/a,b,c}", vars) || "∅") + "</code>",
+      "<code>" + esc(EX("{;a,b,c}", vars) || "∅") + "</code>"
+    ]});
+  }
+  table("tFirst", ["variables defined", "{?a,b,c}", "{&a,b,c}", "{/a,b,c}", "{;a,b,c}"], rows);
+}
+
+// STEP 7 - named and ifemp
+{
+  const vars = { who: "fred", empty: "" };
+  const rows = [];
+  for (const op of ["", "+", "#", ".", "/", ";", "?", "&"]) {
+    const o = ENGINE.OPERATORS[op];
+    rows.push({ cls: o.named ? "here" : "", cells: [
+      "<code>{" + esc(op) + "who}</code>",
+      "<code>" + esc(EX("{" + op + "who}", vars)) + "</code>",
+      "<code>" + esc(EX("{" + op + "empty}", vars) || "∅") + "</code>",
+      o.named ? "yes" : "no",
+      o.ifemp === "" ? '<span class="pill">""</span>' : "<code>" + esc(o.ifemp) + "</code>"
+    ]});
+  }
+  table("tNamed", ["expression", "who = \"fred\"", "empty = \"\"", "named", "ifemp"], rows);
+  el("namedNote").innerHTML =
+    "<code>{?empty}</code> gives <b>" + esc(EX("{?empty}", vars)) +
+    "</b> but <code>{;empty}</code> gives <b>" + esc(EX("{;empty}", vars)) +
+    "</b> &mdash; same variable, same state, different <code>ifemp</code>. " +
+    "The unnamed operators write nothing at all for an empty value, except for the " +
+    "prefix they already emitted: <code>X{.empty}</code> is <b>" + esc(EX("X{.empty}", vars)) + "</b>.";
+}
+
+// STEP 8 - composite and explode
+{
+  const rows = [];
+  for (const tpl of ["{list}", "{list*}", "{/list}", "{/list*}", "{.list}", "{.list*}",
+                     "{keys}", "{keys*}", "{/keys}", "{/keys*}", "{?keys}", "{?keys*}"]) {
+    const out = EX(tpl);
+    rows.push({ cls: tpl.indexOf("*") >= 0 ? "here" : "", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      tpl.indexOf("*") >= 0 ? "exploded" : "flat",
+      "<code>" + esc(out) + "</code>",
+      out.split(ENGINE.OPERATORS[tpl[1] === "l" || tpl[1] === "k" ? "" : tpl[1]].sep).length
+    ]});
+  }
+  table("tExplode", ["expression", "modifier", "expansion", "pieces at the operator separator"], rows);
+}
+
+// STEP 9 - named + explode
+{
+  const rows = [];
+  const wrong = { "{?list*}": "?red&green&blue", "{&list*}": "&red&green&blue", "{;list*}": ";red;green;blue" };
+  for (const tpl of ["{?list*}", "{&list*}", "{;list*}", "{/list*}", "{.list*}", "{+list*}"]) {
+    const o = ENGINE.OPERATORS[tpl[1]];
+    rows.push({ cls: o.named ? "here" : "", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      o.named ? '<span class="pill good">named</span>' : '<span class="pill">unnamed</span>',
+      "<code>" + esc(EX(tpl)) + "</code>",
+      wrong[tpl] ? "<code>" + esc(wrong[tpl]) + "</code>" : '<span class="note" style="margin:0">identical &mdash; nothing to get wrong</span>'
+    ]});
+  }
+  table("tNamedExplode", ["expression", "operator", "correct expansion", "the common wrong answer"], rows);
+  el("neNote").innerHTML =
+    "<code>{?list*}</code> is <b>" + esc(EX("{?list*}")) + "</b>. Drop the name and you get " +
+    "<code>?red&amp;green&amp;blue</code>, which a query parser reads as three parameters " +
+    "named <code>red</code>, <code>green</code> and <code>blue</code> with no values &mdash; " +
+    "not a list at all. The three unnamed rows below it expand identically either way, which " +
+    "is exactly why a test suite built on <code>{/list*}</code> never catches this.";
+}
+
+// STEP 10 - the prefix modifier
+{
+  const rows = [];
+  const vars = { v: "value", p: "/foo/bar", cafe: "café society", emo: "\u{1F600}\u{1F600}\u{1F600}", list: ["red", "green"] };
+  for (const [tpl, note] of [
+    ["{v:3}", "three characters"],
+    ["{v:30}", "longer than the value - no error, no padding"],
+    ["{p:4}", "truncate FIRST, encode after: 4 chars in, 6 out"],
+    ["{+p:4}", "same four characters, different allow-set"],
+    ["{cafe:5}", "the accented letter counts as ONE character"],
+    ["{emo:2}", "and so does a 4-byte emoji"],
+    ["{list:3}", "ILLEGAL on a composite"]
+  ]) {
+    const r = ENGINE.expandSafe(tpl, vars);
+    rows.push({ cls: r.ok ? "" : "dim", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      r.ok ? "<code>" + esc(r.url) + "</code>" : '<span class="warn">' + esc(r.error) + "</span>",
+      r.ok ? r.url.length : "—",
+      '<span class="note" style="margin:0">' + note + "</span>"
+    ]});
+  }
+  table("tPrefix", ["expression", "expansion", "output chars", "note"], rows);
+  el("prefixNote").innerHTML =
+    "<code>{p:4}</code> on <code>/foo/bar</code> takes <b>4</b> characters and emits <b>" +
+    EX("{p:4}", vars).length + "</b>, because <code>/</code> becomes <code>%2F</code>. " +
+    "Counting the modifier against the <i>output</i> would truncate at the wrong place and could " +
+    "split a triplet in half; counting bytes would split a UTF-8 sequence. It counts " +
+    "characters of the decoded value, and the emoji row proves it: <code>{emo:2}</code> " +
+    "keeps <b>2</b> code points and emits <b>" + EX("{emo:2}", vars).length + "</b> characters.";
+}
+
+// STEP 11 - literals
+{
+  const rows = [];
+  for (const [tpl, note] of [
+    ["/a b/{v}", "a space in the literal"],
+    ["/x%2Fy/{v}", "an existing triplet is kept"],
+    ["/100%/{v}", "a bare % is not a triplet"],
+    ["/q?a=1&b=2{&v}", "reserved characters pass through"],
+    ["/café/{v}", "non-ASCII is legal in a literal"],
+    ["/a^b`c/{v}", "characters that cannot appear in a URI"]
+  ]) {
+    rows.push({ cls: "", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      "<code>" + esc(EX(tpl, { v: "ok" })) + "</code>",
+      '<span class="note" style="margin:0">' + note + "</span>"
+    ]});
+  }
+  for (const bad of ["/a{b", "/a}b", "{}", "{=x}", "{a,,b}", "{a:0}", "{a:12345}"]) {
+    const r = ENGINE.expandSafe(bad, { v: "ok" });
+    rows.push({ cls: "dim", cells: [
+      "<code>" + esc(bad) + "</code>",
+      '<span class="warn">' + esc(r.error) + "</span>",
+      '<span class="note" style="margin:0">syntax error, not a literal</span>'
+    ]});
+  }
+  table("tLiteral", ["template", "expansion", "note"], rows);
+}
+
+// ------------------------------------------------------------------ BUILD
+el("codeOps").textContent =
+  "const OPERATORS = " + JSON.stringify(ENGINE.OPERATORS, null, 2)
+    .replace(/"(\w+)":/g, "$1:");
+el("codeEncode").textContent = String(ENGINE.encode);
+el("codeExpand").textContent = String(ENGINE.expandExpression);
+el("codeEmit").textContent = String(ENGINE.emitValue);
+
+// -------------------------------------------------------------------- TOOL
+const PRESETS = {
+  rfc: {
+    tpl: "{/list*}{?keys*,var:3,undef}{#hello}",
+    vars: JSON.stringify(RFC_VARS, null, 2)
+  },
+  api: {
+    tpl: "https://api.example.com/repos{/owner,repo}/issues{?state,labels*,page,per_page}",
+    vars: JSON.stringify({
+      owner: "dev48v", repo: "solve-from-zero", state: "open",
+      labels: ["bug", "good first issue"], page: "2", per_page: null
+    }, null, 2)
+  },
+  traps: {
+    tpl: "{+base}{/seg}{/seg*}{?q,empty,undef,tags*}{;m}{#f}",
+    vars: JSON.stringify({
+      base: "https://ex.com/a%2Fb/", seg: ["x/y", "z"], q: "a b&c",
+      empty: "", undef: null, tags: ["one", "two"], m: "", f: "café"
+    }, null, 2)
+  }
+};
+function loadPreset(k) {
+  el("tplIn").value = PRESETS[k].tpl;
+  el("varsIn").value = PRESETS[k].vars;
+  runTool();
+}
+
+function runTool() {
+  const tpl = el("tplIn").value;
+  let vars;
+  try { vars = JSON.parse(el("varsIn").value || "{}"); }
+  catch (e) {
+    el("toolOut").innerHTML = '<span class="warn">variables are not valid JSON: ' + esc(e.message) + "</span>";
+    el("toolNote").textContent = "";
+    el("tSegments").innerHTML = "";
+    el("tPieces").innerHTML = "";
+    return;
+  }
+  const r = ENGINE.expandSafe(tpl, vars);
+  if (!r.ok) {
+    el("toolOut").innerHTML = '<span class="warn">' + esc(r.error) + "</span>";
+    el("toolNote").textContent = "";
+    el("tSegments").innerHTML = "";
+    el("tPieces").innerHTML = "";
+    return;
+  }
+
+  const segs = [];
+  for (const p of r.pieces) for (const s of p.segments) if (!s.skipped && s.text !== "") segs.push(s);
+
+  el("toolOut").innerHTML = segs.length
+    ? segs.map((s, i) => '<span class="seg s' + (i % 5) + '" title="' + esc(s.rule) + '">' + esc(s.text) + "</span>").join("")
+    : '<span style="opacity:.6">∅ the whole template expanded to nothing</span>';
+
+  const enc = (r.url.match(/%[0-9A-F]{2}/g) || []).length;
+  el("toolNote").innerHTML =
+    "<b>" + r.url.length + "</b> characters out of <b>" + tpl.length + "</b> in, from <b>" +
+    r.pieces.filter((p) => p.kind === "expr").length + "</b> expression(s) and <b>" + segs.length +
+    "</b> decisions. <b>" + enc + "</b> percent-encoded byte(s).";
+
+  let pos = 0;
+  table("tSegments", ["#", "at", "output", "the rule that produced it"],
+    segs.map((s, i) => {
+      const at = pos; pos += s.text.length;
+      return { cls: "", cells: [
+        String(i + 1), at, "<code>" + esc(s.text) + "</code>",
+        '<span class="note" style="margin:0">' + esc(s.rule) + "</span>"
+      ]};
+    }));
+
+  table("tPieces", ["part", "kind", "operator", "expansion"],
+    r.pieces.map((p) => ({ cls: p.kind === "expr" ? "here" : "", cells: [
+      "<code>" + esc(p.raw) + "</code>",
+      p.kind,
+      p.kind === "expr" ? (p.op.op === "" ? "simple" : "<code>" + esc(p.op.op) + "</code> &middot; " + p.op.label) : "—",
+      p.text === "" ? '<span class="pill">&empty;</span>' : "<code>" + esc(p.text) + "</code>"
+    ]})));
+}
+
+function renderVectors(filter) {
+  const rows = [];
+  let pass = 0, fail = 0;
+  for (const [sec, lvl, tpl, want] of RFC_VECTORS) {
+    const r = ENGINE.expandSafe(tpl, RFC_VARS);
+    const good = r.ok && r.url === want;
+    if (good) pass += 1; else fail += 1;
+    if (filter === "fail" && good) continue;
+    if (typeof filter === "number" && lvl !== filter) continue;
+    rows.push({ cls: good ? "" : "dim", cells: [
+      "<code>" + esc(tpl) + "</code>",
+      "&sect;" + sec,
+      "L" + lvl,
+      "<code>" + esc(want) + "</code>",
+      good ? '<span class="pill good">PASS</span>'
+           : '<span class="pill bad">got ' + esc(r.ok ? r.url : r.error) + "</span>"
+    ]});
+  }
+  if (!rows.length) rows.push({ cls: "", cells: ["<i>nothing matches that filter</i>", "", "", "", ""] });
+  table("tVectors", ["template", "section", "level", "expected", "result"], rows);
+  el("vecNote").innerHTML =
+    "<b>" + RFC_VECTORS.length + "</b> example expansions printed in RFC 6570, plus " +
+    "<b>" + (RFC_LEVELS[1].length + RFC_LEVELS[2].length + RFC_LEVELS[3].length + RFC_LEVELS[4].length) +
+    "</b> in the Appendix A level listings. Currently <b class='" + (fail ? "warn" : "ok") + "'>" +
+    pass + " pass, " + fail + " fail</b>.";
+}
+
+loadPreset("api");
+renderVectors("all");
+
+// ------------------------------------------------------------- SELF-CHECK
+selfCheckPanel((t) => {
+  // ---- every RFC vector, grouped by the section it is printed in
+  const sections = [];
+  for (const v of RFC_VECTORS) if (sections.indexOf(v[0]) < 0) sections.push(v[0]);
+  for (const sec of sections) {
+    const group = RFC_VECTORS.filter((v) => v[0] === sec);
+    const bad = group.filter(([, , tpl, want]) => {
+      const r = ENGINE.expandSafe(tpl, RFC_VARS);
+      return !r.ok || r.url !== want;
+    });
+    t("RFC 6570 &sect;" + sec + " - all " + group.length + " printed expansions",
+      bad.length === 0,
+      bad.length ? bad.map(([, , tpl, want]) => tpl + " wanted " + want + " got " + ENGINE.expandSafe(tpl, RFC_VARS).url).join("; ")
+                 : group.length + " vectors, byte-for-byte");
+  }
+
+  // ---- Appendix A, the four conformance levels
+  for (const lvl of [1, 2, 3, 4]) {
+    const group = RFC_LEVELS[lvl];
+    const bad = group.filter(([tpl, want]) => ENGINE.expandSafe(tpl, RFC_VARS).url !== want);
+    t("Appendix A Level " + lvl + " - all " + group.length + " example templates",
+      bad.length === 0,
+      bad.length ? bad.map(([tpl, want]) => tpl + " wanted " + want).join("; ")
+                 : "Level " + lvl + " conformance");
+  }
+
+  t("every vector is covered by a level listing or a section example",
+    RFC_VECTORS.length >= 100 &&
+    RFC_LEVELS[1].length + RFC_LEVELS[2].length + RFC_LEVELS[3].length + RFC_LEVELS[4].length >= 60,
+    RFC_VECTORS.length + " section vectors + " +
+    (RFC_LEVELS[1].length + RFC_LEVELS[2].length + RFC_LEVELS[3].length + RFC_LEVELS[4].length) + " level vectors");
+
+  // ---- the operator table is the whole spec
+  t("the operator table has exactly 8 rows", Object.keys(ENGINE.OPERATORS).length === 8,
+    Object.keys(ENGINE.OPERATORS).join(" ") + "  (the first is the empty operator)");
+
+  t("only ; ? and & are named", (() => {
+    const named = Object.keys(ENGINE.OPERATORS).filter((k) => ENGINE.OPERATORS[k].named).sort().join("");
+    return named === "&;?";
+  })(), "the other five write the value with no name");
+
+  t("only + and # allow reserved characters", (() => {
+    const r = Object.keys(ENGINE.OPERATORS).filter((k) => ENGINE.OPERATORS[k].allowReserved).sort().join("");
+    return r === "#+";
+  })(), "which is the single column that makes {+var} different from {var}");
+
+  t("only ? and & have a non-empty ifemp", (() => {
+    const r = Object.keys(ENGINE.OPERATORS).filter((k) => ENGINE.OPERATORS[k].ifemp !== "").sort().join("");
+    return r === "&?";
+  })(), 'so {;empty} is ";empty" and {?empty} is "?empty="');
+
+  // ---- encoding
+  t("the default allow-set encodes every reserved character", (() => {
+    for (const ch of ENGINE.RESERVED_SET) if (ENGINE.encode(ch, false) === ch) return false;
+    return true;
+  })(), "all " + ENGINE.RESERVED_SET.length + " of them, including / ? # and :");
+
+  t("INVERSION: the reserved allow-set keeps every one of them", (() => {
+    for (const ch of ENGINE.RESERVED_SET) if (ENGINE.encode(ch, true) !== ch) return false;
+    return true;
+  })(), "same characters, opposite answer - one boolean apart");
+
+  t("unreserved characters are never encoded, under either set", (() => {
+    const u = "ABCXYZabcxyz0189-._~";
+    return ENGINE.encode(u, false) === u && ENGINE.encode(u, true) === u;
+  })());
+
+  t("a pct-triplet survives {+var} and is re-encoded by {var}", (() => {
+    return ENGINE.encode("%2F", true) === "%2F" && ENGINE.encode("%2F", false) === "%252F";
+  })(), "double-expanding is safe under + and lossy under the default");
+
+  t("a bare % that is not a triplet is encoded even under +", (() => {
+    return ENGINE.encode("50%", true) === "50%25" && ENGINE.encode("%zz", true) === "%25zz";
+  })(), 'this is why {+half} is "50%25" and not "50%"');
+
+  t("UTF-8 is encoded byte by byte", (() => {
+    return ENGINE.encode("café", false) === "caf%C3%A9" &&
+           ENGINE.encode("漢", false) === "%E6%BC%A2" &&
+           ENGINE.encode("\u{1F600}", false) === "%F0%9F%98%80";
+  })(), "2, 3 and 4 byte sequences");
+
+  t("a lone surrogate becomes U+FFFD rather than invalid UTF-8", (() => {
+    return ENGINE.encode("\uD800", false) === "%EF%BF%BD";
+  })(), "WTF-8 would produce bytes no decoder accepts");
+
+  t("hex digits in a triplet are emitted uppercase", (() => {
+    return ENGINE.encode(" ", false) === "%20" && ENGINE.encode("é", false) === "%C3%A9";
+  })());
+
+  // ---- the three states
+  t("undefined, null and an absent key all skip the varspec", (() => {
+    const v = { a: "1", u: null };
+    return ENGINE.ex("{?a,u}", v) === "?a=1" &&
+           ENGINE.ex("{?a,missing}", v) === "?a=1" &&
+           ENGINE.ex("{?u,a}", v) === "?a=1";
+  })(), "before the separator is written, so no dangling &");
+
+  t("an empty string is NOT undefined", (() => {
+    const v = { e: "" };
+    return ENGINE.ex("{?e}", v) === "?e=" && ENGINE.ex("{;e}", v) === ";e" && ENGINE.ex("X{.e}", v) === "X.";
+  })(), "three operators, three different right answers");
+
+  t("an empty list and an empty map are undefined", (() => {
+    const v = { l: [], m: {} };
+    return ENGINE.ex("{?l}", v) === "" && ENGINE.ex("{?m}", v) === "" &&
+           ENGINE.ex("X{.l}", v) === "X" && ENGINE.ex("X{.m*}", v) === "X";
+  })(), "there is nothing to join, so there is nothing to emit");
+
+  t("INVERSION: a list holding one empty string is DEFINED", (() => {
+    return ENGINE.ex("{?l}", { l: [""] }) === "?l=" && ENGINE.ex("{/l}", { l: [""] }) === "/";
+  })(), "length 1, not length 0 - the distinction the empty-list rule turns on");
+
+  // ---- first vs separator
+  t("the operator prefix is emitted once, and only if something is defined", (() => {
+    return ENGINE.ex("{?a,b,c}", {}) === "" &&
+           ENGINE.ex("{?a,b,c}", { c: "3" }) === "?c=3" &&
+           ENGINE.ex("{?a,b,c}", { a: "1", c: "3" }) === "?a=1&c=3";
+  })(), "no dangling ?, no doubled &, no leading &");
+
+  t("the same rule holds for every operator with a prefix", (() => {
+    for (const op of ["#", ".", "/", ";", "?", "&"]) {
+      if (ENGINE.ex("{" + op + "a,b}", {}) !== "") return false;
+      if (ENGINE.ex("{" + op + "a,b}", { b: "2" })[0] !== op) return false;
+    }
+    return true;
+  })(), "six operators, one flag in one loop");
+
+  t("CONTROL: the simple and reserved operators have no prefix to suppress", (() => {
+    return ENGINE.ex("{a,b}", {}) === "" && ENGINE.ex("{+a,b}", {}) === "";
+  })(), "they still emit nothing, via the same path");
+
+  // ---- named + explode, the trap
+  t("INVERSION: named + exploded list REPEATS the variable name", (() => {
+    const v = { list: ["red", "green", "blue"] };
+    return ENGINE.ex("{?list*}", v) === "?list=red&list=green&list=blue" &&
+           ENGINE.ex("{&list*}", v) === "&list=red&list=green&list=blue" &&
+           ENGINE.ex("{;list*}", v) === ";list=red;list=green;list=blue";
+  })(), "?red&green&blue would not be name=value pairs at all");
+
+  t("CONTROL: the unnamed operators drop the name, as expected", (() => {
+    const v = { list: ["red", "green", "blue"] };
+    return ENGINE.ex("{/list*}", v) === "/red/green/blue" &&
+           ENGINE.ex("X{.list*}", v) === "X.red.green.blue" &&
+           ENGINE.ex("{+list*}", v) === "red,green,blue";
+  })(), "which is why testing only these hides the bug above");
+
+  t("an exploded map uses its KEYS as names, named or not", (() => {
+    const v = { k: { a: "1", b: "2" } };
+    return ENGINE.ex("{?k*}", v) === "?a=1&b=2" &&
+           ENGINE.ex("{/k*}", v) === "/a=1/b=2" &&
+           ENGINE.ex("{k*}", v) === "a=1,b=2";
+  })(), 'the "=" in {/k*} comes from explode, not from the operator');
+
+  t("an UNEXPLODED composite always joins with a comma", (() => {
+    const v = { l: ["a", "b"], k: { x: "1", y: "2" } };
+    return ENGINE.ex("{/l}", v) === "/a,b" && ENGINE.ex("{;l}", v) === ";l=a,b" &&
+           ENGINE.ex("{/k}", v) === "/x,1,y,2" && ENGINE.ex("{?k}", v) === "?k=x,1,y,2";
+  })(), "never the operator separator - that is what the star is for");
+
+  t("an unexploded map is a FLAT list, pairing lost", (() => {
+    return ENGINE.ex("{keys}", RFC_VARS) === "semi,%3B,dot,.,comma,%2C";
+  })(), "six comma-separated items, not three pairs");
+
+  // ---- the prefix modifier
+  t("the prefix modifier counts characters of the DECODED value", (() => {
+    return ENGINE.ex("{p:4}", { p: "/foo/bar" }) === "%2Ffoo" &&
+           ENGINE.ex("{+p:4}", { p: "/foo/bar" }) === "/foo";
+  })(), "4 characters in; 6 and 4 characters out");
+
+  t("and counts code points, not UTF-8 bytes", (() => {
+    return ENGINE.ex("{e:2}", { e: "\u{1F600}\u{1F600}\u{1F600}" }) === "%F0%9F%98%80%F0%9F%98%80" &&
+           ENGINE.ex("{c:4}", { c: "caféx" }) === "caf%C3%A9";
+  })(), "a byte count would cut a 4-byte emoji in half");
+
+  t("a prefix longer than the value is not an error", (() => {
+    return ENGINE.ex("{v:30}", { v: "value" }) === "value" && ENGINE.ex("{v:9999}", { v: "x" }) === "x";
+  })());
+
+  t("INVERSION: a prefix modifier on a list or a map THROWS", (() => {
+    const bad = ENGINE.expandSafe("{l:3}", { l: ["a", "b"] });
+    const bad2 = ENGINE.expandSafe("{k:3}", { k: { a: "1" } });
+    return !bad.ok && !bad2.ok && /prefix modifier/.test(bad.error);
+  })(), "it is illegal, not 'truncate each member'");
+
+  t("the max-length grammar is 1..9999 with no leading zero", (() => {
+    return !ENGINE.expandSafe("{a:0}", {}).ok &&
+           !ENGINE.expandSafe("{a:01}", {}).ok &&
+           !ENGINE.expandSafe("{a:12345}", {}).ok &&
+           ENGINE.expandSafe("{a:9999}", {}).ok;
+  })(), "%x31-39 0*3DIGIT");
+
+  // ---- syntax
+  t("an unterminated or unmatched brace is a syntax error", (() => {
+    return !ENGINE.expandSafe("/a{b", {}).ok && !ENGINE.expandSafe("/a}b", {}).ok;
+  })(), "there is no escape for a literal brace - braces are not URI characters");
+
+  t("an empty expression and an empty varspec are errors", (() => {
+    return !ENGINE.expandSafe("{}", {}).ok && !ENGINE.expandSafe("{a,,b}", {}).ok;
+  })());
+
+  t("the five operators reserved for future extension are rejected", (() => {
+    for (const ch of "=,!@|") if (ENGINE.expandSafe("{" + ch + "a}", {}).ok) return false;
+    return true;
+  })(), 'RFC 6570 section 2.2: = , ! @ |');
+
+  t("illegal variable-name characters are rejected", (() => {
+    for (const bad of ["{a-b}", "{a b}", "{+.a}", "{a.}", "{a..b}", "{a%zz}"]) {
+      if (ENGINE.expandSafe(bad, {}).ok) return false;
+    }
+    return true;
+  })(), "varname = varchar *( ['.'] varchar )");
+
+  t("CONTROL: the legal name shapes are accepted", (() => {
+    for (const good of ["{a}", "{A1_b}", "{a.b.c}", "{a%20b}", "{_}"]) {
+      if (!ENGINE.expandSafe(good, {}).ok) return false;
+    }
+    return true;
+  })());
+
+  t("a dotted name is one key, not a path into an object", (() => {
+    return ENGINE.ex("{a.b}", { "a.b": "flat", a: { b: "nested" } }) === "flat";
+  })(), "there is no traversal anywhere in the spec");
+
+  // ---- literals
+  t("a literal keeps reserved characters and triplets, and encodes the rest", (() => {
+    return ENGINE.ex("/a?b=c&d#e{x}", { x: "" }) === "/a?b=c&d#e" &&
+           ENGINE.ex("/x%2Fy{x}", { x: "" }) === "/x%2Fy" &&
+           ENGINE.ex("/a b{x}", { x: "" }) === "/a%20b" &&
+           ENGINE.ex("/a^b{x}", { x: "" }) === "/a%5Eb";
+  })(), "space, caret, backtick, quotes and angle brackets are not URI characters");
+
+  t("a bare % in a literal is encoded to %25", (() => {
+    return ENGINE.ex("/100%{x}", { x: "" }) === "/100%25";
+  })());
+
+  // ---- the trace the tool renders
+  t("the segments always reassemble into the expansion, exactly", (() => {
+    for (const [, , tpl] of RFC_VECTORS) {
+      const r = ENGINE.expand(tpl, RFC_VARS);
+      let joined = "";
+      for (const p of r.pieces) for (const s of p.segments) joined += s.text;
+      if (joined !== r.url) return false;
+    }
+    return true;
+  })(), "checked on all " + RFC_VECTORS.length + " vectors - the trace is the output, not a story about it");
+
+  t("every emitted segment carries a rule", (() => {
+    for (const [, , tpl] of RFC_VECTORS) {
+      const r = ENGINE.expand(tpl, RFC_VARS);
+      for (const p of r.pieces) for (const s of p.segments) if (!s.rule || !s.rule.length) return false;
+    }
+    return true;
+  })());
+
+  t("expansion is deterministic and side-effect free", (() => {
+    const before = JSON.stringify(RFC_VARS);
+    const a = ENGINE.ex("{/list*}{?keys*}", RFC_VARS);
+    const b = ENGINE.ex("{/list*}{?keys*}", RFC_VARS);
+    return a === b && JSON.stringify(RFC_VARS) === before;
+  })(), "the variable set is never mutated");
+
+  t("an expansion of a Level-1 template is always a valid URI character string", (() => {
+    const legal = /^[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]*$/;
+    for (const [, , tpl] of RFC_VECTORS) {
+      const r = ENGINE.expandSafe(tpl, RFC_VARS);
+      if (r.ok && !legal.test(r.url)) return false;
+    }
+    return true;
+  })(), "no spaces, no braces, no raw non-ASCII survives any vector");
+});
+</script>
+</body>
+</html>

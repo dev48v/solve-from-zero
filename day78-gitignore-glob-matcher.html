@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 78 &mdash; A real ignore-file matcher</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#047857; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  .grid3 { display:grid; gap:16px; grid-template-columns:minmax(0,1fr); }
+  .grid4 { display:grid; gap:16px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  @media (min-width:768px){ .grid3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+                            .grid4 { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.35; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:520px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num tr.here td { background:#eef2ff; font-weight:700; }
+  table.num tr.dim td { color:#94a3b8; }
+  table.num td.txt { text-align:left; font-size:11.5px; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:800; }
+  .good { background:#dcfce7; color:#166534; }
+  .stop { background:#fef3c7; color:#92400e; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  select, input[type=range], input[type=text] { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font:inherit; font-size:13px; width:100%; margin-top:4px; background:#fff; }
+  input[type=range] { padding:0; }
+  label.f { font-size:13px; display:block; }
+  .callout { background:#eef2ff; border-left:4px solid var(--accent); padding:14px; border-radius:0 8px 8px 0; }
+  .callout p { font-size:13.5px; margin:0; }
+  a { color:var(--accent); }
+  .prose { max-width:760px; margin:0 auto; }
+  .bar { display:block; height:9px; background:#e0e7ff; border-radius:3px; position:relative; min-width:110px; }
+  .bar i { position:absolute; top:0; left:0; height:9px; background:var(--accent); border-radius:3px; }
+  .sc { font-size:12.5px; line-height:1.6; }
+  .sc div { display:flex; gap:8px; align-items:baseline; }
+  .sc .m { color:#94a3b8; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 78</p>
+    <h1>
+      &#128194; A real ignore-file matcher &mdash; <code>*.log</code>, <code>build/</code>,
+      <code>!keep.log</code>, <code>**/tmp</code>. The same handful of characters goes into a
+      <code>.gitignore</code>, an <code>rsync --exclude</code>, a shell glob and a
+      <code>.dockerignore</code>, and this implements <strong>all four from their own rules</strong> over
+      one shared matcher, so the same pattern is read four ways and the answers sit side by side.
+      Nothing is sampled: 10 patterns &times; 24 paths is an enumerated <strong>240-cell grid</strong>
+      and every figure is a count. &#128308; <strong>Not one of the ten patterns means the same thing in
+      all four tools.</strong> Zero. The grid agrees on 212 of 240 cells &mdash; 88.33%, which sounds
+      reassuring until you notice the disagreements are concentrated in the patterns people actually
+      write. &#128308; <code>*.log</code> in a <code>.dockerignore</code> does <strong>not</strong> match
+      <code>src/app.log</code>, because Docker anchors at the context root and git does not.
+      &#128308; And the one that costs an afternoon: <code>test/</code> followed by
+      <code>!test/fixtures/keep.log</code> <strong>does nothing at all</strong> &mdash; git will not
+      re-include a file whose parent directory is excluded, and it reports no error, no warning, and
+      no sign that the second line was ignored.
+    </h1>
+
+    <div class="tabs">
+      <button id="tabLook" class="tab-active" onclick="showTab('look')">&#128065; LOOK</button>
+      <button id="tabUnd" onclick="showTab('und')">&#129504; UNDERSTAND</button>
+      <button id="tabBuild" onclick="showTab('build')">&#128296; BUILD</button>
+    </div>
+  </div>
+</header>
+
+<main id="look" class="wrap stack">
+  <div class="callout">
+    <p>
+      <strong>Four real implementations, not four wrappers.</strong> git's basename-at-any-depth rule and
+      its parent-exclusion rule, rsync's anchoring, a shell glob that will not cross a slash, and
+      Docker's root-anchored match &mdash; each written from its own documented behaviour over one
+      shared glob engine, so a difference in the table is a difference in the rules rather than a
+      difference in libraries.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Pick a pattern, read four answers</h2>
+    <div class="grid2" style="margin:12px 0">
+      <label class="f">Pattern
+        <select id="pat"></select>
+      </label>
+      <div>
+        <p class="lbl" style="margin-bottom:2px">WHAT DISAGREES</p>
+        <p class="note" style="margin:0" id="patNote"></p>
+      </div>
+    </div>
+    <div class="tblwrap"><table class="num" id="tGrid"></table></div>
+  </div>
+
+  <div class="grid4">
+    <div class="card"><p class="lbl">GRID CELLS</p><p class="big" id="kCells">&mdash;</p>
+      <p class="note">10 patterns &times; 24 paths</p></div>
+    <div class="card"><p class="lbl">ALL FOUR AGREE</p><p class="big ok" id="kAgree">&mdash;</p>
+      <p class="note">which reads as reassuring</p></div>
+    <div class="card"><p class="lbl">PATTERNS READ IDENTICALLY BY ALL FOUR</p><p class="big warn" id="kUnan">&mdash;</p>
+      <p class="note">of ten</p></div>
+    <div class="card"><p class="lbl">CLOSEST TWO TOOLS</p><p class="big" id="kClose" style="font-size:15px">&mdash;</p>
+      <p class="note" id="kCloseN"></p></div>
+  </div>
+</main>
+
+<main id="und" class="wrap stack hidden">
+  <div class="card">
+    <h3 style="margin-top:0">1. Every pair of tools disagrees, and by wildly different amounts</h3>
+    <div class="tblwrap"><table class="num" id="tPairs"></table></div>
+    <p class="note">
+      The closest two are <strong>a shell glob and <code>.dockerignore</code>, 3 cells of 240</strong>
+      &mdash; both anchor at the root, so they mostly agree. git and rsync are next at <strong>4</strong>,
+      both matching a bare pattern at any depth. The two families are far apart: git against a shell glob
+      differs on <strong>28</strong>. The intuition that &ldquo;ignore syntax is ignore syntax&rdquo; is
+      right within a family and wrong across them, and nothing in the file tells you which one you are
+      holding.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">2. The anchoring rule, which is where most of it comes from</h3>
+    <p>
+      git treats a pattern with no slash as a <em>basename</em> pattern and matches it at any depth.
+      Docker anchors everything at the context root. That single difference produces most of the grid.
+    </p>
+    <div class="tblwrap"><table class="num" id="tAnchor"></table></div>
+    <p class="note">
+      <code>*.log</code> is the most-written ignore line there is. In git it catches
+      <code>src/deep/nested/app.log</code>; in a <code>.dockerignore</code> it catches
+      <code>app.log</code> and nothing below it. Both are correct, documented behaviour. Neither file
+      format announces which one it is.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">3. The negation that does nothing, silently</h3>
+    <p>
+      This is the one worth carrying away. You exclude a directory, then try to re-include one file
+      inside it:
+    </p>
+    <pre>test/                        &lt;- excludes the directory itself
+!test/fixtures/keep.log      &lt;- never gets a chance to apply</pre>
+    <div class="tblwrap"><table class="num" id="tReinc"></table></div>
+    <p class="note">
+      &#128308; <strong>The file stays ignored.</strong> git does not descend into an excluded directory,
+      so the re-inclusion never gets a chance to apply &mdash; and a matcher that simply walks the
+      pattern list in order, which is what most people picture, gets the opposite answer. There is no
+      error and no warning.
+    </p>
+    <p class="note">
+      And the obvious repair does not work either. Adding <code>!test/fixtures/</code> changes nothing,
+      because <code>test</code> itself is still excluded and git still never descends. The line that
+      works is <strong><code>test/*</code></strong> &mdash; exclude the <em>contents</em> rather than the
+      directory, so the walk continues and the negation gets a chance to apply. One character, and
+      nothing in the file, the tool, or the output tells you which of the two you wrote.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">What this covers and what it does not</h3>
+    <p class="note" style="margin-top:0">
+      The four engines implement the rules that produce the disagreements above: anchoring, basename
+      matching, directory-only patterns, negation, globstar, and git's parent-exclusion rule. They are
+      not complete reimplementations &mdash; nested <code>.gitignore</code> files, case-insensitive
+      filesystems, <code>core.excludesFile</code> and rsync's per-directory merge files are all out of
+      scope, and each of those is another way for two tools to differ. The claim is about the ten
+      patterns and 24 paths in the grid, which is what the counts are over.
+    </p>
+  </div>
+</main>
+
+<main id="build" class="wrap stack hidden">
+  <div class="card prose">
+    <h2>How it works</h2>
+    <p>
+      One recursive glob matcher underneath, with <code>*</code> refusing to cross a slash,
+      <code>**</code> special only as a whole path segment, and character classes with ranges and
+      negation. The four tools are thin policies over it &mdash; which is the point, because it means a
+      difference in the grid is a difference in the <em>rules</em>, not an artefact of four separate
+      parsers.
+    </p>
+    <pre>// git: no slash in the pattern means "match the basename at any depth"
+const anchored = p.includes("/");
+if (!anchored) return path.split("/").some((seg) =&gt; globMatch(p, seg));
+
+// docker: always anchored at the context root
+return globMatch(p, path);</pre>
+    <h3>Self-check</h3>
+    <p class="note">
+      Runs on load. Several are <strong>controls</strong>: a claim that two tools disagree means nothing
+      without the cases where they agree.
+    </p>
+    <div class="sc" id="selfcheck"></div>
+    <p style="margin-top:20px"><a href="../solvefromzero.php">&larr; SolveFromZero</a></p>
+  </div>
+</main>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// ---------------------------------------------------------------------------
+// A real gitignore matcher, and the three other things that look like it.
+//
+// `*.log`, `build/`, `!keep.log`, `**/tmp` - the same handful of characters
+// appears in .gitignore, in an rsync --exclude, in a shell glob and in a
+// .dockerignore, and the four of them do NOT agree. This implements all four
+// from their own rules, over one shared tokenizer, so the same pattern can be
+// read four ways and the answers put side by side.
+//
+// Nothing is sampled. The path corpus is enumerated and every rate is a count.
+// DOM-free, clock-free, Math.random-free.
+// ---------------------------------------------------------------------------
+
+// --------------------------------------------------------------- the engines
+// Each returns true when the pattern MATCHES the path.
+
+// A shell glob: * and ? never cross a slash unless globstar is on, and a
+// leading dot is not matched by a leading * (bash without dotglob).
+function globMatch(pat, str, opts = {}) {
+  const { crossSlash = false, dotglob = false } = opts;
+  // ** is only special as a whole path segment
+  function seg(p, s) { return compile(p, s, 0, 0); }
+  function compile(p, s, i, j) {
+    while (i < p.length) {
+      const c = p[i];
+      if (c === "*") {
+        let star = 1;
+        while (p[i + star] === "*") star++;
+        const globstar = star >= 2 && (i === 0 || p[i - 1] === "/") && (i + star >= p.length || p[i + star] === "/");
+        const rest = i + star;
+        if (globstar) {
+          // ** eats any number of segments, including none
+          let k = rest;
+          if (p[k] === "/") k++;
+          if (compile(p, s, k, j)) return true;
+          for (let t = j; t < s.length; t++) {
+            if (s[t] === "/" && compile(p, s, k, t + 1)) return true;
+          }
+          return compile(p, s, k, s.length);
+        }
+        for (let t = j; t <= s.length; t++) {
+          if (!crossSlash && s.slice(j, t).includes("/")) break;
+          if (!dotglob && j === 0 && s[0] === "." && t > 0) break;
+          if (compile(p, s, rest, t)) return true;
+        }
+        return false;
+      }
+      if (c === "?") {
+        if (j >= s.length) return false;
+        if (!crossSlash && s[j] === "/") return false;
+        i++; j++;
+        continue;
+      }
+      if (c === "[") {
+        const close = p.indexOf("]", i + 2);
+        if (close < 0) { if (s[j] !== "[") return false; i++; j++; continue; }
+        let set = p.slice(i + 1, close);
+        let neg = false;
+        if (set[0] === "!" || set[0] === "^") { neg = true; set = set.slice(1); }
+        if (j >= s.length) return false;
+        let hit = false;
+        for (let k = 0; k < set.length; k++) {
+          if (set[k + 1] === "-" && set[k + 2] !== undefined) {
+            if (s[j] >= set[k] && s[j] <= set[k + 2]) hit = true;
+            k += 2;
+          } else if (set[k] === s[j]) hit = true;
+        }
+        if (hit === neg) return false;
+        i = close + 1; j++;
+        continue;
+      }
+      if (s[j] !== c) return false;
+      i++; j++;
+    }
+    return j === s.length;
+  }
+  return seg(pat, str);
+}
+
+// git's rules, from gitignore(5):
+//  - a pattern with no slash (other than a trailing one) matches at ANY depth
+//  - a pattern with a slash is anchored to the root
+//  - a trailing slash means directories only
+//  - a leading ! negates, and re-inclusion cannot resurrect a file whose
+//    PARENT DIRECTORY was excluded
+function gitMatchOne(pat, path, isDir) {
+  let p = pat;
+  let negate = false;
+  if (p.startsWith("!")) { negate = true; p = p.slice(1); }
+  let dirOnly = false;
+  if (p.endsWith("/")) { dirOnly = true; p = p.slice(0, -1); }
+  if (dirOnly && !isDir) {
+    // a directory-only pattern still excludes everything beneath it, which the
+    // caller handles by testing ancestors
+    return { hit: false, negate };
+  }
+  const anchored = p.includes("/");
+  if (anchored) {
+    if (p.startsWith("/")) p = p.slice(1);
+    return { hit: globMatch(p, path), negate };
+  }
+  // unanchored: match the basename at any depth
+  const parts = path.split("/");
+  for (let i = 0; i < parts.length; i++) {
+    if (globMatch(p, parts[i])) return { hit: true, negate };
+  }
+  return { hit: false, negate };
+}
+
+function gitIgnored(patterns, path, isDir) {
+  // Walk ancestors first: git never re-includes a file if a parent directory
+  // is excluded, and that is the rule people are most surprised by.
+  const parts = path.split("/");
+  for (let d = 1; d < parts.length; d++) {
+    const ancestor = parts.slice(0, d).join("/");
+    let ancestorExcluded = false;
+    for (const pat of patterns) {
+      const r = gitMatchOne(pat, ancestor, true);
+      if (r.hit) ancestorExcluded = !r.negate;
+    }
+    if (ancestorExcluded) return { ignored: true, byParent: true, parent: ancestor };
+  }
+  let ignored = false;
+  for (const pat of patterns) {
+    const r = gitMatchOne(pat, path, isDir);
+    if (r.hit) ignored = !r.negate;
+  }
+  return { ignored, byParent: false };
+}
+
+// rsync --exclude: patterns without a slash match the basename at any depth,
+// like git, but there is NO parent-exclusion rule for --include and a trailing
+// slash is not required for directories to be pruned the same way.
+function rsyncExcluded(patterns, path) {
+  let excluded = false;
+  for (const pat of patterns) {
+    let p = pat, negate = false;
+    if (p.startsWith("!")) { negate = true; p = p.slice(1); }
+    if (p.endsWith("/")) p = p.slice(0, -1);
+    const anchored = p.startsWith("/");
+    if (anchored) p = p.slice(1);
+    const hit = anchored
+      ? globMatch(p, path)
+      : p.includes("/")
+        ? globMatch("**/" + p, path) || globMatch(p, path)
+        : path.split("/").some((seg) => globMatch(p, seg));
+    if (hit) excluded = !negate;
+  }
+  return excluded;
+}
+
+// A plain shell glob, as a person would type it: no basename shortcut, no
+// negation, and * does not cross a slash.
+function shellMatch(patterns, path) {
+  return patterns.some((p) => !p.startsWith("!") && globMatch(p.replace(/\/$/, ""), path));
+}
+
+// .dockerignore: Go's filepath.Match plus ** - crucially, patterns are ALWAYS
+// anchored at the context root, so `*.log` does NOT match `src/app.log`.
+function dockerExcluded(patterns, path) {
+  let excluded = false;
+  for (const pat of patterns) {
+    let p = pat, negate = false;
+    if (p.startsWith("!")) { negate = true; p = p.slice(1); }
+    if (p.endsWith("/")) p = p.slice(0, -1);
+    if (p.startsWith("/")) p = p.slice(1);
+    if (globMatch(p, path)) excluded = !negate;
+  }
+  return excluded;
+}
+
+// ------------------------------------------------------------- the corpus
+const PATHS = [
+  "app.log", "src/app.log", "src/deep/nested/app.log", "logs/app.log",
+  "build", "build/out.js", "src/build/out.js", "keep.log", "src/keep.log",
+  "node_modules/x/index.js", "src/node_modules/y/index.js",
+  "tmp/a.txt", "src/tmp/a.txt", "a/b/tmp/c.txt",
+  ".env", "src/.env", "config/.env.local",
+  "dist/index.html", "src/dist/index.html", "doc/readme.md",
+  "test/fixture.log", "test/fixtures/keep.log", "a.tmp", "src/a.tmp",
+];
+const DIRS = new Set(["build", "logs", "src", "src/deep", "src/deep/nested", "src/build",
+  "node_modules", "node_modules/x", "src/node_modules", "src/node_modules/y",
+  "tmp", "src/tmp", "a", "a/b", "a/b/tmp", "config", "dist", "src/dist", "doc", "test", "test/fixtures"]);
+
+const PATTERN_SETS = [
+  { key: "star-log", label: "*.log", pats: ["*.log"] },
+  { key: "anchored-log", label: "/*.log", pats: ["/*.log"] },
+  { key: "dir-build", label: "build/", pats: ["build/"] },
+  { key: "bare-build", label: "build", pats: ["build"] },
+  { key: "globstar-tmp", label: "**/tmp", pats: ["**/tmp"] },
+  { key: "negate", label: "*.log then !keep.log", pats: ["*.log", "!keep.log"] },
+  { key: "negate-under-dir", label: "test/ then !test/fixtures/keep.log", pats: ["test/", "!test/fixtures/keep.log"] },
+  { key: "node-modules", label: "node_modules/", pats: ["node_modules/"] },
+  { key: "dotenv", label: ".env*", pats: [".env*"] },
+  { key: "dist", label: "dist", pats: ["dist"] },
+];
+
+const TOOLS = [
+  { key: "git", label: "git (.gitignore)", run: (pats, p) => gitIgnored(pats, p, DIRS.has(p)).ignored },
+  { key: "rsync", label: "rsync --exclude", run: (pats, p) => rsyncExcluded(pats, p) },
+  { key: "shell", label: "a shell glob", run: (pats, p) => shellMatch(pats, p) },
+  { key: "docker", label: ".dockerignore", run: (pats, p) => dockerExcluded(pats, p) },
+];
+
+function grid() {
+  return PATTERN_SETS.map((ps) => ({
+    ...ps,
+    rows: PATHS.map((path) => ({
+      path,
+      isDir: DIRS.has(path),
+      results: TOOLS.map((t) => t.run(ps.pats, path)),
+    })),
+  }));
+}
+
+function report() {
+  const g = grid();
+  let cells = 0, agree = 0;
+  const disagreements = [];
+  for (const ps of g) {
+    for (const r of ps.rows) {
+      cells++;
+      const all = r.results;
+      if (all.every((v) => v === all[0])) agree++;
+      else disagreements.push({ pattern: ps.label, path: r.path, results: all });
+    }
+  }
+  // how often each PAIR of tools differs
+  const pairs = [];
+  for (let a = 0; a < TOOLS.length; a++) {
+    for (let b = a + 1; b < TOOLS.length; b++) {
+      let diff = 0;
+      for (const ps of g) for (const r of ps.rows) if (r.results[a] !== r.results[b]) diff++;
+      pairs.push({ a: TOOLS[a].label, b: TOOLS[b].label, diff, of: cells });
+    }
+  }
+  // patterns on which all four agree everywhere
+  const unanimous = g.filter((ps) => ps.rows.every((r) => r.results.every((v) => v === r.results[0])));
+  return { grid: g, cells, agree, disagreements, pairs, unanimous, tools: TOOLS, paths: PATHS };
+}
+
+// The re-inclusion rule, isolated: git cannot resurrect a file under an
+// excluded directory, and this counts how often that bites.
+function reinclusion() {
+  const pats = ["test/", "!test/fixtures/keep.log"];
+  const target = "test/fixtures/keep.log";
+  const g = gitIgnored(pats, target, false);
+  const naive = (() => {
+    let ig = false;
+    for (const p of pats) {
+      const r = gitMatchOne(p, target, false);
+      if (r.hit) ig = !r.negate;
+    }
+    return ig;
+  })();
+  return { target, git: g, naive, differ: g.ignored !== naive };
+}
+
+const ENGINE = {
+  globMatch, gitMatchOne, gitIgnored, rsyncExcluded, shellMatch, dockerExcluded,
+  PATHS, DIRS, PATTERN_SETS, TOOLS, grid, report, reinclusion,
+};
+if (typeof module !== "undefined" && module.exports) module.exports = ENGINE;
+
+// ===== ENGINE:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["look", "und", "build"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabLook").classList.toggle("tab-active", name === "look");
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+}
+const el = (id) => document.getElementById(id);
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selfcheck").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+
+const R = ENGINE.report();
+const yes = '<span class="warn">ignored</span>';
+const no = '<span class="ok">kept</span>';
+
+el("kCells").textContent = R.cells;
+el("kAgree").textContent = R.agree + " (" + ((R.agree / R.cells) * 100).toFixed(2) + "%)";
+el("kUnan").textContent = R.unanimous.length;
+const closest = R.pairs.slice().sort((a, b) => a.diff - b.diff)[0];
+el("kClose").textContent = closest.a.split(" ")[0] + " / " + closest.b.split(" ")[0];
+el("kCloseN").textContent = closest.diff + " of " + closest.of + " cells differ";
+
+el("pat").innerHTML = ENGINE.PATTERN_SETS.map((p, i) =>
+  '<option value="' + i + '">' + p.label + "</option>").join("");
+
+function renderGrid(i) {
+  const ps = R.grid[i];
+  const heads = ["path"].concat(ENGINE.TOOLS.map((t) => t.label));
+  table("tGrid", heads, ps.rows.map((r) => {
+    const split = !r.results.every((v) => v === r.results[0]);
+    return {
+      cls: split ? "here" : "",
+      cells: [(r.isDir ? "<b>" + r.path + "/</b>" : r.path)].concat(r.results.map((v) => (v ? yes : no))),
+    };
+  }));
+  const n = ps.rows.filter((r) => !r.results.every((v) => v === r.results[0])).length;
+  el("patNote").innerHTML = n === 0
+    ? "All four agree on every path for this pattern."
+    : "<b>" + n + " of " + ps.rows.length + " paths</b> are treated differently by at least one of the four.";
+}
+renderGrid(0);
+el("pat").addEventListener("change", (e) => renderGrid(parseInt(e.target.value, 10)));
+
+table("tPairs", ["", "", "cells that differ", "share of the grid"],
+  R.pairs.slice().sort((a, b) => a.diff - b.diff).map((p) => ({
+    cls: p.diff === closest.diff ? "here" : "",
+    cells: [p.a, p.b, "<b>" + p.diff + " / " + p.of + "</b>", ((p.diff / p.of) * 100).toFixed(2) + "%"],
+  })));
+
+const anchorPaths = ["app.log", "src/app.log", "src/deep/nested/app.log", "logs/app.log"];
+table("tAnchor", ["path"].concat(ENGINE.TOOLS.map((t) => t.label)),
+  anchorPaths.map((p) => {
+    const row = R.grid.find((g) => g.key === "star-log").rows.find((r) => r.path === p);
+    return { cls: !row.results.every((v) => v === row.results[0]) ? "here" : "", cells: [p].concat(row.results.map((v) => (v ? yes : no))) };
+  }));
+
+const RI = ENGINE.reinclusion();
+table("tReinc", ["what you asked for", "what a list-walking matcher says", "what git actually does", "agree?"],
+  [{
+    cls: "here",
+    cells: [
+      "keep <code>" + RI.target + "</code>",
+      RI.naive ? yes : no,
+      RI.git.ignored ? yes + (RI.git.byParent ? " (because <code>" + RI.git.parent + "</code> is excluded)" : "") : no,
+      RI.differ ? '<span class="pill bad">NO</span>' : '<span class="pill good">yes</span>',
+    ],
+  }]);
+
+selfCheckPanel((t) => {
+  t("* does not cross a slash", ENGINE.globMatch("*.log", "src/app.log") === false);
+  t("** does cross slashes", ENGINE.globMatch("**/tmp", "a/b/tmp") === true);
+  t("** matches zero segments too", ENGINE.globMatch("**/tmp", "tmp") === true);
+  t("? matches exactly one character", ENGINE.globMatch("a?c", "abc") === true && ENGINE.globMatch("a?c", "ac") === false);
+  t("a character class with a range works", ENGINE.globMatch("[a-c]x", "bx") === true && ENGINE.globMatch("[a-c]x", "dx") === false);
+  t("a negated class works", ENGINE.globMatch("[!a]x", "bx") === true && ENGINE.globMatch("[!a]x", "ax") === false);
+  t("CONTROL: a leading dot is not matched by a leading *", ENGINE.globMatch("*", ".env") === false);
+
+  t("git matches a bare pattern at any depth",
+    ENGINE.gitIgnored(["*.log"], "src/deep/nested/app.log", false).ignored === true);
+  t("CONTROL: docker does not - it anchors at the root",
+    ENGINE.dockerExcluded(["*.log"], "src/deep/nested/app.log") === false);
+  t("git anchors a pattern that contains a slash",
+    ENGINE.gitIgnored(["/*.log"], "src/app.log", false).ignored === false);
+
+  t("the grid is 240 cells", R.cells === ENGINE.PATTERN_SETS.length * ENGINE.PATHS.length && R.cells === 240);
+  t("NOT ONE pattern is read identically by all four", R.unanimous.length === 0);
+  t("all four agree on 212 of the 240 cells", R.agree === 212);
+  t("every pair of tools differs somewhere", R.pairs.every((p) => p.diff > 0));
+  t("the closest pair is the shell glob and dockerignore", closest.diff === 3, closest.a + " / " + closest.b);
+  t("git and rsync are the next closest, at 4",
+    R.pairs.find((x) => x.a.startsWith("git") && x.b.startsWith("rsync")).diff === 4);
+
+  t("the re-inclusion under an excluded directory does NOT apply", RI.git.ignored === true);
+  t("...and it is the parent that causes it", RI.git.byParent === true);
+  t("CONTROL: a naive list walk gets the opposite answer", RI.naive === false && RI.differ === true);
+  t("CONTROL: re-including the SUBDIRECTORY does not help either",
+    ENGINE.gitIgnored(["test/", "!test/fixtures/", "!test/fixtures/keep.log"], "test/fixtures/keep.log", false).ignored === true);
+  t("CONTROL: excluding the CONTENTS instead of the directory DOES work",
+    ENGINE.gitIgnored(["test/*", "!test/fixtures/", "!test/fixtures/keep.log"], "test/fixtures/keep.log", false).ignored === false);
+});
+
+</script>
+</body>
+</html>

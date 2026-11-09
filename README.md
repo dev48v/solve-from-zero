@@ -78,6 +78,13 @@ Every lesson is a single, self-contained HTML file with three tabs — 👁 **LO
 - [SolveFromZero · Day 74 — DEFLATE / INFLATE decoder (RFC 1951)](https://dev48.infy.uk/solve/day74-deflate-decoder.html) — `day74-deflate-decoder.html`
 - [SolveFromZero · Day 75 — SQLite type affinity + the record codec](https://dev48.infy.uk/solve/day75-sqlite-type-affinity.html) — `day75-sqlite-type-affinity.html`
 - [SolveFromZero · Day 76 — Unicode normalisation (UAX #15): NFC, NFD, NFKC, NFKD](https://dev48.infy.uk/solve/day76-unicode-normalization.html) — `day76-unicode-normalization.html`
+- [SolveFromZero · Day 77 — A real POSIX ERE matcher: leftmost-longest vs leftmost-first](https://dev48.in/solve/day77-posix-ere-matcher.html) — `day77-posix-ere-matcher.html`
+- [SolveFromZero · Day 78 — A real ignore-file matcher](https://dev48.in/solve/day78-gitignore-glob-matcher.html) — `day78-gitignore-glob-matcher.html`
+- [SolveFromZero · Day 79 — A real semver resolver](https://dev48.in/solve/day79-semver-resolver.html) — `day79-semver-resolver.html`
+- [SolveFromZero · Day 80 — A real HTTP Range parser](https://dev48.in/solve/day80-http-range-parser.html) — `day80-http-range-parser.html`
+- [SolveFromZero · Day 81 — Myers diff](https://dev48.in/solve/day81-myers-diff.html) — `day81-myers-diff.html`
+- [SolveFromZero · Day 82 — Bloom filters](https://dev48.in/solve/day82-bloom-filter.html) — `day82-bloom-filter.html`
+- [SolveFromZero · Day 83 — URI Template Expander (RFC 6570)](https://dev48.in/solve/day83-uri-template.html) — `day83-uri-template.html`
 
 ---
 Part of **Zero to Hero** — build something real from scratch, every day: https://dev48v.infy.uk

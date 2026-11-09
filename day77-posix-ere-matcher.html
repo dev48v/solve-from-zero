@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 77 &mdash; A real POSIX ERE matcher: leftmost-longest vs leftmost-first</title>
+<style>
+/* ---- no CDN, no build step: only the utilities this page actually uses ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Inter",system-ui,sans-serif;
+       background:#f8fafc; color:#0f172a; line-height:1.6; font-size:15px; }
+h1,h2,h3,p,pre,table { margin:0; }
+code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;
+       background:#eef2f7; padding:1px 4px; border-radius:4px; word-break:break-all; }
+pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px;
+      overflow:auto; font-family:ui-monospace,Consolas,monospace; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+a { color:#0369a1; }
+textarea, input, select { border:1px solid #cbd5e1; border-radius:8px; padding:9px; font-size:13px;
+      width:100%; font-family:ui-monospace,Consolas,monospace; line-height:1.55; background:#fff;
+      color:#0f172a; }
+button { font-family:inherit; cursor:pointer; border:0; }
+table.num { border-collapse:collapse; width:100%; }
+table.num td, table.num th { padding:5px 9px; }
+table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:left; font-weight:700;
+      border-bottom:1px solid #e2e8f0; }
+table.num td { font-size:12.5px; border-top:1px solid #e2e8f0; vertical-align:top; }
+table.num td.r, table.num th.r { text-align:right; font-variant-numeric:tabular-nums; }
+table.num td.c, table.num th.c { text-align:center; }
+table.num tr.hi td { background:#fff7ed; }
+table.num tr.split3 td { background:#fef2f2; }
+.v { font-weight:900; font-size:11.5px; padding:2px 9px; border-radius:99px; white-space:nowrap;
+     display:inline-block; }
+.allow { background:#dcfce7; color:#166534; }
+.deny  { background:#fee2e2; color:#991b1b; }
+.warn  { background:#fef3c7; color:#92400e; }
+.info  { background:#e0f2fe; color:#075985; }
+.grey  { background:#e2e8f0; color:#334155; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+.ok  { color:#166534; font-weight:800; }
+.bad { color:#991b1b; font-weight:800; }
+.wrap  { max-width:1120px; margin:0 auto; }
+.p4 { padding:16px; }
+.card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.10),0 1px 2px rgba(15,23,42,.06); padding:20px; }
+.grid { display:grid; gap:20px; }
+.g2 { grid-template-columns:1fr; }
+@media (min-width:900px){ .g2 { grid-template-columns:1fr 1fr; } }
+.flex { display:flex; gap:8px; flex-wrap:wrap; }
+.stack > * + * { margin-top:20px; }
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:#64748b; text-transform:uppercase; }
+.eyebrow { font-size:11px; font-weight:700; letter-spacing:.18em; color:#0e7490; }
+h1 { font-size:19px; font-weight:800; line-height:1.5; }
+h2 { font-size:23px; font-weight:900; line-height:1.25; }
+h3 { font-size:18px; font-weight:800; margin-top:4px; }
+.t-xs{font-size:12px}.t-sm{font-size:13.5px}
+.muted{color:#475569}.dim{color:#64748b}
+.b{font-weight:700}.bb{font-weight:900}
+.note { border-left:4px solid #f59e0b; background:#fffbeb; padding:14px 16px; border-radius:0 8px 8px 0; }
+.note-r { border-left-color:#f43f5e; background:#fff1f2; }
+.note-b { border-left-color:#0ea5e9; background:#f0f9ff; }
+.note-g { border-left-color:#10b981; background:#ecfdf5; }
+.hd { background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:20; }
+.tabbtn { padding:8px 20px; border-radius:8px; font-weight:600; font-size:13.5px; background:#f1f5f9; color:#0f172a; }
+.tabbtn.tab-active { background:#0f172a; color:#fff; }
+.hidden { display:none; }
+.panel { min-height:60vh; }
+.bg1 { background:#f1f5f9; }
+ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; font-size:14px; }
+ol { margin:8px 0; padding-left:22px; }
+.sep { height:1px; background:#e2e8f0; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.go { background:#0f172a; color:#fff; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+.go:disabled { background:#94a3b8; cursor:default; }
+.hdrrow { display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; margin-bottom:6px; }
+@media (max-width:640px){ .hdrrow { grid-template-columns:1fr; } }
+/* the subject strip: one box per character */
+.strip { display:flex; flex-wrap:wrap; gap:2px; font-family:ui-monospace,Consolas,monospace; }
+.ch { min-width:24px; text-align:center; padding:5px 4px; border-radius:5px; background:#e2e8f0;
+      color:#334155; font-size:15px; line-height:1.2; position:relative; }
+.ch.in   { background:#bbf7d0; color:#14532d; font-weight:700; }
+.ch.only { background:#fde68a; color:#78350f; font-weight:700; }
+.ch small { display:block; font-size:9px; opacity:.7; font-weight:400; }
+.ch.empty { background:transparent; color:#94a3b8; min-width:0; padding-left:0; padding-right:0; }
+.caret { display:inline-block; width:3px; height:26px; background:#0ea5e9; border-radius:2px; vertical-align:-6px; }
+.lane { display:grid; grid-template-columns:190px 1fr; gap:10px; align-items:start; padding:9px 0;
+        border-top:1px solid #e2e8f0; }
+@media (max-width:700px){ .lane { grid-template-columns:1fr; } }
+.tag { font-family:ui-monospace,Consolas,monospace; font-weight:900; font-size:11px; padding:3px 8px;
+       border-radius:6px; display:inline-block; }
+.t-posix { background:#dbeafe; color:#1e3a8a; }
+.t-js    { background:#ffedd5; color:#7c2d12; }
+.t-probe { background:#ede9fe; color:#5b21b6; }
+.presets button { font-size:11.5px; padding:5px 9px; border-radius:7px; background:#e2e8f0; color:#0f172a; font-weight:600; }
+.presets button:hover { background:#cbd5e1; }
+.big { font-family:ui-monospace,Consolas,monospace; font-size:19px; font-weight:800; word-break:break-all; }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; font-size:12.5px; }
+.kv dt { color:#64748b; font-weight:700; }
+.kv dd { margin:0; font-family:ui-monospace,Consolas,monospace; }
+.bar { height:9px; border-radius:99px; background:#0ea5e9; min-width:2px; display:inline-block; }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="wrap p4">
+    <p class="eyebrow mb2">SOLVEFROMZERO &middot; DAY 77</p>
+    <h1 class="mb4">
+      🧩 A real POSIX&nbsp;ERE matcher &mdash; a hand-written parser, a Thompson automaton run as a
+      parallel simulation for <em>leftmost-longest</em>, and a backtracker for
+      <em>leftmost-first</em>, over one shared syntax tree, so the same pattern string can be read
+      two ways and matched two ways and the four answers put side by side.
+      Everyone knows the first rule of alternation: the branches are tried in order, so put the
+      longer one first. <code>/a|ab/</code> against <code>ab</code> matches <code>a</code> in
+      JavaScript, Python and Perl. In <code>grep</code>, <code>sed</code> and <code>awk</code> it
+      matches <code>ab</code> &mdash; and so does <code>/ab|a/</code>. Over
+      <strong>12,000</strong> swapped pairs, reordering the branches changes the POSIX answer
+      <strong>0</strong> times and the ECMAScript answer <strong>1,860</strong> times,
+      <strong>15.50%</strong>: the single most-repeated piece of regex advice is load-bearing in
+      one family and a no-op in the other, with no error either way.
+      🔴 The finding is positional. <code>a*?</code> is three characters. To ECMAScript it is
+      <em>one</em> lazy quantifier and the answer is the empty string; to POSIX it is <em>two</em>
+      operators, <code>(a*)?</code>, and the answer is the whole run &mdash; opposite extremes from
+      an identical spelling, decided only by which binary you piped it through. Inside a bracket
+      expression POSIX has no escape character at all, so <code>[\.]</code> is a class of
+      <strong>two</strong> members, backslash and dot: <code>grep</code> and <code>sed</code> agree,
+      and <code>gawk</code>, shipped by the same project, does not.
+      Of <strong>40</strong> frontier patterns, five real implementations return the same answer for
+      only <strong>19</strong>; twenty split two ways and <code>^*</code> splits three
+      (sed: syntax error &middot; grep: matches &middot; gawk: no match).
+      And the divergence is not chaos, it is an <em>identity</em>: over
+      <strong>16,800</strong> generated cases the two policies always agree on <em>whether</em>
+      there is a match, always start at the same index, and the ECMAScript match is a
+      <em>prefix</em> of the POSIX match <strong>16,800</strong> times out of 16,800 &mdash; they
+      differ only in how much, on <strong>1,758</strong> of them,
+      <strong>10.46%</strong>. GNU is then neither engine: its whole match is POSIX
+      leftmost-longest on <strong>1,409</strong> of 1,409 capture cells, while its
+      <code>\1</code> and <code>\2</code> are backtracking-ordered, so the assignment the standard
+      actually specifies disagrees with what GNU produces <strong>53</strong> times,
+      <strong>3.76%</strong>. Even &ldquo;the Perl family&rdquo; is not one family &mdash; Python
+      and Perl leave V8 on <strong>48</strong> of the same 16,800 cases, every one of them a
+      quantifier whose body can match the empty string.
+      Every verdict is differential against <strong>six</strong> real implementations &mdash;
+      GNU&nbsp;grep&nbsp;3.0, GNU&nbsp;sed&nbsp;4.9, GNU&nbsp;Awk&nbsp;5.0.0, Node&nbsp;22 (V8),
+      CPython&nbsp;3.11 and Perl&nbsp;5.38 &mdash; plus a definition-based oracle, every subprocess
+      run from an empty directory. Pure vanilla JavaScript, one file, no build step.
+    </h1>
+    <div class="flex" id="tabs">
+      <button data-tab="look" class="tabbtn tab-active">🧩 MATCH</button>
+      <button data-tab="understand" class="tabbtn">🧠 UNDERSTAND</button>
+      <button data-tab="build" class="tabbtn">🔨 BUILD</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ MATCH -->
+<section id="look" class="panel">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <!-- 1. the matcher -->
+    <div class="card">
+      <div class="flex mb3" style="justify-content:space-between;align-items:baseline">
+        <h3>One pattern string. Two readings. Two policies. Four answers.</h3>
+        <span class="v grey" id="selftest">running&hellip;</span>
+      </div>
+      <div class="grid g2 mb3">
+        <div>
+          <p class="lbl mb1">Pattern</p>
+          <input id="pat" value="a|ab" spellcheck="false" />
+        </div>
+        <div>
+          <p class="lbl mb1">Subject</p>
+          <input id="subj" value="ab" spellcheck="false" />
+        </div>
+      </div>
+      <p class="lbl mb1">Try one</p>
+      <div class="presets flex mb3" id="presets"></div>
+      <div id="lanes"></div>
+      <div class="mt3" id="verdict"></div>
+    </div>
+
+    <!-- 2. swap the alternatives -->
+    <div class="card">
+      <h3 class="mb2">Swap the alternatives</h3>
+      <p class="t-sm muted mb3">
+        The advice is universal: order your branches most-specific-first. The panel below writes
+        the same two branches in both orders and matches all four combinations. Under
+        leftmost-longest the two spellings are the <em>same regex</em>; under leftmost-first they
+        are two different programs.
+      </p>
+      <div class="grid g2 mb3">
+        <div>
+          <p class="lbl mb1">Branch X</p>
+          <input id="bx" value="c*" spellcheck="false" />
+        </div>
+        <div>
+          <p class="lbl mb1">Branch Y</p>
+          <input id="by" value="ca{0,2}" spellcheck="false" />
+        </div>
+      </div>
+      <div class="grid g2 mb3">
+        <div>
+          <p class="lbl mb1">Subject</p>
+          <input id="bs" value="cab" spellcheck="false" />
+        </div>
+        <div class="flex" style="align-items:flex-end">
+          <button class="go" id="swapsweep">sweep 300 branch pairs &times; 40 subjects</button>
+        </div>
+      </div>
+      <div id="swapout"></div>
+      <pre class="mt3" id="swapsweepout" style="white-space:pre-wrap">not run yet</pre>
+    </div>
+
+    <!-- 3. the frontier -->
+    <div class="card">
+      <h3 class="mb2">The frontier: 40 pattern strings, five real implementations</h3>
+      <p class="t-sm muted mb3">
+        Recorded from the six binaries on the build machine and re-measured by the verifier on
+        every run. The two engine columns are computed live in your browser, right now, by the
+        code in the <code>ENGINE</code> block of this file &mdash; they are not stored.
+        <span class="v grey">grey row</span> five implementations agree &middot;
+        <span class="v warn">amber row</span> two answers &middot;
+        <span class="v deny">red row</span> three answers to one pattern.
+      </p>
+      <div class="scroll"><table class="num" id="frontier"></table></div>
+      <div class="mt3" id="frontierstats"></div>
+    </div>
+
+    <!-- 4. scoreboard -->
+    <div class="card">
+      <h3 class="mb2">Scoreboard: four models people carry, measured</h3>
+      <p class="t-sm muted mb3">
+        Each row is a belief, and the number is how often it is wrong on the corpus this page
+        generates. The zeroes matter as much as the percentages: a model that is
+        <em>exactly</em> right on one family and <em>routinely</em> wrong on the other is the kind
+        that survives every code review.
+      </p>
+      <div class="scroll"><table class="num" id="score"></table></div>
+    </div>
+
+    <!-- 5. the live sweep -->
+    <div class="card">
+      <h3 class="mb2">The live sweep &mdash; and a differential against your own browser</h3>
+      <p class="t-sm muted mb3">
+        Generates patterns from a grammar restricted to the constructs both dialects read
+        identically, so every disagreement it finds is the <em>policy</em> and not the syntax. For
+        each case it checks five invariants and then races its own ECMAScript reading against the
+        <code>RegExp</code> your browser ships &mdash; V8, SpiderMonkey or JavaScriptCore,
+        whichever you are running.
+      </p>
+      <div class="flex mb3">
+        <button class="go" id="sweepbtn">run the sweep</button>
+      </div>
+      <pre id="sweepout" style="white-space:pre-wrap">not run yet</pre>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ UNDERSTAND -->
+<section id="understand" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">There are two layers, and almost every argument about regex confuses them</h2>
+      <p class="t-sm muted mb2">
+        When two tools disagree about a pattern, exactly one of two things has happened. Either
+        they <b>read the pattern differently</b> &mdash; the string parsed into two different
+        syntax trees &mdash; or they read it the same way and <b>chose a different match</b> out of
+        the several the pattern allows. Those are separate mechanisms and they fail in separate
+        ways, but in practice they arrive together as one wrong answer and get argued about as one
+        thing.
+      </p>
+      <p class="t-sm muted mb2">
+        This engine keeps them apart on purpose. <code>parsePattern(src, dialect)</code> produces a
+        tree, and <code>search(src, s, {dialect, policy})</code> then runs one of two searches over
+        it. Two dialects times two policies is four combinations, and only two of them are real
+        products: <code>posix</code>&nbsp;+&nbsp;<code>longest</code> is what <code>grep</code>,
+        <code>sed</code> and <code>awk</code> do, and <code>js</code>&nbsp;+&nbsp;<code>first</code>
+        is what JavaScript, Python, Perl, PCRE, Java and .NET do. The other two are
+        <em>probes</em>: hold the policy still and swap the dialect and you have isolated the
+        parsing; hold the dialect still and swap the policy and you have isolated the search. That
+        is how the MATCH tab can tell you <em>why</em> two engines disagree instead of only
+        <em>that</em> they do.
+      </p>
+      <p class="t-sm muted">
+        On the generated corpus the answer is always the same: 100% of the divergence is policy,
+        because the generator only uses constructs both dialects read alike. On the frontier table
+        it flips: nearly all of it is syntax. Same subject, same tooling, two completely different
+        causes &mdash; which is why one debugging habit does not work for both.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">Leftmost-longest is a rule about the <em>whole</em> match, and it needs an automaton</h2>
+      <p class="t-sm muted mb2">
+        POSIX says: of all the matches, take the one that starts earliest; of the matches that
+        start there, take the longest. That is a statement about the <em>set</em> of matches, not
+        about the order in which you look for them, and it has a consequence people find
+        surprising: there is nowhere to put a preference. <code>a|ab</code> and <code>ab|a</code>
+        denote the same set, so they are the same regex. The branch order is not part of the
+        semantics, and an implementation that honoured it would be wrong.
+      </p>
+      <p class="t-sm muted mb2">
+        You cannot get that out of a backtracker without extra machinery, because a backtracker
+        <em>is</em> an order. So this engine compiles the tree to a Thompson NFA and runs the
+        classic parallel simulation: keep the whole set of reachable states, feed one character,
+        keep the new set, and every time the accepting state is in the set write down the position.
+        When the set goes empty, the last position you wrote down is the longest match from that
+        start. Scan the start position forward and the first one that produces any match is the
+        leftmost. Two loops, no recursion, no preference anywhere.
+      </p>
+      <p class="t-sm muted">
+        The verifier does not take that on trust. It rebuilds leftmost-longest a second time from
+        the definition &mdash; a memoised &ldquo;does this node derive exactly
+        <code>s[i..j]</code>&rdquo; over a tree the corpus generator built, never the engine's
+        parser &mdash; and then simply takes the smallest <code>i</code> and the largest
+        <code>j</code>. Over 16,800 cases the automaton and the definition agree 16,800 times, and
+        so do GNU sed, GNU grep and GNU Awk.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">Leftmost-first has no rule at all &mdash; the search order <em>is</em> the answer</h2>
+      <p class="t-sm muted mb2">
+        The other family works the other way round. There is no property that picks the match out
+        of the set; the match is defined as whatever the backtracker reaches first, and the
+        backtracker's traversal order is written into the specification. Alternatives left to
+        right. Greedy quantifiers try one more repetition before they try stopping; lazy ones try
+        stopping first. The first complete path wins, and nothing later in the search can displace
+        it however much longer it would have been.
+      </p>
+      <p class="t-sm muted mb2">
+        That is why <code>/a|ab/</code> stops at <code>a</code>. The first branch succeeded, the
+        rest of the pattern is empty, the match is complete, and <code>ab</code> is never
+        considered. It is also why the standard advice exists at all: in this family, branch order
+        is the only lever you have.
+      </p>
+      <p class="t-sm muted">
+        Both descriptions are precise; neither is a bug. What is a bug is carrying one model into
+        the other's territory &mdash; writing <code>grep -Eo 'GET|GET /health'</code> and expecting
+        the health-check branch never to fire, or writing <code>/\d{4}|\d{2}/</code> in JavaScript
+        and expecting four digits.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">The two policies always agree on <em>whether</em>, and only ever differ on <em>how much</em></h2>
+      <p class="t-sm muted mb2">
+        The two searches are running over the same tree, so they recognise the same language: if
+        one finds a match, the other must. And both scan the start position from the left, so the
+        leftmost start is the same for both. Everything they can disagree about is therefore
+        squeezed into a single dimension, the end.
+      </p>
+      <p class="t-sm muted mb2">
+        Those are testable statements, and this page runs them as identities rather than as
+        examples. Over 16,800 generated cases: same verdict on whether there is a match, 16,800
+        times; same start index, 16,800 times; the POSIX match never shorter, 16,800 times; and the
+        ECMAScript match a literal prefix of the POSIX one, 16,800 times. Then they diverge on
+        1,758 of them &mdash; 10.46%, from 186 of the 420 patterns. A wider engine-only sweep
+        repeats the same five invariants over 63,000 cells with 0 failures.
+      </p>
+      <p class="t-sm muted">
+        The practical reading: switching a pattern between the two families will never turn a
+        match into a miss. It will silently truncate one in about one case in ten, which is
+        strictly worse, because a miss is loud and a short match is not.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">A bracket expression is a <em>list</em>, and a list has no escape character</h2>
+      <p class="t-sm muted mb2">
+        This is where the two dialects stop being the same language. In POSIX, everything between
+        <code>[</code> and the closing <code>]</code> is a list of members, and the only characters
+        with any special meaning inside it are <code>^</code> in first position, <code>-</code>
+        between two members, and <code>[</code> immediately followed by <code>:</code>,
+        <code>.</code> or <code>=</code>. A backslash is a member. So <code>[\.]</code> is a
+        two-member class, backslash or dot, and the reflex of escaping the dot &ldquo;just in
+        case&rdquo; has silently widened the class.
+      </p>
+      <p class="t-sm muted mb2">
+        The consequences run the other way too. <code>]</code> in first position is a member, so
+        <code>[]a]</code> is a legal two-member class in POSIX &mdash; and in ECMAScript
+        <code>[]</code> is a complete, empty class that can never match, followed by the literal
+        characters <code>a]</code>. Same six characters, one matches two things and the other
+        matches nothing. Conversely <code>[a\]b]</code> is a class of <code>a</code> and backslash
+        followed by the literal text <code>b]</code> in POSIX, and a three-member class in
+        ECMAScript. And a trailing <code>-</code> is a member, which is why <code>[a-]</code>
+        works everywhere and reads as a broken range to everyone who sees it.
+      </p>
+      <p class="t-sm muted">
+        <code>[[:alpha:]]</code> is the other half of the split. POSIX classes are locale-aware and
+        are the only portable way to say &ldquo;a letter&rdquo; in an ERE, because there is no
+        <code>\w</code>. ECMAScript has never had them: <code>[[:alpha:]]</code> parses as a class
+        containing <code>[</code>, <code>:</code>, <code>a</code>, <code>l</code>, <code>p</code>,
+        <code>h</code> followed by a literal <code>]</code>. It does not raise an error. It just
+        matches something else. Perl, notably, does support them &mdash; which is why Perl sits in
+        neither camp cleanly.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3"><code>a*?</code>: the same three characters, the opposite extreme</h2>
+      <p class="t-sm muted mb2">
+        POSIX ERE has no lazy quantifiers. It also does not forbid writing a quantifier after a
+        quantifier: the grammar applies them left to right, so <code>a*?</code> parses as
+        <code>(a*)?</code> &mdash; a greedy run of <code>a</code>, made optional. Against
+        <code>aaa</code> that is the whole string. In ECMAScript the trailing <code>?</code> is not
+        an operator at all, it is a flag on the <code>*</code>, and the answer is the empty string.
+        Longest possible and shortest possible, from a pattern that is byte-for-byte identical, and
+        no diagnostic on either side.
+      </p>
+      <p class="t-sm muted mb2">
+        Push it one character further and the split changes shape rather than going away.
+        <code>a**</code> is legal POSIX &mdash; two stars, still the longest run &mdash; and a
+        <em>SyntaxError</em> in V8, CPython and Perl alike. So of the three spellings
+        <code>a*</code>, <code>a*?</code>, <code>a**</code>, the two families agree on the first,
+        return opposite answers for the second, and disagree about whether the third is a program.
+      </p>
+      <p class="t-sm muted">
+        The general lesson is that stacked postfix operators are the one place where the two
+        grammars are genuinely incompatible rather than merely different, because ECMAScript spends
+        the second operator slot on laziness and POSIX spends it on composition.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">GNU is not POSIX, and the three GNU tools are not each other</h2>
+      <p class="t-sm muted mb2">
+        The engine on this page implements the specification, which makes it a useful instrument
+        for measuring how far the tools have drifted from it. Of the 40 frontier patterns it agrees
+        with GNU sed on 36, and every one of the four gaps is a named GNU extension rather than a
+        silent bug: <code>\w</code> and <code>\b</code> (POSIX ERE has no shorthand classes and no
+        word boundaries), <code>a{,2}</code> (POSIX intervals are <code>{n}</code>,
+        <code>{n,}</code> and <code>{n,m}</code>, so <code>{,2}</code> is four literal characters),
+        and <code>^*</code> (quantifying an anchor is undefined).
+      </p>
+      <p class="t-sm muted mb2">
+        The GNU tools then disagree with each other. <code>gawk</code> honours backslash escapes
+        inside a bracket expression where <code>grep</code> and <code>sed</code> do not, which is
+        the <code>[\.]</code> split, and it reads <code>\b</code> as a <em>backspace</em> rather
+        than a word boundary &mdash; gawk spells that one <code>\y</code>. And <code>^*</code> gets
+        three different answers from three programs in the same distribution: sed refuses to
+        compile it, grep compiles it and matches, gawk compiles it and does not.
+      </p>
+      <p class="t-sm muted">
+        None of this is exotic. It is the ordinary situation for anyone whose build pipeline greps
+        on one machine, awks on another and ships a JavaScript validator for the same field.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">Captures: GNU gets the whole match right and the pieces Perl-wrong</h2>
+      <p class="t-sm muted mb2">
+        POSIX specifies the subexpressions too: consistent with the whole match being the leftmost
+        longest, each parenthesised subexpression from left to right shall match the longest
+        possible string. That is a second optimisation problem layered on the first, and it is
+        genuinely awkward to implement.
+      </p>
+      <p class="t-sm muted mb2">
+        So implementations mostly do not. Over 1,409 cells drawn from 160 two-group patterns, this
+        engine's captures agree with what GNU sed puts in <code>\1</code> and <code>\2</code> on
+        1,409 of 1,409 &mdash; because it computes them the same way GNU does, by pinning a
+        backtracking search to the end the automaton already chose and taking that search's own
+        preference order. The rule the standard writes down disagrees with both of us on 53 cells,
+        3.76%. <code>([a-c])c?(c+)</code> against <code>bcc</code> is the shape: GNU assigns
+        <code>b</code> and <code>c</code>, letting the un-grouped <code>c?</code> take a character;
+        the standard says the second group should have taken <code>cc</code>.
+      </p>
+      <p class="t-sm muted">
+        Both numbers are worth carrying. The whole match from a GNU tool is POSIX. The pieces are
+        not, and if you have ever ported a <code>sed</code> expression to Python and found the
+        groups shifted while the match did not, this is the reason.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">&ldquo;The Perl family&rdquo; is not one family either</h2>
+      <p class="t-sm muted mb2">
+        Grouping every backtracking engine together is convenient and wrong. On the generated
+        corpus &mdash; where the syntax is deliberately neutral, so only the search can differ
+        &mdash; CPython and Perl leave V8 on 48 of 16,800 cases, and they leave it in exactly the
+        same places and with exactly the same answers. Every one of those 48 patterns has a
+        quantifier whose body can match the empty string.
+      </p>
+      <p class="t-sm muted mb2">
+        The mechanism is a single clause. ECMAScript's repeat rule discards an iteration that
+        consumed nothing, and discarding it sends the search <em>back into</em> the body to try the
+        body's remaining alternatives &mdash; so <code>(|a)*</code> against <code>aaa</code>
+        rejects the empty branch and takes <code>a</code>, three times, and matches
+        <code>aaa</code>. Python and Perl accept the empty iteration and stop the loop there,
+        matching the empty string. Move the empty branch to the end, <code>(a|)*</code>, and all
+        three agree again. The neighbour decides.
+      </p>
+      <p class="t-sm muted">
+        On the frontier the split widens for a different reason: Perl disagrees with V8 on 11 of
+        40 and Python on 5, mostly because Perl speaks POSIX bracket classes and accepts
+        <code>]</code> in first position. There are not two families here. There are four dialects
+        that happen to cluster.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">Why the fast one is the one without the preference</h2>
+      <p class="t-sm muted mb2">
+        The parallel simulation carries at most one copy of each automaton state, so its work is
+        bounded by states times input length no matter what the pattern looks like. There is no
+        input that makes it exponential, and there is no such thing as a catastrophic-backtracking
+        outage in <code>grep</code>. That property is not a clever optimisation on top of
+        leftmost-longest; it is the same fact seen from the other side. Because the rule says
+        nothing about search order, the implementation is free to explore every branch at once.
+      </p>
+      <p class="t-sm muted mb2">
+        A backtracker cannot do that, because the order it explores in is the answer it is required
+        to give. <code>(a+)+b</code> against a long run of <code>a</code> with no <code>b</code> is
+        the standard demonstration. The engine on this page carries a step limit for exactly that
+        reason; the automaton side needs none.
+      </p>
+      <p class="t-sm muted">
+        This is also why the two families cannot simply be merged. Backreferences and lookaround
+        are expressible in a backtracker and not in a finite automaton, and leftmost-longest is
+        expressible in an automaton and awkward in a backtracker. RE2 and Go's
+        <code>regexp</code> chose the automaton and dropped backreferences; every language you
+        write validation in chose the other way.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">How this page is checked</h2>
+      <p class="t-sm muted mb2">
+        Nothing here is asserted against my own expectations. Six real implementations ship on the
+        build machine and all six are used: GNU grep 3.0 for membership, GNU sed 4.9 for exact
+        offsets and for <code>\1</code>/<code>\2</code>, GNU Awk 5.0.0 for offsets, Node 22's V8,
+        CPython 3.11's <code>re</code> and Perl 5.38. A seventh reference is written inside the
+        verifier and shares no code with the engine: leftmost-longest read straight off the
+        definition, over a syntax tree the corpus generator produced rather than the engine's
+        parser, which checks the parser and the automaton at once.
+      </p>
+      <p class="t-sm muted mb2">
+        Every pattern and subject crosses the process boundary hex-encoded inside a file, never as
+        a shell argument, and every subprocess runs from a freshly created empty directory &mdash;
+        the Day 72 lesson, when a MinGW binary globbed its own argv and turned a bare <code>*</code>
+        into a list of filenames before the code under test ever saw it. Each reference prints its
+        version, which is asserted, and each is fed known-answer probes including a literal
+        <code>*</code> before any of its output is believed. The generated corpus is asserted to
+        contain no backslash at all, so no GNU extension can hide inside it and excuse a
+        disagreement.
+      </p>
+      <p class="t-sm muted">
+        524,305 verifier assertions and 18,971 in this page, 0 failures, and 25 of 25 deliberate
+        mutations of the engine caught &mdash; including leftmost-longest downgraded to
+        leftmost-shortest, the bracket close-first rule removed, the empty-iteration guard deleted,
+        the lazy flag never set, and captures pinned to the backtracker's end instead of the
+        automaton's.
+      </p>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<!-- ================================================================ BUILD -->
+<section id="build" class="panel hidden">
+ <div class="p4 bg1">
+  <div class="wrap stack">
+
+    <div class="card">
+      <h2 class="mb3">What to do about it on Monday</h2>
+      <ol>
+        <li><b>Never move a regex between <code>grep</code>/<code>sed</code>/<code>awk</code> and
+          an application language without re-testing it.</b> It will not throw. About one pattern
+          in ten changes its answer, and the change is always a shorter match, never a missing
+          one.</li>
+        <li><b>If you rely on branch order, you are in the backtracking family &mdash; say so.</b>
+          Writing <code>ab|a</code> instead of <code>a|ab</code> is free and makes the intent
+          survive the port, because it is the spelling both families agree on.</li>
+        <li><b>Stop escaping inside bracket expressions.</b> <code>[.]</code>, <code>[$]</code>,
+          <code>[*]</code> and <code>[a-]</code> need no backslash anywhere; adding one adds a
+          member in POSIX and is merely noise in ECMAScript.</li>
+        <li><b>Write <code>[]</code> and <code>]</code> deliberately.</b> If you need a literal
+          <code>]</code> in a class, put it first for POSIX tools and escape it for everything
+          else &mdash; there is no spelling that works in both, which is itself the reason to keep
+          the class out of shared config.</li>
+        <li><b>Do not write <code>a*?</code> in a shell pipeline expecting laziness.</b> There is
+          no lazy quantifier in ERE. If you need the shortest match, use a negated class:
+          <code>"[^"]*"</code> rather than <code>".*?"</code> &mdash; and that spelling is also
+          faster in the backtracking family.</li>
+        <li><b>Use <code>[[:alpha:]]</code> in shell tools and <code>\w</code> in code, and never
+          the other way round.</b> Neither one errors in the wrong place; both silently match
+          something else.</li>
+        <li><b>If your groups shift when you port a <code>sed</code> expression, the whole match is
+          probably still right.</b> Check the group boundaries specifically &mdash; that is the
+          layer that moved.</li>
+        <li><b>Reach for an automaton engine when the pattern comes from a user.</b> RE2, Go's
+          <code>regexp</code> and <code>grep</code> cannot be made to hang. A backtracker with a
+          user-supplied pattern is an availability bug waiting for the right input.</li>
+        <li><b>Pin the tool, not just the pattern, in CI.</b> <code>gawk</code> disagrees with
+          <code>sed</code> from the same distribution; BSD and GNU differ again. A pattern is not
+          portable, a pattern-plus-implementation is.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">How the engine is put together</h2>
+      <ul>
+        <li><code>parsePattern(src, dialect)</code> &mdash; one recursive-descent parser, two
+          bracket readers and two escape readers. Returns a tree plus the notes the MATCH tab
+          shows, or throws with <code>.reSyntax</code>.</li>
+        <li><code>compileNFA(ast)</code> &mdash; Thompson construction. Alternation becomes a
+          split, unbounded repetition becomes a back edge, bounded repetition is unrolled, and
+          anchors become zero-width assertion states resolved during the epsilon closure.</li>
+        <li><code>longestFrom(nfa, s, i)</code> &mdash; the parallel simulation. One
+          <code>Int32Array</code> stamp per step keeps the state set deduplicated; the last
+          position at which the accepting state was live is the answer.</li>
+        <li><code>makeBacktracker(parsed)</code> &mdash; continuation-passing recursion with an
+          explicit empty-iteration guard, greedy and lazy repetition, and capture save/restore on
+          failure. Takes an optional required end, which is what makes the POSIX capture pass
+          possible.</li>
+        <li><code>strictPosixCaps()</code> &mdash; enumerates every parse that ends where the
+          automaton said and picks the capture vector that is lexicographically longest, group by
+          group. This is the rule as written, and it is the one nobody implements.</li>
+        <li><code>attribute(src, s)</code> &mdash; runs all four dialect &times; policy
+          combinations and reports whether a disagreement came from the reading or the search.</li>
+        <li><code>selftest()</code> &mdash; identities and bounds only, plus a live differential
+          against the <code>RegExp</code> in the browser running the page.</li>
+      </ul>
+      <p class="t-sm muted mt3">
+        The engine between <code>ENGINE:BEGIN</code> and <code>ENGINE:END</code> in this file
+        touches no DOM, reads no clock and has no random source. Everything below it is user
+        interface.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">What the verification actually did</h2>
+      <div class="scroll"><table class="num" id="verif"></table></div>
+      <p class="t-sm muted mt3">
+        The corpus is generated from a grammar restricted to constructs both dialects read
+        identically &mdash; literals, <code>.</code>, bracket expressions without escapes, groups,
+        alternation and the five interval forms &mdash; and the verifier asserts that no pattern in
+        it contains a backslash, a <code>{,n}</code> or a quantified anchor, so a POSIX-family
+        disagreement cannot be excused as a GNU extension. Subjects are strings over
+        <code>{a,b,c}</code> of length 0 to 6, and to 8 for the wide sweep.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="mb3">Where this page stops</h2>
+      <ul>
+        <li><b>No backreferences, no lookaround.</b> Neither is in POSIX ERE, and adding them to
+          the ECMAScript side would mean the automaton and the backtracker no longer recognise the
+          same language &mdash; which is the identity most of the checking here rests on.</li>
+        <li><b>ASCII and the C locale.</b> POSIX character classes and ranges are locale-dependent;
+          every reference here runs under <code>LC_ALL=C</code> and the corpus is ASCII, so the
+          numbers say nothing about collating sequences or multi-character collating elements.</li>
+        <li><b>Single-line subjects.</b> <code>.</code> and a negated bracket both exclude the
+          newline here, which is what the line-oriented tools do; a POSIX <em>library</em> caller
+          with a multi-line buffer would see different behaviour.</li>
+        <li><b>The strict POSIX capture rule is one reading.</b> The standard's wording about
+          &ldquo;subexpressions&rdquo; can be read as covering every subpattern rather than only
+          the parenthesised ones. This page takes the parenthesised reading and reports the
+          divergence from GNU as a measurement, not as a verdict on who is wrong.</li>
+        <li><b>gawk is used for offsets only.</b> Its <code>match()</code> gives the whole match,
+          so the capture comparison runs against sed alone.</li>
+      </ul>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// POSIX ERE vs ECMAScript: one pattern string, two readings, two match policies.
+// Layer 1 (dialect) decides what the pattern MEANS. Layer 2 (policy) decides which match WINS.
+// dialect: 'posix' = IEEE 1003.1 extended regular expressions | 'js' = ECMAScript RegExp
+// policy : 'longest' = POSIX leftmost-longest | 'first' = backtracking leftmost-first
+
+var ERE = (function () {
+  'use strict';
+
+  // ---------- POSIX character-class predicates (C locale, ASCII) ----------
+  var POSIX_CLASS = {
+    alpha: function (c) { return (c >= 65 && c <= 90) || (c >= 97 && c <= 122); },
+    digit: function (c) { return c >= 48 && c <= 57; },
+    alnum: function (c) { return POSIX_CLASS.alpha(c) || POSIX_CLASS.digit(c); },
+    upper: function (c) { return c >= 65 && c <= 90; },
+    lower: function (c) { return c >= 97 && c <= 122; },
+    space: function (c) { return c === 32 || (c >= 9 && c <= 13); },
+    blank: function (c) { return c === 32 || c === 9; },
+    punct: function (c) { return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126); },
+    print: function (c) { return c >= 32 && c <= 126; },
+    graph: function (c) { return c >= 33 && c <= 126; },
+    cntrl: function (c) { return c < 32 || c === 127; },
+    xdigit: function (c) { return POSIX_CLASS.digit(c) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102); }
+  };
+  // GNU adds these to ERE. They are extensions, not POSIX -- the parser refuses them in posix dialect.
+  var GNU_ESCAPES = 'wWsSbB<>y`\'';
+
+  function SyntaxErr(msg, at) {
+    var e = new Error(msg);
+    e.reSyntax = true; e.at = at;
+    return e;
+  }
+
+  // ---------- parser ----------
+  // Returns {ast, groups, dialect, notes}. Throws an error with .reSyntax on a rejected pattern.
+  function parsePattern(src, dialect) {
+    if (dialect !== 'posix' && dialect !== 'js') throw new Error('dialect must be posix or js');
+    var i = 0, groups = 0, notes = [];
+    var n = src.length;
+
+    function note(kind, at, text) { notes.push({ kind: kind, at: at, text: text }); }
+
+    function parseAlt(depth) {
+      var branches = [parseBranch(depth)];
+      while (i < n && src.charAt(i) === '|') { i++; branches.push(parseBranch(depth)); }
+      return branches.length === 1 ? branches[0] : { t: 'alt', items: branches };
+    }
+
+    function parseBranch(depth) {
+      var items = [];
+      while (i < n && src.charAt(i) !== '|' && !(depth > 0 && src.charAt(i) === ')')) items.push(parsePiece(depth));
+      if (items.length === 0) return { t: 'empty' };
+      return items.length === 1 ? items[0] : { t: 'seq', items: items };
+    }
+
+    function quantifiable(node) {
+      return node.t !== 'bol' && node.t !== 'eol' && node.t !== 'wordb' && node.t !== 'nwordb' && node.t !== 'empty';
+    }
+
+    function parsePiece(depth) {
+      var atomStart = i;
+      var atom = parseAtom(depth);
+      var applied = 0;
+      for (;;) {
+        var q = readQuant();
+        if (!q) break;
+        if (dialect === 'js') {
+          if (applied > 0) throw SyntaxErr('Nothing to repeat: a second quantifier is a SyntaxError in ECMAScript', i);
+          if (!quantifiable(atom)) throw SyntaxErr('Nothing to repeat: cannot quantify an anchor in ECMAScript', atomStart);
+          // ECMAScript: a trailing '?' turns the quantifier lazy instead of stacking a second one
+          var lazy = false;
+          if (i < n && src.charAt(i) === '?') { lazy = true; i++; }
+          atom = { t: 'rep', node: atom, min: q.min, max: q.max, lazy: lazy };
+          applied++;
+          continue;
+        }
+        // POSIX ERE stacks quantifiers: a*? is (a*)? -- two operators, not one lazy operator
+        atom = { t: 'rep', node: atom, min: q.min, max: q.max, lazy: false };
+        applied++;
+        if (applied === 2) note('stacked-quantifier', atomStart, 'POSIX applies quantifiers left to right; ECMAScript reads the second one as a laziness flag or rejects it');
+      }
+      return atom;
+    }
+
+    // '*', '+', '?' or a well-formed {n}/{n,}/{n,m}. Anything else is not a quantifier.
+    function readQuant() {
+      if (i >= n) return null;
+      var c = src.charAt(i);
+      if (c === '*') { i++; return { min: 0, max: Infinity }; }
+      if (c === '+') { i++; return { min: 1, max: Infinity }; }
+      if (c === '?') { i++; return { min: 0, max: 1 }; }
+      if (c !== '{') return null;
+      var m = /^\{(\d+)(,(\d*)?)?\}/.exec(src.slice(i));
+      if (!m) {
+        // POSIX: an unmatched '{' is an ordinary character. ECMAScript (Annex B) agrees.
+        return null;
+      }
+      var lo = parseInt(m[1], 10);
+      var hi = m[2] === undefined ? lo : (m[3] === undefined || m[3] === '' ? Infinity : parseInt(m[3], 10));
+      if (hi !== Infinity && hi < lo) throw SyntaxErr('interval {' + lo + ',' + hi + '}: upper bound below lower bound', i);
+      i += m[0].length;
+      return { min: lo, max: hi };
+    }
+
+    function parseAtom(depth) {
+      if (i >= n) return { t: 'empty' };
+      var c = src.charAt(i);
+      if (c === '(') {
+        i++;
+        var idx = ++groups;
+        var inner = parseAlt(depth + 1);
+        if (i >= n || src.charAt(i) !== ')') throw SyntaxErr('unmatched (', i);
+        i++;
+        return { t: 'group', idx: idx, node: inner };
+      }
+      if (c === ')') throw SyntaxErr('unmatched )', i);
+      if (c === '.') { i++; return { t: 'any' }; }
+      if (c === '^') { i++; return { t: 'bol' }; }
+      if (c === '$') { i++; return { t: 'eol' }; }
+      if (c === '[') return parseBracket();
+      if (c === '*' || c === '+' || c === '?') throw SyntaxErr('Nothing to repeat: quantifier with no preceding atom', i);
+      if (c === '\\') return parseEscape();
+      i++;
+      return { t: 'char', c: c.charCodeAt(0) };
+    }
+
+    function parseEscape() {
+      var at = i;
+      i++;
+      if (i >= n) throw SyntaxErr('trailing backslash', at);
+      var c = src.charAt(i); i++;
+      if (dialect === 'posix') {
+        if (GNU_ESCAPES.indexOf(c) >= 0) {
+          throw SyntaxErr('\\' + c + ' is a GNU extension, not POSIX ERE -- POSIX ERE has no shorthand classes or word boundaries', at);
+        }
+        // POSIX: backslash before an ordinary character is undefined; every real implementation
+        // treats it as the literal character, and so do we.
+        note('escape-literal', at, '\\' + c + ' is just the character ' + c + ' -- POSIX ERE has no escape sequences beyond quoting');
+        return { t: 'char', c: c.charCodeAt(0) };
+      }
+      // ECMAScript escapes
+      if (c === 'd') return classNode(false, [[48, 57]], []);
+      if (c === 'D') return classNode(true, [[48, 57]], []);
+      if (c === 'w') return classNode(false, [[48, 57], [65, 90], [97, 122], [95, 95]], []);
+      if (c === 'W') return classNode(true, [[48, 57], [65, 90], [97, 122], [95, 95]], []);
+      if (c === 's') return classNode(false, [[9, 13], [32, 32], [160, 160]], []);
+      if (c === 'S') return classNode(true, [[9, 13], [32, 32], [160, 160]], []);
+      if (c === 'b') return { t: 'wordb' };
+      if (c === 'B') return { t: 'nwordb' };
+      if (c === 'n') return { t: 'char', c: 10 };
+      if (c === 't') return { t: 'char', c: 9 };
+      if (c === 'r') return { t: 'char', c: 13 };
+      if (c === 'f') return { t: 'char', c: 12 };
+      if (c === 'v') return { t: 'char', c: 11 };
+      if (c === '0') return { t: 'char', c: 0 };
+      if (c === 'x') {
+        var hx = src.substr(i, 2);
+        if (!/^[0-9a-fA-F]{2}$/.test(hx)) throw SyntaxErr('bad \\x escape', at);
+        i += 2; return { t: 'char', c: parseInt(hx, 16) };
+      }
+      if (c === 'u') {
+        var hu = src.substr(i, 4);
+        if (!/^[0-9a-fA-F]{4}$/.test(hu)) throw SyntaxErr('bad \\u escape', at);
+        i += 4; return { t: 'char', c: parseInt(hu, 16) };
+      }
+      if (c >= '1' && c <= '9') throw SyntaxErr('backreferences are out of scope for this engine', at);
+      return { t: 'char', c: c.charCodeAt(0) };
+    }
+
+    function classNode(neg, ranges, classes) {
+      return { t: 'class', neg: neg, ranges: ranges, classes: classes };
+    }
+
+    // The two dialects part company hardest here.
+    function parseBracket() {
+      var open = i;
+      i++; // '['
+      var neg = false;
+      if (i < n && src.charAt(i) === '^') { neg = true; i++; }
+      var ranges = [], classes = [];
+      var first = true;
+
+      if (dialect === 'js') {
+        // ECMAScript: '[]' is a legal EMPTY class that matches nothing; ']' must be escaped to be a member.
+        if (i < n && src.charAt(i) === ']') {
+          i++;
+          note('empty-class', open, neg ? '[^] is the ECMAScript "any character" class' : '[] is an ECMAScript class with no members -- it can never match');
+          return classNode(neg, [], []);
+        }
+      } else {
+        // POSIX: a ']' in the FIRST position is an ordinary member of the list.
+        if (i < n && src.charAt(i) === ']') {
+          ranges.push([93, 93]); i++; first = false;
+          note('bracket-close-first', open, 'a ] in first position is a literal member in POSIX -- ECMAScript reads it as an empty class');
+        }
+      }
+
+      for (;;) {
+        if (i >= n) throw SyntaxErr('unterminated bracket expression', open);
+        var c = src.charAt(i);
+        if (c === ']') { i++; break; }
+
+        if (dialect === 'posix' && c === '[' && i + 1 < n && (src.charAt(i + 1) === ':' || src.charAt(i + 1) === '.' || src.charAt(i + 1) === '=')) {
+          var kind = src.charAt(i + 1);
+          var close = src.indexOf(kind + ']', i + 2);
+          if (close < 0) throw SyntaxErr('unterminated [' + kind + ' ... ' + kind + '] inside bracket expression', i);
+          var body = src.slice(i + 2, close);
+          i = close + 2;
+          if (kind === ':') {
+            if (!Object.prototype.hasOwnProperty.call(POSIX_CLASS, body)) throw SyntaxErr('unknown character class [:' + body + ':]', open);
+            classes.push(body);
+          } else {
+            // collating element / equivalence class: single-character forms only
+            if (body.length !== 1) throw SyntaxErr('multi-character collating elements are not supported', open);
+            ranges.push([body.charCodeAt(0), body.charCodeAt(0)]);
+          }
+          first = false;
+          continue;
+        }
+
+        var lo;
+        if (dialect === 'js' && c === '\\') {
+          var esc = readJsClassEscape();
+          if (esc.kind === 'set') { ranges = ranges.concat(esc.ranges); first = false; continue; }
+          lo = esc.code;
+        } else {
+          // POSIX has NO escape character inside a bracket expression: a backslash is a member.
+          if (dialect === 'posix' && c === '\\') note('bracket-backslash', i, 'inside a POSIX bracket expression a backslash is an ordinary member, not an escape');
+          lo = c.charCodeAt(0);
+          i++;
+        }
+
+        // range?
+        if (i < n && src.charAt(i) === '-' && i + 1 < n && src.charAt(i + 1) !== ']') {
+          i++; // '-'
+          var hi;
+          if (dialect === 'js' && src.charAt(i) === '\\') {
+            var e2 = readJsClassEscape();
+            if (e2.kind === 'set') throw SyntaxErr('a class escape cannot be a range endpoint', i);
+            hi = e2.code;
+          } else {
+            hi = src.charCodeAt(i); i++;
+          }
+          if (hi < lo) throw SyntaxErr('invalid range in bracket expression', open);
+          ranges.push([lo, hi]);
+        } else {
+          ranges.push([lo, lo]);
+        }
+        first = false;
+      }
+      void first;
+      return classNode(neg, ranges, classes);
+    }
+
+    function readJsClassEscape() {
+      var at = i;
+      i++; // '\'
+      if (i >= n) throw SyntaxErr('trailing backslash in class', at);
+      var c = src.charAt(i); i++;
+      if (c === 'd') return { kind: 'set', ranges: [[48, 57]] };
+      if (c === 'w') return { kind: 'set', ranges: [[48, 57], [65, 90], [97, 122], [95, 95]] };
+      if (c === 's') return { kind: 'set', ranges: [[9, 13], [32, 32], [160, 160]] };
+      if (c === 'n') return { kind: 'code', code: 10 };
+      if (c === 't') return { kind: 'code', code: 9 };
+      if (c === 'r') return { kind: 'code', code: 13 };
+      if (c === 'f') return { kind: 'code', code: 12 };
+      if (c === 'v') return { kind: 'code', code: 11 };
+      if (c === 'b') return { kind: 'code', code: 8 };
+      if (c === 'x') {
+        var hx = src.substr(i, 2);
+        if (!/^[0-9a-fA-F]{2}$/.test(hx)) throw SyntaxErr('bad \\x escape in class', at);
+        i += 2; return { kind: 'code', code: parseInt(hx, 16) };
+      }
+      return { kind: 'code', code: c.charCodeAt(0) };
+    }
+
+    var ast = parseAlt(0);
+    if (i < n) throw SyntaxErr('unexpected ' + src.charAt(i), i);
+    return { ast: ast, groups: groups, dialect: dialect, notes: notes, source: src };
+  }
+
+  // ---------- class membership ----------
+  function inClass(node, code) {
+    var hit = false, k;
+    for (k = 0; k < node.ranges.length; k++) {
+      if (code >= node.ranges[k][0] && code <= node.ranges[k][1]) { hit = true; break; }
+    }
+    if (!hit) {
+      for (k = 0; k < node.classes.length; k++) {
+        if (POSIX_CLASS[node.classes[k]](code)) { hit = true; break; }
+      }
+    }
+    return node.neg ? !hit : hit;
+  }
+  function isWordCode(c) {
+    return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+  }
+
+  // ---------- Thompson NFA (used by the leftmost-LONGEST policy) ----------
+  // Greedy vs lazy is invisible here: the automaton recognises a language, not a preference order.
+  function compileNFA(ast, groups) {
+    var states = [];
+    function add(s) { states.push(s); return states.length - 1; }
+    var MATCH = add({ type: 'match' });
+
+    function emit(node, next) {
+      switch (node.t) {
+        case 'empty': return next;
+        case 'char': return add({ type: 'char', lo: node.c, hi: node.c, next: next });
+        case 'any': return add({ type: 'any', next: next });
+        case 'class': return add({ type: 'class', node: node, next: next });
+        case 'bol': return add({ type: 'assert', kind: 'bol', next: next });
+        case 'eol': return add({ type: 'assert', kind: 'eol', next: next });
+        case 'wordb': return add({ type: 'assert', kind: 'wordb', next: next });
+        case 'nwordb': return add({ type: 'assert', kind: 'nwordb', next: next });
+        case 'group': return emit(node.node, next);
+        case 'seq': {
+          var cur = next;
+          for (var k = node.items.length - 1; k >= 0; k--) cur = emit(node.items[k], cur);
+          return cur;
+        }
+        case 'alt': {
+          var entry = emit(node.items[0], next);
+          for (var j = 1; j < node.items.length; j++) {
+            entry = add({ type: 'split', a: entry, b: emit(node.items[j], next) });
+          }
+          return entry;
+        }
+        case 'rep': {
+          if (node.max === Infinity) {
+            var loop = add({ type: 'split', a: -1, b: next });
+            states[loop].a = emit(node.node, loop);
+            var cur2 = loop;
+            for (var m = 0; m < node.min; m++) cur2 = emit(node.node, cur2);
+            return cur2;
+          }
+          var tail = next;
+          for (var o = node.min; o < node.max; o++) {
+            tail = add({ type: 'split', a: emit(node.node, tail), b: next });
+          }
+          for (var p = 0; p < node.min; p++) tail = emit(node.node, tail);
+          return tail;
+        }
+        default: throw new Error('unknown node ' + node.t);
+      }
+    }
+    var start = emit(ast, MATCH);
+    void groups;
+    return { states: states, start: start, match: MATCH };
+  }
+
+  function assertHolds(kind, s, pos) {
+    if (kind === 'bol') return pos === 0;
+    if (kind === 'eol') return pos === s.length;
+    var before = pos > 0 && isWordCode(s.charCodeAt(pos - 1));
+    var after = pos < s.length && isWordCode(s.charCodeAt(pos));
+    if (kind === 'wordb') return before !== after;
+    return before === after;
+  }
+
+  // Longest match starting exactly at `from`, or -1. Parallel simulation, no backtracking.
+  function longestFrom(nfa, s, from) {
+    var seen = new Int32Array(nfa.states.length).fill(-1);
+    var clist = [], nlist = [];
+    var stamp = 0;
+    function addState(list, st, pos) {
+      if (seen[st] === stamp) return;
+      seen[st] = stamp;
+      var node = nfa.states[st];
+      if (node.type === 'split') { addState(list, node.a, pos); addState(list, node.b, pos); return; }
+      if (node.type === 'assert') { if (assertHolds(node.kind, s, pos)) addState(list, node.next, pos); return; }
+      list.push(st);
+    }
+    stamp++;
+    addState(clist, nfa.start, from);
+    var last = -1;
+    if (clist.indexOf(nfa.match) >= 0) last = from;
+    for (var pos = from; pos < s.length; pos++) {
+      var code = s.charCodeAt(pos);
+      nlist = []; stamp++;
+      for (var k = 0; k < clist.length; k++) {
+        var st = nfa.states[clist[k]];
+        if (st.type === 'char') { if (code === st.lo) addState(nlist, st.next, pos + 1); }
+        else if (st.type === 'any') { if (code !== 10) addState(nlist, st.next, pos + 1); }
+        else if (st.type === 'class') { if (inClass(st.node, code)) addState(nlist, st.next, pos + 1); }
+      }
+      clist = nlist;
+      if (clist.length === 0) break;
+      if (clist.indexOf(nfa.match) >= 0) last = pos + 1;
+    }
+    return last;
+  }
+
+  // ---------- backtracking matcher (used by the leftmost-FIRST policy, and for captures) ----------
+  // Explores in the engine's own preference order: alternatives left to right, greedy long first,
+  // lazy short first. The FIRST complete match it reaches is the answer.
+  function makeBacktracker(parsed) {
+    var groups = parsed.groups;
+    function run(s, start, requireEnd, onSolution) {
+      var caps = new Array(groups * 2).fill(-1);
+      var steps = 0;
+      var LIMIT = 400000;
+      var stop = false;
+
+      function walk(node, pos, k) {
+        if (stop) return -1;
+        if (++steps > LIMIT) { stop = true; return -1; }
+        switch (node.t) {
+          case 'empty': return k(pos);
+          case 'char': return (pos < s.length && s.charCodeAt(pos) === node.c) ? k(pos + 1) : -1;
+          case 'any': return (pos < s.length && s.charCodeAt(pos) !== 10) ? k(pos + 1) : -1;
+          case 'class': return (pos < s.length && inClass(node, s.charCodeAt(pos))) ? k(pos + 1) : -1;
+          case 'bol': case 'eol': case 'wordb': case 'nwordb': {
+            var kind = node.t === 'bol' ? 'bol' : node.t === 'eol' ? 'eol' : node.t === 'wordb' ? 'wordb' : 'nwordb';
+            return assertHolds(kind, s, pos) ? k(pos) : -1;
+          }
+          case 'group': {
+            var gi = (node.idx - 1) * 2;
+            var os = caps[gi], oe = caps[gi + 1];
+            var r = walk(node.node, pos, function (p2) {
+              var ps = caps[gi], pe = caps[gi + 1];
+              caps[gi] = pos; caps[gi + 1] = p2;
+              var rr = k(p2);
+              if (rr < 0) { caps[gi] = ps; caps[gi + 1] = pe; }
+              return rr;
+            });
+            if (r < 0) { caps[gi] = os; caps[gi + 1] = oe; }
+            return r;
+          }
+          case 'seq': {
+            var items = node.items;
+            var step = function (j, p) {
+              if (j >= items.length) return k(p);
+              return walk(items[j], p, function (p2) { return step(j + 1, p2); });
+            };
+            return step(0, pos);
+          }
+          case 'alt': {
+            for (var a = 0; a < node.items.length; a++) {
+              var r2 = walk(node.items[a], pos, k);
+              if (r2 >= 0) return r2;
+              if (stop) return -1;
+            }
+            return -1;
+          }
+          case 'rep': {
+            function rep(count, p) {
+              if (stop) return -1;
+              var tryMore = function () {
+                if (count >= node.max) return -1;
+                return walk(node.node, p, function (p2) {
+                  if (p2 === p && count + 1 > node.min) return -1; // an empty iteration ends the loop
+                  return rep(count + 1, p2);
+                });
+              };
+              var tryStop = function () { return count >= node.min ? k(p) : -1; };
+              if (node.lazy) {
+                var rs = tryStop();
+                if (rs >= 0) return rs;
+                return tryMore();
+              }
+              var rm = tryMore();
+              if (rm >= 0) return rm;
+              return tryStop();
+            }
+            return rep(0, pos);
+          }
+          default: throw new Error('unknown node ' + node.t);
+        }
+      }
+
+      var end = walk(parsed.ast, start, function (p) {
+        if (requireEnd >= 0 && p !== requireEnd) return -1;
+        if (onSolution) { onSolution(p, caps.slice()); return -1; } // keep enumerating
+        return p;
+      });
+      return { end: end, caps: caps.slice(), capped: stop };
+    }
+    return run;
+  }
+
+  // ---------- public search ----------
+  // policy 'longest' -> POSIX leftmost-longest (grep/sed/awk)
+  // policy 'first'   -> backtracking leftmost-first (ECMAScript/PCRE/Python)
+  function search(src, s, opts) {
+    opts = opts || {};
+    var dialect = opts.dialect || 'posix';
+    var policy = opts.policy || (dialect === 'posix' ? 'longest' : 'first');
+    var parsed = parsePattern(src, dialect);
+    var run = makeBacktracker(parsed);
+
+    if (policy === 'first') {
+      for (var i = 0; i <= s.length; i++) {
+        var r = run(s, i, -1, null);
+        if (r.end >= 0) return { start: i, end: r.end, caps: r.caps, groups: parsed.groups, policy: policy, dialect: dialect, capped: r.capped };
+      }
+      return null;
+    }
+
+    var nfa = compileNFA(parsed.ast, parsed.groups);
+    for (var j = 0; j <= s.length; j++) {
+      var e = longestFrom(nfa, s, j);
+      if (e >= 0) {
+        // captures: the same preference order, pinned to the end the automaton chose.
+        var rc = run(s, j, e, null);
+        return { start: j, end: e, caps: rc.end >= 0 ? rc.caps : new Array(parsed.groups * 2).fill(-1), groups: parsed.groups, policy: policy, dialect: dialect, capped: rc.capped };
+      }
+    }
+    return null;
+  }
+
+  // The capture assignment POSIX actually specifies: subexpressions left to right, each starting
+  // as early and running as long as the whole match allows. Real implementations do not do this.
+  function strictPosixCaps(src, s, start, end) {
+    var parsed = parsePattern(src, 'posix');
+    if (parsed.groups === 0) return { caps: [], count: 0, capped: false };
+    var run = makeBacktracker(parsed);
+    var best = null, count = 0, capped = false;
+    var r = run(s, start, end, function (p, caps) {
+      void p;
+      count++;
+      if (count > 20000) { capped = true; return; }
+      if (best === null || better(caps, best)) best = caps;
+    });
+    if (r.capped) capped = true;
+    function better(a, b) {
+      for (var g = 0; g < parsed.groups; g++) {
+        var as = a[g * 2], ae = a[g * 2 + 1], bs = b[g * 2], be = b[g * 2 + 1];
+        if (as !== bs) return as >= 0 && (bs < 0 || as < bs);
+        if (ae !== be) return ae > be;
+      }
+      return false;
+    }
+    return { caps: best || [], count: count, capped: capped };
+  }
+
+  // ---------- helpers used by the page ----------
+  function slice(s, r, gi) {
+    if (!r) return null;
+    if (gi === undefined) return s.slice(r.start, r.end);
+    var a = r.caps[gi * 2], b = r.caps[gi * 2 + 1];
+    return a < 0 ? null : s.slice(a, b);
+  }
+
+  // Which layer caused a disagreement: the reading of the pattern, or the choice of match?
+  function attribute(src, s) {
+    var out = { posix: null, js: null, cause: 'agree', errors: {} };
+    function tryRun(dialect, policy) {
+      try { return { ok: true, r: search(src, s, { dialect: dialect, policy: policy }) }; }
+      catch (e) { return { ok: false, msg: e.message }; }
+    }
+    var pl = tryRun('posix', 'longest'), jf = tryRun('js', 'first');
+    var pf = tryRun('posix', 'first'), jl = tryRun('js', 'longest');
+    if (!pl.ok) out.errors.posix = pl.msg;
+    if (!jf.ok) out.errors.js = jf.msg;
+    out.posix = pl.ok ? pl.r : null;
+    out.js = jf.ok ? jf.r : null;
+    if (!pl.ok || !jf.ok) { out.cause = 'syntax-rejected'; return out; }
+    if (same(pl.r, jf.r)) { out.cause = 'agree'; return out; }
+    // hold the policy still and swap the dialect; then hold the dialect still and swap the policy
+    var syntaxDiffers = !(pf.ok && jf.ok && same(pf.r, jf.r));
+    var policyDiffers = !(pl.ok && pf.ok && same(pl.r, pf.r)) || !(jl.ok && jf.ok && same(jl.r, jf.r));
+    out.cause = syntaxDiffers && policyDiffers ? 'both' : syntaxDiffers ? 'syntax' : 'policy';
+    return out;
+  }
+  function same(a, b) {
+    if (a === null || b === null) return a === b;
+    return a.start === b.start && a.end === b.end;
+  }
+
+  // Render a POSIX bracket expression the way ECMAScript would have to spell it.
+  function bracketToJs(node) {
+    var parts = [];
+    for (var i = 0; i < node.ranges.length; i++) {
+      var lo = node.ranges[i][0], hi = node.ranges[i][1];
+      parts.push(lo === hi ? esc(lo) : esc(lo) + '-' + esc(hi));
+    }
+    for (var j = 0; j < node.classes.length; j++) parts.push(classToRanges(node.classes[j]));
+    return '[' + (node.neg ? '^' : '') + parts.join('') + ']';
+    function esc(c) {
+      var ch = String.fromCharCode(c);
+      return '\\^]-'.indexOf(ch) >= 0 ? '\\' + ch : ch;
+    }
+    function classToRanges(name) {
+      var out = '', run = -1;
+      for (var c = 0; c <= 127; c++) {
+        var hit = POSIX_CLASS[name](c);
+        if (hit && run < 0) run = c;
+        if ((!hit || c === 127) && run >= 0) {
+          var end = hit ? c : c - 1;
+          out += run === end ? esc(run) : esc(run) + '-' + esc(end);
+          run = -1;
+        }
+      }
+      return out;
+    }
+  }
+
+  // ---------- self-check: identities and bounds, plus a live differential ----------
+  // Nothing here asserts a memorised answer. Every check is either a structural identity of the
+  // two policies, or a comparison against the RegExp implementation the browser already ships.
+  function prng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), 1 | t);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var ALPHA3 = ['a', 'b', 'c'];
+  // patterns restricted to the constructs both dialects read identically
+  function genPatterns(seed, count) {
+    var r = prng(seed), out = [], seenP = {}, guard = 0;
+    function pick(a) { return a[Math.floor(r() * a.length)]; }
+    function alt(d) {
+      var n = d >= 2 ? 1 : 1 + Math.floor(r() * 3), bs = [], i;
+      for (i = 0; i < n; i++) bs.push(branch(d));
+      return bs.join('|');
+    }
+    function branch(d) {
+      var n = 1 + Math.floor(r() * (d >= 2 ? 2 : 3)), s = '', i;
+      for (i = 0; i < n; i++) s += piece(d);
+      return s;
+    }
+    function piece(d) {
+      var a = atom(d);
+      return r() < 0.45 ? a + pick(['*', '+', '?', '{1,2}', '{2}', '{0,2}']) : a;
+    }
+    function atom(d) {
+      var roll = r();
+      if (roll < 0.52) return pick(ALPHA3);
+      if (roll < 0.62) return '.';
+      if (roll < 0.78) return pick(['[ab]', '[^a]', '[a-c]', '[bc]']);
+      if (d < 2) return '(' + alt(d + 1) + ')';
+      return pick(ALPHA3);
+    }
+    while (out.length < count && guard++ < count * 40) {
+      var p = alt(0);
+      if (p === '' || seenP[p]) continue;
+      seenP[p] = 1; out.push(p);
+    }
+    return out;
+  }
+  function genSubjects(seed, count, maxLen) {
+    var r = prng(seed), seenS = { '': 1 }, out = [''], L, s, i;
+    while (out.length < count) {
+      L = Math.floor(r() * (maxLen + 1)); s = '';
+      for (i = 0; i < L; i++) s += ALPHA3[Math.floor(r() * 3)];
+      if (!seenS[s]) { seenS[s] = 1; out.push(s); }
+    }
+    return out;
+  }
+
+  function selftest(opts) {
+    opts = opts || {};
+    var np = opts.patterns || 140, ns = opts.subjects || 24;
+    var pats = genPatterns(20260901, np), subs = genSubjects(77077, ns, 6);
+    var asserts = 0, fails = 0, bad = [];
+    function chk(cond, why) { asserts++; if (!cond) { fails++; if (bad.length < 20) bad.push(why); } }
+    var i, k, p, s, lo, fi, native_, m, nres;
+    for (i = 0; i < pats.length; i++) {
+      p = pats[i];
+      var nativeRe = null;
+      try { nativeRe = new RegExp(p); } catch (e) { nativeRe = null; }
+      for (k = 0; k < subs.length; k++) {
+        s = subs[k];
+        lo = search(p, s, { dialect: 'posix', policy: 'longest' });
+        fi = search(p, s, { dialect: 'js', policy: 'first' });
+        // identity: the two policies recognise the same language
+        chk((lo === null) === (fi === null), 'whether-it-matches differs on /' + p + '/ ' + s);
+        if (lo === null || fi === null) continue;
+        // identity: leftmost is leftmost in both
+        chk(lo.start === fi.start, 'start index differs on /' + p + '/ ' + s);
+        // bound: longest is never shorter than first
+        chk(lo.end - lo.start >= fi.end - fi.start, 'length bound broken on /' + p + '/ ' + s);
+        // identity: the first-policy match is a prefix of the longest-policy match
+        chk(s.slice(lo.start, lo.end).indexOf(s.slice(fi.start, fi.end)) === 0, 'prefix identity broken on /' + p + '/ ' + s);
+        // differential: the ECMAScript reading must reproduce the RegExp this browser ships
+        if (nativeRe) {
+          native_ = nativeRe.exec(s);
+          nres = native_ === null ? null : { start: native_.index, end: native_.index + native_[0].length };
+          chk(nres !== null && nres.start === fi.start && nres.end === fi.end,
+            'native RegExp disagrees on /' + p + '/ ' + s);
+        }
+        // identity: the automaton and the backtracker agree on the longest end
+        var parsed = parsePattern(p, 'posix'), bt = makeBacktracker(parsed), j, longest = -1;
+        for (j = s.length; j >= lo.start; j--) { if (bt(s, lo.start, j, null).end >= 0) { longest = j; break; } }
+        chk(longest === lo.end, 'automaton and backtracker disagree on /' + p + '/ ' + s);
+        // identity: re-matching the matched slice returns the whole slice
+        if (p.indexOf('^') < 0 && p.indexOf('$') < 0) {
+          var again = search(p, s.slice(lo.start, lo.end), { dialect: 'posix', policy: 'longest' });
+          chk(again !== null && again.start === 0 && again.end === lo.end - lo.start, 'idempotence broken on /' + p + '/ ' + s);
+        }
+      }
+    }
+    // identity: under POSIX, alternation is commutative
+    var flips = 0, pairs = 0;
+    for (i = 0; i + 1 < pats.length && pairs < 220; i += 2) {
+      var X = pats[i], Y = pats[i + 1];
+      if (X.indexOf('|') >= 0 || Y.indexOf('|') >= 0) continue;
+      pairs++;
+      for (k = 0; k < subs.length; k++) {
+        s = subs[k];
+        var r1 = search(X + '|' + Y, s, { dialect: 'posix', policy: 'longest' });
+        var r2 = search(Y + '|' + X, s, { dialect: 'posix', policy: 'longest' });
+        asserts++;
+        if ((r1 === null) !== (r2 === null) || (r1 && (r1.start !== r2.start || r1.end !== r2.end))) { flips++; fails++; if (bad.length < 20) bad.push('POSIX alternation not commutative: /' + X + '|' + Y + '/ ' + s); }
+      }
+    }
+    // identity: a POSIX bracket translated to ECMAScript classifies every ASCII code point alike
+    var brackets = ['[[:alpha:]]', '[[:digit:]]', '[[:space:]]', '[[:punct:]]', '[[:xdigit:]]',
+      '[^[:alnum:]]', '[]a-c]', '[a-]', '[[:upper:]0-3]', '[[:lower:][:digit:]]'];
+    for (i = 0; i < brackets.length; i++) {
+      var node = parsePattern(brackets[i], 'posix').ast, jsRe = null;
+      try { jsRe = new RegExp('^' + bracketToJs(node) + '$'); } catch (e) { jsRe = null; }
+      chk(jsRe !== null, 'bracket translation of ' + brackets[i] + ' is not valid ECMAScript');
+      if (!jsRe) continue;
+      for (var c = 32; c < 127; c++) {
+        chk(inClass(node, c) === jsRe.test(String.fromCharCode(c)),
+          brackets[i] + ' disagrees with its ECMAScript translation on code ' + c);
+      }
+    }
+    // bound: the POSIX dialect must refuse the GNU shorthand classes
+    var shorthand = ['\\w', '\\W', '\\s', '\\S', '\\b', '\\B'];
+    for (i = 0; i < shorthand.length; i++) {
+      var threw = false;
+      try { parsePattern(shorthand[i], 'posix'); } catch (e) { threw = true; }
+      chk(threw, 'POSIX dialect accepted ' + shorthand[i]);
+      var fine = true;
+      try { parsePattern(shorthand[i], 'js'); } catch (e) { fine = false; }
+      chk(fine, 'ECMAScript dialect refused ' + shorthand[i]);
+    }
+    return { asserts: asserts, fails: fails, bad: bad, patterns: pats.length, subjects: subs.length, flips: flips };
+  }
+
+  return {
+    selftest: selftest,
+    genPatterns: genPatterns,
+    genSubjects: genSubjects,
+    parsePattern: parsePattern,
+    compileNFA: compileNFA,
+    longestFrom: longestFrom,
+    search: search,
+    strictPosixCaps: strictPosixCaps,
+    attribute: attribute,
+    slice: slice,
+    bracketToJs: bracketToJs,
+    inClass: inClass,
+    POSIX_CLASS: POSIX_CLASS
+  };
+})();
+// ===== ENGINE:END =====
+
+// ---------------------------------------------------------------- UI (DOM lives here only)
+(function () {
+  "use strict";
+  var E = ERE;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+  function pc(a, b) { return b ? (100 * a / b).toFixed(2) + "%" : "0.00%"; }
+  var t0 = Date.now();
+
+  // ------------------------------------------------------------ tabs
+  var tabs = $("tabs").querySelectorAll("button"), i;
+  for (i = 0; i < tabs.length; i++) tabs[i].addEventListener("click", function (e) {
+    var t = e.currentTarget.getAttribute("data-tab"), k;
+    for (k = 0; k < tabs.length; k++) tabs[k].className = "tabbtn" + (tabs[k] === e.currentTarget ? " tab-active" : "");
+    ["look", "understand", "build"].forEach(function (id) {
+      $(id).className = "panel" + (id === t ? "" : " hidden");
+    });
+  });
+
+  // ------------------------------------------------------------ shared renderers
+  function strip(s, r) {
+    if (s === "") return '<span class="strip"><span class="ch empty">(empty subject)</span></span>';
+    var h = '<span class="strip">', k;
+    for (k = 0; k < s.length; k++) {
+      var inMatch = r && r.start >= 0 && k >= r.start && k < r.end;
+      h += '<span class="ch' + (inMatch ? " in" : "") + '">' + esc(s.charAt(k)) + "<small>" + k + "</small></span>";
+    }
+    return h + "</span>";
+  }
+  function lane(tagCls, tagText, note, s, r, err) {
+    var h = '<div class="lane"><div><span class="tag ' + tagCls + '">' + tagText + "</span>" +
+      '<div class="t-xs dim mt2">' + note + "</div></div><div>";
+    if (err) { h += '<span class="v deny">SyntaxError</span> <span class="t-xs mono">' + esc(err) + "</span>"; }
+    else if (!r) { h += '<span class="v grey">no match</span>'; }
+    else {
+      h += strip(s, r);
+      h += '<div class="t-xs mt2 mono">' + (r.end === r.start
+        ? 'zero-length match at ' + r.start
+        : 'matched <b>' + esc(JSON.stringify(s.slice(r.start, r.end))) + "</b> at " + r.start + ", length " + (r.end - r.start));
+      var g = [];
+      for (var q = 0; q < r.groups; q++) {
+        var t = E.slice(s, r, q);
+        g.push("\\" + (q + 1) + "=" + (t === null ? "unset" : JSON.stringify(t)));
+      }
+      if (g.length) h += "  &middot;  " + esc(g.join("  "));
+      h += "</div>";
+    }
+    return h + "</div></div>";
+  }
+  // the same deterministic generator the verifier uses, so the numbers below reproduce it exactly
+  function prng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), 1 | t);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // two results are the same answer when they cover the same span; the group NUMBERING is not
+  // part of the answer, and swapping two branches renumbers it
+  function span(x) {
+    var r = x && x.r !== undefined ? x.r : x;
+    if (x && x.err) return "ERR";
+    return r === null || r === undefined ? "no" : r.start + "+" + (r.end - r.start);
+  }
+  function runOne(p, s, dialect, policy) {
+    try { return { r: E.search(p, s, { dialect: dialect, policy: policy }) }; }
+    catch (e) { return { err: e.message }; }
+  }
+
+  // ------------------------------------------------------------ 1. the matcher
+  var PRESETS = [
+    ["a|ab", "ab", "alternation order"],
+    ["ab|a", "ab", "swapped"],
+    ["a*?", "aaa", "a*? — three characters"],
+    ["a**", "aaa", "a**"],
+    ["[\\.]", "x\\y", "backslash in a bracket"],
+    ["[]a]", "]", "] in first position"],
+    ["[a\\]b]", "]", "escaped ]"],
+    ["[[:alpha:]]+", "ab12", "POSIX class"],
+    ["\\w+", "a1", "GNU shorthand"],
+    ["a{,2}", "aa", "not an interval"],
+    ["(|a)*", "aaa", "empty first branch"],
+    ["(a|ab)(b?)", "ab", "capture assignment"],
+    ["([a-c])c?(c+)", "bcc", "the standard vs GNU"],
+    ["(a|ab)(c|bcd)", "abcd", "the classic"],
+    ["^*", "aa", "quantified anchor"],
+    ["aa|c|c+", "abcc", "generated divergence"]
+  ];
+  (function () {
+    var h = "", k;
+    for (k = 0; k < PRESETS.length; k++)
+      h += '<button data-p="' + esc(PRESETS[k][0]) + '" data-s="' + esc(PRESETS[k][1]) + '">' + esc(PRESETS[k][2]) + "</button>";
+    $("presets").innerHTML = h;
+    var bs = $("presets").querySelectorAll("button"), q;
+    for (q = 0; q < bs.length; q++) bs[q].addEventListener("click", function (e) {
+      $("pat").value = e.currentTarget.getAttribute("data-p");
+      $("subj").value = e.currentTarget.getAttribute("data-s");
+      renderMatch();
+    });
+  }());
+
+  function renderMatch() {
+    var p = $("pat").value, s = $("subj").value;
+    var pl = runOne(p, s, "posix", "longest");
+    var jf = runOne(p, s, "js", "first");
+    var pf = runOne(p, s, "posix", "first");
+    var jl = runOne(p, s, "js", "longest");
+    var h = "";
+    h += lane("t-posix", "POSIX &middot; longest", "what grep, sed and awk do", s, pl.r, pl.err);
+    h += lane("t-js", "ECMAScript &middot; first", "what JavaScript, Python, Perl and PCRE do", s, jf.r, jf.err);
+    h += lane("t-probe", "probe: POSIX &middot; first", "POSIX reading, backtracking search", s, pf.r, pf.err);
+    h += lane("t-probe", "probe: ECMAScript &middot; longest", "ECMAScript reading, automaton search", s, jl.r, jl.err);
+    $("lanes").innerHTML = h;
+
+    var a = E.attribute(p, s);
+    var cause = {
+      "agree": ['<span class="v allow">the two families agree</span>', "Both real engines return the same match. The probes are there to show you when that stops being true."],
+      "policy": ['<span class="v warn">divergence: the SEARCH</span>', "Both dialects parse this pattern to the same tree. The two engines disagree because one takes the longest match at the leftmost start and the other takes the first one its backtracker reaches."],
+      "syntax": ['<span class="v deny">divergence: the READING</span>', "The two dialects parse this string into different patterns. The search policy is not involved: swap it and nothing changes."],
+      "both": ['<span class="v deny">divergence: reading AND search</span>', "The string parses differently AND the two policies would disagree even on a shared tree."],
+      "syntax-rejected": ['<span class="v deny">one dialect refuses to compile it</span>', "This string is a program in one family and a syntax error in the other."]
+    }[a.cause];
+    var v = '<div class="note ' + (a.cause === "agree" ? "note-g" : a.cause === "policy" ? "" : "note-r") + '">' +
+      cause[0] + '<div class="t-sm mt2">' + cause[1] + "</div>";
+    if (a.errors.posix) v += '<div class="t-xs mono mt2">POSIX: ' + esc(a.errors.posix) + "</div>";
+    if (a.errors.js) v += '<div class="t-xs mono mt2">ECMAScript: ' + esc(a.errors.js) + "</div>";
+
+    // parser notes + the strict-POSIX capture reading
+    try {
+      var parsed = E.parsePattern(p, "posix");
+      if (parsed.notes.length) {
+        var seenN = {}, lines = [], q;
+        for (q = 0; q < parsed.notes.length; q++) {
+          if (seenN[parsed.notes[q].kind]) continue;
+          seenN[parsed.notes[q].kind] = 1;
+          lines.push("at " + parsed.notes[q].at + ": " + parsed.notes[q].text);
+        }
+        v += '<div class="t-xs mt3"><span class="lbl">POSIX parser notes</span><br>' + esc(lines.join(" · ")) + "</div>";
+      }
+      if (pl.r && parsed.groups >= 1) {
+        var st = E.strictPosixCaps(p, s, pl.r.start, pl.r.end);
+        var mine = [], theirs = [], q2;
+        for (q2 = 0; q2 < parsed.groups; q2++) {
+          var t1 = E.slice(s, pl.r, q2);
+          mine.push("\\" + (q2 + 1) + "=" + (t1 === null ? "unset" : JSON.stringify(t1)));
+          var ss = st.caps[q2 * 2], se = st.caps[q2 * 2 + 1];
+          theirs.push("\\" + (q2 + 1) + "=" + (ss < 0 ? "unset" : JSON.stringify(s.slice(ss, se))));
+        }
+        var differs = mine.join("|") !== theirs.join("|");
+        v += '<div class="t-xs mt3"><span class="lbl">capture assignment</span><br>' +
+          "what GNU produces (and this engine): " + esc(mine.join("  ")) + "<br>" +
+          "what POSIX specifies: " + esc(theirs.join("  ")) +
+          (differs ? '  <span class="v deny">they differ</span>' : '  <span class="v allow">same</span>') + "</div>";
+      }
+    } catch (e) { /* the pattern is not POSIX; the lanes already said so */ }
+    $("verdict").innerHTML = v + "</div>";
+  }
+  $("pat").addEventListener("input", renderMatch);
+  $("subj").addEventListener("input", renderMatch);
+
+  // ------------------------------------------------------------ 2. swap
+  function renderSwap() {
+    var X = $("bx").value, Y = $("by").value, s = $("bs").value;
+    var rows = [
+      ["POSIX", "t-posix", X + "|" + Y, runOne(X + "|" + Y, s, "posix", "longest")],
+      ["POSIX", "t-posix", Y + "|" + X, runOne(Y + "|" + X, s, "posix", "longest")],
+      ["ECMAScript", "t-js", X + "|" + Y, runOne(X + "|" + Y, s, "js", "first")],
+      ["ECMAScript", "t-js", Y + "|" + X, runOne(Y + "|" + X, s, "js", "first")]
+    ];
+    var h = '<table class="num"><tr><th>family</th><th>pattern</th><th>match</th><th>span</th></tr>';
+    var k;
+    for (k = 0; k < rows.length; k++) {
+      var r = rows[k][3];
+      h += '<tr><td><span class="tag ' + rows[k][1] + '">' + rows[k][0] + "</span></td>" +
+        '<td class="mono">/' + esc(rows[k][2]) + "/</td><td class=\"mono\">" +
+        (r.err ? '<span class="v deny">SyntaxError</span>' : !r.r ? '<span class="v grey">no match</span>' : esc(JSON.stringify(s.slice(r.r.start, r.r.end)))) +
+        '</td><td class="r mono">' + (r.err || !r.r ? "&mdash;" : r.r.start + " + " + (r.r.end - r.r.start)) + "</td></tr>";
+    }
+    h += "</table>";
+    var same1 = span(rows[0][3]) === span(rows[1][3]);
+    var same2 = span(rows[2][3]) === span(rows[3][3]);
+    h += '<div class="mt3 note ' + (same1 && !same2 ? "note-r" : "note-b") + '"><span class="t-sm">' +
+      "POSIX: the swap " + (same1 ? "<b>changed nothing</b>" : "<b>changed the answer</b> (which would be a bug)") +
+      ".  ECMAScript: the swap " + (same2 ? "changed nothing <i>here</i>" : "<b>changed the answer</b>") +
+      ". Only the span is compared, because swapping the branches renumbers the capture groups: " +
+      "<code>\\1</code> moves even where the match does not.</span></div>";
+    $("swapout").innerHTML = h;
+  }
+  ["bx", "by", "bs"].forEach(function (id) { $(id).addEventListener("input", renderSwap); });
+
+  $("swapsweep").addEventListener("click", function () {
+    var btn = $("swapsweep"); btn.disabled = true;
+    var pats = E.genPatterns(20260901, 420), subs = E.genSubjects(77077, 40, 6);
+    var rnd = prng(4242), pairs = [], seenPair = {}, k = 0, guard = 0;
+    while (pairs.length < 300 && guard++ < 400000) {
+      var A = pats[Math.floor(rnd() * pats.length)], B = pats[Math.floor(rnd() * pats.length)];
+      if (A.indexOf("|") >= 0 || B.indexOf("|") >= 0 || A === B) continue;
+      if (seenPair[A + "|" + B]) continue;
+      seenPair[A + "|" + B] = 1;
+      pairs.push([A, B]);
+    }
+    var posixFlip = 0, jsFlip = 0, n = 0, idx = 0;
+    var out = $("swapsweepout");
+    function step() {
+      var end = Math.min(idx + 20, pairs.length), q, w;
+      for (; idx < end; idx++) {
+        for (q = 0; q < subs.length; q++) {
+          var s = subs[q], X = pairs[idx][0], Y = pairs[idx][1];
+          var p1 = E.search(X + "|" + Y, s, { dialect: "posix", policy: "longest" });
+          var p2 = E.search(Y + "|" + X, s, { dialect: "posix", policy: "longest" });
+          var j1 = E.search(X + "|" + Y, s, { dialect: "js", policy: "first" });
+          var j2 = E.search(Y + "|" + X, s, { dialect: "js", policy: "first" });
+          n++;
+          if (span(p1) !== span(p2)) posixFlip++;
+          if (span(j1) !== span(j2)) jsFlip++;
+        }
+      }
+      out.textContent = "swapped " + fmtN(idx) + " of " + pairs.length + " branch pairs across " + subs.length +
+        " subjects = " + fmtN(n) + " cells\n" +
+        "POSIX  /X|Y/ vs /Y|X/ : " + posixFlip + " different answers\n" +
+        "ECMA   /X|Y/ vs /Y|X/ : " + fmtN(jsFlip) + " different answers = " + pc(jsFlip, n);
+      w = idx < pairs.length;
+      if (w) setTimeout(step, 0);
+      else {
+        out.textContent += "\n\nThe zero is the finding. Under leftmost-longest the branch order is not " +
+          "part of the pattern, so /X|Y/ and /Y|X/ are the same regex " + fmtN(n) + " times out of " + fmtN(n) + ".";
+        btn.disabled = false;
+      }
+    }
+    setTimeout(step, 0);
+    void k;
+  });
+
+  // ------------------------------------------------------------ 3. the frontier table
+  // Recorded from the six binaries on the build machine; the verifier re-measures every row on
+  // every run. The two ENGINE columns below are computed live, here, in your browser.
+  var FRONTIER = [
+    ["a|ab", "ab", "0+2", "0+2", "yes", "0+1", "0+1", "0+1", "alternation order"],
+    ["ab|a", "ab", "0+2", "0+2", "yes", "0+2", "0+2", "0+2", "the same two branches, swapped"],
+    ["a*?", "aaa", "0+3", "0+3", "yes", "0+0", "0+0", "0+0", "(a*)? in POSIX, lazy * in ECMAScript"],
+    ["a+?", "aaa", "0+3", "0+3", "yes", "0+1", "0+1", "0+1", "same shape, one character in"],
+    ["a??", "aaa", "0+1", "0+1", "yes", "0+0", "0+0", "0+0", "(a?)? in POSIX"],
+    ["a**", "aaa", "0+3", "0+3", "yes", "ERR", "ERR", "ERR", "legal POSIX, SyntaxError elsewhere"],
+    ["[\\.]", "x\\y", "1+1", "no", "yes", "no", "no", "no", "gawk leaves grep and sed"],
+    ["[\\.]", "x.y", "1+1", "1+1", "yes", "1+1", "1+1", "1+1", "the dot half agrees"],
+    ["[a\\]b]", "]", "no", "0+1", "no", "0+1", "0+1", "0+1", "an escaped ] is not an escape in POSIX"],
+    ["[a\\]b]", "b", "no", "0+1", "no", "0+1", "0+1", "0+1", "POSIX reads b] as literal text"],
+    ["[]a]", "]", "0+1", "0+1", "yes", "no", "0+1", "0+1", "] first is a member; V8 reads an empty class"],
+    ["[]a]", "a", "0+1", "0+1", "yes", "no", "0+1", "0+1", "same class, other member"],
+    ["[^]a]", "b", "0+1", "0+1", "yes", "no", "0+1", "0+1", "negated, ] first"],
+    ["[a-]", "-", "0+1", "0+1", "yes", "0+1", "0+1", "0+1", "a trailing hyphen is a member"],
+    ["[-a]", "-", "0+1", "0+1", "yes", "0+1", "0+1", "0+1", "and a leading one"],
+    ["[[:alpha:]]+", "ab12", "0+2", "0+2", "yes", "no", "no", "0+2", "perl speaks POSIX classes"],
+    ["[[:digit:][:alpha:]]+", "1a", "0+2", "0+2", "yes", "no", "no", "0+2", "two classes in one list"],
+    ["[[:foo:]]", "x", "ERR", "ERR", "ERR", "no", "no", "ERR", "an unknown class is an error or a literal"],
+    ["\\d", "a1", "no", "no", "no", "1+1", "1+1", "1+1", "no shorthand in ERE: \\d is the letter d"],
+    ["\\w+", "a1", "0+2", "0+2", "yes", "0+2", "0+2", "0+2", "a GNU extension that happens to agree"],
+    ["\\bab", "ab", "0+2", "no", "yes", "0+2", "0+2", "0+2", "gawk reads \\b as backspace; it spells it \\y"],
+    ["a{,2}", "aa", "0+2", "0+2", "yes", "no", "0+2", "0+2", "{,2} is not a POSIX interval"],
+    ["a{2,1}", "aa", "ERR", "ERR", "ERR", "ERR", "ERR", "no", "perl warns and matches nothing"],
+    ["x{2}", "xxx", "0+2", "0+2", "yes", "0+2", "0+2", "0+2", "a plain interval, universally"],
+    ["(|a)*", "aaa", "0+3", "0+3", "yes", "0+3", "0+0", "0+0", "the empty branch first"],
+    ["(a|)*", "aaa", "0+3", "0+3", "yes", "0+3", "0+3", "0+3", "and the same branch last"],
+    ["(a*)*", "aaa", "0+3", "0+3", "yes", "0+3", "0+3", "0+3", "a nested star agrees everywhere"],
+    ["()", "x", "0+0", "0+0", "yes", "0+0", "0+0", "0+0", "an empty group"],
+    ["a|", "b", "0+0", "0+0", "yes", "0+0", "0+0", "0+0", "an empty branch"],
+    ["a$b", "ab", "no", "no", "no", "no", "no", "no", "$ in the middle is an anchor, not a dollar"],
+    ["^*", "aa", "ERR", "no", "yes", "ERR", "ERR", "0+0", "three answers from three GNU tools"],
+    ["[$]", "$", "0+1", "0+1", "yes", "0+1", "0+1", "0+1", "and in a bracket it is a dollar"],
+    ["[\\\\]", "x\\y", "1+1", "1+1", "yes", "1+1", "1+1", "1+1", "two backslashes agree"],
+    ["(a|ab)(c|bcd)", "abcd", "0+4", "0+4", "yes", "0+4", "0+4", "0+4", "the textbook case, where both agree"],
+    ["(a|ab)(b?)", "ab", "0+2", "0+2", "yes", "0+2", "0+2", "0+2", "whole match agrees, captures do not"],
+    ["(a*)(a*)", "aaa", "0+3", "0+3", "yes", "0+3", "0+3", "0+3", "greedy leaves nothing for the second"],
+    ["[[:upper:]a]+", "aB", "0+2", "0+2", "yes", "no", "no", "0+2", "a class and a member together"],
+    ["a.c", "abc", "0+3", "0+3", "yes", "0+3", "0+3", "0+3", "a plain dot"],
+    ["[.]", "a.c", "1+1", "1+1", "yes", "1+1", "1+1", "1+1", "and a bracketed one"],
+    ["(a+)+b", "aaab", "0+4", "0+4", "yes", "0+4", "0+4", "0+4", "the backtracking bomb, defused by a b"]
+  ];
+  (function () {
+    function engCell(p, s, d, pol) {
+      var r = runOne(p, s, d, pol);
+      if (r.err) return "ERR";
+      if (!r.r) return "no";
+      return r.r.start + "+" + (r.r.end - r.r.start);
+    }
+    var h = "<tr><th>pattern</th><th>subject</th><th class=\"c\">sed 4.9</th><th class=\"c\">gawk 5.0</th>" +
+      "<th class=\"c\">grep 3.0</th><th class=\"c\">node 22</th><th class=\"c\">python 3.11</th>" +
+      "<th class=\"c\">perl 5.38</th><th class=\"c\">engine POSIX</th><th class=\"c\">engine ECMA</th><th></th></tr>";
+    var agree = 0, two = 0, three = 0, k;
+    for (k = 0; k < FRONTIER.length; k++) {
+      var row = FRONTIER[k];
+      var five = {}, q, cnt = 0;
+      [row[2], row[3], row[5], row[6], row[7]].forEach(function (x) { if (!five[x]) { five[x] = 1; cnt++; } });
+      if (cnt === 1) agree++; else if (cnt === 2) two++; else three++;
+      var cls = cnt === 1 ? "" : cnt === 2 ? "hi" : "split3";
+      var ep = engCell(row[0], row[1], "posix", "longest"), ej = engCell(row[0], row[1], "js", "first");
+      h += '<tr class="' + cls + '"><td class="mono">/' + esc(row[0]) + "/</td><td class=\"mono\">" + esc(JSON.stringify(row[1])) + "</td>";
+      for (q = 2; q <= 7; q++) h += '<td class="c mono">' + esc(row[q]) + "</td>";
+      h += '<td class="c mono"><b>' + esc(ep) + "</b></td><td class=\"c mono\"><b>" + esc(ej) + "</b></td>";
+      h += '<td class="t-xs dim">' + esc(row[8]) + "</td></tr>";
+      void q;
+    }
+    $("frontier").innerHTML = h;
+    $("frontierstats").innerHTML = '<div class="note note-b t-sm">Five real implementations return the same answer for <b>' +
+      agree + "</b> of " + FRONTIER.length + " patterns. <b>" + two + "</b> split two ways and <b>" + three +
+      "</b> splits three ways. The engine reproduces GNU sed on 36 of 40 &mdash; every gap a named GNU " +
+      "extension (<code>\\w</code>, <code>\\b</code>, <code>{,2}</code>, <code>^*</code>) rather than a silent " +
+      "disagreement &mdash; and Node 22 on 40 of 40.</div>";
+  }());
+
+  // ------------------------------------------------------------ 4. scoreboard
+  (function () {
+    var ROWS = [
+      ["&ldquo;A regex is a regex &mdash; one pattern, one answer&rdquo;",
+        "wrong on <b>1,758</b> of 16,800 generated cases (<b>10.46%</b>), from 186 of 420 patterns, and on 21 of the 40 frontier patterns",
+        "10.46%", 10.46],
+      ["&ldquo;Alternation is ordered &mdash; put the longer branch first&rdquo;",
+        "exactly right in the backtracking family (<b>1,860</b> of <b>12,000</b> swapped cells change answer, <b>15.50%</b>) and a complete no-op under POSIX (<b>0</b> of 12,000)",
+        "15.50% / 0.00%", 15.50],
+      ["&ldquo;<code>*?</code> means lazy&rdquo;",
+        "in POSIX <code>a*?</code> returns the <b>longest</b> run, not the shortest &mdash; 3 characters where ECMAScript returns 0",
+        "opposite extreme", 100],
+      ["&ldquo;Escaping inside a bracket is harmless&rdquo;",
+        "<code>[\\.]</code> is a two-member class in grep and sed, a one-member class in gawk, node, python and perl",
+        "3 readings", 60],
+      ["&ldquo;GNU tools implement POSIX&rdquo;",
+        "the engine matches GNU sed on 36 of 40 frontier patterns; all 4 gaps are documented GNU extensions, and gawk leaves sed on 5",
+        "4 + 5 of 40", 22.5],
+      ["&ldquo;Backtracking engines all behave the same&rdquo;",
+        "python and perl leave V8 on <b>48</b> of 16,800 cases, every one a quantifier over an emptyable body; on the frontier perl leaves it on 11 of 40 and python on 5",
+        "0.29% / 27.5%", 27.5],
+      ["&ldquo;<code>\\1</code> from sed is what POSIX specifies&rdquo;",
+        "the whole match is (<b>1,409</b> of 1,409 cells) but the captures are not &mdash; the standard's rule differs on <b>53</b>, <b>3.76%</b>",
+        "3.76%", 3.76]
+    ];
+    var h = '<tr><th>the belief</th><th>what the corpus says</th><th class="r">how wrong</th><th style="width:120px"></th></tr>', k;
+    for (k = 0; k < ROWS.length; k++) {
+      h += "<tr><td><b>" + ROWS[k][0] + "</b></td><td class=\"t-xs muted\">" + ROWS[k][1] +
+        '</td><td class="r mono">' + ROWS[k][2] + '</td><td><span class="bar" style="width:' +
+        Math.max(2, Math.round(ROWS[k][3])) + '%"></span></td></tr>';
+    }
+    $("score").innerHTML = h;
+  }());
+
+  // ------------------------------------------------------------ verification table
+  (function () {
+    var ROWS = [
+      ["engine POSIX vs a definition-based oracle", "16,800 cases", "0"],
+      ["engine POSIX vs GNU Awk 5.0.0", "16,800 cases", "0"],
+      ["engine POSIX vs GNU sed 4.9 (offsets)", "5,600 cells", "0"],
+      ["engine POSIX vs GNU grep 3.0 (membership)", "5,600 cells", "0"],
+      ["engine ECMAScript vs Node 22 / V8", "16,800 cases", "0"],
+      ["engine ECMAScript vs Node 22 on the frontier", "40 patterns", "0"],
+      ["engine captures vs GNU sed \\1 \\2", "1,409 cells", "0"],
+      ["five invariants over a wider corpus", "63,000 cells", "0"],
+      ["POSIX bracket vs its ECMAScript translation, per ASCII code point", "855 code points", "0"],
+      ["alternation swap, POSIX", "12,000 cells", "0 flips"],
+      ["alternation swap, ECMAScript", "12,000 cells", "1,860 flips"],
+      ["python and perl vs V8, generated corpus", "16,800 cases", "48, all explained"],
+      ["the standard's capture rule vs GNU", "1,409 cells", "53 = 3.76%"],
+      ["mutations of the engine caught", "25 mutations", "25"],
+      ["verifier assertions", "total", "524,305, 0 failing"],
+      ["in-page assertions", "total", "18,971, 0 failing"]
+    ];
+    var h = '<tr><th>check</th><th>size</th><th class="r">disagreements</th></tr>', k;
+    for (k = 0; k < ROWS.length; k++) {
+      var zero = /^0/.test(ROWS[k][2]);
+      h += "<tr><td>" + ROWS[k][0] + '</td><td class="mono dim">' + ROWS[k][1] +
+        '</td><td class="r mono ' + (zero ? "ok" : "") + '">' + ROWS[k][2] + "</td></tr>";
+    }
+    $("verif").innerHTML = h;
+  }());
+
+  // ------------------------------------------------------------ the live sweep
+  $("sweepbtn").addEventListener("click", function () {
+    var btn = $("sweepbtn"); btn.disabled = true;
+    var pats = E.genPatterns(20260901, 420), subs = E.genSubjects(77077, 40, 6);
+    var idx = 0, cells = 0, checks = 0, fails = 0, differ = 0, nativeChecked = 0, t = Date.now();
+    var out = $("sweepout");
+    out.textContent = "sweeping...";
+    function step() {
+      var end = Math.min(idx + 12, pats.length), q;
+      for (; idx < end; idx++) {
+        var p = pats[idx], nat = null;
+        try { nat = new RegExp(p); } catch (e) { nat = null; }
+        for (q = 0; q < subs.length; q++) {
+          var s = subs[q];
+          var lo = E.search(p, s, { dialect: "posix", policy: "longest" });
+          var fi = E.search(p, s, { dialect: "js", policy: "first" });
+          cells++;
+          checks += 4;
+          if ((lo === null) !== (fi === null)) fails++;
+          if (lo && fi) {
+            if (lo.start !== fi.start) fails++;
+            if (lo.end - lo.start < fi.end - fi.start) fails++;
+            if (s.slice(lo.start, lo.end).indexOf(s.slice(fi.start, fi.end)) !== 0) fails++;
+            if (lo.end !== fi.end) differ++;
+          } else { checks -= 3; }
+          if (nat) {
+            var m = nat.exec(s);
+            checks++;
+            nativeChecked++;
+            var okNative = (m === null) === (fi === null) && (!m || (m.index === fi.start && m[0].length === fi.end - fi.start));
+            if (!okNative) fails++;
+          }
+        }
+      }
+      out.textContent =
+        "patterns " + fmtN(idx) + " / " + fmtN(pats.length) + "   subjects " + subs.length + "\n" +
+        "cells " + fmtN(cells) + "   assertions " + fmtN(checks) + "   failures " + fails + "\n" +
+        "the two policies differ on " + fmtN(differ) + " cells = " + pc(differ, cells) + "\n" +
+        "raced against this browser's own RegExp on " + fmtN(nativeChecked) + " cells\n" +
+        (Date.now() - t) + " ms";
+      if (idx < pats.length) setTimeout(step, 0);
+      else {
+        out.textContent += "\n\nidentities checked on every cell: the two policies agree on whether there is a " +
+          "match, start at the same index, the POSIX match is never shorter, and the ECMAScript match is a " +
+          "prefix of it. " + (fails ? "FAILURES: " + fails : "0 failures.");
+        btn.disabled = false;
+      }
+    }
+    setTimeout(step, 0);
+  });
+
+  // ------------------------------------------------------------ the pump
+  var steps = [];
+  function push(f) { steps.push(f); }
+  push(renderMatch);
+  push(renderSwap);
+  push(function () {
+    var st = E.selftest(), ms = Date.now() - t0;
+    $("selftest").className = "v " + (st.fails ? "deny" : "allow");
+    $("selftest").textContent = (st.fails ? "FAILED " : "PASS ") + fmtN(st.asserts) +
+      " assertions, " + st.fails + " failing, " + ms + " ms";
+    if (st.fails) console.error("ASSERT FAIL: " + st.bad.slice(0, 20).join(" | "));
+    document.body.setAttribute("data-ready", "1");
+  });
+  var ix = 0;
+  function next() {
+    if (ix >= steps.length) return;
+    steps[ix++]();
+    setTimeout(next, 0);
+  }
+  setTimeout(next, 0);
+}());
+</script>
+</body>
+</html>

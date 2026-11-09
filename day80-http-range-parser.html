@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 80 &mdash; A real HTTP Range parser</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#b45309; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  .grid4 { display:grid; gap:16px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  @media (min-width:768px){ .grid4 { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.4; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:520px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num tr.here td { background:#fef3c7; font-weight:700; }
+  table.num tr.dim td { color:#94a3b8; }
+  table.num td.txt { text-align:left; font-size:11.5px; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:800; }
+  .good { background:#dcfce7; color:#166534; }
+  .stop { background:#fef3c7; color:#92400e; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  select, input[type=text], input[type=number] { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font:inherit; font-size:13px; width:100%; margin-top:4px; background:#fff; }
+  input[type=text] { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  label.f { font-size:13px; display:block; }
+  .callout { background:#fffbeb; border-left:4px solid var(--accent); padding:14px; border-radius:0 8px 8px 0; }
+  .callout p { font-size:13.5px; margin:0; }
+  a { color:var(--accent); }
+  .prose { max-width:760px; margin:0 auto; }
+  .verdict { font-size:22px; font-weight:900; margin:0; }
+  .cov { position:relative; height:26px; background:#e2e8f0; border-radius:6px; overflow:hidden; margin-top:10px; }
+  .cov i { position:absolute; top:0; height:26px; background:var(--accent); }
+  .cov u { position:absolute; top:0; height:26px; background:#fecaca; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .chips button { font:inherit; font-size:11.5px; font-family:ui-monospace,Menlo,monospace; padding:4px 9px; border:1px solid #cbd5e1; border-radius:99px; background:#fff; cursor:pointer; }
+  .chips button:hover { background:#fef3c7; }
+  .sc { font-size:12.5px; line-height:1.6; }
+  .sc div { display:flex; gap:8px; align-items:baseline; }
+  .sc .m { color:#94a3b8; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 80</p>
+    <h1>
+      &#128190; A real HTTP <code>Range</code> parser &mdash; the header behind every resumed download,
+      every seek in a <code>&lt;video&gt;</code> tag and every byte-serving PDF viewer.
+      <code>bytes=0-499</code>, <code>bytes=500-</code>, <code>bytes=-200</code>, and any comma-separated
+      mixture of the three. This implements <strong>RFC 7233</strong> end to end &mdash; parse, satisfy,
+      clamp, drop, coalesce &mdash; and emits the <code>Content-Range</code> headers a server would
+      actually write. &#128308; <strong>The most-missed rule is that a backwards range poisons the whole
+      field, not just itself</strong>: <code>bytes=0-99,7-3</code> is not &ldquo;one good range and one bad
+      one&rdquo;, it is a syntactically invalid header, so the server ignores it and serves
+      <strong>200 with the entire body</strong>. &#128308; And <em>invalid</em> is not
+      <em>unsatisfiable</em> &mdash; <code>bytes=9999-</code> against a 1,000-byte file is perfectly well
+      formed and therefore earns a <strong>416</strong>, while <code>bytes=abc</code> earns a
+      <strong>200</strong>. Getting those two confused is how a byte-serving endpoint ends up answering
+      416 to clients that should have received the whole file. Every figure here is a count over an
+      enumerated corpus of <strong>1,124 headers &times; 9 representation lengths = 10,116
+      decisions</strong>, each checked against six invariants, with <strong>0 violations</strong>. The
+      split is <strong>3,240 ignored (32.03%), 5,559 partial (54.95%), 1,317 unsatisfiable
+      (13.02%)</strong> &mdash; so on this corpus a malformed field is <strong>2.46&times; more
+      common than a 416</strong>, which is the ratio a server that conflates them gets wrong.
+    </h1>
+
+    <div class="tabs">
+      <button id="tabLook" class="tab-active" onclick="showTab('look')">&#128065; LOOK</button>
+      <button id="tabUnd" onclick="showTab('und')">&#129504; UNDERSTAND</button>
+      <button id="tabBuild" onclick="showTab('build')">&#128296; BUILD</button>
+    </div>
+  </div>
+</header>
+
+<main id="look" class="wrap stack">
+  <div class="callout">
+    <p>
+      <strong>Type a header, pick a length, read the response.</strong> The parser below is the same code
+      the corpus is audited with &mdash; there is no separate demo path. You get the parse, the
+      satisfiability verdict per range-spec, and the literal status line and <code>Content-Range</code>
+      fields a conforming server would put on the wire.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>The tool</h2>
+    <div class="grid2" style="margin:12px 0 0">
+      <label class="f">Range header &mdash; the field value, e.g. <code>bytes=0-99</code>
+        <input type="text" id="hdr" value="bytes=0-99,200-299,-50" spellcheck="false" />
+      </label>
+      <label class="f">Representation length, in bytes
+        <input type="number" id="len" value="1000" min="0" step="1" />
+      </label>
+    </div>
+    <div class="chips" id="presets"></div>
+
+    <div class="grid2" style="margin-top:20px">
+      <div>
+        <p class="lbl">RESPONSE</p>
+        <p class="verdict" id="verdict">&mdash;</p>
+        <p class="note" id="reason" style="margin-top:6px"></p>
+        <div class="cov" id="cov"></div>
+        <p class="note" id="covNote"></p>
+      </div>
+      <div>
+        <p class="lbl">WHAT THE SERVER WRITES</p>
+        <pre id="wire">&mdash;</pre>
+      </div>
+    </div>
+
+    <h3>Every range-spec in the field</h3>
+    <div class="tblwrap"><table class="num" id="tSpecs"></table></div>
+    <p class="note" id="specNote"></p>
+  </div>
+
+  <div class="grid4">
+    <div class="card"><p class="lbl">DECISIONS AUDITED</p><p class="big" id="kCases">&mdash;</p>
+      <p class="note">1,124 headers &times; 9 lengths</p></div>
+    <div class="card"><p class="lbl">INVARIANT VIOLATIONS</p><p class="big ok" id="kViol">&mdash;</p>
+      <p class="note">six invariants, every decision</p></div>
+    <div class="card"><p class="lbl">IGNORED &rarr; 200</p><p class="big" id="k200">&mdash;</p>
+      <p class="note" id="k200n"></p></div>
+    <div class="card"><p class="lbl">416 NOT SATISFIABLE</p><p class="big warn" id="k416">&mdash;</p>
+      <p class="note" id="k416n"></p></div>
+  </div>
+</main>
+
+<main id="und" class="wrap stack hidden">
+  <div class="card">
+    <h3 style="margin-top:0">1. Invalid and unsatisfiable are different outcomes</h3>
+    <div class="tblwrap"><table class="num" id="tOutcome"></table></div>
+    <p class="note">
+      &#128308; This is the table worth memorising. A field the parser cannot read is <em>ignored</em>
+      &mdash; RFC 7233 is explicit that a <code>Range</code> the recipient does not understand or cannot
+      parse is dropped, which means an ordinary 200 with the whole body. A field that parses cleanly but
+      whose every member starts past the end is <em>unsatisfiable</em>, and that is the only situation 416
+      exists for. The highlighted row is the trap: <code>first &gt; last</code> invalidates the entire
+      field, so the most obviously &ldquo;bad&rdquo; range in the list lands in the 200 column, not the
+      416 one.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">2. Clamping, and the identities it has to obey</h3>
+    <div class="tblwrap"><table class="num" id="tIdent"></table></div>
+    <p class="note">
+      Three different spellings of &ldquo;give me everything&rdquo; have to produce one identical range,
+      and they do: <code>bytes=0-</code>, <code>bytes=-<em>len</em></code> and
+      <code>bytes=0-(<em>len</em>-1)</code> all resolve to the single range <code>0&ndash;(len-1)</code>
+      at every non-zero length tested. The zero row is greyed out because the identity has nothing to say
+      there &mdash; there is no whole representation to name, and <code>0-(len-1)</code> spells
+      <code>0--1</code>, which is not a legal spec at all. A suffix longer than the representation clamps to the whole representation
+      instead of failing, and a <code>last</code> past the end clamps to <code>len-1</code> instead of
+      failing. <strong>Only <code>first</code> can push a range off the end into unsatisfiable
+      territory</strong> &mdash; which is exactly why <code>bytes=900-9999</code> is a 206 and
+      <code>bytes=9999-</code> is a 416 against the same file.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">3. Partial satisfaction and coalescing, where servers get sloppy</h3>
+    <div class="tblwrap"><table class="num" id="tPartial"></table></div>
+    <p class="note">
+      When <em>some</em> members are satisfiable and some are not, the unsatisfiable ones are dropped and
+      what remains is served as a 206. It is not a 416 and it is not an error. Across the audited corpus
+      <strong id="pPartial">&mdash;</strong> decisions land in that middle case. Coalescing then shrinks
+      the answer further &mdash; <strong id="pCoal">&mdash;</strong> of the 206 decisions emit fewer parts
+      than the client wrote, because overlapping <em>and adjacent</em> members are merged first.
+      Adjacency is the subtle half: <code>0-99</code> and <code>100-199</code> share no byte, but they
+      are one contiguous run and a server that emits them as two multipart parts is shipping boundary
+      overhead for nothing.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">What this covers, and what it does not</h3>
+    <p class="note" style="margin-top:0">
+      The parser implements the <code>bytes</code> unit: <code>first-last</code>, <code>first-</code>,
+      <code>-suffix</code>, comma-separated sets with optional whitespace around the commas, clamping,
+      dropping unsatisfiable members, coalescing, the 200/206/416 decision, and the
+      <code>Content-Range</code> forms including <code>bytes */len</code>. It is <strong>not a complete
+      server</strong>. Out of scope, and each one changes real behaviour: <code>If-Range</code> and the
+      conditional dance that decides whether a range is honoured at all, <code>Accept-Ranges</code>
+      advertisement, the actual MIME body bytes with their boundary delimiters and CRLFs,
+      <code>Content-Encoding</code> interacting with byte offsets, and ranges against a representation
+      whose length is not known when the request arrives. Three strictness choices are documented rather
+      than hidden: an empty list element such as <code>bytes=0-1,,4-5</code> is treated as invalid where
+      RFC 7230's list rule would let a recipient skip it; whitespace around the <code>=</code> is rejected
+      because the grammar has none there; and <code>bytes=-0</code> is treated as unsatisfiable, since a
+      zero-length suffix selects no bytes at all.
+    </p>
+  </div>
+</main>
+
+<main id="build" class="wrap stack hidden">
+  <div class="card prose">
+    <h2>How it works</h2>
+    <pre>// the rule everyone gets wrong: this poisons the FIELD, not the member
+if (last !== null &amp;&amp; first &gt; last)
+  return bad("first-byte-pos " + first + " is greater than last-byte-pos " + last);
+
+// only first-byte-pos can make a range unsatisfiable - last merely clamps
+if (spec.first &gt; len - 1) return null;
+const last = spec.last === null ? len - 1 : Math.min(spec.last, len - 1);
+
+// adjacent, not merely overlapping: 0-99 and 100-199 are ONE part
+if (prev &amp;&amp; s[i].first &lt;= prev.last + 1) prev.last = Math.max(prev.last, s[i].last);</pre>
+    <h3>The three-way decision</h3>
+    <pre>the field does not parse   -&gt; 200, whole body      (it is ignored, not rejected)
+it parses, nothing fits    -&gt; 416 + bytes */len   (nothing else ever gives 416)
+it parses, something fits  -&gt; 206, the rest dropped</pre>
+    <h3>Self-check</h3>
+    <p class="note">
+      Runs on load. Several are <strong>controls</strong>: a claim that a malformed field yields 200 means
+      nothing without the paired case that a well-formed impossible field yields 416, so both directions
+      of the 416 rule are asserted; the coalesced output is compared against a byte-by-byte set union
+      rather than against itself; and the adjacency rule is paired with a one-byte gap that must
+      <em>not</em> merge.
+    </p>
+    <div class="sc" id="selftest"></div>
+    <p style="margin-top:20px"><a href="../solvefromzero.php">&larr; SolveFromZero</a></p>
+  </div>
+</main>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// ---------------------------------------------------------------------------
+// An HTTP Range request parser - RFC 7233.
+//
+//   byte-ranges-specifier  = bytes-unit "=" byte-range-set
+//   byte-range-set         = 1#( byte-range-spec / suffix-byte-range-spec )
+//   byte-range-spec        = first-byte-pos "-" [ last-byte-pos ]
+//   suffix-byte-range-spec = "-" suffix-length
+//
+// The three outcomes are NOT interchangeable:
+//   * a field that does not parse is IGNORED  -> 200, whole body
+//   * a field that parses but fits nothing    -> 416 + Content-Range: bytes */len
+//   * a field where at least one member fits  -> 206, unsatisfiable members dropped
+//
+// Nothing is sampled: the corpus is an enumeration, so every figure is a count.
+// DOM-free, clock-free, Math.random-free.
+// ---------------------------------------------------------------------------
+
+const RANGE_UNIT = "bytes";
+
+// Parsing strategy: split the field on commas, then match each element against
+// one of two anchored regexes. An element matching neither is a parse error,
+// which is what makes internal whitespace ("5 - 9") fail without extra code.
+const RE_UNIT   = /^([A-Za-z][A-Za-z0-9!#$%&'*+.^_`|~-]*)=([\s\S]*)$/;
+const RE_SPEC   = /^(\d+)-(\d*)$/;
+const RE_SUFFIX = /^-(\d+)$/;
+
+function parseRangeHeader(raw) {
+  const bad = function (reason) { return { valid: false, reason: reason, unit: null, specs: [] }; };
+  if (raw === null || raw === undefined) return bad("there is no Range header at all");
+  const header = String(raw);
+  if (!/^[\x20-\x7e]*$/.test(header)) return bad("the field contains bytes outside printable ASCII");
+  const trimmed = header.replace(/^[ \t]+|[ \t]+$/g, "");
+  if (trimmed === "") return bad("the field is empty");
+  const m = RE_UNIT.exec(trimmed);
+  if (!m) return bad("no range unit: the field must read <unit>=<range-set>");
+  const unit = m[1].toLowerCase();
+  // A recipient MUST ignore a Range field whose range unit it does not
+  // understand. An unknown unit is not an error - it is a 200.
+  if (unit !== RANGE_UNIT) return bad("range unit '" + m[1] + "' is not 'bytes', so the field is ignored");
+
+  const toks = m[2].split(",");
+  const specs = [];
+  for (let i = 0; i < toks.length; i++) {
+    const tok = toks[i].replace(/^[ \t]+|[ \t]+$/g, "");
+    if (tok === "") return bad("element " + (i + 1) + " of the byte-range-set is empty");
+    const s = RE_SUFFIX.exec(tok);
+    if (s) { specs.push({ raw: tok, kind: "suffix", first: null, last: null, n: Number(s[1]) }); continue; }
+    const r = RE_SPEC.exec(tok);
+    if (!r) return bad("'" + tok + "' is not a byte-range-spec");
+    const first = Number(r[1]);
+    const last = r[2] === "" ? null : Number(r[2]);
+    // THE rule people miss: a backwards member invalidates the whole field.
+    if (last !== null && first > last)
+      return bad("first-byte-pos " + first + " is greater than last-byte-pos " + last +
+                 ", which invalidates the entire field");
+    specs.push({ raw: tok, kind: last === null ? "open" : "closed", first: first, last: last, n: null });
+  }
+  return { valid: true, reason: "", unit: unit, specs: specs };
+}
+
+// One spec against a representation of `len` bytes. Returns null when the spec
+// is UNSATISFIABLE, otherwise the resolved range. Note what cannot make a spec
+// unsatisfiable: a last-byte-pos past the end (it clamps), and a suffix longer
+// than the representation (it clamps too).
+function satisfy(spec, len) {
+  if (len <= 0) return null;                     // a zero-length representation fits nothing
+  if (spec.kind === "suffix") {
+    if (spec.n === 0) return null;               // a zero-length suffix selects no bytes
+    const n = Math.min(spec.n, len);
+    return { first: len - n, last: len - 1, clamped: spec.n > len };
+  }
+  if (spec.first > len - 1) return null;         // only first-byte-pos can push a range off the end
+  const last = spec.last === null ? len - 1 : Math.min(spec.last, len - 1);
+  return { first: spec.first, last: last, clamped: spec.last !== null && spec.last > len - 1 };
+}
+
+// Sort, then merge anything overlapping OR adjacent. Adjacency matters:
+// 0-99 and 100-199 are one contiguous run, not two parts.
+function coalesce(rs) {
+  const s = rs.slice().sort(function (a, b) { return a.first - b.first || a.last - b.last; });
+  const out = [];
+  for (let i = 0; i < s.length; i++) {
+    const prev = out[out.length - 1];
+    if (prev && s[i].first <= prev.last + 1) {
+      if (s[i].last > prev.last) prev.last = s[i].last;
+    } else out.push({ first: s[i].first, last: s[i].last });
+  }
+  return out;
+}
+
+// A deterministic multipart boundary. Real servers use a random token; a random
+// one here would make the page unreproducible, so this is an FNV-1a of the input.
+function boundary(seedStr) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seedStr.length; i++) {
+    h ^= seedStr.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return "BYTERANGE" + ("00000000" + h.toString(16)).slice(-8);
+}
+
+function resolve(raw, len, opts) {
+  const o = opts || {};
+  const L = Math.max(0, Math.floor(Number(len) || 0));
+  const type = o.type || "application/octet-stream";
+  const parsed = parseRangeHeader(raw);
+
+  const ignore = function (reason) {
+    return {
+      status: 200, reason: reason, parsed: parsed, members: [], ranges: [],
+      bytes: L, parts: 0,
+      headers: ["HTTP/1.1 200 OK", "Accept-Ranges: bytes",
+                "Content-Type: " + type, "Content-Length: " + L],
+    };
+  };
+  if (!parsed.valid) return ignore(parsed.reason);
+  // A server MAY ignore the Range field entirely; an absurd member count is the
+  // usual reason, and ignoring is a 200, never a 416.
+  if (o.maxRanges != null && parsed.specs.length > o.maxRanges)
+    return ignore(parsed.specs.length + " ranges exceeds the server's limit of " + o.maxRanges);
+
+  const members = parsed.specs.map(function (s) { return { spec: s, hit: satisfy(s, L) }; });
+  const hits = members.filter(function (m) { return m.hit; }).map(function (m) { return m.hit; });
+
+  if (hits.length === 0) {
+    return {
+      status: 416,
+      reason: "the field is well formed, but no member fits a " + L + "-byte representation",
+      parsed: parsed, members: members, ranges: [], bytes: 0, parts: 0,
+      headers: ["HTTP/1.1 416 Range Not Satisfiable", "Content-Range: bytes */" + L],
+    };
+  }
+
+  const ranges = coalesce(hits);
+  let bytes = 0;
+  for (let i = 0; i < ranges.length; i++) bytes += ranges[i].last - ranges[i].first + 1;
+  const headers = ["HTTP/1.1 206 Partial Content", "Accept-Ranges: bytes"];
+  if (ranges.length === 1) {
+    headers.push("Content-Type: " + type);
+    headers.push("Content-Range: bytes " + ranges[0].first + "-" + ranges[0].last + "/" + L);
+    headers.push("Content-Length: " + bytes);
+  } else {
+    const b = boundary(String(raw) + "|" + L);
+    headers.push("Content-Type: multipart/byteranges; boundary=" + b);
+    for (let i = 0; i < ranges.length; i++) {
+      headers.push("--" + b);
+      headers.push("  Content-Type: " + type);
+      headers.push("  Content-Range: bytes " + ranges[i].first + "-" + ranges[i].last + "/" + L);
+    }
+    headers.push("--" + b + "--");
+  }
+  return {
+    status: 206,
+    reason: hits.length < members.length
+      ? (members.length - hits.length) + " of " + members.length +
+        " members were unsatisfiable and were dropped"
+      : "every requested member fits",
+    parsed: parsed, members: members, ranges: ranges,
+    bytes: bytes, parts: ranges.length, headers: headers,
+  };
+}
+
+// --------------------------------------------------------------- the corpus
+// Enumerated, not sampled: every single atom, every ordered pair of atoms, every
+// ordered triple drawn from an eight-atom core, plus whole-field oddities.
+const ATOMS = [
+  "0-0", "0-4", "0-9", "5-9", "9-9", "2-2", "3-7", "10-19", "0-1000", "500-1000",
+  "0-", "5-", "9-", "10-", "100-",
+  "-1", "-5", "-10", "-100", "-0",
+  "7-3", "abc", "1-2-3", "5 - 9",
+];
+const CORE = ["0-0", "0-4", "5-9", "0-", "10-", "-5", "-100", "7-3"];
+const LENGTHS = [0, 1, 2, 3, 5, 10, 64, 100, 1000];
+const ODDITIES = ["", "bytes=", "bytes", "bytes=,", "bytes=0-1,,4-5", "bytes = 0-1",
+                  "BYTES=0-9", "items=0-9", "seconds=0-9", "0-9", "bytes==0-9", "bytes=0-1 2-3"];
+
+function corpus() {
+  const out = [];
+  for (let i = 0; i < ATOMS.length; i++) out.push("bytes=" + ATOMS[i]);
+  for (let i = 0; i < ATOMS.length; i++)
+    for (let j = 0; j < ATOMS.length; j++) out.push("bytes=" + ATOMS[i] + "," + ATOMS[j]);
+  for (let i = 0; i < CORE.length; i++)
+    for (let j = 0; j < CORE.length; j++)
+      for (let k = 0; k < CORE.length; k++)
+        out.push("bytes=" + CORE[i] + ", " + CORE[j] + " ," + CORE[k]);
+  for (let i = 0; i < ODDITIES.length; i++) out.push(ODDITIES[i]);
+  return out;
+}
+
+// ---------------------------------------------------------------- the audit
+// Six invariants on every decision. Not one of them is a hardcoded number: each
+// is a bound or an identity re-derived from the inputs of that decision.
+function audit() {
+  const heads = corpus();
+  const viol = { bounds: 0, cover: 0, sorted: 0, overlap: 0, total: 0, iff416: 0, identity: 0, clamp: 0 };
+  let cases = 0, n200 = 0, n206 = 0, n416 = 0;
+  let partial = 0, shrunk = 0, parts = 0, served = 0, maxParts = 0, asked = 0;
+
+  for (let hi = 0; hi < heads.length; hi++) {
+    for (let li = 0; li < LENGTHS.length; li++) {
+      const h = heads[hi], L = LENGTHS[li];
+      const r = resolve(h, L);
+      cases++;
+      if (r.status === 200) n200++; else if (r.status === 416) n416++; else n206++;
+
+      // (1) every emitted range sits inside the representation
+      for (let i = 0; i < r.ranges.length; i++) {
+        const x = r.ranges[i];
+        if (!(0 <= x.first && x.first <= x.last && x.last <= L - 1)) viol.bounds++;
+      }
+      // (2) sorted, and (3) pairwise non-overlapping AND non-adjacent
+      for (let i = 1; i < r.ranges.length; i++) {
+        if (r.ranges[i].first <= r.ranges[i - 1].first) viol.sorted++;
+        if (r.ranges[i].first <= r.ranges[i - 1].last + 1) viol.overlap++;
+      }
+      // (4) the emitted set is EXACTLY the union of the satisfiable requested
+      //     bytes - rebuilt here as a byte set, then compared in both directions
+      const want = {};
+      let wantN = 0;
+      if (r.parsed.valid) {
+        for (let i = 0; i < r.parsed.specs.length; i++) {
+          const hit = satisfy(r.parsed.specs[i], L);
+          if (!hit) continue;
+          for (let b = hit.first; b <= hit.last; b++) if (!want[b]) { want[b] = 1; wantN++; }
+        }
+      }
+      let gotN = 0, extra = 0;
+      for (let i = 0; i < r.ranges.length; i++)
+        for (let b = r.ranges[i].first; b <= r.ranges[i].last; b++) { gotN++; if (!want[b]) extra++; }
+      if (extra !== 0 || gotN !== wantN) viol.cover++;
+      // (5) a 206 never promises more bytes than the representation holds
+      if (r.status === 206 && !(r.bytes > 0 && r.bytes <= L)) viol.total++;
+      // (6) 416 fires if and only if the field parsed and nothing fit - both ways
+      if ((r.parsed.valid && wantN === 0) !== (r.status === 416)) viol.iff416++;
+
+      if (r.status === 206) {
+        parts += r.parts; served += r.bytes; asked += r.members.length;
+        if (r.parts > maxParts) maxParts = r.parts;
+        const fit = r.members.filter(function (m) { return m.hit; }).length;
+        if (fit < r.members.length) partial++;
+        if (r.parts < r.members.length) shrunk++;
+      }
+    }
+  }
+
+  // identity: three spellings of "the whole thing" have to collapse to one range.
+  // Scoped to L > 0 on purpose: at zero length there is no whole representation
+  // to name, and "0-(len-1)" is not even a legal spec there - it spells "0--1".
+  const idRows = [];
+  for (let li = 0; li < LENGTHS.length; li++) {
+    const L = LENGTHS[li];
+    const applies = L > 0;
+    const outs = ["bytes=0-", "bytes=-" + L, "bytes=0-" + (L - 1)]
+      .map(function (f) { return resolve(f, L); });
+    const key = outs.map(function (o) { return o.status + ":" + JSON.stringify(o.ranges); });
+    const same = key[0] === key[1] && key[1] === key[2];
+    if (applies && !same) viol.identity++;
+    // at zero length, all three must instead be "not a 206"
+    if (!applies && outs.some(function (o) { return o.status === 206; })) viol.identity++;
+    // clamping: any suffix at or beyond the length is the whole representation
+    const big = [L, L + 1, L * 2 + 1, L + 4096];
+    let clampOk = true;
+    for (let i = 0; i < big.length; i++) {
+      const c = resolve("bytes=-" + big[i], L);
+      if (L === 0) { if (c.status !== 416) clampOk = false; }
+      else if (!(c.status === 206 && c.ranges.length === 1 &&
+                 c.ranges[0].first === 0 && c.ranges[0].last === L - 1)) clampOk = false;
+    }
+    if (!clampOk) viol.clamp++;
+    idRows.push({ len: L, status: outs[0].status, same: same, clamp: clampOk, applies: applies,
+                  range: outs[0].ranges.length
+                    ? outs[0].ranges[0].first + "&ndash;" + outs[0].ranges[0].last : "none" });
+  }
+
+  let violations = 0;
+  for (const k in viol) violations += viol[k];
+  return {
+    headers: heads.length, lengths: LENGTHS.length, cases: cases,
+    violations: violations, viol: viol,
+    n200: n200, n206: n206, n416: n416,
+    partial: partial, shrunk: shrunk, parts: parts, asked: asked,
+    served: served, maxParts: maxParts, idRows: idRows,
+  };
+}
+
+// One worked example of each distinct outcome, for the outcome table.
+function outcomeCases() {
+  const cases = [
+    { header: "bytes=0-99",         len: 1000, why: "well formed, fits" },
+    { header: "bytes=500-",         len: 1000, why: "open ended, fits" },
+    { header: "bytes=-200",         len: 1000, why: "suffix, fits" },
+    { header: "bytes=0-99,7-3",     len: 1000, why: "first > last poisons the FIELD" },
+    { header: "bytes=abc",          len: 1000, why: "not a byte-range-spec" },
+    { header: "items=0-9",          len: 1000, why: "unknown range unit" },
+    { header: "bytes=0-1,,4-5",     len: 1000, why: "empty list element" },
+    { header: "bytes = 0-1",        len: 1000, why: "whitespace around the =" },
+    { header: "bytes=9999-",        len: 1000, why: "well formed, starts past the end" },
+    { header: "bytes=5000-6000",    len: 1000, why: "well formed, entirely past the end" },
+    { header: "bytes=-0",           len: 1000, why: "a zero-length suffix selects nothing" },
+    { header: "bytes=0-0",          len: 0,    why: "zero-length representation" },
+    { header: "bytes=900-9999",     len: 1000, why: "last clamps to len-1" },
+    { header: "bytes=9999-,0-9",    len: 1000, why: "one member dropped, the rest served" },
+    { header: "bytes=0-99,100-199", len: 1000, why: "adjacent, coalesced into one part" },
+    { header: "bytes=0-99,50-149",  len: 1000, why: "overlapping, coalesced into one part" },
+  ];
+  return cases.map(function (c) {
+    const r = resolve(c.header, c.len);
+    return {
+      header: c.header, len: c.len, why: c.why, status: r.status, reason: r.reason,
+      ranges: r.ranges, parts: r.parts, bytes: r.bytes,
+      cr: r.headers.filter(function (h) { return /Content-Range/.test(h); })
+           .map(function (h) { return h.replace(/^\s*Content-Range:\s*/, ""); }),
+    };
+  });
+}
+
+function partialCases() {
+  const cases = [
+    { header: "bytes=0-9,9999-",      len: 1000 },
+    { header: "bytes=9999-,-0,0-4",   len: 1000 },
+    { header: "bytes=-5,9999-9999",   len: 10 },
+    { header: "bytes=0-2,1-3,2-4",    len: 10 },
+    { header: "bytes=0-1,2-3,4-5",    len: 10 },
+    { header: "bytes=8-9,0-1,4-5",    len: 10 },
+  ];
+  return cases.map(function (c) {
+    const r = resolve(c.header, c.len);
+    return {
+      header: c.header, len: c.len, asked: r.members.length,
+      fit: r.members.filter(function (m) { return m.hit; }).length,
+      parts: r.parts, status: r.status, bytes: r.bytes,
+      out: r.ranges.map(function (x) { return x.first + "-" + x.last; }).join(", ") || "none",
+    };
+  });
+}
+
+const ENGINE = {
+  RANGE_UNIT, ATOMS, CORE, LENGTHS, ODDITIES,
+  parseRangeHeader, satisfy, coalesce, boundary, resolve,
+  corpus, audit, outcomeCases, partialCases,
+};
+if (typeof module !== "undefined" && module.exports) module.exports = ENGINE;
+
+// ===== ENGINE:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["look", "und", "build"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabLook").classList.toggle("tab-active", name === "look");
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+}
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selftest").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+
+const A = ENGINE.audit();
+const pillFor = (s) => s === 206 ? '<span class="pill good">206</span>'
+  : s === 416 ? '<span class="pill bad">416</span>' : '<span class="pill stop">200</span>';
+
+el("kCases").textContent = A.cases.toLocaleString();
+el("kViol").textContent = A.violations;
+el("k200").textContent = A.n200.toLocaleString();
+el("k200n").textContent = ((A.n200 / A.cases) * 100).toFixed(2) + "% of decisions";
+el("k416").textContent = A.n416.toLocaleString();
+el("k416n").textContent = ((A.n416 / A.cases) * 100).toFixed(2) + "% of decisions";
+el("pPartial").textContent = A.partial.toLocaleString();
+el("pCoal").textContent = A.shrunk.toLocaleString();
+
+// ------------------------------------------------------------------- the tool
+const PRESETS = [
+  ["bytes=0-499", 1000], ["bytes=500-", 1000], ["bytes=-200", 1000],
+  ["bytes=0-99,200-299,-50", 1000], ["bytes=0-99,100-199", 1000], ["bytes=0-99,50-149", 1000],
+  ["bytes=0-99,7-3", 1000], ["bytes=9999-", 1000], ["bytes=5000-6000", 1000],
+  ["bytes=-0", 1000], ["bytes=0-0", 0], ["bytes=900-9999", 1000],
+  ["bytes=abc", 1000], ["items=0-9", 1000], ["bytes=0-1,,4-5", 1000], ["bytes=-4096", 1000],
+];
+el("presets").innerHTML = PRESETS.map((p, i) =>
+  '<button type="button" data-i="' + i + '">' + esc(p[0]) + " @ " + p[1] + "</button>").join("");
+el("presets").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const p = PRESETS[+b.dataset.i];
+  el("hdr").value = p[0]; el("len").value = p[1]; render();
+});
+
+function render() {
+  const h = el("hdr").value;
+  const L = Math.max(0, Math.floor(Number(el("len").value) || 0));
+  const r = ENGINE.resolve(h, L);
+  el("verdict").innerHTML = pillFor(r.status) + " &nbsp;" +
+    (r.status === 200 ? "the field is ignored, whole body served"
+      : r.status === 416 ? "Range Not Satisfiable" : "Partial Content");
+  el("reason").textContent = r.reason;
+  el("wire").textContent = r.headers.join("\n");
+
+  const segs = r.ranges.map((x) =>
+    '<i style="left:' + ((x.first / Math.max(L, 1)) * 100) + '%;width:' +
+    (((x.last - x.first + 1) / Math.max(L, 1)) * 100) + '%"></i>').join("");
+  el("cov").innerHTML = r.status === 200 && L > 0
+    ? '<i style="left:0;width:100%"></i>'
+    : (segs || '<u style="left:0;width:100%"></u>');
+  el("covNote").textContent = r.status === 206
+    ? r.bytes + " of " + L + " bytes (" + ((r.bytes / L) * 100).toFixed(2) + "%) in " +
+      r.parts + (r.parts === 1 ? " part" : " parts")
+    : r.status === 200 ? L + " of " + L + " bytes - the whole representation"
+    : "0 bytes served";
+
+  const rows = r.parsed.valid ? r.parsed.specs.map((s) => {
+    const hit = ENGINE.satisfy(s, L);
+    return {
+      cls: hit ? "" : "dim",
+      cells: ["<code>" + esc(s.raw) + "</code>",
+        s.kind === "suffix" ? "the last " + s.n + " bytes"
+          : s.kind === "open" ? "from " + s.first + " to the end"
+          : "bytes " + s.first + " through " + s.last,
+        hit ? hit.first + "&ndash;" + hit.last : "&mdash;",
+        hit ? hit.last - hit.first + 1 : 0,
+        hit ? (hit.clamped ? '<span class="pill stop">clamped</span>' : '<span class="pill good">fits</span>')
+            : '<span class="pill bad">unsatisfiable</span>'],
+    };
+  }) : [];
+  table("tSpecs", ["range-spec", "reads as", "resolved", "bytes", "verdict"], rows);
+  el("specNote").innerHTML = r.parsed.valid
+    ? "<b>" + r.parsed.specs.length + "</b> range-spec" + (r.parsed.specs.length === 1 ? "" : "s") +
+      " parsed; <b>" + r.ranges.length + "</b> part" + (r.ranges.length === 1 ? "" : "s") +
+      " emitted after dropping the unsatisfiable ones and coalescing the rest."
+    : "The field did not parse, so there are no range-specs to show. " +
+      "<b>An unparsable Range is ignored, not rejected</b> &mdash; the response is a plain 200.";
+}
+el("hdr").addEventListener("input", render);
+el("len").addEventListener("input", render);
+render();
+
+// ----------------------------------------------------------------- the tables
+table("tOutcome", ["header", "len", "why", "status", "Content-Range emitted"],
+  ENGINE.outcomeCases().map((c) => ({
+    cls: c.header === "bytes=0-99,7-3" ? "here" : "",
+    cells: ["<code>" + esc(c.header) + "</code>", c.len, '<span class="note">' + c.why + "</span>",
+      pillFor(c.status),
+      c.cr.length ? "<code>" + esc(c.cr.join(" | ")) + "</code>" : "&mdash;"],
+  })));
+
+table("tIdent", ["len", "bytes=0-", "bytes=-len", "bytes=0-(len-1)", "identical?", "suffix &ge; len clamps?"],
+  A.idRows.map((r) => ({
+    cls: r.applies ? "" : "dim",
+    cells: [r.len,
+      r.applies ? r.range : "416", r.applies ? r.range : "416",
+      r.applies ? r.range : "not a legal spec",
+      !r.applies ? "<span class=\"pill stop\">n/a at len 0</span>"
+        : r.same ? '<span class="pill good">YES</span>' : '<span class="pill bad">no</span>',
+      r.clamp ? '<span class="pill good">YES</span>' : '<span class="pill bad">no</span>'],
+  })));
+
+table("tPartial", ["header", "len", "members asked", "satisfiable", "parts emitted", "bytes", "output"],
+  ENGINE.partialCases().map((c) => ({
+    cls: c.fit < c.asked ? "here" : "",
+    cells: ["<code>" + esc(c.header) + "</code>", c.len, c.asked, c.fit, c.parts, c.bytes,
+      "<code>" + c.out + "</code>"],
+  })));
+
+// ----------------------------------------------------------------- self-check
+selfCheckPanel((t) => {
+  const P = ENGINE.parseRangeHeader, R = ENGINE.resolve;
+
+  t("a closed range parses into first and last",
+    (() => { const p = P("bytes=0-499");
+      return p.valid && p.specs.length === 1 && p.specs[0].first === 0 && p.specs[0].last === 499; })());
+  t("an open-ended range leaves last null",
+    (() => { const p = P("bytes=500-");
+      return p.valid && p.specs[0].kind === "open" && p.specs[0].last === null; })());
+  t("a suffix range carries a LENGTH, not a position",
+    (() => { const p = P("bytes=-200");
+      return p.valid && p.specs[0].kind === "suffix" && p.specs[0].n === 200 &&
+        p.specs[0].first === null; })());
+  t("a comma-separated set keeps every member, in order",
+    (() => { const p = P("bytes=0-9, 20-29 ,-5");
+      return p.valid && p.specs.length === 3 && p.specs[2].kind === "suffix"; })(),
+    "whitespace around the commas is allowed");
+  t("the unit token is case-insensitive", P("BYTES=0-9").valid && P("ByTeS=0-9").valid);
+
+  t("first > last invalidates the WHOLE field", !P("bytes=0-99,7-3").valid,
+    "not merely that one member");
+  t("...so the response is 200, not 416", R("bytes=0-99,7-3", 1000).status === 200);
+  t("CONTROL: the same field without the backwards member is a 206",
+    R("bytes=0-99", 1000).status === 206);
+  t("an unknown range unit is ignored", !P("items=0-9").valid && R("items=0-9", 1000).status === 200);
+  t("internal whitespace inside a spec is a parse error", !P("bytes=0-1 2-3").valid);
+  t("an empty list element is a parse error", !P("bytes=0-1,,4-5").valid);
+  t("whitespace around the = is a parse error", !P("bytes = 0-1").valid);
+  t("a missing unit is a parse error", !P("0-9").valid && !P("bytes").valid);
+
+  t("a well-formed range past the end is 416, not 200", R("bytes=9999-", 1000).status === 416);
+  t("...and it emits Content-Range: bytes */len",
+    R("bytes=9999-", 1000).headers.indexOf("Content-Range: bytes */1000") >= 0);
+  t("a zero-length representation satisfies nothing",
+    ["bytes=0-0", "bytes=0-", "bytes=-1", "bytes=-9999"].every((h) => R(h, 0).status === 416));
+  t("a zero-length suffix is unsatisfiable", R("bytes=-0", 1000).status === 416);
+
+  t("last past the end CLAMPS rather than failing",
+    (() => { const r = R("bytes=900-9999", 1000);
+      return r.status === 206 && r.ranges[0].first === 900 && r.ranges[0].last === 999; })());
+  t("a suffix longer than the representation is the whole representation",
+    (() => { const r = R("bytes=-4096", 1000);
+      return r.status === 206 && r.ranges.length === 1 &&
+        r.ranges[0].first === 0 && r.ranges[0].last === 999; })());
+  t("the three spellings of the whole body agree at every length",
+    A.viol.identity === 0, ENGINE.LENGTHS.length + " lengths");
+  t("clamping holds at every length", A.viol.clamp === 0);
+
+  t("adjacent ranges coalesce into one part",
+    (() => { const r = R("bytes=0-99,100-199", 1000);
+      return r.parts === 1 && r.ranges[0].first === 0 && r.ranges[0].last === 199; })());
+  t("overlapping ranges coalesce into one part",
+    (() => { const r = R("bytes=0-99,50-149", 1000); return r.parts === 1 && r.bytes === 150; })());
+  t("CONTROL: a one-byte gap is NOT coalesced",
+    (() => { const r = R("bytes=0-99,101-199", 1000); return r.parts === 2; })());
+  t("out-of-order members come back sorted",
+    (() => { const r = R("bytes=800-899,0-99", 1000);
+      return r.ranges[0].first === 0 && r.ranges[1].first === 800; })());
+  t("some satisfiable and some not is a 206, with the rest dropped",
+    (() => { const r = R("bytes=0-9,9999-", 1000);
+      return r.status === 206 && r.members.length === 2 && r.parts === 1; })());
+  t("a multi-part 206 emits one Content-Range per part",
+    (() => { const r = R("bytes=0-9,500-509,900-909", 1000);
+      return r.parts === 3 &&
+        r.headers.filter((h) => /Content-Range/.test(h)).length === 3; })());
+  t("a server MAY ignore an absurd member count - and that is a 200",
+    (() => { const many = "bytes=" +
+        Array.from({ length: 40 }, (_, i) => i * 3 + "-" + (i * 3 + 1)).join(",");
+      return R(many, 1000, { maxRanges: 10 }).status === 200 && R(many, 1000).status === 206; })());
+
+  t("every emitted range satisfies 0 <= first <= last <= len-1", A.viol.bounds === 0,
+    A.cases.toLocaleString() + " decisions");
+  t("the coalesced set equals the byte-set union of the satisfiable members",
+    A.viol.cover === 0, "compared as sets, both directions");
+  t("the emitted parts are strictly sorted", A.viol.sorted === 0);
+  t("...and pairwise non-overlapping and non-adjacent", A.viol.overlap === 0);
+  t("a 206 never serves more bytes than the representation holds", A.viol.total === 0);
+  t("416 fires if and only if the field parsed and nothing fit", A.viol.iff416 === 0,
+    "both directions");
+  t("the whole audit is clean", A.violations === 0,
+    A.cases.toLocaleString() + " decisions, " + A.violations + " violations");
+  t("the corpus is enumerated, not sampled",
+    A.headers === ENGINE.corpus().length && A.cases === A.headers * ENGINE.LENGTHS.length,
+    A.headers + " x " + A.lengths);
+  t("a repeated audit is byte-identical",
+    JSON.stringify(ENGINE.audit()) === JSON.stringify(ENGINE.audit()));
+});
+</script>
+</body>
+</html>

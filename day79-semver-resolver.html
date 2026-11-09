@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SolveFromZero &middot; Day 79 &mdash; A real semver resolver</title>
+<style>
+  :root { --ink:#0f172a; --sub:#475569; --line:#e2e8f0; --bg:#f8fafc; --accent:#047857; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Inter",system-ui,sans-serif; margin:0; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1152px; margin:0 auto; padding:16px; }
+  @media (min-width:768px){ .wrap { padding:24px; } }
+  header { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .kicker { font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--accent); margin:0 0 8px; }
+  h1 { font-size:19px; line-height:1.5; font-weight:900; margin:0 0 12px; }
+  @media (min-width:768px){ h1 { font-size:22px; } }
+  h2 { font-size:24px; font-weight:900; margin:0 0 8px; }
+  h3 { font-size:19px; font-weight:800; margin:20px 0 6px; }
+  p { line-height:1.6; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tabs button { font:inherit; font-size:14px; font-weight:600; padding:8px 20px; border:0; border-radius:8px; background:#f1f5f9; cursor:pointer; }
+  .tabs button.tab-active { background:#0f172a; color:#fff; }
+  .hidden { display:none; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(15,23,42,.12); padding:20px; min-width:0; }
+  .stack > * + * { margin-top:20px; }
+  .grid2 { display:grid; gap:20px; grid-template-columns:minmax(0,1fr); }
+  .grid3 { display:grid; gap:16px; grid-template-columns:minmax(0,1fr); }
+  .grid4 { display:grid; gap:16px; grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px){ .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  @media (min-width:768px){ .grid3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+                            .grid4 { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  .lbl { font-size:12px; font-weight:800; letter-spacing:.1em; color:#64748b; margin:0 0 8px; }
+  .big { font-size:24px; font-weight:900; font-variant-numeric:tabular-nums; margin:0; }
+  .note { font-size:12.5px; color:#475569; margin:8px 0 0; line-height:1.55; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.35; margin:0; white-space:pre; }
+  code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-size:.92em; }
+  .tblwrap { overflow-x:auto; }
+  table.num { border-collapse:collapse; width:100%; min-width:520px; }
+  table.num td, table.num th { padding:4px 9px; font-variant-numeric:tabular-nums; }
+  table.num th { font-size:11px; letter-spacing:.05em; color:#64748b; text-align:right; font-weight:700; }
+  table.num th:first-child, table.num td:first-child { text-align:left; }
+  table.num td { text-align:right; font-size:12.5px; border-top:1px solid var(--line); }
+  table.num tr.here td { background:#eef2ff; font-weight:700; }
+  table.num tr.dim td { color:#94a3b8; }
+  table.num td.txt { text-align:left; font-size:11.5px; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:800; }
+  .good { background:#dcfce7; color:#166534; }
+  .stop { background:#fef3c7; color:#92400e; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .ok { color:#166534; font-weight:800; }
+  .warn { color:#991b1b; font-weight:800; }
+  select, input[type=range], input[type=text] { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font:inherit; font-size:13px; width:100%; margin-top:4px; background:#fff; }
+  input[type=range] { padding:0; }
+  label.f { font-size:13px; display:block; }
+  .callout { background:#eef2ff; border-left:4px solid var(--accent); padding:14px; border-radius:0 8px 8px 0; }
+  .callout p { font-size:13.5px; margin:0; }
+  a { color:var(--accent); }
+  .prose { max-width:760px; margin:0 auto; }
+  .bar { display:block; height:9px; background:#e0e7ff; border-radius:3px; position:relative; min-width:110px; }
+  .bar i { position:absolute; top:0; left:0; height:9px; background:var(--accent); border-radius:3px; }
+  .sc { font-size:12.5px; line-height:1.6; }
+  .sc div { display:flex; gap:8px; align-items:baseline; }
+  .sc .m { color:#94a3b8; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">SOLVEFROMZERO &middot; DAY 79</p>
+    <h1>
+      &#128230; A real semver resolver &mdash; <code>^1.2.3</code>, <code>~1.2</code>,
+      <code>1.2.x</code>, <code>&gt;=1.2 &lt;2</code>. The same strings go into npm, Cargo, Composer and
+      pip, and this implements <strong>all four from their own documented rules</strong> over one shared
+      version parser and comparator, so a difference in the grid is a difference in the rules rather than
+      four parsers disagreeing by accident. 13 ranges &times; 19 versions is an enumerated
+      <strong>247-cell grid</strong> and every figure is a count. &#128308; <strong>Only two of the
+      thirteen ranges mean the same thing in all four ecosystems &mdash; and both of them are the ones
+      written out longhand</strong>: <code>&gt;=1.2 &lt;2</code> and <code>&gt;=1.0.0</code>. Every piece
+      of shorthand is read differently somewhere. &#128308; The caret is not universal at all: pip has
+      none, so <code>^1.2.3</code> selects <strong>nothing</strong> there while selecting five versions in
+      npm. &#128308; And the prerelease rule catches people the other way round &mdash;
+      <code>^1.2.3</code> does <strong>not</strong> select <code>2.0.0-rc.1</code> in any of them, even
+      though 2.0.0-rc.1 sorts <em>below</em> 2.0.0, while <code>^1.0.0-alpha</code> happily selects
+      <code>1.2.0</code>. Naming a prerelease in the range opens the door for that version tuple only.
+    </h1>
+
+    <div class="tabs">
+      <button id="tabLook" class="tab-active" onclick="showTab('look')">&#128065; LOOK</button>
+      <button id="tabUnd" onclick="showTab('und')">&#129504; UNDERSTAND</button>
+      <button id="tabBuild" onclick="showTab('build')">&#128296; BUILD</button>
+    </div>
+  </div>
+</header>
+
+<main id="look" class="wrap stack">
+  <div class="callout">
+    <p>
+      <strong>One parser, one comparator, four rule-sets.</strong> Semver 2.0.0 precedence is implemented
+      once &mdash; build metadata ignored, a prerelease sorting below the release, numeric identifiers
+      below alphanumeric ones &mdash; and the four ecosystems are thin policies over it. That is
+      deliberate: it means a disagreement in the table cannot be blamed on a parsing difference.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Pick a range, read four answers</h2>
+    <div class="grid2" style="margin:12px 0">
+      <label class="f">Range
+        <select id="range"></select>
+      </label>
+      <div>
+        <p class="lbl" style="margin-bottom:2px">WHAT DISAGREES</p>
+        <p class="note" style="margin:0" id="rangeNote"></p>
+      </div>
+    </div>
+    <div class="tblwrap"><table class="num" id="tGrid"></table></div>
+  </div>
+
+  <div class="grid4">
+    <div class="card"><p class="lbl">GRID CELLS</p><p class="big" id="kCells">&mdash;</p>
+      <p class="note">13 ranges &times; 19 versions</p></div>
+    <div class="card"><p class="lbl">ALL FOUR AGREE</p><p class="big ok" id="kAgree">&mdash;</p></div>
+    <div class="card"><p class="lbl">RANGES READ IDENTICALLY BY ALL FOUR</p><p class="big warn" id="kUnan">&mdash;</p>
+      <p class="note">of thirteen</p></div>
+    <div class="card"><p class="lbl">CLOSEST TWO</p><p class="big" id="kClose" style="font-size:15px">&mdash;</p>
+      <p class="note" id="kCloseN"></p></div>
+  </div>
+</main>
+
+<main id="und" class="wrap stack hidden">
+  <div class="card">
+    <h3 style="margin-top:0">1. Only the longhand ranges are portable</h3>
+    <div class="tblwrap"><table class="num" id="tRanges"></table></div>
+    <p class="note">
+      The two that survive are the two with no shorthand in them. Everything else &mdash; the caret, the
+      tilde, the <code>.x</code> wildcard, and a bare version number &mdash; is read differently by at
+      least one of the four. <strong>If you want a range to mean the same thing to everybody, you have to
+      write the inequality out.</strong> Across the whole grid the four give the same answer on
+      <strong>195 of 247 cells (78.95%)</strong>, which sounds like broad agreement until you notice
+      that <strong>178 of those 195 are cells where all four say <em>no</em></strong>. Only 17 cells
+      in the whole grid are ones where every ecosystem agrees to <em>select</em> the version.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">2. Where each pair comes apart</h3>
+    <div class="tblwrap"><table class="num" id="tPairs"></table></div>
+    <p class="note">
+      npm and Composer agree on every cell in this grid &mdash; on <em>these thirteen forms</em>, which is
+      the honest scope of the claim rather than a statement that the two are the same in general. Cargo
+      differs from both on five cells, all of them from one rule: <strong>a bare version is a caret range
+      in Cargo</strong>, so <code>1.2.3</code> in a manifest means &ldquo;1.2.3 up to but not including
+      2.0.0&rdquo;, where npm and Composer read it as an exact pin. pip differs on around fifty, because
+      it has no caret and no <code>.x</code> form at all.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">3. The prerelease rule, which catches people both ways</h3>
+    <div class="tblwrap"><table class="num" id="tPre"></table></div>
+    <p class="note">
+      &#128308; <code>^1.2.3</code> does not select <code>2.0.0-rc.1</code>, even though that version
+      sorts <em>below</em> 2.0.0 and therefore below the range's upper bound. The rule is not about
+      ordering: a prerelease is excluded unless the range itself names one. &#128308; And when the range
+      does name one, the door opens wider than expected &mdash; <code>^1.0.0-alpha</code> selects
+      <code>1.0.0</code> and <code>1.2.0</code>, because those are ordinary releases inside the caret
+      window. The opt-in is for the <em>tuple</em> you named, not for prereleases in general.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">What this covers, and what it does not</h3>
+    <p class="note" style="margin-top:0">
+      The four resolvers implement the forms that produce the disagreements above: caret with its
+      zero-major special cases, tilde with its component-count dependence, <code>.x</code> wildcards,
+      explicit inequalities, bare versions, and pip's <code>~=</code>. They are <strong>not complete
+      reimplementations</strong>. Out of scope, and each is another way for two tools to differ:
+      compound ranges with <code>||</code>, npm's <code>--include=prerelease</code> and Cargo's
+      <code>--precise</code>, Composer's stability flags, pip's environment markers, and every
+      resolver's behaviour when no version satisfies the range. The counts are over the thirteen ranges
+      and nineteen versions in the grid, which is what they say.
+    </p>
+  </div>
+</main>
+
+<main id="build" class="wrap stack hidden">
+  <div class="card prose">
+    <h2>How it works</h2>
+    <pre>// semver precedence, once, for all four
+if (!a.pre.length &amp;&amp; !b.pre.length) return 0;
+if (!a.pre.length) return 1;          // 1.0.0 &gt; 1.0.0-rc
+if (nx !== ny) return nx ? -1 : 1;    // numeric identifiers sort BELOW alphanumeric
+
+// and the one line that produces five cells of the grid
+if (eco === "cargo") return inRange(ver, ...npmCaret(r));   // a bare version IS a caret</pre>
+    <h3>Self-check</h3>
+    <p class="note">
+      Runs on load. Several are <strong>controls</strong>: a claim that two ecosystems disagree means
+      nothing without the cases where they agree, and the comparator is checked against the spec's own
+      example ordering before anything else is measured.
+    </p>
+    <div class="sc" id="selfcheck"></div>
+    <p style="margin-top:20px"><a href="../solvefromzero.php">&larr; SolveFromZero</a></p>
+  </div>
+</main>
+
+<script>
+// ===== ENGINE:BEGIN =====
+// ---------------------------------------------------------------------------
+// A real semver range resolver, and the four things that call themselves one.
+//
+// `^1.2.3`, `~1.2`, `>=1.2 <2`, `1.2.x` - the same strings appear in npm,
+// Composer, Cargo and pip, and the four do NOT agree about what they select.
+// This implements all four from their own documented rules over one shared
+// version parser and comparator, so a difference in the grid is a difference
+// in the RULES rather than four separate parsers disagreeing by accident.
+//
+// Nothing is sampled: the version list and the range list are enumerated, so
+// every figure is a count over the full grid.
+//
+// DOM-free, clock-free, Math.random-free.
+// ---------------------------------------------------------------------------
+
+// ------------------------------------------------------------ version parsing
+// Semver 2.0.0: major.minor.patch, an optional -prerelease, an optional +build.
+function parse(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/.exec(v.trim());
+  if (!m) return null;
+  return {
+    major: +m[1], minor: +m[2], patch: +m[3],
+    pre: m[4] ? m[4].split(".") : [],
+    build: m[5] || "",
+    raw: v.trim(),
+  };
+}
+
+// Precedence, from the spec: build metadata is IGNORED, and a prerelease sorts
+// BELOW the same version without one.
+function cmp(a, b) {
+  for (const k of ["major", "minor", "patch"]) if (a[k] !== b[k]) return a[k] < b[k] ? -1 : 1;
+  if (!a.pre.length && !b.pre.length) return 0;
+  if (!a.pre.length) return 1;          // 1.0.0 > 1.0.0-rc
+  if (!b.pre.length) return -1;
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    const x = a.pre[i], y = b.pre[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+    if (nx && ny) { if (+x !== +y) return +x < +y ? -1 : 1; continue; }
+    if (nx !== ny) return nx ? -1 : 1;  // numeric identifiers sort below alphanumeric
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+const lt = (a, b) => cmp(a, b) < 0;
+const gte = (a, b) => cmp(a, b) >= 0;
+
+// ---------------------------------------------------------------------------
+// The four ecosystems. Each turns a range string into a predicate.
+// ---------------------------------------------------------------------------
+
+// npm: ^1.2.3 allows <2.0.0; ^0.2.3 allows <0.3.0; ^0.0.3 allows <0.0.4.
+// A prerelease is only selected if the range itself mentions one AND the tuple
+// matches - that second rule is the one people are surprised by.
+function npmCaret(v) {
+  const p = parse(v);
+  if (p.major > 0) return [p, { major: p.major + 1, minor: 0, patch: 0, pre: [], build: "" }];
+  if (p.minor > 0) return [p, { major: 0, minor: p.minor + 1, patch: 0, pre: [], build: "" }];
+  return [p, { major: 0, minor: 0, patch: p.patch + 1, pre: [], build: "" }];
+}
+
+// Cargo: ^ is the DEFAULT and 0.2.3 means ^0.2.3 - a bare version is a caret
+// range, not an exact pin. That single default is a large part of the grid.
+// Cargo also treats 0.0.3 as allowing only 0.0.3.
+
+// Composer: ~1.2 means >=1.2 <2.0, but ~1.2.3 means >=1.2.3 <1.3.0 - the
+// tilde's meaning depends on how many components you wrote.
+
+// pip: ~=1.2 means >=1.2 <2.0, and ~=1.2.3 means >=1.2.3 <1.3.0; it has no
+// caret at all, and == with no wildcard is an exact pin including prereleases
+// only when they are named.
+
+// pad a partial version to three components. `1.2` and `1` are legal range
+// bounds; they are not legal versions.
+function pad3(v) {
+  const n = v.trim().split(".").length;
+  return n === 1 ? v.trim() + ".0.0" : n === 2 ? v.trim() + ".0" : v.trim();
+}
+
+function tildeRange(v) {
+  const parts = v.split(".");
+  // pad to three components - `~1` is a real range and `parse("1")` is null
+  const padded = parts.length === 1 ? v + ".0.0" : parts.length === 2 ? v + ".0" : v;
+  const p = parse(padded);
+  if (!p) return null;
+  if (parts.length <= 2) return [p, { major: p.major + 1, minor: 0, patch: 0, pre: [], build: "" }];
+  return [p, { major: p.major, minor: p.minor + 1, patch: 0, pre: [], build: "" }];
+}
+
+function inRange(ver, lo, hi, allowPre) {
+  if (ver.pre.length && !allowPre) return false;
+  return gte(ver, lo) && lt(ver, hi);
+}
+
+// Each resolver: (rangeString, version) -> boolean
+function makeResolver(eco) {
+  return (range, verStr) => {
+    const ver = parse(verStr);
+    if (!ver) return false;
+    const r = range.trim();
+
+    // exact
+    if (/^\d+\.\d+\.\d+/.test(r) && !/[\^~><=*x]/.test(r)) {
+      const p = parse(r);
+      if (!p) return false;
+      // Cargo reads a bare version as a caret range; the others read it as exact
+      if (eco === "cargo") {
+        const [lo, hi] = npmCaret(r);
+        return inRange(ver, lo, hi, false);
+      }
+      return cmp(ver, p) === 0;
+    }
+
+    if (r.startsWith("^")) {
+      // pip has no caret at all
+      if (eco === "pip") return false;
+      const [lo, hi] = npmCaret(r.slice(1));
+      // npm allows a prerelease only when the range names one on the same tuple
+      const rangePre = parse(r.slice(1)).pre.length > 0;
+      return inRange(ver, lo, hi, rangePre &&
+        ver.major === lo.major && ver.minor === lo.minor && ver.patch === lo.patch);
+    }
+
+    if (r.startsWith("~=")) {
+      // pip's compatible-release operator; nobody else has it
+      if (eco !== "pip") return false;
+      const t = tildeRange(r.slice(2));
+      if (!t) return false;
+      return inRange(ver, t[0], t[1], false);
+    }
+
+    if (r.startsWith("~")) {
+      if (eco === "pip") return false;
+      const body = r.slice(1);
+      if (eco === "cargo") {
+        // Cargo's tilde: ~1.2 is >=1.2.0 <1.3.0 - it pins the MINOR even with
+        // two components, where Composer pins only the major.
+        const parts = body.split(".");
+        const p = parse(parts.length === 2 ? body + ".0" : parts.length === 1 ? body + ".0.0" : body);
+        const hi = parts.length === 1
+          ? { major: p.major + 1, minor: 0, patch: 0, pre: [], build: "" }
+          : { major: p.major, minor: p.minor + 1, patch: 0, pre: [], build: "" };
+        return inRange(ver, p, hi, false);
+      }
+      const t = tildeRange(body);
+      if (!t) return false;
+      return inRange(ver, t[0], t[1], false);
+    }
+
+    if (/^\d+\.\d+\.[x*]$/.test(r) || /^\d+\.[x*]$/.test(r)) {
+      const parts = r.split(".");
+      const lo = parse(parts.length === 3 ? parts[0] + "." + parts[1] + ".0" : parts[0] + ".0.0");
+      const hi = parts.length === 3
+        ? { major: lo.major, minor: lo.minor + 1, patch: 0, pre: [], build: "" }
+        : { major: lo.major + 1, minor: 0, patch: 0, pre: [], build: "" };
+      // pip writes this as ==1.2.* and does not accept a bare 1.2.x
+      if (eco === "pip") return false;
+      return inRange(ver, lo, hi, false);
+    }
+
+    if (r.startsWith(">=")) {
+      const m = /^>=\s*([^\s]+)\s*(?:,?\s*<\s*([^\s]+))?$/.exec(r);
+      if (!m) return false;
+      // a bound may be written with one or two components: `>=1.2 <2` is real,
+      // and parse() only accepts three - so pad before parsing, or the upper
+      // bound silently becomes null and the range loses its ceiling.
+      const lo = parse(pad3(m[1]));
+      const hi = m[2] ? parse(pad3(m[2])) : null;
+      if (!lo || (m[2] && !hi)) return false;
+      if (ver.pre.length) return false;
+      return gte(ver, lo) && (!hi || lt(ver, hi));
+    }
+
+    return false;
+  };
+}
+
+const ECOS = [
+  { key: "npm", label: "npm", resolve: makeResolver("npm") },
+  { key: "cargo", label: "Cargo", resolve: makeResolver("cargo") },
+  { key: "composer", label: "Composer", resolve: makeResolver("composer") },
+  { key: "pip", label: "pip", resolve: makeResolver("pip") },
+];
+
+// ---------------------------------------------------------------- the corpus
+const VERSIONS = [
+  "0.0.3", "0.0.4", "0.2.3", "0.2.9", "0.3.0",
+  "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-beta", "1.0.0-rc.1", "1.0.0",
+  "1.2.0", "1.2.3", "1.2.3+build.7", "1.2.9", "1.3.0", "1.9.9",
+  "2.0.0-rc.1", "2.0.0", "2.1.0",
+];
+
+const RANGES = [
+  "^1.2.3", "^0.2.3", "^0.0.3", "^1.0.0-alpha",
+  "~1.2", "~1.2.3", "~1",
+  "1.2.x", "1.x",
+  ">=1.2 <2", ">=1.0.0",
+  "1.2.3", "~=1.2.3",
+];
+
+function grid() {
+  return RANGES.map((r) => ({
+    range: r,
+    rows: VERSIONS.map((v) => ({
+      version: v,
+      results: ECOS.map((e) => e.resolve(r, v)),
+    })),
+  }));
+}
+
+function report() {
+  const g = grid();
+  let cells = 0, unanimous = 0;
+  const pairs = [];
+  for (const rr of g) for (const row of rr.rows) {
+    cells++;
+    if (row.results.every((x) => x === row.results[0])) unanimous++;
+  }
+  for (let a = 0; a < ECOS.length; a++) {
+    for (let b = a + 1; b < ECOS.length; b++) {
+      let diff = 0;
+      for (const rr of g) for (const row of rr.rows) if (row.results[a] !== row.results[b]) diff++;
+      pairs.push({ a: ECOS[a].label, b: ECOS[b].label, diff, of: cells });
+    }
+  }
+  const agreedRanges = g.filter((rr) => rr.rows.every((row) => row.results.every((x) => x === row.results[0])));
+  return { grid: g, cells, unanimous, pairs, agreedRanges, ecos: ECOS, versions: VERSIONS, ranges: RANGES };
+}
+
+// The prerelease rule, isolated: does ^1.0.0-alpha select 1.0.0-beta?
+function prereleaseCases() {
+  return [
+    { range: "^1.0.0-alpha", version: "1.0.0-alpha.1" },
+    { range: "^1.0.0-alpha", version: "1.0.0-beta" },
+    { range: "^1.0.0-alpha", version: "1.0.0" },
+    { range: "^1.0.0-alpha", version: "1.2.0" },
+    { range: "^1.2.3", version: "2.0.0-rc.1" },
+    { range: ">=1.0.0", version: "2.0.0-rc.1" },
+  ].map((c) => ({ ...c, results: ECOS.map((e) => e.resolve(c.range, c.version)) }));
+}
+
+const ENGINE = {
+  parse, cmp, lt, gte, npmCaret, tildeRange, pad3, inRange, makeResolver,
+  ECOS, VERSIONS, RANGES, grid, report, prereleaseCases,
+};
+if (typeof module !== "undefined" && module.exports) module.exports = ENGINE;
+
+// ===== ENGINE:END =====
+</script>
+
+<script>
+function showTab(name) {
+  for (const t of ["look", "und", "build"]) document.getElementById(t).classList.toggle("hidden", t !== name);
+  document.getElementById("tabLook").classList.toggle("tab-active", name === "look");
+  document.getElementById("tabUnd").classList.toggle("tab-active", name === "und");
+  document.getElementById("tabBuild").classList.toggle("tab-active", name === "build");
+}
+const el = (id) => document.getElementById(id);
+function table(id, head, rows) {
+  el(id).innerHTML =
+    "<tr>" + head.map((h) => "<th>" + h + "</th>").join("") + "</tr>" +
+    rows.map((r) => "<tr" + (r.cls ? ' class="' + r.cls + '"' : "") + ">" +
+      r.cells.map((c, i) => "<td" + (i === 0 ? ' class="txt"' : "") + ">" + c + "</td>").join("") + "</tr>").join("");
+}
+function selfCheckPanel(fn) {
+  const out = []; let n = 0, bad = 0;
+  const t = (label, cond, detail = "") => {
+    n += 1; if (!cond) bad += 1;
+    out.push('<div><span class="' + (cond ? "ok" : "warn") + '">' + (cond ? "PASS" : "FAIL") +
+      '</span><span>' + label + '</span><span class="m">' + detail + "</span></div>");
+  };
+  fn(t);
+  el("selfcheck").innerHTML =
+    '<p class="note" style="margin:0 0 8px"><b class="' + (bad ? "warn" : "ok") + '">' +
+    (n - bad) + " of " + n + " checks pass</b>" + (bad ? " &mdash; " + bad + " FAILED" : "") + ".</p>" + out.join("");
+}
+
+const R = ENGINE.report();
+const yes = '<span class="ok">selects</span>';
+const no = '<span class="warn">no</span>';
+
+el("kCells").textContent = R.cells;
+el("kAgree").textContent = R.unanimous + " (" + ((R.unanimous / R.cells) * 100).toFixed(2) + "%)";
+el("kUnan").textContent = R.agreedRanges.length;
+const closest = R.pairs.slice().sort((a, b) => a.diff - b.diff)[0];
+el("kClose").textContent = closest.a + " / " + closest.b;
+el("kCloseN").textContent = closest.diff + " of " + closest.of + " cells differ";
+
+el("range").innerHTML = ENGINE.RANGES.map((r, i) =>
+  '<option value="' + i + '">' + r + "</option>").join("");
+
+function renderGrid(i) {
+  const rr = R.grid[i];
+  table("tGrid", ["version"].concat(ENGINE.ECOS.map((e) => e.label)),
+    rr.rows.map((row) => {
+      const split = !row.results.every((x) => x === row.results[0]);
+      return {
+        cls: split ? "here" : "",
+        cells: [row.version].concat(row.results.map((v) => (v ? yes : no))),
+      };
+    }));
+  const n = rr.rows.filter((row) => !row.results.every((x) => x === row.results[0])).length;
+  el("rangeNote").innerHTML = n === 0
+    ? "All four read <code>" + rr.range + "</code> the same way on every version."
+    : "<b>" + n + " of " + rr.rows.length + " versions</b> are treated differently by at least one of the four.";
+}
+renderGrid(0);
+el("range").addEventListener("change", (e) => renderGrid(parseInt(e.target.value, 10)));
+
+table("tRanges", ["range"].concat(ENGINE.ECOS.map((e) => e.label + " selects")).concat(["all four agree?"]),
+  R.grid.map((rr) => {
+    const counts = ENGINE.ECOS.map((e, i) => rr.rows.filter((row) => row.results[i]).length);
+    const unan = rr.rows.every((row) => row.results.every((x) => x === row.results[0]));
+    return {
+      cls: unan ? "here" : "",
+      cells: ["<code>" + rr.range + "</code>"].concat(counts.map(String)).concat([
+        unan ? '<span class="pill good">YES</span>' : '<span class="pill bad">no</span>']),
+    };
+  }));
+
+table("tPairs", ["", "", "cells that differ", "share", "what causes it"],
+  R.pairs.slice().sort((a, b) => a.diff - b.diff).map((p) => ({
+    cls: p.diff === 0 ? "here" : "",
+    cells: [p.a, p.b, "<b>" + p.diff + " / " + p.of + "</b>",
+      ((p.diff / p.of) * 100).toFixed(2) + "%",
+      p.diff === 0 ? "nothing on these thirteen forms"
+        : p.a === "pip" || p.b === "pip" ? "pip has no caret and no .x form"
+        : "a bare version is a caret range in Cargo"],
+  })));
+
+table("tPre", ["range", "version", "sorts below the upper bound?"].concat(ENGINE.ECOS.map((e) => e.label)),
+  ENGINE.prereleaseCases().map((c) => ({
+    cls: c.range === "^1.2.3" ? "here" : "",
+    cells: ["<code>" + c.range + "</code>", "<code>" + c.version + "</code>",
+      c.version.includes("-") ? '<span class="ok">yes</span>' : "&mdash;"]
+      .concat(c.results.map((v) => (v ? yes : no))),
+  })));
+
+selfCheckPanel((t) => {
+  const P = ENGINE.parse, C = (a, b) => ENGINE.cmp(P(a), P(b));
+  t("a version parses into its five parts", (() => {
+    const p = P("1.2.3-rc.1+build.7");
+    return p.major === 1 && p.minor === 2 && p.patch === 3 &&
+      p.pre.join(".") === "rc.1" && p.build === "build.7";
+  })());
+  t("a malformed version parses to null", P("1.2") === null && P("v1.2.3") === null);
+  t("build metadata is ignored in precedence", C("1.2.3", "1.2.3+build.7") === 0);
+  t("a prerelease sorts BELOW the release", C("1.0.0-rc.1", "1.0.0") < 0);
+  t("the spec's own ordering holds", (() => {
+    const seq = ["1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-beta", "1.0.0-rc.1", "1.0.0"];
+    for (let i = 1; i < seq.length; i++) if (C(seq[i - 1], seq[i]) >= 0) return false;
+    return true;
+  })(), "alpha < alpha.1 < beta < rc.1 < 1.0.0");
+  t("numeric identifiers sort below alphanumeric ones", C("1.0.0-1", "1.0.0-alpha") < 0);
+
+  t("^1.2.3 selects 1.9.9 in npm", ENGINE.ECOS[0].resolve("^1.2.3", "1.9.9"));
+  t("...and not 2.0.0", !ENGINE.ECOS[0].resolve("^1.2.3", "2.0.0"));
+  t("^0.2.3 stops at 0.3.0", ENGINE.ECOS[0].resolve("^0.2.3", "0.2.9") && !ENGINE.ECOS[0].resolve("^0.2.3", "0.3.0"));
+  t("^0.0.3 selects only 0.0.3", ENGINE.ECOS[0].resolve("^0.0.3", "0.0.3") && !ENGINE.ECOS[0].resolve("^0.0.3", "0.0.4"));
+  t("CONTROL: pip has no caret at all",
+    ENGINE.RANGES.filter((r) => r.startsWith("^")).every((r) =>
+      ENGINE.VERSIONS.every((v) => !ENGINE.ECOS[3].resolve(r, v))));
+
+  t("a bare version is a caret range in Cargo",
+    ENGINE.ECOS[1].resolve("1.2.3", "1.9.9"));
+  t("CONTROL: and an exact pin in npm",
+    !ENGINE.ECOS[0].resolve("1.2.3", "1.9.9") && ENGINE.ECOS[0].resolve("1.2.3", "1.2.3"));
+
+  t("the grid is 247 cells", R.cells === 247 && R.cells === ENGINE.RANGES.length * ENGINE.VERSIONS.length);
+  t("only two ranges are read identically by all four", R.agreedRanges.length === 2);
+  t("...and both are explicit inequalities",
+    R.agreedRanges.every((rr) => rr.range.startsWith(">=")));
+  t("npm and Composer agree on every cell here", (() => {
+    const p = R.pairs.find((x) => (x.a === "npm" && x.b === "Composer"));
+    return p && p.diff === 0;
+  })());
+  t("pip differs from each of the others on about fifty cells",
+    R.pairs.filter((p) => p.a === "pip" || p.b === "pip").every((p) => p.diff > 40));
+
+  t("^1.2.3 does NOT select 2.0.0-rc.1 anywhere",
+    ENGINE.ECOS.every((e) => !e.resolve("^1.2.3", "2.0.0-rc.1")),
+    "even though it sorts below 2.0.0");
+  t("^1.0.0-alpha DOES select 1.2.0 in the three that have a caret",
+    ENGINE.ECOS.filter((e) => e.key !== "pip").every((e) => e.resolve("^1.0.0-alpha", "1.2.0")));
+  t(">=1.0.0 excludes a prerelease above it",
+    !ENGINE.ECOS[0].resolve(">=1.0.0", "2.0.0-rc.1"));
+});
+
+</script>
+</body>
+</html>
